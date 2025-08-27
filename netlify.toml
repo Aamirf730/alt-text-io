@@ -10,6 +10,10 @@
   # REACT_APP_SUPABASE_ANON_KEY
   # REACT_APP_BACKEND_URL
 
+# Explicitly disable plugins to prevent neon extension issues
+[plugins]
+  # No plugins configured - removed problematic neon-buildhooks plugin
+
 # SPA fallback for React Router - this is crucial for fixing 404 errors
 [[redirects]]
   from = "/*"
@@ -28,4 +32,4 @@
 # SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 # GEMINI_API_KEY=your_gemini_api_key
 # REACT_APP_SUPABASE_URL=your_supabase_project_url
-# REACT_APP_SUPABASE_ANON_KEY=your_supabase_anon_key 
+# REACT_APP_SUPABASE_ANON_KEY=your_supabase_anon_key
