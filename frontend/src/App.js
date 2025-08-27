@@ -256,29 +256,43 @@ const LandingPage = () => {
       id: "free_trial",
       name: "Free Trial",
       price: 0,
-      credits: 100,
+      credits: 30,
       billing: "one-time",
-      features: ["100 AI-generated alt-texts", "Basic support", "WordPress plugin", "No credit card required"],
+      features: ["30 AI-generated alt-texts", "Basic support", "WordPress plugin", "No credit card required"],
       popular: false,
       color: "from-teal-500 to-teal-600"
     },
     {
-      id: "starter",
-      name: "Starter",
-      price: 9,
+      id: "starter_pack",
+      name: "Starter Pack",
+      price: 5,
       credits: 1000,
-      billing: "monthly",
-      features: ["1000 alt-texts/month", "Priority support", "SEO optimization", "Bulk processing", "Advanced analytics"],
+      billing: "one-time",
+      features: ["1000 AI alt-texts", "No expiration", "Priority support", "SEO optimization", "Bulk processing"],
       popular: true,
       color: "from-teal-500 to-teal-600"
     },
     {
-      id: "pro",
-      name: "Pro",
-      price: 19,
+      id: "growth_pack",
+      name: "Growth Pack",
+      price: 10,
+      credits: 2500,
+      billing: "one-time",
+      features: ["2500 AI alt-texts", "No expiration", "Premium support", "Advanced analytics", "API access"],
+      popular: false,
+      color: "from-teal-600 to-teal-700"
+    },
+    {
+      id: "pro_pack",
+      name: "Pro Pack",
+      price: 20,
       credits: 5000,
-      billing: "monthly",
-      features: ["5000 alt-texts/month", "Premium support", "Advanced API access", "Detailed analytics", "Custom integrations"],
+      billing: "one-time",
+      features: ["5000 AI alt-texts", "No expiration", "Premium support", "Advanced API access", "Custom integrations"],
+      popular: false,
+      color: "from-teal-700 to-teal-800"
+    }
+  ];      features: ["5000 alt-texts/month", "Premium support", "Advanced API access", "Detailed analytics", "Custom integrations"],
       popular: false,
       color: "from-teal-600 to-teal-700"
     },
@@ -607,7 +621,7 @@ const LandingPage = () => {
               Simple, Transparent Pricing
             </h2>
             <p className="text-xl text-slate-600">
-              Choose the plan that fits your needs. Start free, scale as you grow.
+              Pay-as-you-go pricing with no monthly commitments. Buy credits once, use them anytime.
             </p>
           </div>
 
@@ -630,7 +644,7 @@ const LandingPage = () => {
                   <CardTitle className="text-xl mb-2">{plan.name}</CardTitle>
                   <div className="mb-4">
                     <span className="text-4xl font-bold text-slate-800">${plan.price}</span>
-                    <span className="text-slate-500">/{plan.billing === 'monthly' ? 'mo' : plan.billing}</span>
+                    <span className="text-slate-500">/{plan.billing === 'one-time' ? 'one-time' : plan.billing}</span>
                   </div>
                   <p className="text-emerald-600 font-semibold">{plan.credits} alt-texts</p>
                 </CardHeader>
@@ -676,7 +690,7 @@ const LandingPage = () => {
               <div className="text-center mb-4">
                 <span className="text-4xl font-bold text-gray-900">${selectedPlan.price}</span>
                 <span className="text-gray-600 ml-2">
-                  {selectedPlan.billing === 'monthly' ? '/month' : selectedPlan.billing === 'credits' ? ' for ' + selectedPlan.credits + ' credits' : ''}
+                  {selectedPlan.billing === 'one-time' ? ' one-time' : ''}
                 </span>
               </div>
               
