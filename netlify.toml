@@ -10,10 +10,6 @@
   # REACT_APP_SUPABASE_ANON_KEY
   # REACT_APP_BACKEND_URL
 
-# Explicitly disable plugins to prevent neon extension issues
-[plugins]
-  # No plugins configured - removed problematic neon-buildhooks plugin
-
 # SPA fallback for React Router - this is crucial for fixing 404 errors
 [[redirects]]
   from = "/*"
