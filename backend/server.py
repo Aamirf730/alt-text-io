@@ -17,7 +17,32 @@ from io import BytesIO
 from PIL import Image
 
 # Emergent integrations for Gemini
-from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
+try:
+    from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
+except ImportError:
+    # Fallback mock implementation if package is not available
+    import warnings
+    warnings.warn("emergentintegrations not found, using mock implementation")
+    class ImageContent:
+        def __init__(self, image_base64: str):
+            self.image_base64 = image_base64
+    
+    class UserMessage:
+        def __init__(self, text: str, file_contents: list = None):
+            self.text = text
+            self.file_contents = file_contents or []
+    
+    class LlmChat:
+        def __init__(self, api_key: str, session_id: str, system_message: str):
+            self.api_key = api_key
+            self.session_id = session_id
+            self.system_message = system_message
+        
+        def with_model(self, provider: str, model: str):
+            return self
+        
+        async def send_message(self, message: UserMessage) -> str:
+            return "A descriptive alt-text generated for the image (mock implementation)"
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -41,8 +66,8 @@ class User(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     email: str
     api_token: str
-    subscription_plan: str = "free_trial"  # free_trial, starter_pack, growth_pack, pro_pack
-    credits_remaining: int = 30
+    subscription_plan: str = "free_trial"  # free_trial, tier1, tier2, tier3
+    credits_remaining: int = 100
     total_processed: int = 0
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     expires_at: Optional[datetime] = None
@@ -69,14 +94,14 @@ class UsageStats(BaseModel):
     plan_expires: Optional[datetime]
 
 class SubscriptionUpdate(BaseModel):
-    plan: str  # starter, pro, pay_as_go
+    plan: str  # free_trial, tier1, tier2, tier3
 
 # Subscription plans configuration
 SUBSCRIPTION_PLANS = {
-    "free_trial": {"credits": 30, "price": 0, "duration_days": None},
-    "starter": {"credits": 500, "price": 5, "duration_days": 30},
-    "pro": {"credits": 2000, "price": 10, "duration_days": 30},
-    "pay_as_go": {"credits": 50, "price": 3, "duration_days": None}
+    "free_trial": {"credits": 100, "price": 0, "duration_days": None},
+    "tier1": {"credits": 1000, "price": 15, "duration_days": 30},
+    "tier2": {"credits": 2500, "price": 25, "duration_days": 30},
+    "tier3": {"credits": 5000, "price": 45, "duration_days": 30}
 }
 
 # Helper functions
@@ -102,12 +127,12 @@ async def verify_api_token(credentials: HTTPAuthorizationCredentials = Depends(s
             {"id": user.id},
             {"$set": {
                 "subscription_plan": "free_trial",
-                "credits_remaining": 30,
+                "credits_remaining": 100,
                 "expires_at": None
             }}
         )
         user.subscription_plan = "free_trial"
-        user.credits_remaining = 30
+        user.credits_remaining = 100
         user.expires_at = None
     
     return user
@@ -119,7 +144,7 @@ async def generate_alt_text_with_gemini(image_base64: str, context: str = None) 
             api_key=os.environ.get('GEMINI_API_KEY'),
             session_id=f"alttext_{uuid.uuid4()}",
             system_message="You are an expert at creating SEO-friendly, descriptive alt-text for images. Generate concise, descriptive alt-text that helps visually impaired users understand the image content while being SEO-optimized."
-        ).with_model("gemini", "gemini-2.0-flash")
+        ).with_model("gemini", "gemini-2.5-flash")
 
         # Create image content
         image_content = ImageContent(image_base64=image_base64)
@@ -161,7 +186,7 @@ async def register_user(user_data: UserCreate):
         email=user_data.email,
         api_token=api_token,
         subscription_plan="free_trial",
-        credits_remaining=30
+        credits_remaining=100
     )
     
     await db.users.insert_one(user.dict())
@@ -277,35 +302,35 @@ async def get_subscription_plans():
         "plans": [
             {
                 "id": "free_trial",
-                "name": "Free Trial",
+                "name": "Free",
                 "price": 0,
-                "credits": 30,
+                "credits": 100,
                 "billing_cycle": "one-time",
-                "features": ["30 AI-generated alt-texts", "Basic support"]
+                "features": ["100 AI-generated alt-texts", "Basic support", "API access"]
             },
             {
-                "id": "starter",
-                "name": "Starter",
-                "price": 5,
-                "credits": 500,
+                "id": "tier1",
+                "name": "Tier 1",
+                "price": 15,
+                "credits": 1000,
                 "billing_cycle": "monthly",
-                "features": ["500 AI-generated alt-texts/month", "Priority support", "SEO optimization"]
+                "features": ["1,000 AI-generated alt-texts/month", "Priority support", "API access", "Bulk processing"]
             },
             {
-                "id": "pro",
-                "name": "Pro",
-                "price": 10,
-                "credits": 2000,
+                "id": "tier2",
+                "name": "Tier 2",
+                "price": 25,
+                "credits": 2500,
                 "billing_cycle": "monthly",
-                "features": ["2000 AI-generated alt-texts/month", "Premium support", "Bulk processing", "API access"]
+                "features": ["2,500 AI-generated alt-texts/month", "Premium support", "Advanced API access", "Priority processing", "Bulk processing", "Custom integrations"]
             },
             {
-                "id": "pay_as_go",
-                "name": "Pay-as-you-go",
-                "price": 3,
-                "credits": 50,
-                "billing_cycle": "credits",
-                "features": ["50 AI-generated alt-texts", "No expiration", "Flexible usage"]
+                "id": "tier3",
+                "name": "Tier 3",
+                "price": 45,
+                "credits": 5000,
+                "billing_cycle": "monthly",
+                "features": ["5,000 AI-generated alt-texts/month", "Premium support", "Advanced API access", "Priority processing", "Unlimited bulk processing", "Dedicated support"]
             }
         ]
     }
