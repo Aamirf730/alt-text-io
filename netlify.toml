@@ -1,10 +1,12 @@
 [build]
+  base = "."
   publish = "frontend/build"
   command = "cd frontend && yarn install && yarn build"
   functions = "netlify-functions"
-
+  
 [build.environment]
   NODE_VERSION = "18"
+  YARN_VERSION = "1.22.22"
   # These environment variables will be pulled from Netlify dashboard
   # REACT_APP_SUPABASE_URL
   # REACT_APP_SUPABASE_ANON_KEY
