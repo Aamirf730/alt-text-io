@@ -1,7 +1,7 @@
 [build]
   base = "."
   publish = "frontend/build"
-  command = "cd frontend && yarn install --ignore-engines --frozen-lockfile && NODE_ENV=production yarn build"
+  command = "cd frontend && yarn install --ignore-engines --frozen-lockfile --production=false && NODE_ENV=production yarn build"
   functions = "netlify-functions"
   
 [build.environment]
