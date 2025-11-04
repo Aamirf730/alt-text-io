@@ -1,6 +1,6 @@
 # WordPress Plugin Integration - Netlify Functions
 
-This directory contains the Netlify functions that power the WordPress plugin integration for Alt-Text AI.
+This directory contains the Netlify functions that power the WordPress plugin integration for Alt Text Pro.
 
 ## 🚀 Available Endpoints
 
@@ -119,7 +119,7 @@ In your WordPress plugin settings, configure:
 
 ```php
 // API Base URL
-$api_base_url = 'https://alt-text-ai.netlify.app/.netlify/functions';
+$api_base_url = 'https://www.alt-text.pro/.netlify/functions';
 
 // Endpoints
 $endpoints = [
@@ -144,7 +144,7 @@ You can test the endpoints using tools like:
 
 **Generate Alt-Text:**
 ```bash
-curl -X POST https://alt-text-ai.netlify.app/.netlify/functions/generate-alt-text \
+curl -X POST https://www.alt-text.pro/.netlify/functions/generate-alt-text \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"image_base64": "test_image_data", "context": "test"}'
@@ -152,13 +152,13 @@ curl -X POST https://alt-text-ai.netlify.app/.netlify/functions/generate-alt-tex
 
 **Get Usage:**
 ```bash
-curl -X GET https://alt-text-ai.netlify.app/.netlify/functions/get-usage \
+curl -X GET https://www.alt-text.pro/.netlify/functions/get-usage \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
 
 **Validate Token:**
 ```bash
-curl -X POST https://alt-text-ai.netlify.app/.netlify/functions/auth/validate \
+curl -X POST https://www.alt-text.pro/.netlify/functions/auth/validate \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json"
 ```

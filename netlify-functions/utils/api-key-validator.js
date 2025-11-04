@@ -15,32 +15,70 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
  */
 async function validateApiKey(apiKey) {
   try {
-    // Check if API key format is correct (starts with altai_)
-    if (!apiKey || !apiKey.startsWith('altai_')) {
+    // Check if API key format is correct (accepts both altai_ and alt_ formats)
+    if (!apiKey || (!apiKey.startsWith('altai_') && !apiKey.startsWith('alt_'))) {
+      console.log('API key format invalid:', apiKey ? apiKey.substring(0, 10) + '...' : 'empty');
       return null;
     }
 
-    // Try to find user by API key in the users table
-    try {
+      // Try to find API key in api_keys table (new system)
+      try {
+        const { data: apiKeyRecord, error: apiKeyError } = await supabase
+          .from('api_keys')
+          .select('*')
+          .eq('api_key', apiKey)
+          .eq('is_active', true)
+          .single();
+
+        if (!apiKeyError && apiKeyRecord && apiKeyRecord.user_id) {
+          console.log('🔑 Found API key in api_keys table, user_id:', apiKeyRecord.user_id);
+          
+          // Get user profile separately
+          const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', apiKeyRecord.user_id)
+            .single();
+          
+          // If profile not found, try to get from auth.users
+          let userEmail = `user_${apiKeyRecord.user_id}@example.com`;
+          if (profileError) {
+            try {
+              const { data: authUser } = await supabase.auth.admin.getUserById(apiKeyRecord.user_id);
+              if (authUser?.user?.email) {
+                userEmail = authUser.user.email;
+              }
+            } catch (e) {
+              console.log('Could not get user email from auth');
+            }
+          }
+          
+          return {
+            id: apiKeyRecord.user_id,
+            email: profile?.email || userEmail,
+            apiKey: apiKeyRecord.api_key,
+            credits_remaining: profile?.credits_remaining || 100,
+            total_processed: profile?.total_processed || 0,
+            plan: profile?.subscription_plan || 'free',
+            created_at: apiKeyRecord.created_at,
+            updated_at: apiKeyRecord.updated_at
+          };
+        }
+
+      // Fallback: Try old users table (for backward compatibility)
       const { data: users, error } = await supabase
         .from('users')
         .select('*')
         .eq('api_key', apiKey)
         .single();
 
-      if (error) {
-        // Table might not exist, create it and the user
-        console.log('Users table not found, creating table and user');
-        return await createUserAndTable(apiKey);
-      }
-
-      if (users) {
-        console.log('🔑 Found user in Supabase:', users.email, 'Credits:', users.credits_remaining);
+      if (!error && users) {
+        console.log('🔑 Found user in users table (legacy)');
         return {
           id: users.id,
           email: users.email,
           apiKey: users.api_key,
-          credits_remaining: users.credits_remaining || 30,
+          credits_remaining: users.credits_remaining || 100,
           total_processed: users.total_processed || 0,
           plan: users.plan || 'Free Trial',
           created_at: users.created_at,
@@ -48,11 +86,11 @@ async function validateApiKey(apiKey) {
         };
       }
 
+      console.log('API key not found in any table');
       return null;
-    } catch (tableError) {
-      // Table doesn't exist, create it and the user
-      console.log('Creating users table and user for API key:', apiKey);
-      return await createUserAndTable(apiKey);
+    } catch (error) {
+      console.error('API key validation error:', error);
+      return null;
     }
     
   } catch (error) {

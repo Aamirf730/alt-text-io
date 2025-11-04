@@ -27,46 +27,38 @@ exports.handler = async (event, context) => {
   }
 
   try {
-    // Return hardcoded pay-as-you-go pricing plans
-    const plans = [
-      {
-        id: "free_trial",
-        name: "Free Trial",
-        price: 0,
-        credits: 30,
-        billing_cycle: "one-time",
-        features: ["30 AI-generated alt-texts", "Basic support", "WordPress plugin", "No credit card required"]
-      },
-      {
-        id: "starter_pack",
-        name: "Starter Pack",
-        price: 5,
-        credits: 1000,
-        billing_cycle: "one-time",
-        features: ["1000 AI alt-texts", "No expiration", "Priority support", "SEO optimization", "Bulk processing"]
-      },
-      {
-        id: "growth_pack",
-        name: "Growth Pack",
-        price: 10,
-        credits: 2500,
-        billing_cycle: "one-time",
-        features: ["2500 AI alt-texts", "No expiration", "Premium support", "Advanced analytics", "API access"]
-      },
-      {
-        id: "pro_pack",
-        name: "Pro Pack",
-        price: 20,
-        credits: 5000,
-        billing_cycle: "one-time",
-        features: ["5000 AI alt-texts", "No expiration", "Premium support", "Advanced API access", "Custom integrations"]
-      }
-    ];
+    // Fetch plans from database
+    const { data: plans, error } = await supabase
+      .from('subscription_plans')
+      .select('*')
+      .order('price', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching plans:', error);
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Failed to fetch plans' }),
+      };
+    }
+
+    // Transform plans to include annual pricing and format features
+    const formattedPlans = plans.map(plan => ({
+      id: plan.id,
+      name: plan.name,
+      price: parseFloat(plan.price),
+      annual_price: plan.annual_price ? parseFloat(plan.annual_price) : null,
+      credits: plan.credits,
+      billing_cycle: plan.billing_cycle,
+      features: Array.isArray(plan.features) ? plan.features : (plan.features ? JSON.parse(plan.features) : []),
+      is_popular: plan.is_popular || false,
+      per_credit_cost: plan.per_credit_cost ? parseFloat(plan.per_credit_cost) : null
+    }));
 
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ plans }),
+      body: JSON.stringify({ plans: formattedPlans }),
     };
 
   } catch (error) {

@@ -1,0 +1,150 @@
+// Netlify Function to Get User Subscription Details
+// File: netlify-functions/get-subscription.js
+
+const { createClient } = require('@supabase/supabase-js');
+
+// Initialize Supabase client
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+exports.handler = async (event, context) => {
+  // Enable CORS
+  const headers = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  };
+
+  // Handle preflight OPTIONS request
+  if (event.httpMethod === 'OPTIONS') {
+    return {
+      statusCode: 200,
+      headers,
+      body: '',
+    };
+  }
+
+  if (event.httpMethod !== 'GET') {
+    return {
+      statusCode: 405,
+      headers,
+      body: JSON.stringify({ error: 'Method not allowed' }),
+    };
+  }
+
+  try {
+    // Get authorization token
+    const authHeader = event.headers.authorization;
+    if (!authHeader) {
+      return {
+        statusCode: 401,
+        headers,
+        body: JSON.stringify({ error: 'Authorization header required' }),
+      };
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+    
+    // Verify user authentication
+    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !authUser) {
+      return {
+        statusCode: 401,
+        headers,
+        body: JSON.stringify({ error: 'Invalid or expired token' }),
+      };
+    }
+
+    // Get user profile with subscription details
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select(`
+        subscription_plan,
+        credits_remaining,
+        total_processed,
+        subscription_status,
+        subscription_id,
+        next_billing_date,
+        created_at,
+        updated_at
+      `)
+      .eq('id', authUser.id)
+      .single();
+
+    if (profileError || !profile) {
+      return {
+        statusCode: 404,
+        headers,
+        body: JSON.stringify({ error: 'User profile not found' }),
+      };
+    }
+
+    // Get subscription plan details
+    const { data: planDetails, error: planError } = await supabase
+      .from('subscription_plans')
+      .select('*')
+      .eq('id', profile.subscription_plan)
+      .single();
+
+    if (planError) {
+      console.error('Plan details error:', planError);
+    }
+
+    // Get recent payments
+    const { data: payments, error: paymentsError } = await supabase
+      .from('payments')
+      .select('*')
+      .eq('user_id', authUser.id)
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    if (paymentsError) {
+      console.error('Payments error:', paymentsError);
+    }
+
+    // Get usage history
+    const { data: usageHistory, error: usageError } = await supabase
+      .from('usage_logs')
+      .select('*')
+      .eq('user_id', authUser.id)
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    if (usageError) {
+      console.error('Usage history error:', usageError);
+    }
+
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({
+        user: {
+          id: authUser.id,
+          email: authUser.email
+        },
+        subscription: {
+          plan: profile.subscription_plan,
+          status: profile.subscription_status,
+          subscription_id: profile.subscription_id,
+          next_billing_date: profile.next_billing_date,
+          credits_remaining: profile.credits_remaining,
+          total_processed: profile.total_processed,
+          created_at: profile.created_at,
+          updated_at: profile.updated_at
+        },
+        plan_details: planDetails || null,
+        recent_payments: payments || [],
+        usage_history: usageHistory || []
+      }),
+    };
+
+  } catch (error) {
+    console.error('Get subscription error:', error);
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ error: 'Internal server error' }),
+    };
+  }
+};
