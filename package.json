@@ -1,0 +1,14 @@
+{
+  "name": "alt-text-pro",
+  "version": "1.0.0",
+  "description": "Alt Text Pro - AI-powered alt-text generation SaaS",
+  "private": true,
+  "dependencies": {
+    "@google/generative-ai": "^0.2.1",
+    "@supabase/supabase-js": "^2.56.0"
+  },
+  "engines": {
+    "node": "18"
+  }
+}
+
