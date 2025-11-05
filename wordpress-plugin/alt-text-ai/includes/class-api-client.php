@@ -58,16 +58,32 @@ class AltTextAI_API_Client {
             // Treat known placeholder responses as failures so users see actionable errors
             if (is_string($alt_text)) {
                 $normalized = strtolower(trim($alt_text));
+                $normalized = preg_replace('/[^\w\s]/', '', $normalized); // Strip punctuation for reliable matching
+
                 $placeholders = array(
                     'image description unavailable',
                     'alt text unavailable',
-                    'description unavailable'
+                    'description unavailable',
+                    'no description available',
+                    'alt text not available'
                 );
 
-                if (in_array($normalized, $placeholders, true)) {
+                foreach ($placeholders as $placeholder) {
+                    if ($normalized === $placeholder || strpos($normalized, $placeholder) !== false) {
+                        error_log('Alt Text Pro API: Placeholder response detected, treating as error.');
+                        return array(
+                            'success' => false,
+                            'message' => __('The API returned a placeholder response. Please try again or check the server logs.', 'alt-text-ai'),
+                            'data' => $response['data']
+                        );
+                    }
+                }
+
+                // Guard against empty strings after normalization
+                if ($normalized === '') {
                     return array(
                         'success' => false,
-                        'message' => __('The API returned a placeholder response. Please try again or check the server logs.', 'alt-text-ai'),
+                        'message' => __('The API returned an empty description. Please try again.', 'alt-text-ai'),
                         'data' => $response['data']
                     );
                 }

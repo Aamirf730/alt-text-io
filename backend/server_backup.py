@@ -145,7 +145,7 @@ async def generate_alt_text_with_gemini(image_base64: str, context: str = None) 
         
     except Exception as e:
         logging.error(f"Error generating alt-text with Gemini: {str(e)}")
-        return "Image description unavailable"
+        raise RuntimeError(f"Gemini API error: {str(e)}") from e
 
 # Auth endpoints
 @api_router.post("/auth/register")

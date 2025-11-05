@@ -187,7 +187,7 @@ async def generate_alt_text_with_gemini(image_base64: str, context: str = None) 
     
     except Exception as e:
         logging.error(f"Error in generate_alt_text_with_gemini: {e}")
-        return "Error generating alt-text"
+        raise RuntimeError(f"Gemini API error: {str(e)}") from e
 
 # Health check endpoint
 @api_router.get("/health")

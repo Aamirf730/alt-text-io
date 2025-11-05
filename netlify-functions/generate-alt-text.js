@@ -28,18 +28,50 @@ function detectImageMimeType(imageBase64) {
   }
 }
 
+function isPlaceholderAltText(text) {
+  if (!text || typeof text !== 'string') {
+    return true;
+  }
+
+  const normalized = text
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s]/g, '');
+
+  if (!normalized) {
+    return true;
+  }
+
+  const placeholders = [
+    'image description unavailable',
+    'alt text unavailable',
+    'description unavailable',
+    'no description available',
+    'alt text not available'
+  ];
+
+  return placeholders.some(placeholder => normalized === placeholder || normalized.includes(placeholder));
+}
+
+function createGeminiError(message, statusCode = 502) {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
+}
+
 // Gemini AI integration
 async function generateAltTextWithGemini(imageBase64, context = null) {
-  try {
-    const { GoogleGenerativeAI } = require('@google/generative-ai');
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    
-    // Detect the actual image MIME type
-    const mimeType = detectImageMimeType(imageBase64);
-    console.log('Detected image MIME type:', mimeType);
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw createGeminiError('GEMINI_API_KEY is not configured', 500);
+  }
 
-    // Ultra-strict prompt - MUST output single sentence only
-    let prompt = `Generate an alt-text description for this image. You must output ONLY one sentence with no formatting.
+  // Detect the actual image MIME type
+  const mimeType = detectImageMimeType(imageBase64);
+  console.log('Detected image MIME type:', mimeType);
+
+  // Ultra-strict prompt - MUST output single sentence only
+  let prompt = `Generate an alt-text description for this image. You must output ONLY one sentence with no formatting.
 
 CRITICAL: Your response must be EXACTLY like these examples (copy this format):
 Business team collaborating around conference table in modern office with laptops and documents.
@@ -63,40 +95,87 @@ OUTPUT FORMAT REQUIREMENTS:
 
 Now write ONE sentence describing this image (no formatting, no options, just the description):`;
 
-    
-    if (context) {
-      prompt += `\n\nContext about the image: ${context}`;
-    }
+  if (context) {
+    prompt += `\n\nContext about the image: ${context}`;
+  }
 
-    const imageParts = [
+  const generationConfigCamel = {
+    temperature: 0.2, // Lower temperature for more focused responses
+    maxOutputTokens: 120, // Strict limit - just enough for alt-text
+    topP: 0.7, // Narrow probability mass
+    topK: 20 // Limit token choices
+  };
+
+  const generationConfigSnake = {
+    temperature: generationConfigCamel.temperature,
+    max_output_tokens: generationConfigCamel.maxOutputTokens,
+    top_p: generationConfigCamel.topP,
+    top_k: generationConfigCamel.topK
+  };
+
+  const safetySettings = [
+    { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+    { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+    { category: 'HARM_CATEGORY_SEXUAL', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+    { category: 'HARM_CATEGORY_DANGEROUS', threshold: 'BLOCK_MEDIUM_AND_ABOVE' }
+  ];
+
+  const modelId = process.env.GEMINI_MODEL || 'models/gemini-1.5-flash-latest';
+  const apiBase = process.env.GEMINI_API_BASE || 'https://generativelanguage.googleapis.com/v1beta';
+  const url = `${apiBase}/${modelId}:generateContent?key=${apiKey}`;
+
+  const requestBody = {
+    contents: [
       {
-        inlineData: {
-          data: imageBase64,
-          mimeType: mimeType // Use detected MIME type, not hardcoded PNG
-        }
+        role: 'user',
+        parts: [
+          { text: prompt },
+          {
+            inline_data: {
+              data: imageBase64,
+              mime_type: mimeType
+            }
+          }
+        ]
       }
-    ];
+    ],
+    generationConfig: generationConfigCamel,
+    generation_config: generationConfigSnake, // Provide both naming conventions for compatibility
+    safetySettings,
+    safety_settings: safetySettings
+  };
 
-    // Use strict generationConfig to prevent formatting
-    const generationConfig = {
-      temperature: 0.2, // Lower temperature for more focused responses
-      maxOutputTokens: 120, // Strict limit - just enough for alt-text
-      topP: 0.7, // Narrow probability mass
-      topK: 20, // Limit token choices
-    };
-    
-    // Get model with config
-    const modelWithConfig = genAI.getGenerativeModel({ 
-      model: 'gemini-1.5-flash',
-      generationConfig: generationConfig
-    });
-    
-    const result = await modelWithConfig.generateContent([prompt, ...imageParts]);
-    
-    const response = await result.response;
-    let altText = response.text().trim();
-    
-    console.log('Raw Gemini response:', altText.substring(0, 200)); // Debug log
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(requestBody)
+  });
+
+  const payload = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const errorMessage = payload?.error?.message || `Gemini API request failed with status ${response.status}`;
+    throw createGeminiError(errorMessage);
+  }
+
+  const candidate = payload?.candidates?.[0];
+  if (!candidate) {
+    throw createGeminiError('Gemini API returned no candidate response');
+  }
+
+  const parts = candidate.content?.parts || [];
+  let altText = parts
+    .filter(part => typeof part.text === 'string')
+    .map(part => part.text.trim())
+    .filter(Boolean)
+    .join(' ')
+    .trim();
+
+  if (!altText) {
+    throw createGeminiError('Gemini API returned an empty response');
+  }
+
+  console.log('Raw Gemini response:', altText.substring(0, 200)); // Debug log
     
     // STEP 1: Aggressively remove ALL unwanted introductory sections
     altText = altText
@@ -487,6 +566,10 @@ Now write ONE sentence describing this image (no formatting, no options, just th
       }
     }
     
+    if (isPlaceholderAltText(altText)) {
+      throw createGeminiError('Gemini API returned placeholder text');
+    }
+    
     // Smart truncation to complete words and sentences
     if (altText.length > 125) {
       // Try to find a good breaking point
@@ -516,7 +599,10 @@ Now write ONE sentence describing this image (no formatting, no options, just th
     return altText;
   } catch (error) {
     console.error('Gemini API error:', error);
-    return "Image description unavailable";
+    if (error && error.statusCode) {
+      throw error;
+    }
+    throw createGeminiError(error?.message || 'Gemini API request failed');
   }
 }
 
@@ -765,9 +851,9 @@ exports.handler = async (event, context) => {
   } catch (error) {
     console.error('Function error:', error);
     return {
-      statusCode: 500,
+      statusCode: error.statusCode || 500,
       headers,
-      body: JSON.stringify({ error: 'Internal server error' }),
+      body: JSON.stringify({ error: error.message || 'Internal server error' }),
     };
   }
 };
