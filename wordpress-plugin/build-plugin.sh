@@ -21,8 +21,9 @@ rm -f alt-text-ai-plugin.zip alt-text-ai.zip
 echo -e "${BLUE}Creating plugin ZIP file...${NC}"
 zip -r alt-text-ai-plugin.zip alt-text-ai \
   -x "*.DS_Store" \
-  -x "*.git*" \
   -x "*.md" \
+  -x "__MACOSX*" \
+  -x "*/.DS_Store" \
   -x "*/.*" \
   -x "*/.git/*" \
   -x "*/node_modules/*" \
