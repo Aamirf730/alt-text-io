@@ -4,6 +4,10 @@
 const { createClient } = require('@supabase/supabase-js');
 const { validateApiKey, hasSufficientCredits, deductCredits, updateUserCredits } = require('./utils/api-key-validator');
 
+const fetchFn = typeof fetch === 'function'
+  ? (...args) => fetch(...args)
+  : (...args) => import('node-fetch').then(({ default: fetchModule }) => fetchModule(...args));
+
 // Initialize Supabase client
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -99,28 +103,21 @@ Now write ONE sentence describing this image (no formatting, no options, just th
     prompt += `\n\nContext about the image: ${context}`;
   }
 
-  const generationConfigCamel = {
+  const generationConfig = {
     temperature: 0.2, // Lower temperature for more focused responses
     maxOutputTokens: 120, // Strict limit - just enough for alt-text
     topP: 0.7, // Narrow probability mass
     topK: 20 // Limit token choices
   };
 
-  const generationConfigSnake = {
-    temperature: generationConfigCamel.temperature,
-    max_output_tokens: generationConfigCamel.maxOutputTokens,
-    top_p: generationConfigCamel.topP,
-    top_k: generationConfigCamel.topK
-  };
-
   const safetySettings = [
     { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
     { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
     { category: 'HARM_CATEGORY_SEXUAL', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
-    { category: 'HARM_CATEGORY_DANGEROUS', threshold: 'BLOCK_MEDIUM_AND_ABOVE' }
+    { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' }
   ];
 
-  const modelId = process.env.GEMINI_MODEL || 'models/gemini-1.5-flash-latest';
+  const modelId = process.env.GEMINI_MODEL || 'models/gemini-2.5-flash';
   const apiBase = process.env.GEMINI_API_BASE || 'https://generativelanguage.googleapis.com/v1beta';
   const url = `${apiBase}/${modelId}:generateContent?key=${apiKey}`;
 
@@ -131,21 +128,19 @@ Now write ONE sentence describing this image (no formatting, no options, just th
         parts: [
           { text: prompt },
           {
-            inline_data: {
+            inlineData: {
               data: imageBase64,
-              mime_type: mimeType
+              mimeType
             }
           }
         ]
       }
     ],
-    generationConfig: generationConfigCamel,
-    generation_config: generationConfigSnake, // Provide both naming conventions for compatibility
-    safetySettings,
-    safety_settings: safetySettings
+    generationConfig,
+    safetySettings
   };
 
-  const response = await fetch(url, {
+  const response = await fetchFn(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(requestBody)
