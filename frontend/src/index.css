@@ -21,7 +21,7 @@
 
 /* Base Styles */
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+  font-family: 'Lato', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
   color: var(--text-dark);
   background-color: var(--background-white);
   line-height: 1.6;
@@ -29,6 +29,7 @@ body {
 
 /* Professional Typography */
 h1, h2, h3, h4, h5, h6 {
+  font-family: 'Lato', sans-serif;
   font-weight: 700;
   line-height: 1.2;
   color: var(--text-dark);
@@ -94,6 +95,31 @@ h3 {
 
 .hero-content {
   @apply max-w-4xl mx-auto text-center;
+}
+
+/* Lato Font Utility */
+.font-lato {
+  font-family: 'Lato', sans-serif;
+}
+
+.font-lato-light {
+  font-family: 'Lato', sans-serif;
+  font-weight: 300;
+}
+
+.font-lato-regular {
+  font-family: 'Lato', sans-serif;
+  font-weight: 400;
+}
+
+.font-lato-bold {
+  font-family: 'Lato', sans-serif;
+  font-weight: 700;
+}
+
+.font-lato-black {
+  font-family: 'Lato', sans-serif;
+  font-weight: 900;
 }
 
 /* Section Spacing */
@@ -164,6 +190,15 @@ h3 {
 /* Professional Container */
 .container-professional {
   @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+}
+
+/* Hero Text Layout */
+.hero-text-container {
+  @apply max-w-full overflow-hidden;
+}
+
+.hero-text-line {
+  @apply inline-block break-words;
 }
 
 /* Professional Grid */

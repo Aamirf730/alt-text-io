@@ -1,0 +1,7 @@
+---
+description: 1.Do not always summarize things unless required. if asked you to change something just do it and say "done" no need to summarize everything.
+
+globs:
+
+alwaysApply: true
+---

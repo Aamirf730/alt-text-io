@@ -13,7 +13,7 @@ async function generateAltTextWithGemini(imageBase64, context = null) {
   try {
     const { GoogleGenerativeAI } = require('@google/generative-ai');
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
     let prompt = "Generate a concise, SEO-friendly alt-text for this image. Focus on the main subject, actions, and important visual elements. Keep it under 125 characters.";
     if (context) {

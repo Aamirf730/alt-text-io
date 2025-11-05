@@ -144,7 +144,7 @@ async def generate_alt_text_with_gemini(image_base64: str, context: str = None) 
             api_key=os.environ.get('GEMINI_API_KEY'),
             session_id=f"alttext_{uuid.uuid4()}",
             system_message="You are an expert at creating SEO-friendly, descriptive alt-text for images. Generate concise, descriptive alt-text that helps visually impaired users understand the image content while being SEO-optimized."
-        ).with_model("gemini", "gemini-2.5-flash")
+        ).with_model("gemini", "gemini-1.5-flash")
 
         # Create image content
         image_content = ImageContent(image_base64=image_base64)

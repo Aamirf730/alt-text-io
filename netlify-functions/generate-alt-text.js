@@ -87,7 +87,7 @@ Now write ONE sentence describing this image (no formatting, no options, just th
     
     // Get model with config
     const modelWithConfig = genAI.getGenerativeModel({ 
-      model: 'gemini-2.0-flash',
+      model: 'gemini-1.5-flash',
       generationConfig: generationConfig
     });
     

@@ -7,9 +7,12 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE public.profiles (
   id UUID REFERENCES auth.users(id) PRIMARY KEY,
   email TEXT UNIQUE NOT NULL,
-  subscription_plan TEXT DEFAULT 'free_trial' CHECK (subscription_plan IN ('free_trial', 'starter', 'pro', 'pay_as_go')),
-  credits_remaining INTEGER DEFAULT 30,
+  subscription_plan TEXT DEFAULT 'free' CHECK (subscription_plan IN ('free', 'tier1', 'tier2', 'pay_as_go')),
+  credits_remaining INTEGER DEFAULT 100,
   total_processed INTEGER DEFAULT 0,
+  subscription_status TEXT DEFAULT 'active' CHECK (subscription_status IN ('active', 'cancelled', 'expired', 'pending')),
+  subscription_id TEXT, -- PayPal subscription ID
+  next_billing_date TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   expires_at TIMESTAMP WITH TIME ZONE,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -25,6 +28,21 @@ CREATE TABLE public.usage_logs (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Payments table for tracking transactions
+CREATE TABLE public.payments (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+  payment_id TEXT NOT NULL, -- PayPal payment ID
+  subscription_id TEXT, -- PayPal subscription ID (if applicable)
+  plan_id TEXT REFERENCES public.subscription_plans(id),
+  amount DECIMAL(10,2) NOT NULL,
+  currency TEXT DEFAULT 'USD',
+  status TEXT NOT NULL CHECK (status IN ('pending', 'completed', 'failed', 'cancelled', 'refunded')),
+  payment_method TEXT DEFAULT 'paypal',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Subscription plans reference table
 CREATE TABLE public.subscription_plans (
   id TEXT PRIMARY KEY,
@@ -38,18 +56,19 @@ CREATE TABLE public.subscription_plans (
 
 -- Insert default subscription plans
 INSERT INTO public.subscription_plans (id, name, price, credits, billing_cycle, features) VALUES
-('free_trial', 'Free Trial', 0, 30, 'one-time', 
- '["30 AI-generated alt-texts", "Basic support", "WordPress plugin"]'),
-('starter', 'Starter', 5.00, 500, 'monthly', 
- '["500 AI-generated alt-texts/month", "Priority support", "SEO optimization", "Bulk processing"]'),
-('pro', 'Pro', 10.00, 2000, 'monthly', 
- '["2000 AI-generated alt-texts/month", "Premium support", "Advanced API access", "Analytics"]'),
-('pay_as_go', 'Pay-as-you-go', 3.00, 50, 'credits', 
- '["50 AI alt-texts", "No expiration", "Flexible usage", "Perfect for testing"]');
+('free', 'Free', 0, 100, 'monthly', 
+ '["100 Credits", "Basic support", "API access"]'),
+('tier1', 'Tier 1', 9.00, 1000, 'monthly', 
+ '["1,000 Credits", "Priority support", "API access", "Bulk processing"]'),
+('tier2', 'Tier 2', 19.00, 2500, 'monthly', 
+ '["2,500 Credits", "Premium support", "API access", "Bulk processing", "Custom integrations"]'),
+('pay_as_go', 'Pay as you go', 4.00, 500, 'one-time', 
+ '["No monthly commitment", "Pay only for what you use", "API access", "Standard support"]');
 
 -- Row Level Security (RLS) policies
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.usage_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.payments ENABLE ROW LEVEL SECURITY;
 
 -- Profiles policies
 CREATE POLICY "Users can view own profile" ON public.profiles
@@ -63,6 +82,13 @@ CREATE POLICY "Users can view own usage logs" ON public.usage_logs
   FOR SELECT USING (auth.uid() = user_id);
 
 CREATE POLICY "Users can insert own usage logs" ON public.usage_logs
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+-- Payments policies
+CREATE POLICY "Users can view own payments" ON public.payments
+  FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own payments" ON public.payments
   FOR INSERT WITH CHECK (auth.uid() = user_id);
 
 -- Public read access to subscription plans
@@ -124,5 +150,78 @@ BEGIN
   WHERE id = user_uuid;
   
   RETURN result;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to upgrade user subscription
+CREATE OR REPLACE FUNCTION public.upgrade_subscription(
+  user_uuid UUID, 
+  new_plan TEXT, 
+  payment_id TEXT,
+  subscription_id TEXT DEFAULT NULL
+)
+RETURNS JSON AS $$
+DECLARE
+  plan_credits INTEGER;
+  plan_price DECIMAL(10,2);
+  result JSON;
+BEGIN
+  -- Get plan details
+  SELECT credits, price INTO plan_credits, plan_price
+  FROM public.subscription_plans 
+  WHERE id = new_plan;
+  
+  IF plan_credits IS NULL THEN
+    RETURN JSON_BUILD_OBJECT('error', 'Invalid plan');
+  END IF;
+  
+  -- Update user subscription
+  UPDATE public.profiles 
+  SET 
+    subscription_plan = new_plan,
+    credits_remaining = CASE 
+      WHEN new_plan = 'pay_as_go' THEN credits_remaining + plan_credits
+      ELSE plan_credits
+    END,
+    subscription_status = 'active',
+    subscription_id = COALESCE(subscription_id, subscription_id),
+    next_billing_date = CASE 
+      WHEN new_plan IN ('tier1', 'tier2') THEN NOW() + INTERVAL '1 month'
+      ELSE NULL
+    END,
+    updated_at = NOW()
+  WHERE id = user_uuid;
+  
+  -- Record payment
+  INSERT INTO public.payments (user_id, payment_id, subscription_id, plan_id, amount, status)
+  VALUES (user_uuid, payment_id, subscription_id, new_plan, plan_price, 'completed');
+  
+  -- Return result
+  SELECT JSON_BUILD_OBJECT(
+    'success', true,
+    'plan', subscription_plan,
+    'credits_remaining', credits_remaining,
+    'next_billing_date', next_billing_date
+  ) INTO result
+  FROM public.profiles 
+  WHERE id = user_uuid;
+  
+  RETURN result;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to cancel subscription
+CREATE OR REPLACE FUNCTION public.cancel_subscription(user_uuid UUID)
+RETURNS JSON AS $$
+BEGIN
+  UPDATE public.profiles 
+  SET 
+    subscription_status = 'cancelled',
+    subscription_id = NULL,
+    next_billing_date = NULL,
+    updated_at = NOW()
+  WHERE id = user_uuid;
+  
+  RETURN JSON_BUILD_OBJECT('success', true, 'message', 'Subscription cancelled');
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
