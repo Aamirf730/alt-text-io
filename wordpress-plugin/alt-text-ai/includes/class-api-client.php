@@ -65,15 +65,17 @@ class AltTextAI_API_Client {
                     'alt text unavailable',
                     'description unavailable',
                     'no description available',
-                    'alt text not available'
+                    'alt text not available',
+                    'unable to generate description',
+                    'description not available'
                 );
 
                 foreach ($placeholders as $placeholder) {
                     if ($normalized === $placeholder || strpos($normalized, $placeholder) !== false) {
-                        error_log('Alt Text Pro API: Placeholder response detected, treating as error.');
+                        error_log('Alt Text Pro API: Placeholder response detected: "' . $alt_text . '". Treating as error.');
                         return array(
                             'success' => false,
-                            'message' => __('The API returned a placeholder response. Please try again or check the server logs.', 'alt-text-ai'),
+                            'message' => __('The API returned a placeholder response. This may indicate an API error or image processing issue. Please check the server logs or try again.', 'alt-text-ai'),
                             'data' => $response['data']
                         );
                     }
@@ -88,12 +90,16 @@ class AltTextAI_API_Client {
                     );
                 }
             }
+            
+            // Get credits from response (check multiple possible locations)
+            $credits_used = $response['data']['credits_used'] ?? $response['credits_used'] ?? 1;
+            $credits_remaining = $response['data']['credits_remaining'] ?? $response['credits_remaining'] ?? 0;
 
             return array(
                 'success' => true,
                 'alt_text' => $alt_text,
-                'credits_used' => $response['data']['credits_used'] ?? 1,
-                'credits_remaining' => $response['data']['credits_remaining'] ?? 0
+                'credits_used' => $credits_used,
+                'credits_remaining' => $credits_remaining
             );
         }
         
@@ -337,7 +343,7 @@ class AltTextAI_API_Client {
         // Success response handling - API can return different formats:
         // Format 1: { success: true, data: {...} }
         // Format 2: { success: true, valid: true, user: {...} }
-        // Format 3: Direct data object
+        // Format 3: Direct data object (e.g., { alt_text: "...", credits_used: 1 })
         if (isset($decoded_body['data'])) {
             return array(
                 'success' => true,
@@ -354,6 +360,28 @@ class AltTextAI_API_Client {
                 'data' => array(
                     'user' => $decoded_body['user']
                 ),
+                'status_code' => $status_code,
+                'full_response' => $decoded_body
+            );
+        }
+        
+        // Handle direct format for generate-alt-text: { alt_text: "...", credits_used: 1, ... }
+        // This happens when the API returns the response directly without wrapping in 'data'
+        if (isset($decoded_body['alt_text']) || isset($decoded_body['error'])) {
+            // If there's an error key, treat as error
+            if (isset($decoded_body['error'])) {
+                return array(
+                    'success' => false,
+                    'message' => $decoded_body['error'],
+                    'status_code' => $status_code,
+                    'data' => $decoded_body
+                );
+            }
+            
+            // Otherwise, wrap the direct response in 'data' for consistency
+            return array(
+                'success' => true,
+                'data' => $decoded_body,
                 'status_code' => $status_code,
                 'full_response' => $decoded_body
             );

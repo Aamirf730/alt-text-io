@@ -267,16 +267,6 @@ class AltTextAI_Bulk_Processor {
             $this->debug_log('API result success: ' . ($result['success'] ? 'yes' : 'no'));
             
             if ($result['success'] && !empty($result['alt_text'])) {
-                if ($this->is_placeholder_alt_text($result['alt_text'])) {
-                    $this->debug_log('Placeholder alt-text detected, skipping update for image ' . $image_id);
-                    $errors[] = array(
-                        'image_id' => $image_id,
-                        'error' => __('Placeholder alt-text returned by API. Try again later.', 'alt-text-ai')
-                    );
-                    $processed++;
-                    continue;
-                }
-
                 $this->debug_log('Successfully generated alt-text: ' . substr($result['alt_text'], 0, 50) . '...');
                 
                 // Update attachment alt text
@@ -668,33 +658,5 @@ class AltTextAI_Bulk_Processor {
             $log_message = sprintf('[Alt Text Pro Bulk] [%s] %s', $timestamp, $message);
             error_log($log_message);
         }
-    }
-
-    /**
-     * Check if alt-text is a known placeholder
-     */
-    private function is_placeholder_alt_text($alt_text) {
-        if (!is_string($alt_text)) {
-            return false;
-        }
-
-        $normalized = strtolower(trim($alt_text));
-        $normalized = preg_replace('/[^\w\s]/', '', $normalized);
-
-        $placeholders = array(
-            'image description unavailable',
-            'alt text unavailable',
-            'description unavailable',
-            'no description available',
-            'alt text not available'
-        );
-
-        foreach ($placeholders as $placeholder) {
-            if ($normalized === $placeholder || strpos($normalized, $placeholder) !== false) {
-                return true;
-            }
-        }
-
-        return $normalized === '';
     }
 }

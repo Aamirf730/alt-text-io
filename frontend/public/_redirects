@@ -1,1 +1,5 @@
+# WordPress plugin downloads - must come before catch-all
+/wordpress-plugin/*.zip    /wordpress-plugin/:splat    200
+
+# SPA fallback for React Router
 /*    /index.html   200 

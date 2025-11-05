@@ -13,6 +13,13 @@
   # REACT_APP_BACKEND_URL
 
 # SPA fallback for React Router - this is crucial for fixing 404 errors
+# Exclude plugin downloads from SPA redirect
+[[redirects]]
+  from = "/wordpress-plugin/*.zip"
+  to = "/wordpress-plugin/:splat"
+  status = 200
+  force = true
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
