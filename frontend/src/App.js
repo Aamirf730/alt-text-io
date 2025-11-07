@@ -1256,43 +1256,19 @@ const LandingPage = () => {
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold text-gray-900 mb-4">Simple, Transparent Pricing</h2>
             <p className="text-xl text-gray-600 mb-8">Choose the plan that fits your needs</p>
-            
-            {/* Billing Cycle Toggle */}
-            <div className="flex items-center justify-center gap-4 mb-8">
-              <span className={`text-sm font-medium ${billingCycle === 'monthly' ? 'text-gray-900' : 'text-gray-500'}`}>
-                Monthly
-              </span>
-              <button
-                onClick={() => setBillingCycle(billingCycle === 'monthly' ? 'annual' : 'monthly')}
-                className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${
-                  billingCycle === 'annual' ? '' : 'bg-gray-300'
-                }`}
-                style={billingCycle === 'annual' ? { background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' } : {}}
-              >
-                <span
-                  className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
-                    billingCycle === 'annual' ? 'translate-x-7' : 'translate-x-1'
-                  }`}
-                />
-              </button>
-              <span className={`text-sm font-medium ${billingCycle === 'annual' ? 'text-gray-900' : 'text-gray-500'}`}>
-                Annual
-                <span className="ml-2 text-xs font-semibold" style={{ color: '#0B4F5E' }}>Save 20%</span>
-              </span>
-            </div>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-6 max-w-7xl mx-auto">
+          <div className="grid md:grid-cols-4 gap-6 max-w-7xl mx-auto">
             {/* Free Plan */}
             <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-100 transition-colors"
                  onMouseEnter={(e) => e.currentTarget.style.borderColor = 'rgba(26, 181, 172, 0.3)'}
                  onMouseLeave={(e) => e.currentTarget.style.borderColor = '#f3f4f6'}>
               <div className="text-center">
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">Free</h3>
-                <div className="text-4xl font-bold mb-2" style={{ color: '#0B4F5E' }}>$0</div>
-                <p className="text-gray-600 mb-6">per month</p>
+                <div className="text-3xl font-bold mb-2" style={{ color: '#0B4F5E' }}>$0</div>
+                <p className="text-gray-600 mb-6">100 Credits</p>
                 
-                <div className="space-y-4 mb-8">
+                <div className="space-y-3 mb-8">
                   <div className="flex items-center">
                     <Check className="h-5 w-5 text-green-500 mr-3" />
                     <span className="text-gray-700">100 Credits</span>
@@ -1323,14 +1299,10 @@ const LandingPage = () => {
               <div className="text-center">
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">Tier 1</h3>
                 <div className="text-3xl font-bold mb-2" style={{ color: '#0B4F5E' }}>
-                  ${billingCycle === 'annual' ? '12' : '15'}
-                  <span className="text-xl text-gray-600 font-normal ml-1">
-                    {billingCycle === 'annual' ? '/month billed annually' : '/month'}
-                  </span>
+                  $12
+                  <span className="text-xl text-gray-600 font-normal ml-1">USD</span>
                 </div>
-                {billingCycle === 'annual' && (
-                  <p className="text-xs text-gray-500 mb-4">$144/year (Save 20%)</p>
-                )}
+                <p className="text-gray-600 mb-6">1,000 Credits</p>
                 
                 <div className="space-y-3 mb-8">
                   <div className="flex items-center">
@@ -1352,7 +1324,7 @@ const LandingPage = () => {
                 </div>
                 
                 <Button 
-                  onClick={() => handlePlanSelection('tier1', 'Tier 1', billingCycle === 'annual' ? '$144' : '$15')}
+                  onClick={() => handlePlanSelection('tier1', 'Tier 1', '$12')}
                   className="w-full text-white"
                   style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}
                   onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%)'}
@@ -1371,19 +1343,15 @@ const LandingPage = () => {
               <div className="text-center">
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">Tier 2</h3>
                 <div className="text-3xl font-bold mb-2" style={{ color: '#0B4F5E' }}>
-                  ${billingCycle === 'annual' ? '20' : '25'}
-                  <span className="text-xl text-gray-600 font-normal ml-1">
-                    {billingCycle === 'annual' ? '/month billed annually' : '/month'}
-                  </span>
+                  $20
+                  <span className="text-xl text-gray-600 font-normal ml-1">USD</span>
                 </div>
-                {billingCycle === 'annual' && (
-                  <p className="text-xs text-gray-500 mb-4">$240/year (Save 20%)</p>
-                )}
+                <p className="text-gray-600 mb-6">2,000 Credits</p>
                 
                 <div className="space-y-3 mb-8">
                   <div className="flex items-center">
                     <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-gray-700">2,500 Credits</span>
+                    <span className="text-gray-700">2,000 Credits</span>
                   </div>
                   <div className="flex items-center">
                     <Check className="h-5 w-5 text-green-500 mr-3" />
@@ -1391,7 +1359,7 @@ const LandingPage = () => {
                   </div>
                   <div className="flex items-center">
                     <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-gray-700">Advanced API access</span>
+                    <span className="text-gray-700">API Access</span>
                   </div>
                   <div className="flex items-center">
                     <Check className="h-5 w-5 text-green-500 mr-3" />
@@ -1401,14 +1369,10 @@ const LandingPage = () => {
                     <Check className="h-5 w-5 text-green-500 mr-3" />
                     <span className="text-gray-700">Bulk processing</span>
                   </div>
-                  <div className="flex items-center">
-                    <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-gray-700">Custom integrations</span>
-                  </div>
                 </div>
                 
                 <Button 
-                  onClick={() => handlePlanSelection('tier2', 'Tier 2', billingCycle === 'annual' ? '$240' : '$25')}
+                  onClick={() => handlePlanSelection('tier2', 'Tier 2', '$20')}
                   className="w-full text-white"
                   style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}
                   onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%)'}
@@ -1426,14 +1390,10 @@ const LandingPage = () => {
               <div className="text-center">
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">Tier 3</h3>
                 <div className="text-3xl font-bold mb-2" style={{ color: '#0B4F5E' }}>
-                  ${billingCycle === 'annual' ? '47.20' : '59'}
-                  <span className="text-xl text-gray-600 font-normal ml-1">
-                    {billingCycle === 'annual' ? '/month billed annually' : '/month'}
-                  </span>
+                  $40
+                  <span className="text-xl text-gray-600 font-normal ml-1">USD</span>
                 </div>
-                {billingCycle === 'annual' && (
-                  <p className="text-xs text-gray-500 mb-4">$566.40/year (Save 20%)</p>
-                )}
+                <p className="text-gray-600 mb-6">5,000 Credits</p>
                 
                 <div className="space-y-3 mb-8">
                   <div className="flex items-center">
@@ -1446,7 +1406,7 @@ const LandingPage = () => {
                   </div>
                   <div className="flex items-center">
                     <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-gray-700">Advanced API access</span>
+                    <span className="text-gray-700">API Access</span>
                   </div>
                   <div className="flex items-center">
                     <Check className="h-5 w-5 text-green-500 mr-3" />
@@ -1454,16 +1414,12 @@ const LandingPage = () => {
                   </div>
                   <div className="flex items-center">
                     <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-gray-700">Unlimited bulk processing</span>
-                  </div>
-                  <div className="flex items-center">
-                    <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-gray-700">Dedicated support</span>
+                    <span className="text-gray-700">Bulk Processing</span>
                   </div>
                 </div>
                 
                 <Button 
-                  onClick={() => handlePlanSelection('tier3', 'Tier 3', billingCycle === 'annual' ? '$566.40' : '$59')}
+                  onClick={() => handlePlanSelection('tier3', 'Tier 3', '$40')}
                   className="w-full text-white"
                   style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}
                   onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%)'}
@@ -1471,143 +1427,6 @@ const LandingPage = () => {
                 >
                   Choose Plan
                 </Button>
-              </div>
-            </div>
-
-            {/* Tier 4 */}
-            <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-100 transition-colors"
-                 onMouseEnter={(e) => e.currentTarget.style.borderColor = 'rgba(26, 181, 172, 0.3)'}
-                 onMouseLeave={(e) => e.currentTarget.style.borderColor = '#f3f4f6'}>
-              <div className="text-center">
-                <h3 className="text-2xl font-bold text-gray-900 mb-2">Tier 4</h3>
-                <div className="text-3xl font-bold mb-2" style={{ color: '#0B4F5E' }}>
-                  ${billingCycle === 'annual' ? '95.20' : '119'}
-                  <span className="text-xl text-gray-600 font-normal ml-1">
-                    {billingCycle === 'annual' ? '/month billed annually' : '/month'}
-                  </span>
-                </div>
-                {billingCycle === 'annual' && (
-                  <p className="text-xs text-gray-500 mb-4">$1,142.40/year (Save 20%)</p>
-                )}
-                
-                <div className="space-y-3 mb-8">
-                  <div className="flex items-center">
-                    <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-gray-700">10,000 Credits</span>
-                  </div>
-                  <div className="flex items-center">
-                    <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-gray-700">Enterprise support</span>
-                  </div>
-                  <div className="flex items-center">
-                    <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-gray-700">Advanced API access</span>
-                  </div>
-                  <div className="flex items-center">
-                    <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-gray-700">Highest priority processing</span>
-                  </div>
-                  <div className="flex items-center">
-                    <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-gray-700">Unlimited bulk processing</span>
-                  </div>
-                  <div className="flex items-center">
-                    <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-gray-700">Dedicated account manager</span>
-                  </div>
-                </div>
-                
-                <Button 
-                  onClick={() => handlePlanSelection('tier4', 'Tier 4', billingCycle === 'annual' ? '$1,142.40' : '$119')}
-                  className="w-full text-white"
-                  style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%)'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)'}
-                >
-                  Choose Plan
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          {/* Credit Packs Section */}
-          <div className="mt-16">
-            <h3 className="text-2xl font-bold text-gray-900 text-center mb-8">One-Time Credit Packs</h3>
-            <div className="grid md:grid-cols-2 gap-6 max-w-2xl mx-auto">
-              {/* Small Pack */}
-              <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-100 transition-colors"
-                 onMouseEnter={(e) => e.currentTarget.style.borderColor = 'rgba(26, 181, 172, 0.3)'}
-                 onMouseLeave={(e) => e.currentTarget.style.borderColor = '#f3f4f6'}>
-                <div className="text-center">
-                  <h3 className="text-xl font-bold text-gray-900 mb-2">Small Pack</h3>
-                  <div className="text-3xl font-bold mb-2" style={{ color: '#0B4F5E' }}>$3</div>
-                  <p className="text-gray-600 mb-6">for 100 credits</p>
-                  
-                  <div className="space-y-3 mb-8">
-                    <div className="flex items-center">
-                      <Check className="h-5 w-5 text-green-500 mr-3" />
-                      <span className="text-gray-700">100 Credits</span>
-                    </div>
-                    <div className="flex items-center">
-                      <Check className="h-5 w-5 text-green-500 mr-3" />
-                      <span className="text-gray-700">No expiration</span>
-                    </div>
-                    <div className="flex items-center">
-                      <Check className="h-5 w-5 text-green-500 mr-3" />
-                      <span className="text-gray-700">Perfect for testing</span>
-                    </div>
-                  </div>
-                  
-                  <Button 
-                    onClick={() => handlePlanSelection('small_pack', 'Small Pack', '$3')}
-                    className="w-full text-white"
-                  style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%)'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)'}
-                  >
-                    Buy Credits
-                  </Button>
-                </div>
-              </div>
-
-              {/* Pay as you go */}
-              <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-100 transition-colors"
-                 onMouseEnter={(e) => e.currentTarget.style.borderColor = 'rgba(26, 181, 172, 0.3)'}
-                 onMouseLeave={(e) => e.currentTarget.style.borderColor = '#f3f4f6'}>
-                <div className="text-center">
-                  <h3 className="text-xl font-bold text-gray-900 mb-2">Pay as you go</h3>
-                  <div className="text-3xl font-bold mb-2" style={{ color: '#0B4F5E' }}>$5</div>
-                  <p className="text-gray-600 mb-6">for 500 credits</p>
-                  
-                  <div className="space-y-3 mb-8">
-                    <div className="flex items-center">
-                      <Check className="h-5 w-5 text-green-500 mr-3" />
-                      <span className="text-gray-700">500 Credits</span>
-                    </div>
-                    <div className="flex items-center">
-                      <Check className="h-5 w-5 text-green-500 mr-3" />
-                      <span className="text-gray-700">No expiration</span>
-                    </div>
-                    <div className="flex items-center">
-                      <Check className="h-5 w-5 text-green-500 mr-3" />
-                      <span className="text-gray-700">No monthly commitment</span>
-                    </div>
-                    <div className="flex items-center">
-                      <Check className="h-5 w-5 text-green-500 mr-3" />
-                      <span className="text-gray-700">API access</span>
-                    </div>
-                  </div>
-                  
-                  <Button 
-                    onClick={() => handlePlanSelection('pay_as_go', 'Pay as you go', '$5')}
-                    className="w-full text-white"
-                  style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%)'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)'}
-                  >
-                    Buy Credits
-                  </Button>
-                </div>
               </div>
             </div>
           </div>
