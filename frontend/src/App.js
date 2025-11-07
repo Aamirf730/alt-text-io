@@ -2179,9 +2179,20 @@ const Dashboard = () => {
 
   // Load API key when user is available
   useEffect(() => {
-    if (user && user.token) {
-      loadApiKey();
-    }
+    const loadApiKeyWhenReady = async () => {
+      // Wait a bit for user to be set, or get session directly
+      if (user && user.token) {
+        loadApiKey();
+      } else {
+        // Try to get session directly if user not set yet
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          loadApiKey();
+        }
+      }
+    };
+    
+    loadApiKeyWhenReady();
   }, [user]);
 
   // Load subscription data from API
@@ -2334,10 +2345,21 @@ const Dashboard = () => {
 
   // Load API key for WordPress plugin
   const loadApiKey = async () => {
-    if (!user?.token) return;
-    
     setIsLoadingApiKey(true);
     try {
+      // Get session token - try from user object first, then get from Supabase
+      let token = user?.token;
+      if (!token) {
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError || !session) {
+          console.error('No session available for API key');
+          toast.error('Please sign in to get your API key');
+          setIsLoadingApiKey(false);
+          return;
+        }
+        token = session.access_token;
+      }
+      
       let apiBase;
       if (window.location.hostname === 'localhost') {
         apiBase = process.env.REACT_APP_API_BASE || 'https://www.alt-text.pro/.netlify/functions';
@@ -2345,23 +2367,37 @@ const Dashboard = () => {
         apiBase = '/.netlify/functions';
       }
 
+      console.log('Loading API key from:', `${apiBase}/get-api-key`);
+
       const response = await fetch(`${apiBase}/get-api-key`, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${user.token}`
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         }
       });
 
+      const responseData = await response.json();
+      console.log('API key response:', { status: response.status, data: responseData });
+
       if (response.ok) {
-        const data = await response.json();
-        setApiKey(data.api_key);
+        if (responseData.success && responseData.api_key) {
+          setApiKey(responseData.api_key);
+        } else if (responseData.api_key) {
+          // Handle case where api_key is returned directly
+          setApiKey(responseData.api_key);
+        } else {
+          console.error('API key not found in response:', responseData);
+          toast.error('API key not found in response');
+        }
       } else {
-        console.error('Failed to load API key');
-        toast.error('Failed to load API key');
+        console.error('Failed to load API key:', responseData);
+        const errorMsg = responseData.error || `Failed to load API key (${response.status})`;
+        toast.error(errorMsg);
       }
     } catch (error) {
       console.error('Error loading API key:', error);
-      toast.error('Error loading API key');
+      toast.error(`Error loading API key: ${error.message}`);
     } finally {
       setIsLoadingApiKey(false);
     }
@@ -2830,39 +2866,91 @@ const Dashboard = () => {
                 <p className="text-gray-600 text-sm mt-2">Connect your WordPress site with Alt Text Pro</p>
               </CardHeader>
               <CardContent className="space-y-6">
-                {/* Download Plugin Section - Prominent */}
-                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-6">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-start space-x-3">
-                      <div className="flex-shrink-0 p-2 bg-blue-500 rounded-lg">
-                        <Download className="h-5 w-5 text-white" />
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-semibold text-gray-900 mb-1">
-                          Get Started with WordPress Plugin
-                        </h3>
-                        <p className="text-sm text-gray-600">
-                          Download and install the Alt Text Pro plugin on your WordPress site
-                        </p>
-                      </div>
+                {/* Setup Instructions */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-5">
+                  <div className="flex items-start space-x-3 mb-4">
+                    <div className="flex-shrink-0">
+                      <Info className="h-5 w-5 text-blue-600 mt-0.5" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="text-sm font-semibold text-blue-900 mb-3">
+                        Quick Setup Guide
+                      </h4>
+                      <ol className="text-sm text-blue-800 space-y-2 list-decimal list-inside">
+                        <li className="pl-2">Download the Alt Text Pro WordPress plugin using the download button above</li>
+                        <li className="pl-2">Go to your WordPress admin → Plugins → Add New → Upload Plugin</li>
+                        <li className="pl-2">Upload and activate the plugin</li>
+                        <li className="pl-2">Navigate to Alt Text Pro → Settings in your WordPress admin</li>
+                        <li className="pl-2">Paste your API key (shown in the card above) into the settings</li>
+                        <li className="pl-2">Test the connection and start generating alt-text automatically!</li>
+                      </ol>
                     </div>
                   </div>
-                  <a
-                    href="/wordpress-plugin/alt-text-pro-plugin.zip"
-                    download="alt-text-pro-plugin.zip"
-                    className="inline-flex items-center justify-center w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-[1.02]"
-                  >
-                    <Download className="h-5 w-5 mr-2" />
-                    Download WordPress Plugin
-                    <span className="ml-2 text-xs opacity-90">(52KB)</span>
-                  </a>
                 </div>
 
-                {/* API Key Section */}
+                {/* Security Warning */}
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                  <div className="flex items-start space-x-3">
+                    <div className="flex-shrink-0">
+                      <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-semibold text-amber-900 mb-1">
+                        Important Security Note
+                      </h4>
+                      <p className="text-xs text-amber-800">
+                        Keep your API key secure and never share it publicly. This key provides access to your Alt Text Pro account and credits.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Test Service */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Download Plugin Card - Prominent */}
+            <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200">
+              <CardContent className="p-6">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-start space-x-4 flex-1">
+                    <div className="flex-shrink-0 p-3 bg-blue-500 rounded-xl shadow-lg">
+                      <Download className="h-6 w-6 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-xl font-bold text-gray-900 mb-2">
+                        Get WordPress Plugin
+                      </h3>
+                      <p className="text-sm text-gray-600 mb-4">
+                        Download and install the Alt Text Pro plugin to automatically generate alt-text for your WordPress images
+                      </p>
+                      <a
+                        href="/wordpress-plugin/alt-text-pro-plugin.zip"
+                        download="alt-text-pro-plugin.zip"
+                        className="inline-flex items-center justify-center px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-[1.02]"
+                      >
+                        <Download className="h-5 w-5 mr-2" />
+                        Download WordPress Plugin
+                        <span className="ml-2 text-xs opacity-90">(52KB)</span>
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* API Key Section */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Key className="h-5 w-5 mr-2 text-blue-600" />
+                  Your API Key
+                </CardTitle>
+                <p className="text-gray-600 text-sm">Use this API key to connect your WordPress plugin</p>
+              </CardHeader>
+              <CardContent>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-3">
-                    Your API Key
-                  </label>
                   <div className="flex items-center space-x-2">
                     <div className="flex-1 relative">
                       <input
@@ -2930,51 +3018,9 @@ const Dashboard = () => {
                     )}
                   </div>
                 </div>
-
-                {/* Setup Instructions */}
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-5">
-                  <div className="flex items-start space-x-3 mb-4">
-                    <div className="flex-shrink-0">
-                      <Info className="h-5 w-5 text-blue-600 mt-0.5" />
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="text-sm font-semibold text-blue-900 mb-3">
-                        Quick Setup Guide
-                      </h4>
-                      <ol className="text-sm text-blue-800 space-y-2 list-decimal list-inside">
-                        <li className="pl-2">Download the Alt Text Pro WordPress plugin (button above)</li>
-                        <li className="pl-2">Go to your WordPress admin → Plugins → Add New → Upload Plugin</li>
-                        <li className="pl-2">Upload and activate the plugin</li>
-                        <li className="pl-2">Navigate to Alt Text Pro → Settings in your WordPress admin</li>
-                        <li className="pl-2">Paste your API key (shown above) into the settings</li>
-                        <li className="pl-2">Test the connection and start generating alt-text automatically!</li>
-                      </ol>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Security Warning */}
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                  <div className="flex items-start space-x-3">
-                    <div className="flex-shrink-0">
-                      <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5" />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-semibold text-amber-900 mb-1">
-                        Important Security Note
-                      </h4>
-                      <p className="text-xs text-amber-800">
-                        Keep your API key secure and never share it publicly. This key provides access to your Alt Text Pro account and credits.
-                      </p>
-                    </div>
-                  </div>
-                </div>
               </CardContent>
             </Card>
-          </div>
 
-          {/* Test Service */}
-          <div className="lg:col-span-2 space-y-6">
             <Card>
               <CardHeader>
                 <CardTitle>Test Alt-Text Generation</CardTitle>

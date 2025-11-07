@@ -60,32 +60,66 @@ exports.handler = async (event, context) => {
     const { data: apiKeyData, error: apiKeyError } = await supabase
       .rpc('get_or_create_api_key', { p_user_id: authUser.id });
 
+    let apiKey = null;
+
     if (apiKeyError) {
-      console.error('Error getting API key:', apiKeyError);
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ error: 'Failed to get API key' }),
-      };
+      console.error('Error calling RPC function:', apiKeyError);
+      // Fallback: try to query the table directly
+      const { data: apiKeys, error: keysError } = await supabase
+        .from('api_keys')
+        .select('api_key')
+        .eq('user_id', authUser.id)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(1);
+      
+      if (keysError) {
+        console.error('Error querying api_keys table:', keysError);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ 
+            error: 'Failed to get API key',
+            details: apiKeyError.message || keysError.message 
+          }),
+        };
+      }
+      
+      apiKey = apiKeys && apiKeys[0]?.api_key;
+    } else {
+      // RPC function returns the key directly as TEXT
+      apiKey = apiKeyData;
     }
 
-    // Get API key details
-    const { data: apiKeys, error: keysError } = await supabase
-      .from('api_keys')
-      .select('*')
-      .eq('user_id', authUser.id)
-      .eq('is_active', true)
-      .order('created_at', { ascending: false })
-      .limit(1);
-
-    const apiKey = apiKeyData || (apiKeys && apiKeys[0]?.api_key);
-
+    // If still no key, try to create one manually
     if (!apiKey) {
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ error: 'Failed to generate API key' }),
-      };
+      // Generate a simple API key
+      const generatedKey = `alt_${authUser.id.substring(0, 8)}_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 10)}`;
+      
+      const { data: newKeyData, error: insertError } = await supabase
+        .from('api_keys')
+        .insert({
+          user_id: authUser.id,
+          api_key: generatedKey,
+          name: 'WordPress Plugin',
+          is_active: true
+        })
+        .select('api_key')
+        .single();
+      
+      if (insertError) {
+        console.error('Error creating API key:', insertError);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ 
+            error: 'Failed to create API key',
+            details: insertError.message 
+          }),
+        };
+      }
+      
+      apiKey = newKeyData?.api_key || generatedKey;
     }
 
     return {
