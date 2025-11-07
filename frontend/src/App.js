@@ -2177,9 +2177,12 @@ const Dashboard = () => {
     loadHistory();
   }, []);
 
-  // Load API key when user is available
+  // Load API key when user is available (non-blocking)
   useEffect(() => {
     const loadApiKeyWhenReady = async () => {
+      // Small delay to ensure user is set
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       // Wait a bit for user to be set, or get session directly
       if (user && user.token) {
         loadApiKey();
@@ -2352,8 +2355,7 @@ const Dashboard = () => {
       if (!token) {
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         if (sessionError || !session) {
-          console.error('No session available for API key');
-          toast.error('Please sign in to get your API key');
+          console.warn('No session available for API key - skipping');
           setIsLoadingApiKey(false);
           return;
         }
@@ -2370,52 +2372,66 @@ const Dashboard = () => {
 
       console.log('Loading API key from:', `${apiBase}/get-api-key`);
 
-      const response = await fetch(`${apiBase}/get-api-key`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+      // Add timeout to prevent hanging
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
+      try {
+        const response = await fetch(`${apiBase}/get-api-key`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          signal: controller.signal
+        }).catch((fetchError) => {
+          clearTimeout(timeoutId);
+          // Check if it's an abort (timeout) or actual network error
+          if (fetchError.name === 'AbortError') {
+            throw new Error('Request timed out. Please check your internet connection.');
+          }
+          console.error('Fetch error:', fetchError);
+          throw new Error(`Network error: ${fetchError.message}`);
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          let errorData;
+          try {
+            errorData = JSON.parse(errorText);
+          } catch {
+            errorData = { error: errorText || `HTTP ${response.status}` };
+          }
+          console.error('Failed to load API key:', errorData);
+          const errorMsg = errorData.error || errorData.details || `Failed to load API key (${response.status})`;
+          toast.error(errorMsg);
+          setIsLoadingApiKey(false);
+          return;
         }
-      }).catch((fetchError) => {
-        console.error('Fetch error:', fetchError);
-        throw new Error(`Network error: ${fetchError.message}. Please check if the API endpoint is accessible.`);
-      });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        let errorData;
-        try {
-          errorData = JSON.parse(errorText);
-        } catch {
-          errorData = { error: errorText || `HTTP ${response.status}` };
+        const responseData = await response.json();
+        console.log('API key response:', { status: response.status, data: responseData });
+
+        if (responseData.success && responseData.api_key) {
+          setApiKey(responseData.api_key);
+        } else if (responseData.api_key) {
+          // Handle case where api_key is returned directly
+          setApiKey(responseData.api_key);
+        } else {
+          console.error('API key not found in response:', responseData);
+          toast.error('API key not found in response');
         }
-        console.error('Failed to load API key:', errorData);
-        const errorMsg = errorData.error || errorData.details || `Failed to load API key (${response.status})`;
-        toast.error(errorMsg);
-        setIsLoadingApiKey(false);
-        return;
-      }
-
-      const responseData = await response.json();
-      console.log('API key response:', { status: response.status, data: responseData });
-
-      if (responseData.success && responseData.api_key) {
-        setApiKey(responseData.api_key);
-      } else if (responseData.api_key) {
-        // Handle case where api_key is returned directly
-        setApiKey(responseData.api_key);
-      } else {
-        console.error('API key not found in response:', responseData);
-        toast.error('API key not found in response');
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+        throw fetchError;
       }
     } catch (error) {
       console.error('Error loading API key:', error);
-      // Check if it's a network error
-      if (error.message.includes('Failed to fetch') || error.message.includes('Network error')) {
-        toast.error('Cannot connect to API. Please check your internet connection or try again later.');
-      } else {
-        toast.error(`Error loading API key: ${error.message}`);
-      }
+      // Don't show error toast for network errors - just log it
+      // The API key section will show "Not available" which is fine
+      console.warn('API key loading failed - this is optional and won\'t affect other features');
     } finally {
       setIsLoadingApiKey(false);
     }
