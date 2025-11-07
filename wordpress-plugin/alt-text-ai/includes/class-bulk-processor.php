@@ -326,7 +326,8 @@ class AltTextAI_Bulk_Processor {
             'errors' => array_slice($errors, -count($images)), // Only return errors from this batch
             'total_processed' => $batch_offset + $processed,
             'has_more' => $has_more,
-            'next_offset' => $next_batch_offset
+            'next_offset' => $next_batch_offset,
+            'completed' => !$has_more
         );
     }
     
