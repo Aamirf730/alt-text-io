@@ -1719,77 +1719,34 @@ const LandingPage = () => {
       </section>
 
       {/* Footer */}
-      <footer className="bg-white border-t border-gray-200 py-16">
+      <footer className="bg-white border-t border-gray-200 py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid md:grid-cols-4 gap-8">
+          <div className="flex flex-col items-center text-center space-y-6">
             {/* Logo & Company Info */}
-            <div>
-              <div className="flex items-center space-x-2 mb-4">
-                <img 
-                  src="/logo-alt-text-pro.png" 
-                  alt="Alt Text Pro Logo" 
-                  className="h-8 w-8 object-contain"
-                />
-                <span className="text-xl font-bold text-gray-900">Alt Text Pro</span>
-              </div>
-              <p className="text-gray-600 text-sm leading-relaxed mb-4">
-                Automatically generate alt text for images in over 130 languages.
-              </p>
-              <div className="flex space-x-3">
-                <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <span className="text-xs">f</span>
-                </div>
-                <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <span className="text-xs">t</span>
-                </div>
-                <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <span className="text-xs">in</span>
-                </div>
-              </div>
+            <div className="flex items-center space-x-2">
+              <img 
+                src="/logo-alt-text-pro.png" 
+                alt="Alt Text Pro Logo" 
+                className="h-10 w-10 object-contain"
+              />
+              <span className="text-2xl font-bold text-gray-900">Alt Text Pro</span>
             </div>
-
-            {/* Integrations */}
-            <div>
-              <h4 className="font-semibold text-gray-900 mb-4">Integrations</h4>
-              <ul className="space-y-3 text-sm text-gray-600">
-                <li><a href="#" className="hover:text-gray-900 transition-colors">WordPress</a></li>
-                <li><a href="#" className="hover:text-gray-900 transition-colors">Shopify</a></li>
-                <li><a href="#" className="hover:text-gray-900 transition-colors">API</a></li>
-                <li><a href="#" className="hover:text-gray-900 transition-colors">Bulk Upload</a></li>
-              </ul>
-            </div>
-
-            {/* SEO & Accessibility */}
-            <div>
-              <h4 className="font-semibold text-gray-900 mb-4">SEO & Accessibility</h4>
-              <ul className="space-y-3 text-sm text-gray-600">
-                <li><a href="#" className="hover:text-gray-900 transition-colors">Alt Text Best Practices</a></li>
-                <li><a href="#" className="hover:text-gray-900 transition-colors">SEO Benefits</a></li>
-                <li><a href="#" className="hover:text-gray-900 transition-colors">WCAG Compliance</a></li>
-                <li><a href="#" className="hover:text-gray-900 transition-colors">Screen Reader Support</a></li>
-              </ul>
-            </div>
-
-            {/* Support */}
-            <div>
-              <h4 className="font-semibold text-gray-900 mb-4">Support</h4>
-              <ul className="space-y-3 text-sm text-gray-600">
-                <li><a href="#" className="hover:text-gray-900 transition-colors">Help Center</a></li>
-                <li><a href="#" className="hover:text-gray-900 transition-colors">Contact Us</a></li>
-                <li><a href="#" className="hover:text-gray-900 transition-colors">Documentation</a></li>
-                <li><a href="#" className="hover:text-gray-900 transition-colors">Status Page</a></li>
-              </ul>
-            </div>
-          </div>
-
-          <div className="border-t border-gray-200 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center">
-            <p className="text-gray-500 text-sm mb-4 md:mb-0">
-              © 2024 Alt Text Pro. All rights reserved.
+            
+            <p className="text-gray-600 text-sm max-w-md">
+              Automatically generate alt text for images in over 130 languages.
             </p>
-            <div className="flex space-x-6 text-sm text-gray-500">
+
+            {/* Links */}
+            <div className="flex flex-wrap justify-center gap-6 text-sm text-gray-600">
+              <a href="#support" className="hover:text-gray-900 transition-colors">Contact</a>
               <a href="#" className="hover:text-gray-900 transition-colors">Terms & Conditions</a>
               <a href="#" className="hover:text-gray-900 transition-colors">Privacy Policy</a>
             </div>
+
+            {/* Copyright */}
+            <p className="text-gray-500 text-sm pt-4 border-t border-gray-200 w-full">
+              © 2024 Alt Text Pro. All rights reserved.
+            </p>
           </div>
         </div>
       </footer>
