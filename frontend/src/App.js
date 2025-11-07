@@ -2364,8 +2364,15 @@ const Dashboard = () => {
       
       let apiBase;
       if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-        // For localhost, use production API (Netlify Dev requires manual setup)
-        apiBase = process.env.REACT_APP_API_BASE || 'https://www.alt-text.pro/.netlify/functions';
+        // For localhost, check if REACT_APP_API_BASE is set and points to localhost:8888
+        // If so, use production API instead (Netlify Dev requires manual setup)
+        const envApiBase = process.env.REACT_APP_API_BASE;
+        if (envApiBase && envApiBase.includes('localhost:8888')) {
+          // Use production API when Netlify Dev is not running
+          apiBase = 'https://www.alt-text.pro/.netlify/functions';
+        } else {
+          apiBase = envApiBase || 'https://www.alt-text.pro/.netlify/functions';
+        }
       } else {
         apiBase = '/.netlify/functions';
       }
