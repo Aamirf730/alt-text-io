@@ -672,7 +672,7 @@ const LandingPage = () => {
                 <>
                   <Button 
                     variant="ghost" 
-                    className="text-white bg-blue-600 hover:bg-blue-700 font-medium px-6 py-2.5 rounded-full"
+                    className="text-white bg-teal-600 hover:bg-teal-700 font-medium px-6 py-2.5 rounded-full"
                     onClick={() => {
                       window.location.href = "/dashboard";
                     }}
@@ -694,7 +694,7 @@ const LandingPage = () => {
                 <>
                   <Button 
                     variant="ghost" 
-                    className="text-white bg-blue-600 hover:bg-blue-700 font-medium px-6 py-2.5 rounded-full"
+                    className="text-white bg-teal-600 hover:bg-teal-700 font-medium px-6 py-2.5 rounded-full"
                     onClick={() => {
                       setIsLogin(true);
                       setShowAuthForm(true);
@@ -766,7 +766,7 @@ const LandingPage = () => {
                     <>
                       <Button 
                         variant="ghost" 
-                        className="w-full text-white bg-blue-600 hover:bg-blue-700 font-medium px-6 py-2.5 rounded-full"
+                        className="w-full text-white bg-teal-600 hover:bg-teal-700 font-medium px-6 py-2.5 rounded-full"
                         onClick={() => {
                           setIsMobileMenuOpen(false);
                           window.location.href = "/dashboard";
@@ -790,7 +790,7 @@ const LandingPage = () => {
                     <>
                       <Button 
                         variant="ghost" 
-                        className="w-full text-white bg-blue-600 hover:bg-blue-700 font-medium px-6 py-2.5 rounded-full"
+                        className="w-full text-white bg-teal-600 hover:bg-teal-700 font-medium px-6 py-2.5 rounded-full"
                         onClick={() => {
                           setIsMobileMenuOpen(false);
                           setIsLogin(true);
@@ -819,13 +819,13 @@ const LandingPage = () => {
       </nav>
 
       {/* Hero Section */}
-      <section className="bg-gradient-to-br from-blue-50 to-indigo-50 py-16">
+      <section className="bg-gradient-to-br from-teal-50 to-cyan-50 py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-12 items-start">
             {/* Left Side - Content */}
             <div className="space-y-8">
               <div className="space-y-6">
-                <div className="text-sm font-medium text-blue-600 bg-blue-100 rounded-full px-3 py-1 inline-block">
+                <div className="text-sm font-medium text-teal-600 bg-teal-100 rounded-full px-3 py-1 inline-block">
                   World's Best AI Tool Accessibility
                 </div>
                 
@@ -840,7 +840,7 @@ const LandingPage = () => {
                 <div className="flex flex-col sm:flex-row gap-4">
                   <Button 
                     size="lg" 
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 text-lg font-semibold rounded-lg"
+                    className="bg-teal-600 hover:bg-teal-700 text-white px-8 py-4 text-lg font-semibold rounded-lg"
                     onClick={() => {
                       setIsLogin(false);
                       setShowAuthForm(true);
@@ -889,23 +889,23 @@ const LandingPage = () => {
                 
                 {/* Upload Area */}
                 <div 
-                  className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors mb-4 relative"
+                  className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-teal-400 hover:bg-teal-50 transition-colors mb-4 relative"
                   onClick={() => document.getElementById('image-upload').click()}
                   onDragOver={(e) => {
                     e.preventDefault();
                     if (!selectedImage) {
-                      e.currentTarget.classList.add('border-blue-400', 'bg-blue-50');
+                      e.currentTarget.classList.add('border-teal-400', 'bg-teal-50');
                     }
                   }}
                   onDragLeave={(e) => {
                     e.preventDefault();
                     if (!selectedImage) {
-                      e.currentTarget.classList.remove('border-blue-400', 'bg-blue-50');
+                      e.currentTarget.classList.remove('border-teal-400', 'bg-teal-50');
                     }
                   }}
                   onDrop={(e) => {
                     e.preventDefault();
-                    e.currentTarget.classList.remove('border-blue-400', 'bg-blue-50');
+                    e.currentTarget.classList.remove('border-teal-400', 'bg-teal-50');
                     const files = e.dataTransfer.files;
                     if (files[0] && files[0].type.startsWith('image/')) {
                       // Revoke previous URL if exists
@@ -944,8 +944,8 @@ const LandingPage = () => {
                     </>
                   ) : (
                     <>
-                      <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-3">
-                        <Upload className="h-6 w-6 text-blue-600" />
+                      <div className="w-12 h-12 bg-teal-100 rounded-lg flex items-center justify-center mx-auto mb-3">
+                        <Upload className="h-6 w-6 text-teal-600" />
                       </div>
                       <p className="text-sm text-gray-600 mb-1">Click to upload or drag and drop</p>
                       <p className="text-xs text-gray-500">SVG, PNG, JPG or GIF (max. 800x400px)</p>
@@ -976,7 +976,7 @@ const LandingPage = () => {
                 <Button 
                   onClick={generateDemoAltText}
                   disabled={!selectedImage || isGenerating}
-                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white py-3 rounded-lg font-medium mb-4"
+                  className="w-full bg-teal-600 hover:bg-teal-700 disabled:bg-gray-400 text-white py-3 rounded-lg font-medium mb-4"
                 >
                   {isGenerating ? 'Generating...' : 'Generate Alt Text'}
                 </Button>
@@ -1017,10 +1017,10 @@ const LandingPage = () => {
       </section>
 
       {/* How It Works - New Visual Design */}
-      <section className="py-20 bg-gradient-to-b from-blue-50 to-white">
+      <section className="py-20 bg-gradient-to-b from-teal-50 to-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-20">
-            <p className="text-blue-600 text-sm font-medium mb-2">How It Works .</p>
+            <p className="text-teal-600 text-sm font-medium mb-2">How It Works .</p>
             <h2 className="text-4xl font-bold text-gray-900 mb-4">
               Let AI Write Your Alt Text
               <br />
@@ -1063,16 +1063,16 @@ const LandingPage = () => {
               {/* Step 1 - Upload Image: Image Left, Text Right */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start relative">
                 <div className="lg:order-1 relative z-10 flex justify-center lg:justify-end">
-                  <div className="bg-blue-50 rounded-2xl p-8 border-2 border-dashed border-blue-200 relative w-full max-w-sm">
-                    <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Upload className="h-8 w-8 text-blue-600" />
+                  <div className="bg-teal-50 rounded-2xl p-8 border-2 border-dashed border-teal-200 relative w-full max-w-sm">
+                    <div className="w-16 h-16 bg-teal-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Upload className="h-8 w-8 text-teal-600" />
                     </div>
-                    <p className="text-gray-600 text-sm mb-1">Drag your file(s) or <span className="text-blue-600 underline">browse</span></p>
+                    <p className="text-gray-600 text-sm mb-1">Drag your file(s) or <span className="text-teal-600 underline">browse</span></p>
                     <p className="text-xs text-gray-500 mb-4">Max 10 MB files are allowed</p>
                     
-                    {/* Blue file badge */}
+                    {/* Teal file badge */}
                     <div className="absolute -top-3 right-6">
-                      <div className="bg-blue-600 text-white px-3 py-1 rounded-full text-xs font-medium flex items-center">
+                      <div className="bg-teal-600 text-white px-3 py-1 rounded-full text-xs font-medium flex items-center">
                         📎 theprojekts-image.jpg
                       </div>
                     </div>
@@ -1111,60 +1111,60 @@ const LandingPage = () => {
                 
                 <div className="lg:order-2 flex justify-center lg:justify-start">
                   {/* Complex AI Circuit Diagram */}
-                  <div className="relative w-full max-w-sm h-60 bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl p-4">
+                  <div className="relative w-full max-w-sm h-60 bg-gradient-to-br from-teal-50 to-cyan-50 rounded-2xl p-4">
                     {/* Central AI Chip */}
                     <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="w-24 h-16 bg-white rounded-lg border-2 border-blue-300 flex items-center justify-center shadow-sm">
-                        <span className="text-xl font-bold text-blue-600">AI</span>
+                      <div className="w-24 h-16 bg-white rounded-lg border-2 border-teal-300 flex items-center justify-center shadow-sm">
+                        <span className="text-xl font-bold text-teal-600">AI</span>
                       </div>
                     </div>
                     
                     {/* Circuit board elements */}
                     {/* Top connections */}
-                    <div className="absolute top-4 left-8 w-3 h-3 bg-blue-500 rounded-full"></div>
-                    <div className="absolute top-4 left-20 w-3 h-3 bg-blue-500 rounded-full"></div>
-                    <div className="absolute top-4 right-20 w-3 h-3 bg-blue-500 rounded-full"></div>
-                    <div className="absolute top-4 right-8 w-3 h-3 bg-blue-500 rounded-full"></div>
+                    <div className="absolute top-4 left-8 w-3 h-3 bg-cyan-500 rounded-full"></div>
+                    <div className="absolute top-4 left-20 w-3 h-3 bg-teal-500 rounded-full"></div>
+                    <div className="absolute top-4 right-20 w-3 h-3 bg-cyan-500 rounded-full"></div>
+                    <div className="absolute top-4 right-8 w-3 h-3 bg-teal-500 rounded-full"></div>
                     
                     {/* Side connections */}
-                    <div className="absolute left-4 top-16 w-3 h-3 bg-blue-500 rounded-full"></div>
-                    <div className="absolute left-4 bottom-16 w-3 h-3 bg-blue-500 rounded-full"></div>
-                    <div className="absolute right-4 top-16 w-3 h-3 bg-blue-500 rounded-full"></div>
-                    <div className="absolute right-4 bottom-16 w-3 h-3 bg-blue-500 rounded-full"></div>
+                    <div className="absolute left-4 top-16 w-3 h-3 bg-cyan-500 rounded-full"></div>
+                    <div className="absolute left-4 bottom-16 w-3 h-3 bg-teal-500 rounded-full"></div>
+                    <div className="absolute right-4 top-16 w-3 h-3 bg-cyan-500 rounded-full"></div>
+                    <div className="absolute right-4 bottom-16 w-3 h-3 bg-teal-500 rounded-full"></div>
                     
                     {/* Bottom connections */}
-                    <div className="absolute bottom-4 left-8 w-3 h-3 bg-blue-500 rounded-full"></div>
-                    <div className="absolute bottom-4 left-20 w-3 h-3 bg-blue-500 rounded-full"></div>
-                    <div className="absolute bottom-4 right-20 w-3 h-3 bg-blue-500 rounded-full"></div>
-                    <div className="absolute bottom-4 right-8 w-3 h-3 bg-blue-500 rounded-full"></div>
+                    <div className="absolute bottom-4 left-8 w-3 h-3 bg-cyan-500 rounded-full"></div>
+                    <div className="absolute bottom-4 left-20 w-3 h-3 bg-teal-500 rounded-full"></div>
+                    <div className="absolute bottom-4 right-20 w-3 h-3 bg-cyan-500 rounded-full"></div>
+                    <div className="absolute bottom-4 right-8 w-3 h-3 bg-teal-500 rounded-full"></div>
                     
                     {/* Circuit lines */}
-                    <div className="absolute top-6 left-11 w-20 h-px bg-blue-400"></div>
-                    <div className="absolute top-6 right-11 w-20 h-px bg-blue-400"></div>
-                    <div className="absolute bottom-6 left-11 w-20 h-px bg-blue-400"></div>
-                    <div className="absolute bottom-6 right-11 w-20 h-px bg-blue-400"></div>
+                    <div className="absolute top-6 left-11 w-20 h-px bg-cyan-400"></div>
+                    <div className="absolute top-6 right-11 w-20 h-px bg-teal-400"></div>
+                    <div className="absolute bottom-6 left-11 w-20 h-px bg-cyan-400"></div>
+                    <div className="absolute bottom-6 right-11 w-20 h-px bg-teal-400"></div>
                     
                     {/* Vertical lines */}
-                    <div className="absolute left-6 top-8 w-px h-12 bg-blue-400"></div>
-                    <div className="absolute right-6 top-8 w-px h-12 bg-blue-400"></div>
-                    <div className="absolute left-6 bottom-8 w-px h-12 bg-blue-400"></div>
-                    <div className="absolute right-6 bottom-8 w-px h-12 bg-blue-400"></div>
+                    <div className="absolute left-6 top-8 w-px h-12 bg-cyan-400"></div>
+                    <div className="absolute right-6 top-8 w-px h-12 bg-teal-400"></div>
+                    <div className="absolute left-6 bottom-8 w-px h-12 bg-cyan-400"></div>
+                    <div className="absolute right-6 bottom-8 w-px h-12 bg-teal-400"></div>
                     
                     {/* Corner elements */}
-                    <div className="absolute top-6 left-6 w-2 h-2 bg-blue-600 rounded-full"></div>
-                    <div className="absolute top-6 right-6 w-2 h-2 bg-blue-600 rounded-full"></div>
-                    <div className="absolute bottom-6 left-6 w-2 h-2 bg-blue-600 rounded-full"></div>
-                    <div className="absolute bottom-6 right-6 w-2 h-2 bg-blue-600 rounded-full"></div>
+                    <div className="absolute top-6 left-6 w-2 h-2 bg-teal-600 rounded-full"></div>
+                    <div className="absolute top-6 right-6 w-2 h-2 bg-cyan-500 rounded-full"></div>
+                    <div className="absolute bottom-6 left-6 w-2 h-2 bg-teal-600 rounded-full"></div>
+                    <div className="absolute bottom-6 right-6 w-2 h-2 bg-cyan-500 rounded-full"></div>
                     
                     {/* Small icons around the chip */}
                     <div className="absolute top-2 left-16">
-                      <div className="w-6 h-6 bg-blue-200 rounded flex items-center justify-center">
-                        <span className="text-xs text-blue-600">G</span>
+                      <div className="w-6 h-6 bg-cyan-200 rounded flex items-center justify-center">
+                        <span className="text-xs text-teal-600">G</span>
                       </div>
                     </div>
                     <div className="absolute bottom-2 right-16">
-                      <div className="w-6 h-6 bg-blue-200 rounded flex items-center justify-center">
-                        <span className="text-xs text-blue-600">AWS</span>
+                      <div className="w-6 h-6 bg-teal-200 rounded flex items-center justify-center">
+                        <span className="text-xs text-teal-600">AWS</span>
                       </div>
                     </div>
                   </div>
@@ -1175,8 +1175,8 @@ const LandingPage = () => {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start relative">
                 <div className="lg:order-1 flex justify-center lg:justify-end">
                   {/* Image with mountain scene */}
-                  <div className="bg-white rounded-xl border-2 border-blue-200 p-4 w-full max-w-sm">
-                    <div className="w-full h-32 bg-gradient-to-b from-blue-200 via-blue-100 to-green-100 rounded-lg flex items-end justify-center mb-3 relative overflow-hidden">
+                  <div className="bg-white rounded-xl border-2 border-teal-200 p-4 w-full max-w-sm">
+                    <div className="w-full h-32 bg-gradient-to-b from-teal-200 via-cyan-100 to-green-100 rounded-lg flex items-end justify-center mb-3 relative overflow-hidden">
                       {/* Simple mountain silhouette */}
                       <div className="absolute bottom-0 left-0 w-full h-16 bg-green-200"></div>
                       <div className="absolute bottom-8 left-8 w-20 h-12 bg-gray-400 transform -skew-x-12"></div>
@@ -1191,23 +1191,23 @@ const LandingPage = () => {
                     
                     {/* Three options with proper spacing */}
                     <div className="grid grid-cols-3 gap-3">
-                      <div className="bg-blue-50 rounded-lg p-3 text-center border border-blue-200">
-                        <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center mx-auto mb-2 border border-blue-300">
-                          <Eye className="h-4 w-4 text-blue-600" />
+                      <div className="bg-teal-50 rounded-lg p-3 text-center border border-teal-200">
+                        <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center mx-auto mb-2 border border-teal-300">
+                          <Eye className="h-4 w-4 text-teal-600" />
                         </div>
                         <p className="text-xs font-medium text-gray-700">Screen readers</p>
                       </div>
                       
-                      <div className="bg-blue-50 rounded-lg p-3 text-center border border-blue-200">
-                        <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center mx-auto mb-2 border border-blue-300">
-                          <Search className="h-4 w-4 text-blue-600" />
+                      <div className="bg-cyan-50 rounded-lg p-3 text-center border border-cyan-200">
+                        <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center mx-auto mb-2 border border-cyan-300">
+                          <Search className="h-4 w-4 text-cyan-600" />
                         </div>
                         <p className="text-xs font-medium text-gray-700">Search engines</p>
                       </div>
                       
-                      <div className="bg-blue-50 rounded-lg p-3 text-center border border-blue-200">
-                        <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center mx-auto mb-2 border border-blue-300">
-                          <X className="h-4 w-4 text-blue-600" />
+                      <div className="bg-teal-50 rounded-lg p-3 text-center border border-teal-200">
+                        <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center mx-auto mb-2 border border-teal-300">
+                          <X className="h-4 w-4 text-teal-600" />
                         </div>
                         <p className="text-xs font-medium text-gray-700">Broken images</p>
                       </div>
@@ -1277,8 +1277,8 @@ const LandingPage = () => {
                 </div>
 
                 <div className="flex items-start space-x-4">
-                  <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <Zap className="h-6 w-6 text-blue-600" />
+                  <div className="w-12 h-12 bg-teal-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <Zap className="h-6 w-6 text-teal-600" />
                   </div>
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-2">Batch Processing & Automation</h3>
@@ -1407,7 +1407,7 @@ const LandingPage = () => {
               <button
                 onClick={() => setBillingCycle(billingCycle === 'monthly' ? 'annual' : 'monthly')}
                 className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${
-                  billingCycle === 'annual' ? 'bg-blue-600' : 'bg-gray-300'
+                  billingCycle === 'annual' ? 'bg-teal-600' : 'bg-gray-300'
                 }`}
               >
                 <span
@@ -1418,17 +1418,17 @@ const LandingPage = () => {
               </button>
               <span className={`text-sm font-medium ${billingCycle === 'annual' ? 'text-gray-900' : 'text-gray-500'}`}>
                 Annual
-                <span className="ml-2 text-xs text-blue-600 font-semibold">Save 20%</span>
+                <span className="ml-2 text-xs text-teal-600 font-semibold">Save 20%</span>
               </span>
             </div>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-6 max-w-7xl mx-auto">
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
             {/* Free Plan */}
-            <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-100 hover:border-blue-200 transition-colors">
+            <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-100 hover:border-teal-200 transition-colors">
               <div className="text-center">
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">Free</h3>
-                <div className="text-4xl font-bold text-blue-600 mb-2">$0</div>
+                <div className="text-4xl font-bold text-teal-600 mb-2">$0</div>
                 <p className="text-gray-600 mb-6">per month</p>
                 
                 <div className="space-y-4 mb-8">
@@ -1456,17 +1456,17 @@ const LandingPage = () => {
             </div>
 
             {/* Tier 1 */}
-            <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-100 hover:border-blue-200 transition-colors">
+            <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-100 hover:border-teal-200 transition-colors">
               <div className="text-center">
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">Tier 1</h3>
-                <div className="text-3xl font-bold text-blue-600 mb-2">
-                  ${billingCycle === 'annual' ? '12' : '15'}
+                <div className="text-3xl font-bold text-teal-600 mb-2">
+                  ${billingCycle === 'annual' ? '9.60' : '12'}
                   <span className="text-xl text-gray-600 font-normal ml-1">
                     {billingCycle === 'annual' ? '/month billed annually' : '/month'}
                   </span>
                 </div>
                 {billingCycle === 'annual' && (
-                  <p className="text-xs text-gray-500 mb-4">$144/year (Save 20%)</p>
+                  <p className="text-xs text-gray-500 mb-4">$115.20/year (Save 20%)</p>
                 )}
                 
                 <div className="space-y-3 mb-8">
@@ -1489,8 +1489,8 @@ const LandingPage = () => {
                 </div>
                 
                 <Button 
-                  onClick={() => handlePlanSelection('tier1', 'Tier 1', billingCycle === 'annual' ? '$144' : '$15')}
-                  className="w-full bg-blue-600 text-white hover:bg-blue-700"
+                  onClick={() => handlePlanSelection('tier1', 'Tier 1', billingCycle === 'annual' ? '$115.20' : '$12')}
+                  className="w-full bg-teal-600 text-white hover:bg-teal-700"
                 >
                   Choose Plan
                 </Button>
@@ -1498,34 +1498,34 @@ const LandingPage = () => {
             </div>
 
             {/* Tier 2 - Most Popular */}
-            <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-blue-500 relative transform scale-105">
+            <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-teal-500 relative transform scale-105">
               <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
-                <span className="bg-blue-600 text-white px-4 py-1 rounded-full text-sm font-medium">Most Popular</span>
+                <span className="bg-teal-600 text-white px-4 py-1 rounded-full text-sm font-medium">Most Popular</span>
               </div>
               <div className="text-center">
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">Tier 2</h3>
-                <div className="text-3xl font-bold text-blue-600 mb-2">
-                  ${billingCycle === 'annual' ? '20' : '25'}
+                <div className="text-3xl font-bold text-teal-600 mb-2">
+                  ${billingCycle === 'annual' ? '16' : '20'}
                   <span className="text-xl text-gray-600 font-normal ml-1">
                     {billingCycle === 'annual' ? '/month billed annually' : '/month'}
                   </span>
                 </div>
                 {billingCycle === 'annual' && (
-                  <p className="text-xs text-gray-500 mb-4">$240/year (Save 20%)</p>
+                  <p className="text-xs text-gray-500 mb-4">$192/year (Save 20%)</p>
                 )}
                 
                 <div className="space-y-3 mb-8">
                   <div className="flex items-center">
                     <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-gray-700">2,500 Credits</span>
+                    <span className="text-gray-700">2,000 Credits</span>
                   </div>
                   <div className="flex items-center">
                     <Check className="h-5 w-5 text-green-500 mr-3" />
                     <span className="text-gray-700">Premium support</span>
                   </div>
                   <div className="flex items-center">
-                    <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-gray-700">Advanced API access</span>
+                    <Check className="h-5 w-5 text-green-500 mr-3 flex-shrink-0" />
+                    <span className="text-gray-700">API access</span>
                   </div>
                   <div className="flex items-center">
                     <Check className="h-5 w-5 text-green-500 mr-3" />
@@ -1535,15 +1535,11 @@ const LandingPage = () => {
                     <Check className="h-5 w-5 text-green-500 mr-3" />
                     <span className="text-gray-700">Bulk processing</span>
                   </div>
-                  <div className="flex items-center">
-                    <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-gray-700">Custom integrations</span>
-                  </div>
                 </div>
                 
                 <Button 
-                  onClick={() => handlePlanSelection('tier2', 'Tier 2', billingCycle === 'annual' ? '$240' : '$25')}
-                  className="w-full bg-blue-600 text-white hover:bg-blue-700"
+                  onClick={() => handlePlanSelection('tier2', 'Tier 2', billingCycle === 'annual' ? '$192' : '$20')}
+                  className="w-full bg-teal-600 text-white hover:bg-teal-700"
                 >
                   Choose Plan
                 </Button>
@@ -1551,17 +1547,17 @@ const LandingPage = () => {
             </div>
 
             {/* Tier 3 */}
-            <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-100 hover:border-blue-200 transition-colors">
+            <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-100 hover:border-teal-200 transition-colors">
               <div className="text-center">
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">Tier 3</h3>
-                <div className="text-3xl font-bold text-blue-600 mb-2">
-                  ${billingCycle === 'annual' ? '47.20' : '59'}
+                <div className="text-3xl font-bold text-teal-600 mb-2">
+                  ${billingCycle === 'annual' ? '32' : '40'}
                   <span className="text-xl text-gray-600 font-normal ml-1">
                     {billingCycle === 'annual' ? '/month billed annually' : '/month'}
                   </span>
                 </div>
                 {billingCycle === 'annual' && (
-                  <p className="text-xs text-gray-500 mb-4">$566.40/year (Save 20%)</p>
+                  <p className="text-xs text-gray-500 mb-4">$384/year (Save 20%)</p>
                 )}
                 
                 <div className="space-y-3 mb-8">
@@ -1574,81 +1570,28 @@ const LandingPage = () => {
                     <span className="text-gray-700">Premium support</span>
                   </div>
                   <div className="flex items-center">
-                    <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-gray-700">Advanced API access</span>
+                    <Check className="h-5 w-5 text-green-500 mr-3 flex-shrink-0" />
+                    <span className="text-gray-700">API access</span>
                   </div>
                   <div className="flex items-center">
                     <Check className="h-5 w-5 text-green-500 mr-3" />
                     <span className="text-gray-700">Priority processing</span>
                   </div>
                   <div className="flex items-center">
-                    <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-gray-700">Unlimited bulk processing</span>
-                  </div>
-                  <div className="flex items-center">
-                    <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-gray-700">Dedicated support</span>
+                    <Check className="h-5 w-5 text-green-500 mr-3 flex-shrink-0" />
+                    <span className="text-gray-700">Bulk Processing</span>
                   </div>
                 </div>
                 
                 <Button 
-                  onClick={() => handlePlanSelection('tier3', 'Tier 3', billingCycle === 'annual' ? '$566.40' : '$59')}
-                  className="w-full bg-blue-600 text-white hover:bg-blue-700"
+                  onClick={() => handlePlanSelection('tier3', 'Tier 3', billingCycle === 'annual' ? '$384' : '$40')}
+                  className="w-full bg-teal-600 text-white hover:bg-teal-700"
                 >
                   Choose Plan
                 </Button>
               </div>
             </div>
 
-            {/* Tier 4 */}
-            <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-100 hover:border-blue-200 transition-colors">
-              <div className="text-center">
-                <h3 className="text-2xl font-bold text-gray-900 mb-2">Tier 4</h3>
-                <div className="text-3xl font-bold text-blue-600 mb-2">
-                  ${billingCycle === 'annual' ? '95.20' : '119'}
-                  <span className="text-xl text-gray-600 font-normal ml-1">
-                    {billingCycle === 'annual' ? '/month billed annually' : '/month'}
-                  </span>
-                </div>
-                {billingCycle === 'annual' && (
-                  <p className="text-xs text-gray-500 mb-4">$1,142.40/year (Save 20%)</p>
-                )}
-                
-                <div className="space-y-3 mb-8">
-                  <div className="flex items-center">
-                    <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-gray-700">10,000 Credits</span>
-                  </div>
-                  <div className="flex items-center">
-                    <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-gray-700">Enterprise support</span>
-                  </div>
-                  <div className="flex items-center">
-                    <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-gray-700">Advanced API access</span>
-                  </div>
-                  <div className="flex items-center">
-                    <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-gray-700">Highest priority processing</span>
-                  </div>
-                  <div className="flex items-center">
-                    <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-gray-700">Unlimited bulk processing</span>
-                  </div>
-                  <div className="flex items-center">
-                    <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-gray-700">Dedicated account manager</span>
-                  </div>
-                </div>
-                
-                <Button 
-                  onClick={() => handlePlanSelection('tier4', 'Tier 4', billingCycle === 'annual' ? '$1,142.40' : '$119')}
-                  className="w-full bg-blue-600 text-white hover:bg-blue-700"
-                >
-                  Choose Plan
-                </Button>
-              </div>
-            </div>
           </div>
 
           {/* Credit Packs Section */}
@@ -1656,10 +1599,10 @@ const LandingPage = () => {
             <h3 className="text-2xl font-bold text-gray-900 text-center mb-8">One-Time Credit Packs</h3>
             <div className="grid md:grid-cols-2 gap-6 max-w-2xl mx-auto">
               {/* Small Pack */}
-              <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-100 hover:border-blue-200 transition-colors">
+              <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-100 hover:border-teal-200 transition-colors">
                 <div className="text-center">
                   <h3 className="text-xl font-bold text-gray-900 mb-2">Small Pack</h3>
-                  <div className="text-3xl font-bold text-blue-600 mb-2">$3</div>
+                  <div className="text-3xl font-bold text-teal-600 mb-2">$3</div>
                   <p className="text-gray-600 mb-6">for 100 credits</p>
                   
                   <div className="space-y-3 mb-8">
@@ -1679,7 +1622,7 @@ const LandingPage = () => {
                   
                   <Button 
                     onClick={() => handlePlanSelection('small_pack', 'Small Pack', '$3')}
-                    className="w-full bg-blue-600 text-white hover:bg-blue-700"
+                    className="w-full bg-teal-600 text-white hover:bg-teal-700"
                   >
                     Buy Credits
                   </Button>
@@ -1687,10 +1630,10 @@ const LandingPage = () => {
               </div>
 
               {/* Pay as you go */}
-              <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-100 hover:border-blue-200 transition-colors">
+              <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-100 hover:border-teal-200 transition-colors">
                 <div className="text-center">
                   <h3 className="text-xl font-bold text-gray-900 mb-2">Pay as you go</h3>
-                  <div className="text-3xl font-bold text-blue-600 mb-2">$5</div>
+                  <div className="text-3xl font-bold text-teal-600 mb-2">$5</div>
                   <p className="text-gray-600 mb-6">for 500 credits</p>
                   
                   <div className="space-y-3 mb-8">
@@ -1714,7 +1657,7 @@ const LandingPage = () => {
                   
                   <Button 
                     onClick={() => handlePlanSelection('pay_as_go', 'Pay as you go', '$5')}
-                    className="w-full bg-blue-600 text-white hover:bg-blue-700"
+                    className="w-full bg-teal-600 text-white hover:bg-teal-700"
                   >
                     Buy Credits
                   </Button>
@@ -1727,7 +1670,7 @@ const LandingPage = () => {
             <p className="text-gray-600">
               All plans include our advanced AI alt-text generation and multi-language support.
               <br />
-              Need a custom plan? <a href="#support" className="text-blue-600 hover:text-blue-700 font-medium">Contact us</a>
+              Need a custom plan? <a href="#support" className="text-teal-600 hover:text-teal-700 font-medium">Contact us</a>
             </p>
           </div>
         </div>
@@ -1743,7 +1686,7 @@ const LandingPage = () => {
           <div className="grid md:grid-cols-3 gap-8">
             {/* Example 1 */}
             <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-              <div className="aspect-w-4 aspect-h-3 bg-gradient-to-br from-blue-100 to-purple-100">
+              <div className="aspect-w-4 aspect-h-3 bg-gradient-to-br from-teal-100 to-purple-100">
                 <div className="flex items-center justify-center text-gray-600">
                   Business Team Meeting
                 </div>
@@ -1784,7 +1727,7 @@ const LandingPage = () => {
 
             {/* Example 3 */}
             <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-              <div className="aspect-w-4 aspect-h-3 bg-gradient-to-br from-blue-100 to-cyan-100">
+              <div className="aspect-w-4 aspect-h-3 bg-gradient-to-br from-teal-100 to-cyan-100">
                 <div className="flex items-center justify-center text-gray-600">
                   Mountain Landscape
                 </div>
@@ -1806,18 +1749,18 @@ const LandingPage = () => {
       </section>
 
       {/* Call to Action */}
-      <section className="py-20 bg-blue-600">
+      <section className="py-20 bg-teal-600">
         <div className="max-w-4xl mx-auto text-center px-4 sm:px-6 lg:px-8">
           <h2 className="text-4xl font-bold text-white mb-6">
             Start your free trial today
           </h2>
-          <p className="text-xl text-blue-100 mb-8">
+          <p className="text-xl text-teal-100 mb-8">
             First 100 images alt text. No credit card required.
           </p>
           
           <Button 
             size="lg" 
-            className="bg-white text-blue-600 hover:bg-gray-50 font-semibold px-8 py-4 text-lg rounded-lg"
+            className="bg-white text-teal-600 hover:bg-gray-50 font-semibold px-8 py-4 text-lg rounded-lg"
             onClick={() => {
               setIsLogin(false);
               setShowAuthForm(true);
@@ -1970,12 +1913,12 @@ const LandingPage = () => {
             >
               {isGoogleLoading ? (
                 <>
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600 mr-2"></div>
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-teal-600 mr-2"></div>
                   Connecting...
                 </>
               ) : (
                 <>
-                  <Chrome className="mr-2 h-5 w-5 text-blue-600" />
+                  <Chrome className="mr-2 h-5 w-5 text-teal-600" />
                   Continue with Google
                 </>
               )}
@@ -1985,7 +1928,7 @@ const LandingPage = () => {
               <button
                 type="button"
                 onClick={() => setIsLogin(!isLogin)}
-                className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                className="text-sm text-teal-600 hover:text-teal-700 font-medium"
               >
                 {isLogin 
                   ? "Don't have an account? Sign up" 
@@ -2021,7 +1964,7 @@ const LandingPage = () => {
               <p className="text-gray-600 mb-4">
                 You selected: {selectedPlan.name}
               </p>
-              <div className="text-3xl font-bold text-blue-600 mb-4">
+              <div className="text-3xl font-bold text-teal-600 mb-4">
                 {selectedPlan.price}
                 {selectedPlan.id !== 'free' && selectedPlan.id !== 'pay_as_go' && (
                   <span className="text-lg text-gray-500">/month</span>
@@ -2040,7 +1983,7 @@ const LandingPage = () => {
                     setSelectedPlan(null);
                     window.location.href = "/dashboard";
                   }}
-                  className="w-full bg-blue-600 text-white hover:bg-blue-700"
+                  className="w-full bg-teal-600 text-white hover:bg-teal-700"
                 >
                   Go to Dashboard
                 </Button>
@@ -2074,7 +2017,7 @@ const LandingPage = () => {
                       <>
                         <div className="flex items-center">
                           <Check className="h-4 w-4 text-green-500 mr-2" />
-                          <span className="text-sm text-gray-700">2,500 Credits per month</span>
+                          <span className="text-sm text-gray-700">2,000 Credits per month</span>
                         </div>
                         <div className="flex items-center">
                           <Check className="h-4 w-4 text-green-500 mr-2" />
@@ -2086,11 +2029,35 @@ const LandingPage = () => {
                         </div>
                         <div className="flex items-center">
                           <Check className="h-4 w-4 text-green-500 mr-2" />
-                          <span className="text-sm text-gray-700">Bulk processing</span>
+                          <span className="text-sm text-gray-700">Priority processing</span>
                         </div>
                         <div className="flex items-center">
                           <Check className="h-4 w-4 text-green-500 mr-2" />
-                          <span className="text-sm text-gray-700">Custom integrations</span>
+                          <span className="text-sm text-gray-700">Bulk processing</span>
+                        </div>
+                      </>
+                    )}
+                    {selectedPlan.id === 'tier3' && (
+                      <>
+                        <div className="flex items-center">
+                          <Check className="h-4 w-4 text-green-500 mr-2" />
+                          <span className="text-sm text-gray-700">5,000 Credits per month</span>
+                        </div>
+                        <div className="flex items-center">
+                          <Check className="h-4 w-4 text-green-500 mr-2" />
+                          <span className="text-sm text-gray-700">Premium support</span>
+                        </div>
+                        <div className="flex items-center">
+                          <Check className="h-4 w-4 text-green-500 mr-2" />
+                          <span className="text-sm text-gray-700">API access</span>
+                        </div>
+                        <div className="flex items-center">
+                          <Check className="h-4 w-4 text-green-500 mr-2" />
+                          <span className="text-sm text-gray-700">Priority processing</span>
+                        </div>
+                        <div className="flex items-center">
+                          <Check className="h-4 w-4 text-green-500 mr-2" />
+                          <span className="text-sm text-gray-700">Bulk Processing</span>
                         </div>
                       </>
                     )}
@@ -2317,7 +2284,7 @@ const Dashboard = () => {
         body: JSON.stringify({
           paymentId: data.orderID,
           planId: selectedUpgradePlan.id,
-          isSubscription: selectedUpgradePlan.id === 'tier1' || selectedUpgradePlan.id === 'tier2'
+          isSubscription: selectedUpgradePlan.id === 'tier1' || selectedUpgradePlan.id === 'tier2' || selectedUpgradePlan.id === 'tier3'
         })
       });
 
@@ -2799,12 +2766,12 @@ const Dashboard = () => {
                 </div>
 
                 {/* Buy Credits Option - Always Visible */}
-                <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-4">
-                  <div className="flex items-center mb-2">
-                    <CreditCard className="h-4 w-4 text-blue-600 mr-2" />
-                    <span className="text-sm font-medium text-blue-900">Buy More Credits</span>
+                <div className="bg-gradient-to-r from-teal-50 to-purple-50 border border-teal-200 rounded-lg p-4">
+                    <div className="flex items-center mb-2">
+                    <CreditCard className="h-4 w-4 text-teal-600 mr-2" />
+                    <span className="text-sm font-medium text-teal-900">Buy More Credits</span>
                   </div>
-                  <p className="text-xs text-blue-700 mb-3">
+                  <p className="text-xs text-teal-700 mb-3">
                     Need more credits? Choose a credit pack below.
                   </p>
                   <div className="space-y-2">
@@ -2820,7 +2787,7 @@ const Dashboard = () => {
                     <Button 
                       onClick={() => handleUpgradePlan('pay_as_go', 'Pay as you go', '$5')}
                       size="sm" 
-                      className="w-full bg-blue-600 text-white hover:bg-blue-700"
+                      className="w-full bg-teal-600 text-white hover:bg-teal-700"
                     >
                       <CreditCard className="h-4 w-4 mr-2" />
                       500 Credits - $5
@@ -2830,12 +2797,12 @@ const Dashboard = () => {
 
                 {/* Development Mode Notice */}
                 {window.location.hostname === 'localhost' && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <div className="flex items-center mb-2">
-                      <Brain className="h-4 w-4 text-blue-600 mr-2" />
-                      <span className="text-sm font-medium text-blue-800">Development Mode</span>
+                  <div className="bg-teal-50 border border-teal-200 rounded-lg p-4">
+                      <div className="flex items-center mb-2">
+                      <Brain className="h-4 w-4 text-teal-600 mr-2" />
+                      <span className="text-sm font-medium text-teal-800">Development Mode</span>
                     </div>
-                    <p className="text-xs text-blue-700">
+                    <p className="text-xs text-teal-700">
                       Payment system is in development. Deploy to Netlify to enable payments.
                     </p>
                   </div>
@@ -2858,11 +2825,11 @@ const Dashboard = () => {
                     </p>
                     <div className="space-y-2">
                       <Button 
-                        onClick={() => handleUpgradePlan('tier1', 'Tier 1', '$15')}
+                        onClick={() => handleUpgradePlan('tier1', 'Tier 1', '$12')}
                         size="sm" 
-                        className="w-full bg-blue-600 text-white hover:bg-blue-700"
+                        className="w-full bg-teal-600 text-white hover:bg-teal-700"
                       >
-                        Upgrade to Tier 1 - $15/month
+                        Upgrade to Tier 1 - $12/month
                       </Button>
                       <Button 
                         onClick={() => handleUpgradePlan('pay_as_go', 'Pay as you go', '$5')}
@@ -2878,12 +2845,12 @@ const Dashboard = () => {
 
                 {/* Subscription Info */}
                 {subscriptionData?.subscription && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <div className="flex items-center mb-2">
-                      <Calendar className="h-4 w-4 text-blue-600 mr-2" />
-                      <span className="text-sm font-medium text-blue-800">Subscription</span>
+                  <div className="bg-teal-50 border border-teal-200 rounded-lg p-4">
+                      <div className="flex items-center mb-2">
+                      <Calendar className="h-4 w-4 text-teal-600 mr-2" />
+                      <span className="text-sm font-medium text-teal-800">Subscription</span>
                     </div>
-                    <div className="space-y-1 text-xs text-blue-700">
+                    <div className="space-y-1 text-xs text-teal-700">
                       <p>Plan: {subscriptionData.subscription.plan}</p>
                       <p>Status: {subscriptionData.subscription.status}</p>
                       {subscriptionData.subscription.next_billing_date && (
@@ -2899,8 +2866,8 @@ const Dashboard = () => {
             <Card className="mb-6">
               <CardHeader className="pb-4">
                 <CardTitle className="flex items-center text-xl">
-                  <div className="p-2 bg-blue-100 rounded-lg mr-3">
-                    <Key className="h-6 w-6 text-blue-600" />
+                  <div className="p-2 bg-teal-100 rounded-lg mr-3">
+                    <Key className="h-6 w-6 text-teal-600" />
                   </div>
                   WordPress Plugin Integration
                 </CardTitle>
@@ -2908,16 +2875,16 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent className="space-y-6">
                 {/* Setup Instructions */}
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-5">
+                <div className="bg-teal-50 border border-teal-200 rounded-lg p-5">
                   <div className="flex items-start space-x-3 mb-4">
                     <div className="flex-shrink-0">
-                      <Info className="h-5 w-5 text-blue-600 mt-0.5" />
+                      <Info className="h-5 w-5 text-teal-600 mt-0.5" />
                     </div>
                     <div className="flex-1">
-                      <h4 className="text-sm font-semibold text-blue-900 mb-3">
+                      <h4 className="text-sm font-semibold text-teal-900 mb-3">
                         Quick Setup Guide
                       </h4>
-                      <ol className="text-sm text-blue-800 space-y-2 list-decimal list-inside">
+                      <ol className="text-sm text-teal-800 space-y-2 list-decimal list-inside">
                         <li className="pl-2">Download the Alt Text Pro WordPress plugin using the download button above</li>
                         <li className="pl-2">Go to your WordPress admin → Plugins → Add New → Upload Plugin</li>
                         <li className="pl-2">Upload and activate the plugin</li>
@@ -2952,11 +2919,11 @@ const Dashboard = () => {
           {/* Test Service */}
           <div className="lg:col-span-2 space-y-6">
             {/* Download Plugin Card - Prominent */}
-            <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200">
+            <Card className="bg-gradient-to-br from-teal-50 to-cyan-50 border-2 border-teal-200">
               <CardContent className="p-6">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-start space-x-4 flex-1">
-                    <div className="flex-shrink-0 p-3 bg-blue-500 rounded-xl shadow-lg">
+                    <div className="flex-shrink-0 p-3 bg-teal-500 rounded-xl shadow-lg">
                       <Download className="h-6 w-6 text-white" />
                     </div>
                     <div className="flex-1">
@@ -2969,7 +2936,7 @@ const Dashboard = () => {
                       <a
                         href="/wordpress-plugin/alt-text-pro-plugin.zip"
                         download="alt-text-pro-plugin.zip"
-                        className="inline-flex items-center justify-center px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-[1.02]"
+                        className="inline-flex items-center justify-center px-8 py-3 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-[1.02]"
                       >
                         <Download className="h-5 w-5 mr-2" />
                         Download WordPress Plugin
@@ -2985,7 +2952,7 @@ const Dashboard = () => {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center">
-                  <Key className="h-5 w-5 mr-2 text-blue-600" />
+                  <Key className="h-5 w-5 mr-2 text-teal-600" />
                   Your API Key
                 </CardTitle>
                 <p className="text-gray-600 text-sm">Use this API key to connect your WordPress plugin</p>
@@ -2998,7 +2965,7 @@ const Dashboard = () => {
                         type={showApiKey ? "text" : "password"}
                         value={isLoadingApiKey ? "Loading..." : (apiKey || "Not available")}
                         readOnly
-                        className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg bg-gray-50 text-sm font-mono focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+                        className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg bg-gray-50 text-sm font-mono focus:border-teal-500 focus:ring-2 focus:ring-teal-200 transition-all"
                         disabled={isLoadingApiKey}
                       />
                     </div>
@@ -3289,7 +3256,7 @@ const Dashboard = () => {
               <p className="text-gray-600 mb-4">
                 Selected: {selectedUpgradePlan.name}
               </p>
-              <div className="text-3xl font-bold text-blue-600 mb-4">
+              <div className="text-3xl font-bold text-teal-600 mb-4">
                 {selectedUpgradePlan.price}
                 {selectedUpgradePlan.id !== 'pay_as_go' && (
                   <span className="text-lg text-gray-500">/month</span>
@@ -3324,7 +3291,7 @@ const Dashboard = () => {
                   <>
                     <div className="flex items-center">
                       <Check className="h-4 w-4 text-green-500 mr-2" />
-                      <span className="text-sm text-gray-700">2,500 Credits per month</span>
+                      <span className="text-sm text-gray-700">2,000 Credits per month</span>
                     </div>
                     <div className="flex items-center">
                       <Check className="h-4 w-4 text-green-500 mr-2" />
@@ -3336,11 +3303,35 @@ const Dashboard = () => {
                     </div>
                     <div className="flex items-center">
                       <Check className="h-4 w-4 text-green-500 mr-2" />
-                      <span className="text-sm text-gray-700">Bulk processing</span>
+                      <span className="text-sm text-gray-700">Priority processing</span>
                     </div>
                     <div className="flex items-center">
                       <Check className="h-4 w-4 text-green-500 mr-2" />
-                      <span className="text-sm text-gray-700">Custom integrations</span>
+                      <span className="text-sm text-gray-700">Bulk processing</span>
+                    </div>
+                  </>
+                )}
+                {selectedUpgradePlan.id === 'tier3' && (
+                  <>
+                    <div className="flex items-center">
+                      <Check className="h-4 w-4 text-green-500 mr-2" />
+                      <span className="text-sm text-gray-700">5,000 Credits per month</span>
+                    </div>
+                    <div className="flex items-center">
+                      <Check className="h-4 w-4 text-green-500 mr-2" />
+                      <span className="text-sm text-gray-700">Premium support</span>
+                    </div>
+                    <div className="flex items-center">
+                      <Check className="h-4 w-4 text-green-500 mr-2" />
+                      <span className="text-sm text-gray-700">API access</span>
+                    </div>
+                    <div className="flex items-center">
+                      <Check className="h-4 w-4 text-green-500 mr-2" />
+                      <span className="text-sm text-gray-700">Priority processing</span>
+                    </div>
+                    <div className="flex items-center">
+                      <Check className="h-4 w-4 text-green-500 mr-2" />
+                      <span className="text-sm text-gray-700">Bulk Processing</span>
                     </div>
                   </>
                 )}

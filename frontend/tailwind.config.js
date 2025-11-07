@@ -10,6 +10,46 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        // Logo-based Color Palette
+        'logo-teal': {
+          50: '#f0fdfa',
+          100: '#ccfbf1',
+          200: '#99f6e4',
+          300: '#5eead4',
+          400: '#2dd4bf',
+          500: '#14b8a6',
+          600: '#0d9488', // Primary action color
+          700: '#0f766e', // Hover states
+          800: '#115e59',
+          900: '#134e4a',
+          950: '#042f2e',
+        },
+        'logo-navy': {
+          50: '#f0f9ff',
+          100: '#e0f2fe',
+          200: '#bae6fd',
+          300: '#7dd3fc',
+          400: '#38bdf8',
+          500: '#0ea5e9',
+          600: '#0284c7',
+          700: '#0369a1', // Secondary dark blue
+          800: '#075985', // Dark navy
+          900: '#0c4a6e',
+          950: '#082f49',
+        },
+        'logo-cyan': {
+          50: '#ecfeff',
+          100: '#cffafe',
+          200: '#a5f3fc',
+          300: '#67e8f9',
+          400: '#22d3ee', // Accent color
+          500: '#06b6d4', // Primary accent
+          600: '#0891b2',
+          700: '#0e7490',
+          800: '#155e75',
+          900: '#164e63',
+          950: '#083344',
+        },
         // Professional Color Palette
         primary: {
           50: '#f0fdfa',

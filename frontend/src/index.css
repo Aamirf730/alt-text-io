@@ -2,12 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Professional Color Scheme */
+/* Professional Color Scheme - Logo Colors */
 :root {
-  --primary-teal: #0C9488;
-  --primary-teal-dark: #0A7A70;
-  --primary-teal-light: #0FB8A8;
-  --accent-teal: #0A7A70;
+  --primary-teal: #0d9488; /* Logo teal - primary action color */
+  --primary-teal-dark: #0f766e; /* Logo teal dark - hover states */
+  --primary-teal-light: #14b8a6; /* Logo teal light */
+  --logo-navy: #075985; /* Dark blue/navy from logo */
+  --logo-cyan: #22d3ee; /* Turquoise/cyan accent from logo */
+  --logo-cyan-dark: #06b6d4; /* Darker cyan for accents */
+  --accent-teal: #0f766e;
   --text-dark: #1f2937;
   --text-medium: #4b5563;
   --text-light: #6b7280;
