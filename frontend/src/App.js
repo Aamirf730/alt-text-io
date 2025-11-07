@@ -61,15 +61,12 @@ const LandingPage = () => {
   const [isLogin, setIsLogin] = useState(false);
   const [showAuthForm, setShowAuthForm] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
-  const [selectedImages, setSelectedImages] = useState([]);
   const [generatedAltText, setGeneratedAltText] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
-  const [bulkResults, setBulkResults] = useState([]);
   const [user, setUser] = useState(null); // Track logged-in user
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [billingCycle, setBillingCycle] = useState('monthly'); // 'monthly' or 'annual'
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Check authentication state on mount and when auth changes
   useEffect(() => {
@@ -139,73 +136,73 @@ const LandingPage = () => {
     setGeneratedAltText("");
   };
 
-  // Demo alt text generation - calls real API (supports bulk processing)
+  // Demo alt text generation - calls real API
   const generateDemoAltText = async () => {
-    const imagesToProcess = selectedImages.length > 0 ? selectedImages : (selectedImage ? [selectedImage] : []);
-    
-    if (imagesToProcess.length === 0) {
-      toast.error("Please select at least one image first");
+    if (!selectedImage) {
+      toast.error("Please select an image first");
       return;
     }
     
     setIsGenerating(true);
-    setBulkResults([]);
     
     try {
-      // Check for Supabase session for authentication
-      const { data: { session } } = await supabase.auth.getSession();
+      // Convert blob URL to base64
+      const response = await fetch(selectedImage);
+      const blob = await response.blob();
       
-      if (!session?.access_token) {
-        toast.error("Please sign up or sign in to generate alt text");
-        setIsGenerating(false);
-        setShowAuthForm(true);
-        return;
-      }
-      
-      // Determine API endpoint
-      let apiBase;
-      if (window.location.hostname === 'localhost') {
-        apiBase = process.env.REACT_APP_API_BASE || 'https://www.alt-text.pro/.netlify/functions';
-      } else {
-        apiBase = '/.netlify/functions';
-      }
-      
-      const endpoint = `${apiBase}/generate-alt-text`;
-      const headers = {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session.access_token}`
-      };
-      
-      // Process all images
-      const results = [];
-      for (let i = 0; i < imagesToProcess.length; i++) {
-        const imageUrl = imagesToProcess[i];
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64Data = reader.result.split(',')[1];
         
+        // Check for Supabase session for authentication
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!session?.access_token) {
+          toast.error("Please sign up or sign in to generate alt text");
+          setIsGenerating(false);
+          setShowAuthForm(true);
+          return;
+        }
+        
+        // Determine API endpoint - use local development or production
+        // For localhost, try Netlify Dev server first, fallback to production
+        let apiBase;
+        if (window.location.hostname === 'localhost') {
+          // Check if we're running with Netlify Dev (port 8888)
+          // If not available, use production API
+          apiBase = process.env.REACT_APP_API_BASE || 'https://www.alt-text.pro/.netlify/functions';
+        } else {
+          // Production - use relative path
+          apiBase = '/.netlify/functions';
+        }
+        
+        const endpoint = `${apiBase}/generate-alt-text`;
+        
+        // Prepare headers with Supabase auth token
+        const headers = {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        };
+        
+        console.log('🔍 Generating alt-text from homepage:', {
+          endpoint,
+          hasImage: !!base64Data,
+          imageSize: base64Data?.length,
+          hasToken: !!session.access_token
+        });
+        
+        // Call the real API
         try {
-          // Convert blob URL to base64
-          const response = await fetch(imageUrl);
-          const blob = await response.blob();
-          
-          const base64Data = await new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-              const base64 = reader.result.split(',')[1];
-              resolve(base64);
-            };
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
-          });
-          
-          // Call the API
           const apiResponse = await fetch(endpoint, {
             method: 'POST',
             headers: headers,
             body: JSON.stringify({
               image_base64: base64Data,
-              context: imagesToProcess.length > 1 ? `Bulk processing - Image ${i + 1} of ${imagesToProcess.length}` : "Landing page demo"
+              context: "Landing page demo"
             })
           });
           
+          // Check if response is OK before parsing JSON
           let data;
           try {
             const responseText = await apiResponse.text();
@@ -215,95 +212,66 @@ const LandingPage = () => {
             data = JSON.parse(responseText);
           } catch (parseError) {
             console.error('JSON parse error:', parseError);
-            results.push({
-              index: i + 1,
-              success: false,
-              error: "Invalid response from server"
-            });
-            continue;
+            toast.error("Invalid response from server. Please try again.");
+            setIsGenerating(false);
+            return;
           }
           
           if (apiResponse.ok) {
-            results.push({
-              index: i + 1,
-              success: true,
-              altText: data.alt_text || data.altText,
-              creditsRemaining: data.credits_remaining
-            });
+            setGeneratedAltText(data.alt_text || data.altText);
             
-            // Update UI for first result
-            if (i === 0) {
-              setGeneratedAltText(data.alt_text || data.altText);
+            // Refresh profile to get updated credits (for display if user stays on page)
+            // Note: This is for homepage - credits will be correct when user goes to dashboard
+            try {
+              const { data: { user: authUser } } = await supabase.auth.getUser();
+              if (authUser) {
+                const { data: profile } = await supabase
+                  .from('profiles')
+                  .select('credits_remaining')
+                  .eq('id', authUser.id)
+                  .single();
+                
+                if (profile) {
+                  console.log('📊 Updated credits after generation:', profile.credits_remaining);
+                }
+              }
+            } catch (err) {
+              console.error('Error refreshing credits:', err);
             }
+            
+            toast.success("Alt text generated successfully!");
           } else {
             if (apiResponse.status === 401) {
               toast.error("Session expired. Please sign in again.");
               setShowAuthForm(true);
-              setIsGenerating(false);
-              return;
             } else if (apiResponse.status === 402) {
               toast.error("No credits remaining. Please upgrade your plan.");
-              setIsGenerating(false);
-              return;
             } else {
-              results.push({
-                index: i + 1,
-                success: false,
-                error: data.error || "Failed to generate alt text"
-              });
+              toast.error(data.error || "Failed to generate alt text. Please try again.");
             }
           }
-          
-          // Small delay between requests to avoid rate limiting
-          if (i < imagesToProcess.length - 1) {
-            await new Promise(resolve => setTimeout(resolve, 500));
-          }
-        } catch (error) {
-          console.error(`Error processing image ${i + 1}:`, error);
-          results.push({
-            index: i + 1,
-            success: false,
-            error: error.message || "Failed to process image"
-          });
-        }
-      }
-      
-      setBulkResults(results);
-      
-      // Show summary
-      const successCount = results.filter(r => r.success).length;
-      if (imagesToProcess.length > 1) {
-        if (successCount === imagesToProcess.length) {
-          toast.success(`Successfully processed all ${successCount} images!`);
-        } else {
-          toast.warning(`Processed ${successCount} of ${imagesToProcess.length} images.`);
-        }
-      } else {
-        toast.success("Alt text generated successfully!");
-      }
-      
-      // Refresh profile to get updated credits
-      try {
-        const { data: { user: authUser } } = await supabase.auth.getUser();
-        if (authUser) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('credits_remaining')
-            .eq('id', authUser.id)
-            .single();
-          
-          if (profile) {
-            console.log('📊 Updated credits after generation:', profile.credits_remaining);
+        } catch (fetchError) {
+          console.error("API fetch error:", fetchError);
+          if (fetchError.message.includes('Failed to fetch') || fetchError.message.includes('NetworkError')) {
+            toast.error("Cannot connect to the API server. If running locally, make sure Netlify Dev is running or use the production site.");
+          } else {
+            toast.error("Failed to connect to the server. Please check your connection.");
           }
         }
-      } catch (err) {
-        console.error('Error refreshing credits:', err);
-      }
+        
+        setIsGenerating(false);
+      };
+      
+      reader.onerror = () => {
+        toast.error("Failed to process image");
+        setIsGenerating(false);
+      };
+      
+      reader.readAsDataURL(blob);
       
     } catch (error) {
       console.error("Error generating alt text:", error);
       toast.error("Failed to generate alt text. Please try again.");
-    } finally {
       setIsGenerating(false);
     }
   };
@@ -346,62 +314,15 @@ const LandingPage = () => {
 
       if (result.error) {
         console.error('🔧 Auth Error:', result.error);
-        const errorMessage = result.error.message?.toLowerCase() || '';
-        const errorStatus = result.error.status;
-        
-        // Check for email already registered errors
-        if (
-          errorMessage.includes('already registered') ||
-          errorMessage.includes('user already registered') ||
-          errorMessage.includes('email already') ||
-          errorMessage.includes('already exists') ||
-          errorMessage.includes('user with this email') ||
-          errorStatus === 422 || // Unprocessable Entity often means duplicate
-          (errorStatus === 400 && errorMessage.includes('email'))
-        ) {
-          toast.error("This email address is already registered. Please sign in instead.");
-          setIsLogin(true);
-          return;
-        }
-        
-        if (errorMessage.includes('email not confirmed')) {
+        if (result.error.message.includes('Email not confirmed')) {
           toast.success("Please check your email and click the confirmation link!");
+        } else if (result.error.message.includes('already registered') || result.error.message.includes('User already registered')) {
+          toast.error("This email is already registered. Please sign in instead.");
+          setIsLogin(true);
         } else {
           toast.error(result.error.message || "Authentication failed. Please try again.");
         }
       } else if (result.data.user) {
-        // Check if this is a signup attempt with an existing user
-        if (!isLogin) {
-          // Key indicators that user already exists:
-          // 1. Email is already confirmed AND no session returned
-          // 2. User was created more than 10 seconds ago (not a fresh signup)
-          const emailConfirmed = result.data.user.email_confirmed_at !== null;
-          const hasSession = !!result.data.session;
-          const userCreatedAt = new Date(result.data.user.created_at);
-          const now = new Date();
-          const secondsSinceCreation = (now - userCreatedAt) / 1000;
-          
-          // If email is confirmed but no session, user already exists
-          if (emailConfirmed && !hasSession) {
-            toast.error("An account with this email address is already registered. Please sign in instead.", { duration: 5000 });
-            setIsLogin(true);
-            setIsLoading(false);
-            setEmail(email); // Keep the email in the form
-            setPassword(""); // Clear password
-            return;
-          }
-          
-          // If user was created more than 10 seconds ago and no session, likely existing user
-          if (secondsSinceCreation > 10 && !hasSession && emailConfirmed) {
-            toast.error("An account with this email address is already registered. Please sign in instead.", { duration: 5000 });
-            setIsLogin(true);
-            setIsLoading(false);
-            setEmail(email); // Keep the email in the form
-            setPassword(""); // Clear password
-            return;
-          }
-        }
-        
         // Check if email confirmation is required
         const requiresEmailConfirmation = !result.data.session;
         const emailConfirmed = result.data.user.email_confirmed_at !== null;
@@ -409,9 +330,7 @@ const LandingPage = () => {
         console.log('🔧 User Status:', {
           requiresEmailConfirmation,
           emailConfirmed,
-          email: result.data.user.email,
-          isSignup: !isLogin,
-          hasSession: !!result.data.session
+          email: result.data.user.email
         });
         
         if (!isLogin && requiresEmailConfirmation && !emailConfirmed) {
@@ -472,28 +391,7 @@ const LandingPage = () => {
             }
           }
           
-          // Check if this was a signup attempt but user already exists (auto-authenticated)
-          if (!isLogin && result.data.session && result.data.user.email_confirmed_at !== null) {
-            // User tried to sign up but email already exists and password was correct
-            // Supabase auto-authenticated them - we should inform them clearly
-            const userCreatedAt = new Date(result.data.user.created_at);
-            const now = new Date();
-            const secondsSinceCreation = (now - userCreatedAt) / 1000;
-            
-            // If user was created more than 30 seconds ago, definitely an existing user
-            if (secondsSinceCreation > 30) {
-              // Clear the session to prevent auto-login
-              await supabase.auth.signOut();
-              toast.error("An account with this email address is already registered. Please sign in instead.", { duration: 6000 });
-              setIsLogin(true);
-              setIsLoading(false);
-              setEmail(email); // Keep email
-              setPassword(""); // Clear password
-              return; // Don't redirect
-            }
-          }
-          
-          // Normal flow - update user state and redirect
+          // Update user state before redirect
           if (result.data.session?.user) {
             setUser({
               email: result.data.session.user.email,
@@ -684,7 +582,7 @@ const LandingPage = () => {
                 <img 
                   src="/logo-alt-text-pro.png" 
                   alt="Alt Text Pro Logo" 
-                  className="h-10 w-auto"
+                  className="h-10 w-10 object-contain"
                 />
                 <span className="text-2xl font-bold text-gray-900">Alt Text Pro</span>
               </div>
@@ -703,7 +601,10 @@ const LandingPage = () => {
                 <>
                   <Button 
                     variant="ghost" 
-                    className="text-white bg-teal-600 hover:bg-teal-700 font-medium px-6 py-2.5 rounded-full"
+                    className="text-white font-medium px-6 py-2.5 rounded-full"
+                    style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)'}
                     onClick={() => {
                       window.location.href = "/dashboard";
                     }}
@@ -725,7 +626,10 @@ const LandingPage = () => {
                 <>
                   <Button 
                     variant="ghost" 
-                    className="text-white bg-teal-600 hover:bg-teal-700 font-medium px-6 py-2.5 rounded-full"
+                    className="text-white font-medium px-6 py-2.5 rounded-full"
+                    style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)'}
                     onClick={() => {
                       setIsLogin(true);
                       setShowAuthForm(true);
@@ -748,115 +652,25 @@ const LandingPage = () => {
 
             {/* Mobile menu button */}
             <div className="lg:hidden">
-              <button 
-                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
-                aria-label="Toggle mobile menu"
-              >
-                {isMobileMenuOpen ? (
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                ) : (
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                  </svg>
-                )}
+              <button className="p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
               </button>
             </div>
             </div>
           </div>
-          
-          {/* Mobile menu dropdown */}
-          {isMobileMenuOpen && (
-            <div className="lg:hidden border-t border-gray-200 bg-white">
-              <div className="px-4 py-4 space-y-3">
-                <a 
-                  href="#pricing" 
-                  className="block text-gray-700 hover:text-gray-900 font-medium transition-colors py-2"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  Pricing
-                </a>
-                <a 
-                  href="#support" 
-                  className="block text-gray-700 hover:text-gray-900 font-medium transition-colors py-2"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  Support
-                </a>
-                <a 
-                  href="#blog" 
-                  className="block text-gray-700 hover:text-gray-900 font-medium transition-colors py-2"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  Blog
-                </a>
-                <div className="pt-3 border-t border-gray-200 space-y-2">
-                  {user ? (
-                    <>
-                      <Button 
-                        variant="ghost" 
-                        className="w-full text-white bg-teal-600 hover:bg-teal-700 font-medium px-6 py-2.5 rounded-full"
-                        onClick={() => {
-                          setIsMobileMenuOpen(false);
-                          window.location.href = "/dashboard";
-                        }}
-                      >
-                        Dashboard
-                      </Button>
-                      <Button 
-                        className="w-full bg-black hover:bg-gray-800 text-white px-6 py-2.5 rounded-full font-medium"
-                        onClick={async () => {
-                          setIsMobileMenuOpen(false);
-                          await supabase.auth.signOut();
-                          setUser(null);
-                          toast.success("Signed out successfully");
-                        }}
-                      >
-                        Sign Out
-                      </Button>
-                    </>
-                  ) : (
-                    <>
-                      <Button 
-                        variant="ghost" 
-                        className="w-full text-white bg-teal-600 hover:bg-teal-700 font-medium px-6 py-2.5 rounded-full"
-                        onClick={() => {
-                          setIsMobileMenuOpen(false);
-                          setIsLogin(true);
-                          setShowAuthForm(true);
-                        }}
-                      >
-                        Sign In
-                      </Button>
-                      <Button 
-                        className="w-full bg-black hover:bg-gray-800 text-white px-6 py-2.5 rounded-full font-medium"
-                        onClick={() => {
-                          setIsMobileMenuOpen(false);
-                          setIsLogin(false);
-                          setShowAuthForm(true);
-                        }}
-                      >
-                        Free Trial
-                      </Button>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </nav>
 
       {/* Hero Section */}
-      <section className="bg-gradient-to-br from-teal-50 to-cyan-50 py-16">
+      <section className="py-16" style={{ background: 'linear-gradient(135deg, rgba(26, 181, 172, 0.1) 0%, rgba(58, 200, 196, 0.1) 100%)' }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-12 items-start">
             {/* Left Side - Content */}
             <div className="space-y-8">
               <div className="space-y-6">
-                <div className="text-sm font-medium text-teal-600 bg-teal-100 rounded-full px-3 py-1 inline-block">
+                <div className="text-sm font-medium rounded-full px-3 py-1 inline-block" style={{ color: '#1AB5AC', backgroundColor: 'rgba(26, 181, 172, 0.1)' }}>
                   World's Best AI Tool Accessibility
                 </div>
                 
@@ -871,7 +685,10 @@ const LandingPage = () => {
                 <div className="flex flex-col sm:flex-row gap-4">
                   <Button 
                     size="lg" 
-                    className="bg-teal-600 hover:bg-teal-700 text-white px-8 py-4 text-lg font-semibold rounded-lg"
+                    className="text-white px-8 py-4 text-lg font-semibold rounded-lg"
+                    style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)'}
                     onClick={() => {
                       setIsLogin(false);
                       setShowAuthForm(true);
@@ -883,10 +700,6 @@ const LandingPage = () => {
                     size="lg" 
                     variant="outline"
                     className="border-gray-300 text-gray-700 hover:bg-gray-50 px-8 py-4 text-lg font-semibold rounded-lg"
-                    onClick={() => {
-                      setIsLogin(false);
-                      setShowAuthForm(true);
-                    }}
                   >
                     Get Plugin
                   </Button>
@@ -920,23 +733,34 @@ const LandingPage = () => {
                 
                 {/* Upload Area */}
                 <div 
-                  className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-teal-400 hover:bg-teal-50 transition-colors mb-4 relative"
+                  className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer transition-colors mb-4 relative"
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = '#3AC8C4';
+                    e.currentTarget.style.backgroundColor = 'rgba(26, 181, 172, 0.05)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = '#d1d5db';
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                  }}
                   onClick={() => document.getElementById('image-upload').click()}
                   onDragOver={(e) => {
                     e.preventDefault();
                     if (!selectedImage) {
-                      e.currentTarget.classList.add('border-teal-400', 'bg-teal-50');
+                      e.currentTarget.style.borderColor = '#3AC8C4';
+                      e.currentTarget.style.backgroundColor = 'rgba(26, 181, 172, 0.05)';
                     }
                   }}
                   onDragLeave={(e) => {
                     e.preventDefault();
                     if (!selectedImage) {
-                      e.currentTarget.classList.remove('border-teal-400', 'bg-teal-50');
+                      e.currentTarget.style.borderColor = '#d1d5db';
+                      e.currentTarget.style.backgroundColor = 'transparent';
                     }
                   }}
                   onDrop={(e) => {
                     e.preventDefault();
-                    e.currentTarget.classList.remove('border-teal-400', 'bg-teal-50');
+                    e.currentTarget.style.borderColor = '#d1d5db';
+                    e.currentTarget.style.backgroundColor = 'transparent';
                     const files = e.dataTransfer.files;
                     if (files[0] && files[0].type.startsWith('image/')) {
                       // Revoke previous URL if exists
@@ -975,8 +799,8 @@ const LandingPage = () => {
                     </>
                   ) : (
                     <>
-                      <div className="w-12 h-12 bg-teal-100 rounded-lg flex items-center justify-center mx-auto mb-3">
-                        <Upload className="h-6 w-6 text-teal-600" />
+                      <div className="w-12 h-12 rounded-lg flex items-center justify-center mx-auto mb-3" style={{ backgroundColor: 'rgba(26, 181, 172, 0.1)' }}>
+                        <Upload className="h-6 w-6" style={{ color: '#1AB5AC' }} />
                       </div>
                       <p className="text-sm text-gray-600 mb-1">Click to upload or drag and drop</p>
                       <p className="text-xs text-gray-500">SVG, PNG, JPG or GIF (max. 800x400px)</p>
@@ -988,33 +812,17 @@ const LandingPage = () => {
                   id="image-upload"
                   type="file"
                   accept="image/*"
-                  multiple
                   className="hidden"
                   onChange={(e) => {
-                    if (e.target.files && e.target.files.length > 0) {
-                      // Revoke previous URLs if exist
+                    if (e.target.files[0]) {
+                      // Revoke previous URL if exists
                       if (selectedImage && selectedImage.startsWith('blob:')) {
                         URL.revokeObjectURL(selectedImage);
                       }
-                      selectedImages.forEach(url => {
-                        if (url.startsWith('blob:')) {
-                          URL.revokeObjectURL(url);
-                        }
-                      });
-                      
-                      const files = Array.from(e.target.files);
-                      const imageUrls = files.map(file => URL.createObjectURL(file));
-                      
-                      // Set first image for preview
-                      setSelectedImage(imageUrls[0]);
-                      setSelectedImages(imageUrls);
+                      const file = e.target.files[0];
+                      const imageUrl = URL.createObjectURL(file);
+                      setSelectedImage(imageUrl);
                       setGeneratedAltText("");
-                      setBulkResults([]);
-                      
-                      // If multiple files, show message
-                      if (files.length > 1) {
-                        toast.info(`${files.length} images selected. Click "Generate Alt Text" to process all.`);
-                      }
                     }
                   }}
                 />
@@ -1023,87 +831,42 @@ const LandingPage = () => {
                 <Button 
                   onClick={generateDemoAltText}
                   disabled={!selectedImage || isGenerating}
-                  className="w-full bg-teal-600 hover:bg-teal-700 disabled:bg-gray-400 text-white py-3 rounded-lg font-medium mb-4"
+                  className="w-full disabled:bg-gray-400 text-white py-3 rounded-lg font-medium mb-4"
+                  style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}
+                  onMouseEnter={(e) => !e.currentTarget.disabled && (e.currentTarget.style.background = 'linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%)')}
+                  onMouseLeave={(e) => !e.currentTarget.disabled && (e.currentTarget.style.background = 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)')}
                 >
-                  {isGenerating 
-                    ? (selectedImages.length > 1 
-                        ? `Processing ${selectedImages.length} images...` 
-                        : 'Generating...')
-                    : (selectedImages.length > 1 
-                        ? `Generate Alt Text for ${selectedImages.length} Images` 
-                        : 'Generate Alt Text')}
+                  {isGenerating ? 'Generating...' : 'Generate Alt Text'}
                 </Button>
                 
                 {/* Generated Alt Text Result */}
                 <div className="space-y-3">
-                  <label className="block text-sm font-medium text-gray-700">
-                    {selectedImages.length > 1 ? 'Generated Alt Text Results:' : 'Generated Alt Text:'}
-                  </label>
-                  
-                  {selectedImages.length > 1 && bulkResults.length > 0 ? (
-                    <div className="space-y-2 max-h-96 overflow-y-auto">
-                      {bulkResults.map((result, idx) => (
-                        <div key={idx} className={`bg-gray-50 rounded-lg p-3 border ${result.success ? 'border-green-200' : 'border-red-200'}`}>
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <p className="text-xs font-medium text-gray-600 mb-1">
-                                Image {result.index}:
-                              </p>
-                              {result.success ? (
-                                <p className="text-sm text-gray-800">
-                                  "{result.altText}"
-                                </p>
-                              ) : (
-                                <p className="text-sm text-red-600">
-                                  Error: {result.error}
-                                </p>
-                              )}
-                            </div>
-                            {result.success && (
-                              <button
-                                onClick={() => {
-                                  navigator.clipboard.writeText(result.altText);
-                                  toast.success("Alt text copied to clipboard!");
-                                }}
-                                className="ml-2 p-1 hover:bg-gray-200 rounded transition-colors flex-shrink-0"
-                                title="Copy to clipboard"
-                              >
-                                <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                </svg>
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="relative bg-gray-50 rounded-lg p-3 border min-h-[60px] flex items-center">
-                      {generatedAltText ? (
-                        <>
-                          <p className="text-sm text-gray-800 pr-8">
-                            "{generatedAltText}"
-                          </p>
-                          <button
-                            onClick={() => {
-                              navigator.clipboard.writeText(generatedAltText);
-                              toast.success("Alt text copied to clipboard!");
-                            }}
-                            className="absolute top-2 right-2 p-1 hover:bg-gray-200 rounded transition-colors"
-                            title="Copy to clipboard"
-                          >
-                            <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                            </svg>
-                          </button>
-                        </>
-                      ) : (
-                        <p className="text-sm text-gray-500">
-                          Alt text will appear here after generation...
+                  <label className="block text-sm font-medium text-gray-700">Generated Alt Text:</label>
+                  <div className="relative bg-gray-50 rounded-lg p-3 border min-h-[60px] flex items-center">
+                    {generatedAltText ? (
+                      <>
+                        <p className="text-sm text-gray-800 pr-8">
+                          "{generatedAltText}"
                         </p>
-                      )}
-                    </div>
-                  )}
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(generatedAltText);
+                            toast.success("Alt text copied to clipboard!");
+                          }}
+                          className="absolute top-2 right-2 p-1 hover:bg-gray-200 rounded transition-colors"
+                          title="Copy to clipboard"
+                        >
+                          <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                        </button>
+                      </>
+                    ) : (
+                      <p className="text-sm text-gray-500">
+                        Alt text will appear here after generation...
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1112,10 +875,10 @@ const LandingPage = () => {
       </section>
 
       {/* How It Works - New Visual Design */}
-      <section className="py-20 bg-gradient-to-b from-teal-50 to-white">
+      <section className="py-20" style={{ background: 'linear-gradient(to bottom, rgba(26, 181, 172, 0.05), white)' }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-20">
-            <p className="text-teal-600 text-sm font-medium mb-2">How It Works .</p>
+            <p className="text-sm font-medium mb-2" style={{ color: '#0B4F5E' }}>How It Works .</p>
             <h2 className="text-4xl font-bold text-gray-900 mb-4">
               Let AI Write Your Alt Text
               <br />
@@ -1158,16 +921,16 @@ const LandingPage = () => {
               {/* Step 1 - Upload Image: Image Left, Text Right */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start relative">
                 <div className="lg:order-1 relative z-10 flex justify-center lg:justify-end">
-                  <div className="bg-teal-50 rounded-2xl p-8 border-2 border-dashed border-teal-200 relative w-full max-w-sm">
-                    <div className="w-16 h-16 bg-teal-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Upload className="h-8 w-8 text-teal-600" />
+                  <div className="rounded-2xl p-8 border-2 border-dashed relative w-full max-w-sm" style={{ backgroundColor: 'rgba(26, 181, 172, 0.05)', borderColor: 'rgba(26, 181, 172, 0.3)' }}>
+                    <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4" style={{ backgroundColor: 'rgba(26, 181, 172, 0.1)' }}>
+                      <Upload className="h-8 w-8" style={{ color: '#1AB5AC' }} />
                     </div>
-                    <p className="text-gray-600 text-sm mb-1">Drag your file(s) or <span className="text-teal-600 underline">browse</span></p>
+                    <p className="text-gray-600 text-sm mb-1">Drag your file(s) or <span className="underline" style={{ color: '#1AB5AC' }}>browse</span></p>
                     <p className="text-xs text-gray-500 mb-4">Max 10 MB files are allowed</p>
                     
-                    {/* Teal file badge */}
+                    {/* Blue file badge */}
                     <div className="absolute -top-3 right-6">
-                      <div className="bg-teal-600 text-white px-3 py-1 rounded-full text-xs font-medium flex items-center">
+                      <div className="text-white px-3 py-1 rounded-full text-xs font-medium flex items-center" style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}>
                         📎 theprojekts-image.jpg
                       </div>
                     </div>
@@ -1206,60 +969,60 @@ const LandingPage = () => {
                 
                 <div className="lg:order-2 flex justify-center lg:justify-start">
                   {/* Complex AI Circuit Diagram */}
-                  <div className="relative w-full max-w-sm h-60 bg-gradient-to-br from-teal-50 to-cyan-50 rounded-2xl p-4">
+                  <div className="relative w-full max-w-sm h-60 rounded-2xl p-4" style={{ background: 'linear-gradient(135deg, rgba(26, 181, 172, 0.1) 0%, rgba(58, 200, 196, 0.15) 100%)' }}>
                     {/* Central AI Chip */}
                     <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="w-24 h-16 bg-white rounded-lg border-2 border-teal-300 flex items-center justify-center shadow-sm">
-                        <span className="text-xl font-bold text-teal-600">AI</span>
+                      <div className="w-24 h-16 bg-white rounded-lg border-2 flex items-center justify-center shadow-sm" style={{ borderColor: 'rgba(26, 181, 172, 0.4)' }}>
+                        <span className="text-xl font-bold" style={{ color: '#0B4F5E' }}>AI</span>
                       </div>
                     </div>
                     
                     {/* Circuit board elements */}
                     {/* Top connections */}
-                    <div className="absolute top-4 left-8 w-3 h-3 bg-cyan-500 rounded-full"></div>
-                    <div className="absolute top-4 left-20 w-3 h-3 bg-teal-500 rounded-full"></div>
-                    <div className="absolute top-4 right-20 w-3 h-3 bg-cyan-500 rounded-full"></div>
-                    <div className="absolute top-4 right-8 w-3 h-3 bg-teal-500 rounded-full"></div>
+                    <div className="absolute top-4 left-8 w-3 h-3 rounded-full" style={{ backgroundColor: '#3AC8C4' }}></div>
+                    <div className="absolute top-4 left-20 w-3 h-3 rounded-full" style={{ backgroundColor: '#3AC8C4' }}></div>
+                    <div className="absolute top-4 right-20 w-3 h-3 rounded-full" style={{ backgroundColor: '#3AC8C4' }}></div>
+                    <div className="absolute top-4 right-8 w-3 h-3 rounded-full" style={{ backgroundColor: '#3AC8C4' }}></div>
                     
                     {/* Side connections */}
-                    <div className="absolute left-4 top-16 w-3 h-3 bg-cyan-500 rounded-full"></div>
-                    <div className="absolute left-4 bottom-16 w-3 h-3 bg-teal-500 rounded-full"></div>
-                    <div className="absolute right-4 top-16 w-3 h-3 bg-cyan-500 rounded-full"></div>
-                    <div className="absolute right-4 bottom-16 w-3 h-3 bg-teal-500 rounded-full"></div>
+                    <div className="absolute left-4 top-16 w-3 h-3 rounded-full" style={{ backgroundColor: '#3AC8C4' }}></div>
+                    <div className="absolute left-4 bottom-16 w-3 h-3 rounded-full" style={{ backgroundColor: '#3AC8C4' }}></div>
+                    <div className="absolute right-4 top-16 w-3 h-3 rounded-full" style={{ backgroundColor: '#3AC8C4' }}></div>
+                    <div className="absolute right-4 bottom-16 w-3 h-3 rounded-full" style={{ backgroundColor: '#3AC8C4' }}></div>
                     
                     {/* Bottom connections */}
-                    <div className="absolute bottom-4 left-8 w-3 h-3 bg-cyan-500 rounded-full"></div>
-                    <div className="absolute bottom-4 left-20 w-3 h-3 bg-teal-500 rounded-full"></div>
-                    <div className="absolute bottom-4 right-20 w-3 h-3 bg-cyan-500 rounded-full"></div>
-                    <div className="absolute bottom-4 right-8 w-3 h-3 bg-teal-500 rounded-full"></div>
+                    <div className="absolute bottom-4 left-8 w-3 h-3 rounded-full" style={{ backgroundColor: '#3AC8C4' }}></div>
+                    <div className="absolute bottom-4 left-20 w-3 h-3 rounded-full" style={{ backgroundColor: '#3AC8C4' }}></div>
+                    <div className="absolute bottom-4 right-20 w-3 h-3 rounded-full" style={{ backgroundColor: '#3AC8C4' }}></div>
+                    <div className="absolute bottom-4 right-8 w-3 h-3 rounded-full" style={{ backgroundColor: '#3AC8C4' }}></div>
                     
                     {/* Circuit lines */}
-                    <div className="absolute top-6 left-11 w-20 h-px bg-cyan-400"></div>
-                    <div className="absolute top-6 right-11 w-20 h-px bg-teal-400"></div>
-                    <div className="absolute bottom-6 left-11 w-20 h-px bg-cyan-400"></div>
-                    <div className="absolute bottom-6 right-11 w-20 h-px bg-teal-400"></div>
+                    <div className="absolute top-6 left-11 w-20 h-px" style={{ backgroundColor: '#1AB5AC' }}></div>
+                    <div className="absolute top-6 right-11 w-20 h-px" style={{ backgroundColor: '#1AB5AC' }}></div>
+                    <div className="absolute bottom-6 left-11 w-20 h-px" style={{ backgroundColor: '#1AB5AC' }}></div>
+                    <div className="absolute bottom-6 right-11 w-20 h-px" style={{ backgroundColor: '#1AB5AC' }}></div>
                     
                     {/* Vertical lines */}
-                    <div className="absolute left-6 top-8 w-px h-12 bg-cyan-400"></div>
-                    <div className="absolute right-6 top-8 w-px h-12 bg-teal-400"></div>
-                    <div className="absolute left-6 bottom-8 w-px h-12 bg-cyan-400"></div>
-                    <div className="absolute right-6 bottom-8 w-px h-12 bg-teal-400"></div>
+                    <div className="absolute left-6 top-8 w-px h-12" style={{ backgroundColor: '#1AB5AC' }}></div>
+                    <div className="absolute right-6 top-8 w-px h-12" style={{ backgroundColor: '#1AB5AC' }}></div>
+                    <div className="absolute left-6 bottom-8 w-px h-12" style={{ backgroundColor: '#1AB5AC' }}></div>
+                    <div className="absolute right-6 bottom-8 w-px h-12" style={{ backgroundColor: '#1AB5AC' }}></div>
                     
                     {/* Corner elements */}
-                    <div className="absolute top-6 left-6 w-2 h-2 bg-teal-600 rounded-full"></div>
-                    <div className="absolute top-6 right-6 w-2 h-2 bg-cyan-500 rounded-full"></div>
-                    <div className="absolute bottom-6 left-6 w-2 h-2 bg-teal-600 rounded-full"></div>
-                    <div className="absolute bottom-6 right-6 w-2 h-2 bg-cyan-500 rounded-full"></div>
+                    <div className="absolute top-6 left-6 w-2 h-2 rounded-full" style={{ backgroundColor: '#1AB5AC' }}></div>
+                    <div className="absolute top-6 right-6 w-2 h-2 rounded-full" style={{ backgroundColor: '#1AB5AC' }}></div>
+                    <div className="absolute bottom-6 left-6 w-2 h-2 rounded-full" style={{ backgroundColor: '#1AB5AC' }}></div>
+                    <div className="absolute bottom-6 right-6 w-2 h-2 rounded-full" style={{ backgroundColor: '#1AB5AC' }}></div>
                     
                     {/* Small icons around the chip */}
                     <div className="absolute top-2 left-16">
-                      <div className="w-6 h-6 bg-cyan-200 rounded flex items-center justify-center">
-                        <span className="text-xs text-teal-600">G</span>
+                      <div className="w-6 h-6 rounded flex items-center justify-center" style={{ backgroundColor: 'rgba(26, 181, 172, 0.2)' }}>
+                        <span className="text-xs" style={{ color: '#0B4F5E' }}>G</span>
                       </div>
                     </div>
                     <div className="absolute bottom-2 right-16">
-                      <div className="w-6 h-6 bg-teal-200 rounded flex items-center justify-center">
-                        <span className="text-xs text-teal-600">AWS</span>
+                      <div className="w-6 h-6 rounded flex items-center justify-center" style={{ backgroundColor: 'rgba(26, 181, 172, 0.2)' }}>
+                        <span className="text-xs" style={{ color: '#0B4F5E' }}>AWS</span>
                       </div>
                     </div>
                   </div>
@@ -1270,8 +1033,8 @@ const LandingPage = () => {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start relative">
                 <div className="lg:order-1 flex justify-center lg:justify-end">
                   {/* Image with mountain scene */}
-                  <div className="bg-white rounded-xl border-2 border-teal-200 p-4 w-full max-w-sm">
-                    <div className="w-full h-32 bg-gradient-to-b from-teal-200 via-cyan-100 to-green-100 rounded-lg flex items-end justify-center mb-3 relative overflow-hidden">
+                  <div className="bg-white rounded-xl border-2 p-4 w-full max-w-sm" style={{ borderColor: 'rgba(26, 181, 172, 0.3)' }}>
+                    <div className="w-full h-32 rounded-lg flex items-end justify-center mb-3 relative overflow-hidden" style={{ background: 'linear-gradient(to bottom, rgba(26, 181, 172, 0.3), rgba(26, 181, 172, 0.15), rgba(34, 197, 94, 0.15))' }}>
                       {/* Simple mountain silhouette */}
                       <div className="absolute bottom-0 left-0 w-full h-16 bg-green-200"></div>
                       <div className="absolute bottom-8 left-8 w-20 h-12 bg-gray-400 transform -skew-x-12"></div>
@@ -1286,23 +1049,23 @@ const LandingPage = () => {
                     
                     {/* Three options with proper spacing */}
                     <div className="grid grid-cols-3 gap-3">
-                      <div className="bg-teal-50 rounded-lg p-3 text-center border border-teal-200">
-                        <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center mx-auto mb-2 border border-teal-300">
-                          <Eye className="h-4 w-4 text-teal-600" />
+                      <div className="rounded-lg p-3 text-center border" style={{ backgroundColor: 'rgba(26, 181, 172, 0.05)', borderColor: 'rgba(26, 181, 172, 0.3)' }}>
+                        <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center mx-auto mb-2 border" style={{ borderColor: 'rgba(26, 181, 172, 0.4)' }}>
+                          <Eye className="h-4 w-4" style={{ color: '#0B4F5E' }} />
                         </div>
                         <p className="text-xs font-medium text-gray-700">Screen readers</p>
                       </div>
                       
-                      <div className="bg-cyan-50 rounded-lg p-3 text-center border border-cyan-200">
-                        <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center mx-auto mb-2 border border-cyan-300">
-                          <Search className="h-4 w-4 text-cyan-600" />
+                      <div className="rounded-lg p-3 text-center border" style={{ backgroundColor: 'rgba(26, 181, 172, 0.05)', borderColor: 'rgba(26, 181, 172, 0.3)' }}>
+                        <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center mx-auto mb-2 border" style={{ borderColor: 'rgba(26, 181, 172, 0.4)' }}>
+                          <Search className="h-4 w-4" style={{ color: '#0B4F5E' }} />
                         </div>
                         <p className="text-xs font-medium text-gray-700">Search engines</p>
                       </div>
                       
-                      <div className="bg-teal-50 rounded-lg p-3 text-center border border-teal-200">
-                        <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center mx-auto mb-2 border border-teal-300">
-                          <X className="h-4 w-4 text-teal-600" />
+                      <div className="rounded-lg p-3 text-center border" style={{ backgroundColor: 'rgba(26, 181, 172, 0.05)', borderColor: 'rgba(26, 181, 172, 0.3)' }}>
+                        <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center mx-auto mb-2 border" style={{ borderColor: 'rgba(26, 181, 172, 0.4)' }}>
+                          <X className="h-4 w-4" style={{ color: '#0B4F5E' }} />
                         </div>
                         <p className="text-xs font-medium text-gray-700">Broken images</p>
                       </div>
@@ -1372,8 +1135,8 @@ const LandingPage = () => {
                 </div>
 
                 <div className="flex items-start space-x-4">
-                  <div className="w-12 h-12 bg-teal-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <Zap className="h-6 w-6 text-teal-600" />
+                  <div className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(26, 181, 172, 0.1)' }}>
+                    <Zap className="h-6 w-6" style={{ color: '#0B4F5E' }} />
                   </div>
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-2">Batch Processing & Automation</h3>
@@ -1502,8 +1265,9 @@ const LandingPage = () => {
               <button
                 onClick={() => setBillingCycle(billingCycle === 'monthly' ? 'annual' : 'monthly')}
                 className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${
-                  billingCycle === 'annual' ? 'bg-teal-600' : 'bg-gray-300'
+                  billingCycle === 'annual' ? '' : 'bg-gray-300'
                 }`}
+                style={billingCycle === 'annual' ? { background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' } : {}}
               >
                 <span
                   className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
@@ -1513,17 +1277,19 @@ const LandingPage = () => {
               </button>
               <span className={`text-sm font-medium ${billingCycle === 'annual' ? 'text-gray-900' : 'text-gray-500'}`}>
                 Annual
-                <span className="ml-2 text-xs text-teal-600 font-semibold">Save 20%</span>
+                <span className="ml-2 text-xs font-semibold" style={{ color: '#0B4F5E' }}>Save 20%</span>
               </span>
             </div>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
+          <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-6 max-w-7xl mx-auto">
             {/* Free Plan */}
-            <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-100 hover:border-teal-200 transition-colors">
+            <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-100 transition-colors"
+                 onMouseEnter={(e) => e.currentTarget.style.borderColor = 'rgba(26, 181, 172, 0.3)'}
+                 onMouseLeave={(e) => e.currentTarget.style.borderColor = '#f3f4f6'}>
               <div className="text-center">
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">Free</h3>
-                <div className="text-4xl font-bold text-teal-600 mb-2">$0</div>
+                <div className="text-4xl font-bold mb-2" style={{ color: '#0B4F5E' }}>$0</div>
                 <p className="text-gray-600 mb-6">per month</p>
                 
                 <div className="space-y-4 mb-8">
@@ -1551,17 +1317,19 @@ const LandingPage = () => {
             </div>
 
             {/* Tier 1 */}
-            <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-100 hover:border-teal-200 transition-colors">
+            <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-100 transition-colors"
+                 onMouseEnter={(e) => e.currentTarget.style.borderColor = 'rgba(26, 181, 172, 0.3)'}
+                 onMouseLeave={(e) => e.currentTarget.style.borderColor = '#f3f4f6'}>
               <div className="text-center">
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">Tier 1</h3>
-                <div className="text-3xl font-bold text-teal-600 mb-2">
-                  ${billingCycle === 'annual' ? '9.60' : '12'}
+                <div className="text-3xl font-bold mb-2" style={{ color: '#0B4F5E' }}>
+                  ${billingCycle === 'annual' ? '12' : '15'}
                   <span className="text-xl text-gray-600 font-normal ml-1">
                     {billingCycle === 'annual' ? '/month billed annually' : '/month'}
                   </span>
                 </div>
                 {billingCycle === 'annual' && (
-                  <p className="text-xs text-gray-500 mb-4">$115.20/year (Save 20%)</p>
+                  <p className="text-xs text-gray-500 mb-4">$144/year (Save 20%)</p>
                 )}
                 
                 <div className="space-y-3 mb-8">
@@ -1584,8 +1352,11 @@ const LandingPage = () => {
                 </div>
                 
                 <Button 
-                  onClick={() => handlePlanSelection('tier1', 'Tier 1', billingCycle === 'annual' ? '$115.20' : '$12')}
-                  className="w-full bg-teal-600 text-white hover:bg-teal-700"
+                  onClick={() => handlePlanSelection('tier1', 'Tier 1', billingCycle === 'annual' ? '$144' : '$15')}
+                  className="w-full text-white"
+                  style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)'}
                 >
                   Choose Plan
                 </Button>
@@ -1593,34 +1364,34 @@ const LandingPage = () => {
             </div>
 
             {/* Tier 2 - Most Popular */}
-            <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-teal-500 relative transform scale-105">
+            <div className="bg-white rounded-2xl shadow-lg p-8 border-2 relative transform scale-105" style={{ borderColor: '#1AB5AC' }}>
               <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
-                <span className="bg-teal-600 text-white px-4 py-1 rounded-full text-sm font-medium">Most Popular</span>
+                <span className="text-white px-4 py-1 rounded-full text-sm font-medium" style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}>Most Popular</span>
               </div>
               <div className="text-center">
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">Tier 2</h3>
-                <div className="text-3xl font-bold text-teal-600 mb-2">
-                  ${billingCycle === 'annual' ? '16' : '20'}
+                <div className="text-3xl font-bold mb-2" style={{ color: '#0B4F5E' }}>
+                  ${billingCycle === 'annual' ? '20' : '25'}
                   <span className="text-xl text-gray-600 font-normal ml-1">
                     {billingCycle === 'annual' ? '/month billed annually' : '/month'}
                   </span>
                 </div>
                 {billingCycle === 'annual' && (
-                  <p className="text-xs text-gray-500 mb-4">$192/year (Save 20%)</p>
+                  <p className="text-xs text-gray-500 mb-4">$240/year (Save 20%)</p>
                 )}
                 
                 <div className="space-y-3 mb-8">
                   <div className="flex items-center">
                     <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-gray-700">2,000 Credits</span>
+                    <span className="text-gray-700">2,500 Credits</span>
                   </div>
                   <div className="flex items-center">
                     <Check className="h-5 w-5 text-green-500 mr-3" />
                     <span className="text-gray-700">Premium support</span>
                   </div>
                   <div className="flex items-center">
-                    <Check className="h-5 w-5 text-green-500 mr-3 flex-shrink-0" />
-                    <span className="text-gray-700">API access</span>
+                    <Check className="h-5 w-5 text-green-500 mr-3" />
+                    <span className="text-gray-700">Advanced API access</span>
                   </div>
                   <div className="flex items-center">
                     <Check className="h-5 w-5 text-green-500 mr-3" />
@@ -1630,11 +1401,18 @@ const LandingPage = () => {
                     <Check className="h-5 w-5 text-green-500 mr-3" />
                     <span className="text-gray-700">Bulk processing</span>
                   </div>
+                  <div className="flex items-center">
+                    <Check className="h-5 w-5 text-green-500 mr-3" />
+                    <span className="text-gray-700">Custom integrations</span>
+                  </div>
                 </div>
                 
                 <Button 
-                  onClick={() => handlePlanSelection('tier2', 'Tier 2', billingCycle === 'annual' ? '$192' : '$20')}
-                  className="w-full bg-teal-600 text-white hover:bg-teal-700"
+                  onClick={() => handlePlanSelection('tier2', 'Tier 2', billingCycle === 'annual' ? '$240' : '$25')}
+                  className="w-full text-white"
+                  style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)'}
                 >
                   Choose Plan
                 </Button>
@@ -1642,17 +1420,19 @@ const LandingPage = () => {
             </div>
 
             {/* Tier 3 */}
-            <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-100 hover:border-teal-200 transition-colors">
+            <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-100 transition-colors"
+                 onMouseEnter={(e) => e.currentTarget.style.borderColor = 'rgba(26, 181, 172, 0.3)'}
+                 onMouseLeave={(e) => e.currentTarget.style.borderColor = '#f3f4f6'}>
               <div className="text-center">
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">Tier 3</h3>
-                <div className="text-3xl font-bold text-teal-600 mb-2">
-                  ${billingCycle === 'annual' ? '32' : '40'}
+                <div className="text-3xl font-bold mb-2" style={{ color: '#0B4F5E' }}>
+                  ${billingCycle === 'annual' ? '47.20' : '59'}
                   <span className="text-xl text-gray-600 font-normal ml-1">
                     {billingCycle === 'annual' ? '/month billed annually' : '/month'}
                   </span>
                 </div>
                 {billingCycle === 'annual' && (
-                  <p className="text-xs text-gray-500 mb-4">$384/year (Save 20%)</p>
+                  <p className="text-xs text-gray-500 mb-4">$566.40/year (Save 20%)</p>
                 )}
                 
                 <div className="space-y-3 mb-8">
@@ -1665,28 +1445,89 @@ const LandingPage = () => {
                     <span className="text-gray-700">Premium support</span>
                   </div>
                   <div className="flex items-center">
-                    <Check className="h-5 w-5 text-green-500 mr-3 flex-shrink-0" />
-                    <span className="text-gray-700">API access</span>
+                    <Check className="h-5 w-5 text-green-500 mr-3" />
+                    <span className="text-gray-700">Advanced API access</span>
                   </div>
                   <div className="flex items-center">
                     <Check className="h-5 w-5 text-green-500 mr-3" />
                     <span className="text-gray-700">Priority processing</span>
                   </div>
                   <div className="flex items-center">
-                    <Check className="h-5 w-5 text-green-500 mr-3 flex-shrink-0" />
-                    <span className="text-gray-700">Bulk Processing</span>
+                    <Check className="h-5 w-5 text-green-500 mr-3" />
+                    <span className="text-gray-700">Unlimited bulk processing</span>
+                  </div>
+                  <div className="flex items-center">
+                    <Check className="h-5 w-5 text-green-500 mr-3" />
+                    <span className="text-gray-700">Dedicated support</span>
                   </div>
                 </div>
                 
                 <Button 
-                  onClick={() => handlePlanSelection('tier3', 'Tier 3', billingCycle === 'annual' ? '$384' : '$40')}
-                  className="w-full bg-teal-600 text-white hover:bg-teal-700"
+                  onClick={() => handlePlanSelection('tier3', 'Tier 3', billingCycle === 'annual' ? '$566.40' : '$59')}
+                  className="w-full text-white"
+                  style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)'}
                 >
                   Choose Plan
                 </Button>
               </div>
             </div>
 
+            {/* Tier 4 */}
+            <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-100 transition-colors"
+                 onMouseEnter={(e) => e.currentTarget.style.borderColor = 'rgba(26, 181, 172, 0.3)'}
+                 onMouseLeave={(e) => e.currentTarget.style.borderColor = '#f3f4f6'}>
+              <div className="text-center">
+                <h3 className="text-2xl font-bold text-gray-900 mb-2">Tier 4</h3>
+                <div className="text-3xl font-bold mb-2" style={{ color: '#0B4F5E' }}>
+                  ${billingCycle === 'annual' ? '95.20' : '119'}
+                  <span className="text-xl text-gray-600 font-normal ml-1">
+                    {billingCycle === 'annual' ? '/month billed annually' : '/month'}
+                  </span>
+                </div>
+                {billingCycle === 'annual' && (
+                  <p className="text-xs text-gray-500 mb-4">$1,142.40/year (Save 20%)</p>
+                )}
+                
+                <div className="space-y-3 mb-8">
+                  <div className="flex items-center">
+                    <Check className="h-5 w-5 text-green-500 mr-3" />
+                    <span className="text-gray-700">10,000 Credits</span>
+                  </div>
+                  <div className="flex items-center">
+                    <Check className="h-5 w-5 text-green-500 mr-3" />
+                    <span className="text-gray-700">Enterprise support</span>
+                  </div>
+                  <div className="flex items-center">
+                    <Check className="h-5 w-5 text-green-500 mr-3" />
+                    <span className="text-gray-700">Advanced API access</span>
+                  </div>
+                  <div className="flex items-center">
+                    <Check className="h-5 w-5 text-green-500 mr-3" />
+                    <span className="text-gray-700">Highest priority processing</span>
+                  </div>
+                  <div className="flex items-center">
+                    <Check className="h-5 w-5 text-green-500 mr-3" />
+                    <span className="text-gray-700">Unlimited bulk processing</span>
+                  </div>
+                  <div className="flex items-center">
+                    <Check className="h-5 w-5 text-green-500 mr-3" />
+                    <span className="text-gray-700">Dedicated account manager</span>
+                  </div>
+                </div>
+                
+                <Button 
+                  onClick={() => handlePlanSelection('tier4', 'Tier 4', billingCycle === 'annual' ? '$1,142.40' : '$119')}
+                  className="w-full text-white"
+                  style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)'}
+                >
+                  Choose Plan
+                </Button>
+              </div>
+            </div>
           </div>
 
           {/* Credit Packs Section */}
@@ -1694,10 +1535,12 @@ const LandingPage = () => {
             <h3 className="text-2xl font-bold text-gray-900 text-center mb-8">One-Time Credit Packs</h3>
             <div className="grid md:grid-cols-2 gap-6 max-w-2xl mx-auto">
               {/* Small Pack */}
-              <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-100 hover:border-teal-200 transition-colors">
+              <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-100 transition-colors"
+                 onMouseEnter={(e) => e.currentTarget.style.borderColor = 'rgba(26, 181, 172, 0.3)'}
+                 onMouseLeave={(e) => e.currentTarget.style.borderColor = '#f3f4f6'}>
                 <div className="text-center">
                   <h3 className="text-xl font-bold text-gray-900 mb-2">Small Pack</h3>
-                  <div className="text-3xl font-bold text-teal-600 mb-2">$3</div>
+                  <div className="text-3xl font-bold mb-2" style={{ color: '#0B4F5E' }}>$3</div>
                   <p className="text-gray-600 mb-6">for 100 credits</p>
                   
                   <div className="space-y-3 mb-8">
@@ -1717,7 +1560,10 @@ const LandingPage = () => {
                   
                   <Button 
                     onClick={() => handlePlanSelection('small_pack', 'Small Pack', '$3')}
-                    className="w-full bg-teal-600 text-white hover:bg-teal-700"
+                    className="w-full text-white"
+                  style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)'}
                   >
                     Buy Credits
                   </Button>
@@ -1725,10 +1571,12 @@ const LandingPage = () => {
               </div>
 
               {/* Pay as you go */}
-              <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-100 hover:border-teal-200 transition-colors">
+              <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-100 transition-colors"
+                 onMouseEnter={(e) => e.currentTarget.style.borderColor = 'rgba(26, 181, 172, 0.3)'}
+                 onMouseLeave={(e) => e.currentTarget.style.borderColor = '#f3f4f6'}>
                 <div className="text-center">
                   <h3 className="text-xl font-bold text-gray-900 mb-2">Pay as you go</h3>
-                  <div className="text-3xl font-bold text-teal-600 mb-2">$5</div>
+                  <div className="text-3xl font-bold mb-2" style={{ color: '#0B4F5E' }}>$5</div>
                   <p className="text-gray-600 mb-6">for 500 credits</p>
                   
                   <div className="space-y-3 mb-8">
@@ -1752,7 +1600,10 @@ const LandingPage = () => {
                   
                   <Button 
                     onClick={() => handlePlanSelection('pay_as_go', 'Pay as you go', '$5')}
-                    className="w-full bg-teal-600 text-white hover:bg-teal-700"
+                    className="w-full text-white"
+                  style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)'}
                   >
                     Buy Credits
                   </Button>
@@ -1765,7 +1616,7 @@ const LandingPage = () => {
             <p className="text-gray-600">
               All plans include our advanced AI alt-text generation and multi-language support.
               <br />
-              Need a custom plan? <a href="#support" className="text-teal-600 hover:text-teal-700 font-medium">Contact us</a>
+              Need a custom plan? <a href="#support" className="font-medium transition-colors" style={{ color: '#1AB5AC' }} onMouseEnter={(e) => e.currentTarget.style.color = '#0B4F5E'} onMouseLeave={(e) => e.currentTarget.style.color = '#1AB5AC'}>Contact us</a>
             </p>
           </div>
         </div>
@@ -1781,7 +1632,7 @@ const LandingPage = () => {
           <div className="grid md:grid-cols-3 gap-8">
             {/* Example 1 */}
             <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-              <div className="aspect-w-4 aspect-h-3 bg-gradient-to-br from-teal-100 to-purple-100">
+              <div className="aspect-w-4 aspect-h-3" style={{ background: 'linear-gradient(135deg, rgba(26, 181, 172, 0.15) 0%, rgba(58, 200, 196, 0.15) 100%)' }}>
                 <div className="flex items-center justify-center text-gray-600">
                   Business Team Meeting
                 </div>
@@ -1822,7 +1673,7 @@ const LandingPage = () => {
 
             {/* Example 3 */}
             <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-              <div className="aspect-w-4 aspect-h-3 bg-gradient-to-br from-teal-100 to-cyan-100">
+              <div className="aspect-w-4 aspect-h-3" style={{ background: 'linear-gradient(135deg, rgba(26, 181, 172, 0.15) 0%, rgba(58, 200, 196, 0.15) 100%)' }}>
                 <div className="flex items-center justify-center text-gray-600">
                   Mountain Landscape
                 </div>
@@ -1844,18 +1695,19 @@ const LandingPage = () => {
       </section>
 
       {/* Call to Action */}
-      <section className="py-20 bg-teal-600">
+      <section className="py-20" style={{ background: 'linear-gradient(135deg, #162D4E 0%, #223A64 100%)' }}>
         <div className="max-w-4xl mx-auto text-center px-4 sm:px-6 lg:px-8">
           <h2 className="text-4xl font-bold text-white mb-6">
             Start your free trial today
           </h2>
-          <p className="text-xl text-teal-100 mb-8">
+          <p className="text-xl mb-8" style={{ color: 'rgba(255, 255, 255, 0.9)' }}>
             First 100 images alt text. No credit card required.
           </p>
           
           <Button 
             size="lg" 
-            className="bg-white text-teal-600 hover:bg-gray-50 font-semibold px-8 py-4 text-lg rounded-lg"
+            className="bg-white hover:bg-gray-50 font-semibold px-8 py-4 text-lg rounded-lg transition-colors"
+            style={{ color: '#1AB5AC' }}
             onClick={() => {
               setIsLogin(false);
               setShowAuthForm(true);
@@ -1876,7 +1728,7 @@ const LandingPage = () => {
                 <img 
                   src="/logo-alt-text-pro.png" 
                   alt="Alt Text Pro Logo" 
-                  className="h-8 w-auto"
+                  className="h-8 w-8 object-contain"
                 />
                 <span className="text-xl font-bold text-gray-900">Alt Text Pro</span>
               </div>
@@ -2008,12 +1860,12 @@ const LandingPage = () => {
             >
               {isGoogleLoading ? (
                 <>
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-teal-600 mr-2"></div>
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 mr-2" style={{ borderColor: '#0B4F5E' }}></div>
                   Connecting...
                 </>
               ) : (
                 <>
-                  <Chrome className="mr-2 h-5 w-5 text-teal-600" />
+                  <Chrome className="mr-2 h-5 w-5" style={{ color: '#0B4F5E' }} />
                   Continue with Google
                 </>
               )}
@@ -2023,7 +1875,10 @@ const LandingPage = () => {
               <button
                 type="button"
                 onClick={() => setIsLogin(!isLogin)}
-                className="text-sm text-teal-600 hover:text-teal-700 font-medium"
+                className="text-sm font-medium transition-colors"
+                style={{ color: '#1AB5AC' }}
+                onMouseEnter={(e) => e.currentTarget.style.color = '#0B4F5E'}
+                onMouseLeave={(e) => e.currentTarget.style.color = '#1AB5AC'}
               >
                 {isLogin 
                   ? "Don't have an account? Sign up" 
@@ -2059,7 +1914,7 @@ const LandingPage = () => {
               <p className="text-gray-600 mb-4">
                 You selected: {selectedPlan.name}
               </p>
-              <div className="text-3xl font-bold text-teal-600 mb-4">
+              <div className="text-3xl font-bold mb-4" style={{ color: '#0B4F5E' }}>
                 {selectedPlan.price}
                 {selectedPlan.id !== 'free' && selectedPlan.id !== 'pay_as_go' && (
                   <span className="text-lg text-gray-500">/month</span>
@@ -2078,7 +1933,10 @@ const LandingPage = () => {
                     setSelectedPlan(null);
                     window.location.href = "/dashboard";
                   }}
-                  className="w-full bg-teal-600 text-white hover:bg-teal-700"
+                  className="w-full text-white"
+                  style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)'}
                 >
                   Go to Dashboard
                 </Button>
@@ -2112,7 +1970,7 @@ const LandingPage = () => {
                       <>
                         <div className="flex items-center">
                           <Check className="h-4 w-4 text-green-500 mr-2" />
-                          <span className="text-sm text-gray-700">2,000 Credits per month</span>
+                          <span className="text-sm text-gray-700">2,500 Credits per month</span>
                         </div>
                         <div className="flex items-center">
                           <Check className="h-4 w-4 text-green-500 mr-2" />
@@ -2121,38 +1979,14 @@ const LandingPage = () => {
                         <div className="flex items-center">
                           <Check className="h-4 w-4 text-green-500 mr-2" />
                           <span className="text-sm text-gray-700">API access</span>
-                        </div>
-                        <div className="flex items-center">
-                          <Check className="h-4 w-4 text-green-500 mr-2" />
-                          <span className="text-sm text-gray-700">Priority processing</span>
                         </div>
                         <div className="flex items-center">
                           <Check className="h-4 w-4 text-green-500 mr-2" />
                           <span className="text-sm text-gray-700">Bulk processing</span>
                         </div>
-                      </>
-                    )}
-                    {selectedPlan.id === 'tier3' && (
-                      <>
                         <div className="flex items-center">
                           <Check className="h-4 w-4 text-green-500 mr-2" />
-                          <span className="text-sm text-gray-700">5,000 Credits per month</span>
-                        </div>
-                        <div className="flex items-center">
-                          <Check className="h-4 w-4 text-green-500 mr-2" />
-                          <span className="text-sm text-gray-700">Premium support</span>
-                        </div>
-                        <div className="flex items-center">
-                          <Check className="h-4 w-4 text-green-500 mr-2" />
-                          <span className="text-sm text-gray-700">API access</span>
-                        </div>
-                        <div className="flex items-center">
-                          <Check className="h-4 w-4 text-green-500 mr-2" />
-                          <span className="text-sm text-gray-700">Priority processing</span>
-                        </div>
-                        <div className="flex items-center">
-                          <Check className="h-4 w-4 text-green-500 mr-2" />
-                          <span className="text-sm text-gray-700">Bulk Processing</span>
+                          <span className="text-sm text-gray-700">Custom integrations</span>
                         </div>
                       </>
                     )}
@@ -2240,25 +2074,11 @@ const Dashboard = () => {
     loadHistory();
   }, []);
 
-  // Load API key when user is available (non-blocking)
+  // Load API key when user is available
   useEffect(() => {
-    const loadApiKeyWhenReady = async () => {
-      // Small delay to ensure user is set
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Wait a bit for user to be set, or get session directly
-      if (user && user.token) {
-        loadApiKey();
-      } else {
-        // Try to get session directly if user not set yet
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session) {
-          loadApiKey();
-        }
-      }
-    };
-    
-    loadApiKeyWhenReady();
+    if (user && user.token) {
+      loadApiKey();
+    }
   }, [user]);
 
   // Load subscription data from API
@@ -2379,7 +2199,7 @@ const Dashboard = () => {
         body: JSON.stringify({
           paymentId: data.orderID,
           planId: selectedUpgradePlan.id,
-          isSubscription: selectedUpgradePlan.id === 'tier1' || selectedUpgradePlan.id === 'tier2' || selectedUpgradePlan.id === 'tier3'
+          isSubscription: selectedUpgradePlan.id === 'tier1' || selectedUpgradePlan.id === 'tier2'
         })
       });
 
@@ -2411,97 +2231,34 @@ const Dashboard = () => {
 
   // Load API key for WordPress plugin
   const loadApiKey = async () => {
+    if (!user?.token) return;
+    
     setIsLoadingApiKey(true);
     try {
-      // Get session token - try from user object first, then get from Supabase
-      let token = user?.token;
-      if (!token) {
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        if (sessionError || !session) {
-          console.warn('No session available for API key - skipping');
-          setIsLoadingApiKey(false);
-          return;
-        }
-        token = session.access_token;
-      }
-      
       let apiBase;
-      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-        // For localhost, check if REACT_APP_API_BASE is set and points to localhost:8888
-        // If so, use production API instead (Netlify Dev requires manual setup)
-        const envApiBase = process.env.REACT_APP_API_BASE;
-        if (envApiBase && envApiBase.includes('localhost:8888')) {
-          // Use production API when Netlify Dev is not running
-          apiBase = 'https://www.alt-text.pro/.netlify/functions';
-        } else {
-          apiBase = envApiBase || 'https://www.alt-text.pro/.netlify/functions';
-        }
+      if (window.location.hostname === 'localhost') {
+        apiBase = process.env.REACT_APP_API_BASE || 'https://www.alt-text.pro/.netlify/functions';
       } else {
         apiBase = '/.netlify/functions';
       }
 
-      console.log('Loading API key from:', `${apiBase}/get-api-key`);
-
-      // Add timeout to prevent hanging
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-
-      try {
-        const response = await fetch(`${apiBase}/get-api-key`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          signal: controller.signal
-        }).catch((fetchError) => {
-          clearTimeout(timeoutId);
-          // Check if it's an abort (timeout) or actual network error
-          if (fetchError.name === 'AbortError') {
-            throw new Error('Request timed out. Please check your internet connection.');
-          }
-          console.error('Fetch error:', fetchError);
-          throw new Error(`Network error: ${fetchError.message}`);
-        });
-
-        clearTimeout(timeoutId);
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          let errorData;
-          try {
-            errorData = JSON.parse(errorText);
-          } catch {
-            errorData = { error: errorText || `HTTP ${response.status}` };
-          }
-          console.error('Failed to load API key:', errorData);
-          const errorMsg = errorData.error || errorData.details || `Failed to load API key (${response.status})`;
-          toast.error(errorMsg);
-          setIsLoadingApiKey(false);
-          return;
+      const response = await fetch(`${apiBase}/get-api-key`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${user.token}`
         }
+      });
 
-        const responseData = await response.json();
-        console.log('API key response:', { status: response.status, data: responseData });
-
-        if (responseData.success && responseData.api_key) {
-          setApiKey(responseData.api_key);
-        } else if (responseData.api_key) {
-          // Handle case where api_key is returned directly
-          setApiKey(responseData.api_key);
-        } else {
-          console.error('API key not found in response:', responseData);
-          toast.error('API key not found in response');
-        }
-      } catch (fetchError) {
-        clearTimeout(timeoutId);
-        throw fetchError;
+      if (response.ok) {
+        const data = await response.json();
+        setApiKey(data.api_key);
+      } else {
+        console.error('Failed to load API key');
+        toast.error('Failed to load API key');
       }
     } catch (error) {
       console.error('Error loading API key:', error);
-      // Don't show error toast for network errors - just log it
-      // The API key section will show "Not available" which is fine
-      console.warn('API key loading failed - this is optional and won\'t affect other features');
+      toast.error('Error loading API key');
     } finally {
       setIsLoadingApiKey(false);
     }
@@ -2769,7 +2526,7 @@ const Dashboard = () => {
               <img 
                 src="/logo-alt-text-pro.png" 
                 alt="Alt Text Pro Logo" 
-                className="h-10 w-auto"
+                className="h-10 w-10 object-contain"
               />
               <span className="text-2xl font-bold text-gray-900">Alt Text Pro</span>
             </Link>
@@ -2861,12 +2618,12 @@ const Dashboard = () => {
                 </div>
 
                 {/* Buy Credits Option - Always Visible */}
-                <div className="bg-gradient-to-r from-teal-50 to-purple-50 border border-teal-200 rounded-lg p-4">
-                    <div className="flex items-center mb-2">
-                    <CreditCard className="h-4 w-4 text-teal-600 mr-2" />
-                    <span className="text-sm font-medium text-teal-900">Buy More Credits</span>
+                <div className="border rounded-lg p-4" style={{ background: 'linear-gradient(to right, rgba(26, 181, 172, 0.05), rgba(58, 200, 196, 0.05))', borderColor: 'rgba(26, 181, 172, 0.3)' }}>
+                  <div className="flex items-center mb-2">
+                    <CreditCard className="h-4 w-4 mr-2" style={{ color: '#0B4F5E' }} />
+                    <span className="text-sm font-medium" style={{ color: '#0B4F5E' }}>Buy More Credits</span>
                   </div>
-                  <p className="text-xs text-teal-700 mb-3">
+                  <p className="text-xs mb-3" style={{ color: '#0B4F5E' }}>
                     Need more credits? Choose a credit pack below.
                   </p>
                   <div className="space-y-2">
@@ -2882,7 +2639,10 @@ const Dashboard = () => {
                     <Button 
                       onClick={() => handleUpgradePlan('pay_as_go', 'Pay as you go', '$5')}
                       size="sm" 
-                      className="w-full bg-teal-600 text-white hover:bg-teal-700"
+                      className="w-full text-white"
+                  style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)'}
                     >
                       <CreditCard className="h-4 w-4 mr-2" />
                       500 Credits - $5
@@ -2892,12 +2652,12 @@ const Dashboard = () => {
 
                 {/* Development Mode Notice */}
                 {window.location.hostname === 'localhost' && (
-                  <div className="bg-teal-50 border border-teal-200 rounded-lg p-4">
-                      <div className="flex items-center mb-2">
-                      <Brain className="h-4 w-4 text-teal-600 mr-2" />
-                      <span className="text-sm font-medium text-teal-800">Development Mode</span>
+                  <div className="border rounded-lg p-4" style={{ backgroundColor: 'rgba(26, 181, 172, 0.05)', borderColor: 'rgba(26, 181, 172, 0.3)' }}>
+                    <div className="flex items-center mb-2">
+                      <Brain className="h-4 w-4 mr-2" style={{ color: '#0B4F5E' }} />
+                      <span className="text-sm font-medium" style={{ color: '#0B4F5E' }}>Development Mode</span>
                     </div>
-                    <p className="text-xs text-teal-700">
+                    <p className="text-xs" style={{ color: '#0B4F5E' }}>
                       Payment system is in development. Deploy to Netlify to enable payments.
                     </p>
                   </div>
@@ -2920,11 +2680,14 @@ const Dashboard = () => {
                     </p>
                     <div className="space-y-2">
                       <Button 
-                        onClick={() => handleUpgradePlan('tier1', 'Tier 1', '$12')}
+                        onClick={() => handleUpgradePlan('tier1', 'Tier 1', '$15')}
                         size="sm" 
-                        className="w-full bg-teal-600 text-white hover:bg-teal-700"
+                        className="w-full text-white"
+                  style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)'}
                       >
-                        Upgrade to Tier 1 - $12/month
+                        Upgrade to Tier 1 - $15/month
                       </Button>
                       <Button 
                         onClick={() => handleUpgradePlan('pay_as_go', 'Pay as you go', '$5')}
@@ -2940,12 +2703,12 @@ const Dashboard = () => {
 
                 {/* Subscription Info */}
                 {subscriptionData?.subscription && (
-                  <div className="bg-teal-50 border border-teal-200 rounded-lg p-4">
-                      <div className="flex items-center mb-2">
-                      <Calendar className="h-4 w-4 text-teal-600 mr-2" />
-                      <span className="text-sm font-medium text-teal-800">Subscription</span>
+                  <div className="border rounded-lg p-4" style={{ backgroundColor: 'rgba(26, 181, 172, 0.05)', borderColor: 'rgba(26, 181, 172, 0.3)' }}>
+                    <div className="flex items-center mb-2">
+                      <Calendar className="h-4 w-4 mr-2" style={{ color: '#0B4F5E' }} />
+                      <span className="text-sm font-medium" style={{ color: '#0B4F5E' }}>Subscription</span>
                     </div>
-                    <div className="space-y-1 text-xs text-teal-700">
+                    <div className="space-y-1 text-xs" style={{ color: '#0B4F5E' }}>
                       <p>Plan: {subscriptionData.subscription.plan}</p>
                       <p>Status: {subscriptionData.subscription.status}</p>
                       {subscriptionData.subscription.next_billing_date && (
@@ -2959,124 +2722,40 @@ const Dashboard = () => {
 
             {/* API Key Section for WordPress Plugin */}
             <Card className="mb-6">
-              <CardHeader className="pb-4">
-                <CardTitle className="flex items-center text-xl">
-                  <div className="p-2 bg-teal-100 rounded-lg mr-3">
-                    <Key className="h-6 w-6 text-teal-600" />
-                  </div>
-                  WordPress Plugin Integration
-                </CardTitle>
-                <p className="text-gray-600 text-sm mt-2">Connect your WordPress site with Alt Text Pro</p>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {/* Setup Instructions */}
-                <div className="bg-teal-50 border border-teal-200 rounded-lg p-5">
-                  <div className="flex items-start space-x-3 mb-4">
-                    <div className="flex-shrink-0">
-                      <Info className="h-5 w-5 text-teal-600 mt-0.5" />
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="text-sm font-semibold text-teal-900 mb-3">
-                        Quick Setup Guide
-                      </h4>
-                      <ol className="text-sm text-teal-800 space-y-2 list-decimal list-inside">
-                        <li className="pl-2">Download the Alt Text Pro WordPress plugin using the download button above</li>
-                        <li className="pl-2">Go to your WordPress admin → Plugins → Add New → Upload Plugin</li>
-                        <li className="pl-2">Upload and activate the plugin</li>
-                        <li className="pl-2">Navigate to Alt Text Pro → Settings in your WordPress admin</li>
-                        <li className="pl-2">Paste your API key (shown in the card above) into the settings</li>
-                        <li className="pl-2">Test the connection and start generating alt-text automatically!</li>
-                      </ol>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Security Warning */}
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                  <div className="flex items-start space-x-3">
-                    <div className="flex-shrink-0">
-                      <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5" />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-semibold text-amber-900 mb-1">
-                        Important Security Note
-                      </h4>
-                      <p className="text-xs text-amber-800">
-                        Keep your API key secure and never share it publicly. This key provides access to your Alt Text Pro account and credits.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Test Service */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Download Plugin Card - Prominent */}
-            <Card className="bg-gradient-to-br from-teal-50 to-cyan-50 border-2 border-teal-200">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-start space-x-4 flex-1">
-                    <div className="flex-shrink-0 p-3 bg-teal-500 rounded-xl shadow-lg">
-                      <Download className="h-6 w-6 text-white" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="text-xl font-bold text-gray-900 mb-2">
-                        Get WordPress Plugin
-                      </h3>
-                      <p className="text-sm text-gray-600 mb-4">
-                        Download and install the Alt Text Pro plugin to automatically generate alt-text for your WordPress images
-                      </p>
-                      <a
-                        href="/wordpress-plugin/alt-text-pro-plugin.zip"
-                        download="alt-text-pro-plugin.zip"
-                        className="inline-flex items-center justify-center px-8 py-3 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-[1.02]"
-                      >
-                        <Download className="h-5 w-5 mr-2" />
-                        Download WordPress Plugin
-                        <span className="ml-2 text-xs opacity-90">(52KB)</span>
-                      </a>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* API Key Section */}
-            <Card>
               <CardHeader>
                 <CardTitle className="flex items-center">
-                  <Key className="h-5 w-5 mr-2 text-teal-600" />
-                  Your API Key
+                  <Key className="h-5 w-5 mr-2" style={{ color: '#0B4F5E' }} />
+                  WordPress Plugin Integration
                 </CardTitle>
                 <p className="text-gray-600 text-sm">Use this API key to connect your WordPress plugin</p>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-4">
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Your API Key
+                  </label>
                   <div className="flex items-center space-x-2">
                     <div className="flex-1 relative">
                       <input
                         type={showApiKey ? "text" : "password"}
                         value={isLoadingApiKey ? "Loading..." : (apiKey || "Not available")}
                         readOnly
-                        className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg bg-gray-50 text-sm font-mono focus:border-teal-500 focus:ring-2 focus:ring-teal-200 transition-all"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-sm font-mono"
                         disabled={isLoadingApiKey}
                       />
                     </div>
                     <Button
                       variant="outline"
-                      size="default"
+                      size="sm"
                       onClick={() => setShowApiKey(!showApiKey)}
-                      className="px-4 h-[42px] border-2"
+                      className="px-3"
                       disabled={isLoadingApiKey || !apiKey}
-                      title={showApiKey ? "Hide API Key" : "Show API Key"}
                     >
                       {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </Button>
                     <Button
                       variant="outline"
-                      size="default"
+                      size="sm"
                       onClick={() => {
                         if (apiKey) {
                           navigator.clipboard.writeText(apiKey);
@@ -3085,28 +2764,26 @@ const Dashboard = () => {
                           toast.error("API key not available. Please refresh the page.");
                         }
                       }}
-                      className="px-4 h-[42px] border-2"
+                      className="px-3"
                       disabled={isLoadingApiKey || !apiKey}
-                      title="Copy API Key"
                     >
                       <Copy className="h-4 w-4" />
                     </Button>
                     <Button
                       variant="outline"
-                      size="default"
+                      size="sm"
                       onClick={() => {
                         loadApiKey();
                       }}
-                      className="px-4 h-[42px] border-2"
+                      className="px-3"
                       disabled={isLoadingApiKey}
                       title="Refresh API Key"
                     >
-                      <RefreshCw className={`h-4 w-4 ${isLoadingApiKey ? 'animate-spin' : ''}`} />
+                      <RefreshCw className="h-4 w-4" />
                     </Button>
                   </div>
-                  <div className="flex items-center justify-between mt-3">
-                    <p className="text-xs text-gray-500 flex items-center">
-                      <Shield className="h-3 w-3 mr-1" />
+                  <div className="flex items-center justify-between mt-2">
+                    <p className="text-xs text-gray-500">
                       Keep it secure!
                     </p>
                     {!apiKey && !isLoadingApiKey && (
@@ -3121,9 +2798,61 @@ const Dashboard = () => {
                     )}
                   </div>
                 </div>
+
+                <div className="border rounded-lg p-4" style={{ backgroundColor: 'rgba(26, 181, 172, 0.05)', borderColor: 'rgba(26, 181, 172, 0.3)' }}>
+                  <div className="flex items-start space-x-3">
+                    <div className="flex-shrink-0">
+                      <Info className="h-5 w-5 mt-0.5" style={{ color: '#0B4F5E' }} />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-medium mb-1" style={{ color: '#0B4F5E' }}>
+                        WordPress Plugin Setup
+                      </h4>
+                      <ol className="text-xs space-y-1 list-decimal list-inside" style={{ color: '#0B4F5E' }}>
+                        <li>Download the Alt Text Pro WordPress plugin</li>
+                        <li>Install and activate it on your WordPress site</li>
+                        <li>Go to Alt Text Pro → Settings in your WordPress admin</li>
+                        <li>Paste this API key in the settings</li>
+                        <li>Test the connection and start generating alt-text!</li>
+                      </ol>
+                      <div className="mt-3">
+                        <a
+                          href="/wordpress-plugin/alt-text-pro-plugin.zip"
+                          download="alt-text-pro-plugin.zip"
+                          className="inline-flex items-center text-xs font-medium transition-colors"
+                          style={{ color: '#1AB5AC' }}
+                          onMouseEnter={(e) => e.currentTarget.style.color = '#0B4F5E'}
+                          onMouseLeave={(e) => e.currentTarget.style.color = '#1AB5AC'}
+                        >
+                          <Download className="h-3 w-3 mr-1" />
+                          Download WordPress Plugin
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                  <div className="flex items-start space-x-3">
+                    <div className="flex-shrink-0">
+                      <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-medium text-amber-900 mb-1">
+                        Important Security Note
+                      </h4>
+                      <p className="text-xs text-amber-800">
+                        Keep your API key secure and never share it publicly. This key provides access to your Alt Text Pro account and credits.
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </CardContent>
             </Card>
+          </div>
 
+          {/* Test Service */}
+          <div className="lg:col-span-2 space-y-6">
             <Card>
               <CardHeader>
                 <CardTitle>Test Alt-Text Generation</CardTitle>
@@ -3351,7 +3080,7 @@ const Dashboard = () => {
               <p className="text-gray-600 mb-4">
                 Selected: {selectedUpgradePlan.name}
               </p>
-              <div className="text-3xl font-bold text-teal-600 mb-4">
+              <div className="text-3xl font-bold mb-4" style={{ color: '#0B4F5E' }}>
                 {selectedUpgradePlan.price}
                 {selectedUpgradePlan.id !== 'pay_as_go' && (
                   <span className="text-lg text-gray-500">/month</span>
@@ -3386,7 +3115,7 @@ const Dashboard = () => {
                   <>
                     <div className="flex items-center">
                       <Check className="h-4 w-4 text-green-500 mr-2" />
-                      <span className="text-sm text-gray-700">2,000 Credits per month</span>
+                      <span className="text-sm text-gray-700">2,500 Credits per month</span>
                     </div>
                     <div className="flex items-center">
                       <Check className="h-4 w-4 text-green-500 mr-2" />
@@ -3395,38 +3124,14 @@ const Dashboard = () => {
                     <div className="flex items-center">
                       <Check className="h-4 w-4 text-green-500 mr-2" />
                       <span className="text-sm text-gray-700">API access</span>
-                    </div>
-                    <div className="flex items-center">
-                      <Check className="h-4 w-4 text-green-500 mr-2" />
-                      <span className="text-sm text-gray-700">Priority processing</span>
                     </div>
                     <div className="flex items-center">
                       <Check className="h-4 w-4 text-green-500 mr-2" />
                       <span className="text-sm text-gray-700">Bulk processing</span>
                     </div>
-                  </>
-                )}
-                {selectedUpgradePlan.id === 'tier3' && (
-                  <>
                     <div className="flex items-center">
                       <Check className="h-4 w-4 text-green-500 mr-2" />
-                      <span className="text-sm text-gray-700">5,000 Credits per month</span>
-                    </div>
-                    <div className="flex items-center">
-                      <Check className="h-4 w-4 text-green-500 mr-2" />
-                      <span className="text-sm text-gray-700">Premium support</span>
-                    </div>
-                    <div className="flex items-center">
-                      <Check className="h-4 w-4 text-green-500 mr-2" />
-                      <span className="text-sm text-gray-700">API access</span>
-                    </div>
-                    <div className="flex items-center">
-                      <Check className="h-4 w-4 text-green-500 mr-2" />
-                      <span className="text-sm text-gray-700">Priority processing</span>
-                    </div>
-                    <div className="flex items-center">
-                      <Check className="h-4 w-4 text-green-500 mr-2" />
-                      <span className="text-sm text-gray-700">Bulk Processing</span>
+                      <span className="text-sm text-gray-700">Custom integrations</span>
                     </div>
                   </>
                 )}

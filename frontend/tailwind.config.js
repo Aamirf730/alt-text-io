@@ -10,72 +10,101 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // Logo-based Color Palette
+        // Logo-based Color Palette - Exact Logo Colors
         'logo-teal': {
-          50: '#f0fdfa',
-          100: '#ccfbf1',
-          200: '#99f6e4',
-          300: '#5eead4',
-          400: '#2dd4bf',
-          500: '#14b8a6',
-          600: '#0d9488', // Primary action color
-          700: '#0f766e', // Hover states
-          800: '#115e59',
-          900: '#134e4a',
-          950: '#042f2e',
+          DEFAULT: '#1AB5AC', // Start of teal gradient
+          start: '#1AB5AC',
+          end: '#3AC8C4',
+          50: '#e6f7f6',
+          100: '#b3ebe8',
+          200: '#80dfda',
+          300: '#4dd3cc',
+          400: '#1AB5AC', // Primary teal
+          500: '#2AC0B8',
+          600: '#3AC8C4', // End of teal gradient
+          700: '#0B4F5E', // Dark teal for hover
+          800: '#0a454f',
+          900: '#083a42',
+          950: '#062e35',
         },
         'logo-navy': {
-          50: '#f0f9ff',
-          100: '#e0f2fe',
-          200: '#bae6fd',
-          300: '#7dd3fc',
-          400: '#38bdf8',
-          500: '#0ea5e9',
-          600: '#0284c7',
-          700: '#0369a1', // Secondary dark blue
-          800: '#075985', // Dark navy
-          900: '#0c4a6e',
-          950: '#082f49',
+          DEFAULT: '#162D4E', // Start of navy gradient
+          start: '#162D4E',
+          end: '#223A64',
+          50: '#e8ecf2',
+          100: '#c5d0df',
+          200: '#a2b4cc',
+          300: '#7f98b9',
+          400: '#5c7ca6',
+          500: '#162D4E', // Primary navy
+          600: '#1a3560',
+          700: '#223A64', // End of navy gradient
+          800: '#1a2d4d',
+          900: '#132036',
+          950: '#0d1524',
         },
-        'logo-cyan': {
-          50: '#ecfeff',
-          100: '#cffafe',
-          200: '#a5f3fc',
-          300: '#67e8f9',
-          400: '#22d3ee', // Accent color
-          500: '#06b6d4', // Primary accent
-          600: '#0891b2',
-          700: '#0e7490',
-          800: '#155e75',
-          900: '#164e63',
-          950: '#083344',
+        'logo-dark-teal': {
+          DEFAULT: '#0B4F5E',
+          50: '#e6f2f4',
+          100: '#b3d9de',
+          200: '#80c0c8',
+          300: '#4da7b2',
+          400: '#1a8e9c',
+          500: '#0B4F5E', // Dark teal accent
+          600: '#09424e',
+          700: '#07353e',
+          800: '#05282e',
+          900: '#031b1e',
+          950: '#020e10',
         },
-        // Professional Color Palette
+        'logo-green': {
+          DEFAULT: '#006160', // Start of green gradient
+          start: '#006160',
+          end: '#0C7A76',
+          50: '#e6f2f2',
+          100: '#b3d9d9',
+          200: '#80c0c0',
+          300: '#4da7a7',
+          400: '#1a8e8e',
+          500: '#006160', // Primary green
+          600: '#007a78',
+          700: '#0C7A76', // End of green gradient
+          800: '#0a6260',
+          900: '#084a4a',
+          950: '#053232',
+        },
+        'logo-border': {
+          light: '#F4F4F4',
+          dark: '#E0E0E0',
+        },
+        // Professional Color Palette - Mapped to Logo Colors
         primary: {
-          50: '#f0fdfa',
-          100: '#ccfbf1',
-          200: '#99f6e4',
-          300: '#5eead4',
-          400: '#2dd4bf',
-          500: '#14b8a6',
-          600: '#0C9488',
-          700: '#0a7a70',
-          800: '#0f766e',
-          900: '#134e4a',
-          950: '#042f2e',
+          DEFAULT: '#1AB5AC',
+          50: '#e6f7f6',
+          100: '#b3ebe8',
+          200: '#80dfda',
+          300: '#4dd3cc',
+          400: '#1AB5AC', // Logo teal start
+          500: '#2AC0B8',
+          600: '#3AC8C4', // Logo teal end
+          700: '#0B4F5E', // Dark teal for hover
+          800: '#0a454f',
+          900: '#083a42',
+          950: '#062e35',
         },
         accent: {
-          50: '#f0f9ff',
-          100: '#e0f2fe',
-          200: '#bae6fd',
-          300: '#7dd3fc',
-          400: '#38bdf8',
-          500: '#0ea5e9',
-          600: '#0284c7',
-          700: '#0369a1',
-          800: '#075985',
-          900: '#0c4a6e',
-          950: '#082f49',
+          DEFAULT: '#162D4E',
+          50: '#e8ecf2',
+          100: '#c5d0df',
+          200: '#a2b4cc',
+          300: '#7f98b9',
+          400: '#5c7ca6',
+          500: '#162D4E', // Logo navy start
+          600: '#1a3560',
+          700: '#223A64', // Logo navy end
+          800: '#1a2d4d',
+          900: '#132036',
+          950: '#0d1524',
         },
         gray: {
           50: '#f8fafc',
@@ -201,9 +230,12 @@ module.exports = {
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
         'gradient-conic': 'conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))',
-        'gradient-primary': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-        'gradient-blue': 'linear-gradient(135deg, #2563eb 0%, #1e40af 100%)',
-        'gradient-purple': 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+        'gradient-primary': 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)',
+        'gradient-teal': 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)',
+        'gradient-navy': 'linear-gradient(135deg, #162D4E 0%, #223A64 100%)',
+        'gradient-green': 'linear-gradient(135deg, #006160 0%, #0C7A76 100%)',
+        'gradient-blue': 'linear-gradient(135deg, #162D4E 0%, #223A64 100%)',
+        'gradient-purple': 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)',
       },
       backdropBlur: {
         xs: '2px',

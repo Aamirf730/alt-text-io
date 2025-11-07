@@ -4,19 +4,46 @@
 
 /* Professional Color Scheme - Logo Colors */
 :root {
-  --primary-teal: #0d9488; /* Logo teal - primary action color */
-  --primary-teal-dark: #0f766e; /* Logo teal dark - hover states */
-  --primary-teal-light: #14b8a6; /* Logo teal light */
-  --logo-navy: #075985; /* Dark blue/navy from logo */
-  --logo-cyan: #22d3ee; /* Turquoise/cyan accent from logo */
-  --logo-cyan-dark: #06b6d4; /* Darker cyan for accents */
-  --accent-teal: #0f766e;
+  /* Logo Teal/Cyan Gradient - Primary Actions */
+  --logo-teal-start: #1AB5AC;
+  --logo-teal-end: #3AC8C4;
+  --logo-teal-gradient: linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%);
+  
+  /* Deep Navy Blue - Secondary Elements */
+  --logo-navy-start: #162D4E;
+  --logo-navy-end: #223A64;
+  --logo-navy-gradient: linear-gradient(135deg, #162D4E 0%, #223A64 100%);
+  
+  /* Dark Teal - Accent Elements */
+  --logo-dark-teal: #0B4F5E;
+  
+  /* Dark Green Button - Special CTAs */
+  --logo-green-start: #006160;
+  --logo-green-end: #0C7A76;
+  --logo-green-gradient: linear-gradient(135deg, #006160 0%, #0C7A76 100%);
+  
+  /* Off-White Borders */
+  --logo-border-light: #F4F4F4;
+  --logo-border-dark: #E0E0E0;
+  
+  /* Legacy compatibility - mapped to logo colors */
+  --primary-teal: #1AB5AC;
+  --primary-teal-dark: #0B4F5E;
+  --primary-teal-light: #3AC8C4;
+  --logo-navy: #162D4E;
+  --logo-cyan: #3AC8C4;
+  --logo-cyan-dark: #1AB5AC;
+  --accent-teal: #0B4F5E;
+  
+  /* Text and Background */
   --text-dark: #1f2937;
   --text-medium: #4b5563;
   --text-light: #6b7280;
   --background-white: #ffffff;
   --background-light: #f8fafc;
-  --border-light: #e5e7eb;
+  --border-light: #E0E0E0;
+  
+  /* Shadows */
   --shadow-subtle: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
   --shadow-medium: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
   --shadow-large: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
@@ -57,11 +84,24 @@ h3 {
 
 /* Professional Buttons */
 .btn-primary {
-  @apply bg-teal-600 hover:bg-teal-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg transform hover:-translate-y-0.5;
+  background: var(--logo-teal-gradient);
+  @apply text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg transform hover:-translate-y-0.5;
+  background-image: linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%);
+}
+
+.btn-primary:hover {
+  background-image: linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%);
 }
 
 .btn-secondary {
-  @apply bg-white hover:bg-gray-50 text-teal-600 font-semibold py-3 px-6 rounded-lg border-2 border-teal-600 transition-all duration-200 hover:shadow-md;
+  @apply bg-white hover:bg-gray-50 font-semibold py-3 px-6 rounded-lg border-2 transition-all duration-200 hover:shadow-md;
+  color: var(--logo-teal-start);
+  border-color: var(--logo-teal-start);
+}
+
+.btn-secondary:hover {
+  border-color: var(--logo-teal-end);
+  color: var(--logo-teal-end);
 }
 
 .btn-ghost {
@@ -74,26 +114,44 @@ h3 {
 }
 
 .card-hover {
-  @apply bg-white rounded-xl shadow-sm border border-gray-100 p-6 transition-all duration-200 hover:shadow-lg hover:border-teal-200;
+  @apply bg-white rounded-xl shadow-sm border p-6 transition-all duration-200 hover:shadow-lg;
+  border-color: var(--logo-border-light);
+}
+
+.card-hover:hover {
+  border-color: rgba(11, 79, 94, 0.4);
 }
 
 /* Professional Inputs */
 .input-field {
-  @apply w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-all duration-200;
+  @apply w-full px-4 py-3 border rounded-lg focus:ring-2 transition-all duration-200;
+  border-color: var(--logo-border-dark);
+}
+
+.input-field:focus {
+  border-color: var(--logo-teal-start);
+  --tw-ring-color: var(--logo-teal-start);
 }
 
 /* Professional Navigation */
 .nav-link {
-  @apply text-gray-700 hover:text-blue-600 font-medium transition-colors duration-200;
+  @apply text-gray-700 font-medium transition-colors duration-200;
+  color: var(--text-medium);
+}
+
+.nav-link:hover {
+  color: var(--logo-teal-start);
 }
 
 .nav-link-active {
-  @apply text-teal-600 font-semibold;
+  color: var(--logo-dark-teal);
+  @apply font-semibold;
 }
 
 /* Hero Section */
 .hero-section {
-  @apply bg-gradient-to-br from-teal-50 to-cyan-50 py-20 px-4;
+  background: linear-gradient(135deg, rgba(26, 181, 172, 0.1) 0%, rgba(58, 200, 196, 0.1) 100%);
+  @apply py-20 px-4;
 }
 
 .hero-content {
@@ -136,15 +194,24 @@ h3 {
 
 /* Professional Gradients */
 .gradient-primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--logo-teal-gradient);
 }
 
+.gradient-navy {
+  background: var(--logo-navy-gradient);
+}
+
+.gradient-green {
+  background: var(--logo-green-gradient);
+}
+
+/* Legacy gradient names for compatibility */
 .gradient-blue {
-  background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+  background: var(--logo-navy-gradient);
 }
 
 .gradient-purple {
-  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+  background: var(--logo-teal-gradient);
 }
 
 /* Professional Shadows */
@@ -211,7 +278,9 @@ h3 {
 
 /* Professional Badge */
 .badge-professional {
-  @apply inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800;
+  @apply inline-flex items-center px-3 py-1 rounded-full text-sm font-medium;
+  background-color: rgba(11, 79, 94, 0.1);
+  color: var(--logo-dark-teal);
 }
 
 .badge-success {
@@ -233,12 +302,14 @@ h3 {
 }
 
 .divider-teal {
-  @apply border-t-2 border-teal-200 my-8;
+  border-top: 2px solid rgba(11, 79, 94, 0.4);
+  @apply my-8;
 }
 
 /* Professional Focus States */
 .focus-ring {
-  @apply focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2;
+  @apply focus:outline-none focus:ring-2 focus:ring-offset-2;
+  --tw-ring-color: var(--logo-teal-start);
 }
 
 /* Professional Hover Effects */
