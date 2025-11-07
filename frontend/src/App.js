@@ -2820,16 +2820,47 @@ const Dashboard = () => {
 
             {/* API Key Section for WordPress Plugin */}
             <Card className="mb-6">
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Key className="h-5 w-5 mr-2 text-blue-600" />
+              <CardHeader className="pb-4">
+                <CardTitle className="flex items-center text-xl">
+                  <div className="p-2 bg-blue-100 rounded-lg mr-3">
+                    <Key className="h-6 w-6 text-blue-600" />
+                  </div>
                   WordPress Plugin Integration
                 </CardTitle>
-                <p className="text-gray-600 text-sm">Use this API key to connect your WordPress plugin</p>
+                <p className="text-gray-600 text-sm mt-2">Connect your WordPress site with Alt Text Pro</p>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-6">
+                {/* Download Plugin Section - Prominent */}
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-6">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-start space-x-3">
+                      <div className="flex-shrink-0 p-2 bg-blue-500 rounded-lg">
+                        <Download className="h-5 w-5 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                          Get Started with WordPress Plugin
+                        </h3>
+                        <p className="text-sm text-gray-600">
+                          Download and install the Alt Text Pro plugin on your WordPress site
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <a
+                    href="/wordpress-plugin/alt-text-pro-plugin.zip"
+                    download="alt-text-pro-plugin.zip"
+                    className="inline-flex items-center justify-center w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-[1.02]"
+                  >
+                    <Download className="h-5 w-5 mr-2" />
+                    Download WordPress Plugin
+                    <span className="ml-2 text-xs opacity-90">(52KB)</span>
+                  </a>
+                </div>
+
+                {/* API Key Section */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 mb-3">
                     Your API Key
                   </label>
                   <div className="flex items-center space-x-2">
@@ -2838,22 +2869,23 @@ const Dashboard = () => {
                         type={showApiKey ? "text" : "password"}
                         value={isLoadingApiKey ? "Loading..." : (apiKey || "Not available")}
                         readOnly
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-sm font-mono"
+                        className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg bg-gray-50 text-sm font-mono focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
                         disabled={isLoadingApiKey}
                       />
                     </div>
                     <Button
                       variant="outline"
-                      size="sm"
+                      size="default"
                       onClick={() => setShowApiKey(!showApiKey)}
-                      className="px-3"
+                      className="px-4 h-[42px] border-2"
                       disabled={isLoadingApiKey || !apiKey}
+                      title={showApiKey ? "Hide API Key" : "Show API Key"}
                     >
                       {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </Button>
                     <Button
                       variant="outline"
-                      size="sm"
+                      size="default"
                       onClick={() => {
                         if (apiKey) {
                           navigator.clipboard.writeText(apiKey);
@@ -2862,26 +2894,28 @@ const Dashboard = () => {
                           toast.error("API key not available. Please refresh the page.");
                         }
                       }}
-                      className="px-3"
+                      className="px-4 h-[42px] border-2"
                       disabled={isLoadingApiKey || !apiKey}
+                      title="Copy API Key"
                     >
                       <Copy className="h-4 w-4" />
                     </Button>
                     <Button
                       variant="outline"
-                      size="sm"
+                      size="default"
                       onClick={() => {
                         loadApiKey();
                       }}
-                      className="px-3"
+                      className="px-4 h-[42px] border-2"
                       disabled={isLoadingApiKey}
                       title="Refresh API Key"
                     >
-                      <RefreshCw className="h-4 w-4" />
+                      <RefreshCw className={`h-4 w-4 ${isLoadingApiKey ? 'animate-spin' : ''}`} />
                     </Button>
                   </div>
-                  <div className="flex items-center justify-between mt-2">
-                    <p className="text-xs text-gray-500">
+                  <div className="flex items-center justify-between mt-3">
+                    <p className="text-xs text-gray-500 flex items-center">
+                      <Shield className="h-3 w-3 mr-1" />
                       Keep it secure!
                     </p>
                     {!apiKey && !isLoadingApiKey && (
@@ -2897,43 +2931,36 @@ const Dashboard = () => {
                   </div>
                 </div>
 
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <div className="flex items-start space-x-3">
+                {/* Setup Instructions */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-5">
+                  <div className="flex items-start space-x-3 mb-4">
                     <div className="flex-shrink-0">
                       <Info className="h-5 w-5 text-blue-600 mt-0.5" />
                     </div>
-                    <div>
-                      <h4 className="text-sm font-medium text-blue-900 mb-1">
-                        WordPress Plugin Setup
+                    <div className="flex-1">
+                      <h4 className="text-sm font-semibold text-blue-900 mb-3">
+                        Quick Setup Guide
                       </h4>
-                      <ol className="text-xs text-blue-800 space-y-1 list-decimal list-inside">
-                        <li>Download the Alt Text Pro WordPress plugin</li>
-                        <li>Install and activate it on your WordPress site</li>
-                        <li>Go to Alt Text Pro → Settings in your WordPress admin</li>
-                        <li>Paste this API key in the settings</li>
-                        <li>Test the connection and start generating alt-text!</li>
+                      <ol className="text-sm text-blue-800 space-y-2 list-decimal list-inside">
+                        <li className="pl-2">Download the Alt Text Pro WordPress plugin (button above)</li>
+                        <li className="pl-2">Go to your WordPress admin → Plugins → Add New → Upload Plugin</li>
+                        <li className="pl-2">Upload and activate the plugin</li>
+                        <li className="pl-2">Navigate to Alt Text Pro → Settings in your WordPress admin</li>
+                        <li className="pl-2">Paste your API key (shown above) into the settings</li>
+                        <li className="pl-2">Test the connection and start generating alt-text automatically!</li>
                       </ol>
-                      <div className="mt-3">
-                        <a
-                          href="/wordpress-plugin/alt-text-pro-plugin.zip"
-                          download="alt-text-pro-plugin.zip"
-                          className="inline-flex items-center text-xs text-blue-600 hover:text-blue-800 font-medium"
-                        >
-                          <Download className="h-3 w-3 mr-1" />
-                          Download WordPress Plugin
-                        </a>
-                      </div>
                     </div>
                   </div>
                 </div>
 
+                {/* Security Warning */}
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
                   <div className="flex items-start space-x-3">
                     <div className="flex-shrink-0">
                       <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5" />
                     </div>
                     <div>
-                      <h4 className="text-sm font-medium text-amber-900 mb-1">
+                      <h4 className="text-sm font-semibold text-amber-900 mb-1">
                         Important Security Note
                       </h4>
                       <p className="text-xs text-amber-800">
