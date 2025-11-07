@@ -2361,7 +2361,8 @@ const Dashboard = () => {
       }
       
       let apiBase;
-      if (window.location.hostname === 'localhost') {
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        // For localhost, use production API (Netlify Dev requires manual setup)
         apiBase = process.env.REACT_APP_API_BASE || 'https://www.alt-text.pro/.netlify/functions';
       } else {
         apiBase = '/.netlify/functions';
@@ -2375,29 +2376,46 @@ const Dashboard = () => {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
+      }).catch((fetchError) => {
+        console.error('Fetch error:', fetchError);
+        throw new Error(`Network error: ${fetchError.message}. Please check if the API endpoint is accessible.`);
       });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          errorData = { error: errorText || `HTTP ${response.status}` };
+        }
+        console.error('Failed to load API key:', errorData);
+        const errorMsg = errorData.error || errorData.details || `Failed to load API key (${response.status})`;
+        toast.error(errorMsg);
+        setIsLoadingApiKey(false);
+        return;
+      }
 
       const responseData = await response.json();
       console.log('API key response:', { status: response.status, data: responseData });
 
-      if (response.ok) {
-        if (responseData.success && responseData.api_key) {
-          setApiKey(responseData.api_key);
-        } else if (responseData.api_key) {
-          // Handle case where api_key is returned directly
-          setApiKey(responseData.api_key);
-        } else {
-          console.error('API key not found in response:', responseData);
-          toast.error('API key not found in response');
-        }
+      if (responseData.success && responseData.api_key) {
+        setApiKey(responseData.api_key);
+      } else if (responseData.api_key) {
+        // Handle case where api_key is returned directly
+        setApiKey(responseData.api_key);
       } else {
-        console.error('Failed to load API key:', responseData);
-        const errorMsg = responseData.error || `Failed to load API key (${response.status})`;
-        toast.error(errorMsg);
+        console.error('API key not found in response:', responseData);
+        toast.error('API key not found in response');
       }
     } catch (error) {
       console.error('Error loading API key:', error);
-      toast.error(`Error loading API key: ${error.message}`);
+      // Check if it's a network error
+      if (error.message.includes('Failed to fetch') || error.message.includes('Network error')) {
+        toast.error('Cannot connect to API. Please check your internet connection or try again later.');
+      } else {
+        toast.error(`Error loading API key: ${error.message}`);
+      }
     } finally {
       setIsLoadingApiKey(false);
     }
