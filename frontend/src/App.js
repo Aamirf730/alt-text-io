@@ -297,7 +297,7 @@ const LandingPage = () => {
           options: {
             emailRedirectTo: window.location.origin + '/dashboard',
             data: {
-              subscription_plan: 'free_trial',
+              subscription_plan: 'free',
               credits_remaining: 100
             }
           }
@@ -365,7 +365,7 @@ const LandingPage = () => {
                   .insert({
                     id: result.data.user.id,
                     email: result.data.user.email,
-                    subscription_plan: 'free_trial',
+                    subscription_plan: 'free',
                     credits_remaining: 100,
                     total_processed: 0
                   });
@@ -381,7 +381,7 @@ const LandingPage = () => {
                   .from('profiles')
                   .update({
                     credits_remaining: 100,
-                    subscription_plan: 'free_trial'
+                    subscription_plan: 'free'
                   })
                   .eq('id', result.data.user.id);
               }
