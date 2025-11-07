@@ -67,6 +67,7 @@ const LandingPage = () => {
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [billingCycle, setBillingCycle] = useState('monthly'); // 'monthly' or 'annual'
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Check authentication state on mount and when auth changes
   useEffect(() => {
@@ -314,15 +315,62 @@ const LandingPage = () => {
 
       if (result.error) {
         console.error('🔧 Auth Error:', result.error);
-        if (result.error.message.includes('Email not confirmed')) {
-          toast.success("Please check your email and click the confirmation link!");
-        } else if (result.error.message.includes('already registered') || result.error.message.includes('User already registered')) {
-          toast.error("This email is already registered. Please sign in instead.");
+        const errorMessage = result.error.message?.toLowerCase() || '';
+        const errorStatus = result.error.status;
+        
+        // Check for email already registered errors
+        if (
+          errorMessage.includes('already registered') ||
+          errorMessage.includes('user already registered') ||
+          errorMessage.includes('email already') ||
+          errorMessage.includes('already exists') ||
+          errorMessage.includes('user with this email') ||
+          errorStatus === 422 || // Unprocessable Entity often means duplicate
+          (errorStatus === 400 && errorMessage.includes('email'))
+        ) {
+          toast.error("This email address is already registered. Please sign in instead.");
           setIsLogin(true);
+          return;
+        }
+        
+        if (errorMessage.includes('email not confirmed')) {
+          toast.success("Please check your email and click the confirmation link!");
         } else {
           toast.error(result.error.message || "Authentication failed. Please try again.");
         }
       } else if (result.data.user) {
+        // Check if this is a signup attempt with an existing user
+        if (!isLogin) {
+          // Key indicators that user already exists:
+          // 1. Email is already confirmed AND no session returned
+          // 2. User was created more than 10 seconds ago (not a fresh signup)
+          const emailConfirmed = result.data.user.email_confirmed_at !== null;
+          const hasSession = !!result.data.session;
+          const userCreatedAt = new Date(result.data.user.created_at);
+          const now = new Date();
+          const secondsSinceCreation = (now - userCreatedAt) / 1000;
+          
+          // If email is confirmed but no session, user already exists
+          if (emailConfirmed && !hasSession) {
+            toast.error("An account with this email address is already registered. Please sign in instead.", { duration: 5000 });
+            setIsLogin(true);
+            setIsLoading(false);
+            setEmail(email); // Keep the email in the form
+            setPassword(""); // Clear password
+            return;
+          }
+          
+          // If user was created more than 10 seconds ago and no session, likely existing user
+          if (secondsSinceCreation > 10 && !hasSession && emailConfirmed) {
+            toast.error("An account with this email address is already registered. Please sign in instead.", { duration: 5000 });
+            setIsLogin(true);
+            setIsLoading(false);
+            setEmail(email); // Keep the email in the form
+            setPassword(""); // Clear password
+            return;
+          }
+        }
+        
         // Check if email confirmation is required
         const requiresEmailConfirmation = !result.data.session;
         const emailConfirmed = result.data.user.email_confirmed_at !== null;
@@ -330,7 +378,9 @@ const LandingPage = () => {
         console.log('🔧 User Status:', {
           requiresEmailConfirmation,
           emailConfirmed,
-          email: result.data.user.email
+          email: result.data.user.email,
+          isSignup: !isLogin,
+          hasSession: !!result.data.session
         });
         
         if (!isLogin && requiresEmailConfirmation && !emailConfirmed) {
@@ -391,7 +441,28 @@ const LandingPage = () => {
             }
           }
           
-          // Update user state before redirect
+          // Check if this was a signup attempt but user already exists (auto-authenticated)
+          if (!isLogin && result.data.session && result.data.user.email_confirmed_at !== null) {
+            // User tried to sign up but email already exists and password was correct
+            // Supabase auto-authenticated them - we should inform them clearly
+            const userCreatedAt = new Date(result.data.user.created_at);
+            const now = new Date();
+            const secondsSinceCreation = (now - userCreatedAt) / 1000;
+            
+            // If user was created more than 30 seconds ago, definitely an existing user
+            if (secondsSinceCreation > 30) {
+              // Clear the session to prevent auto-login
+              await supabase.auth.signOut();
+              toast.error("An account with this email address is already registered. Please sign in instead.", { duration: 6000 });
+              setIsLogin(true);
+              setIsLoading(false);
+              setEmail(email); // Keep email
+              setPassword(""); // Clear password
+              return; // Don't redirect
+            }
+          }
+          
+          // Normal flow - update user state and redirect
           if (result.data.session?.user) {
             setUser({
               email: result.data.session.user.email,
@@ -530,7 +601,7 @@ const LandingPage = () => {
         body: JSON.stringify({
           paymentId: data.orderID,
           planId: selectedPlan.id,
-          isSubscription: selectedPlan.id === 'tier1' || selectedPlan.id === 'tier2' || selectedPlan.id === 'tier3'
+          isSubscription: selectedPlan.id === 'tier1' || selectedPlan.id === 'tier2'
         })
       });
 
@@ -647,14 +718,104 @@ const LandingPage = () => {
 
             {/* Mobile menu button */}
             <div className="lg:hidden">
-              <button className="p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
+              <button 
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                className="p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+                aria-label="Toggle mobile menu"
+              >
+                {isMobileMenuOpen ? (
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                ) : (
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                )}
               </button>
             </div>
             </div>
           </div>
+          
+          {/* Mobile menu dropdown */}
+          {isMobileMenuOpen && (
+            <div className="lg:hidden border-t border-gray-200 bg-white">
+              <div className="px-4 py-4 space-y-3">
+                <a 
+                  href="#pricing" 
+                  className="block text-gray-700 hover:text-gray-900 font-medium transition-colors py-2"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  Pricing
+                </a>
+                <a 
+                  href="#support" 
+                  className="block text-gray-700 hover:text-gray-900 font-medium transition-colors py-2"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  Support
+                </a>
+                <a 
+                  href="#blog" 
+                  className="block text-gray-700 hover:text-gray-900 font-medium transition-colors py-2"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  Blog
+                </a>
+                <div className="pt-3 border-t border-gray-200 space-y-2">
+                  {user ? (
+                    <>
+                      <Button 
+                        variant="ghost" 
+                        className="w-full text-white bg-blue-600 hover:bg-blue-700 font-medium px-6 py-2.5 rounded-full"
+                        onClick={() => {
+                          setIsMobileMenuOpen(false);
+                          window.location.href = "/dashboard";
+                        }}
+                      >
+                        Dashboard
+                      </Button>
+                      <Button 
+                        className="w-full bg-black hover:bg-gray-800 text-white px-6 py-2.5 rounded-full font-medium"
+                        onClick={async () => {
+                          setIsMobileMenuOpen(false);
+                          await supabase.auth.signOut();
+                          setUser(null);
+                          toast.success("Signed out successfully");
+                        }}
+                      >
+                        Sign Out
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button 
+                        variant="ghost" 
+                        className="w-full text-white bg-blue-600 hover:bg-blue-700 font-medium px-6 py-2.5 rounded-full"
+                        onClick={() => {
+                          setIsMobileMenuOpen(false);
+                          setIsLogin(true);
+                          setShowAuthForm(true);
+                        }}
+                      >
+                        Sign In
+                      </Button>
+                      <Button 
+                        className="w-full bg-black hover:bg-gray-800 text-white px-6 py-2.5 rounded-full font-medium"
+                        onClick={() => {
+                          setIsMobileMenuOpen(false);
+                          setIsLogin(false);
+                          setShowAuthForm(true);
+                        }}
+                      >
+                        Free Trial
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </nav>
 
@@ -692,6 +853,10 @@ const LandingPage = () => {
                     size="lg" 
                     variant="outline"
                     className="border-gray-300 text-gray-700 hover:bg-gray-50 px-8 py-4 text-lg font-semibold rounded-lg"
+                    onClick={() => {
+                      setIsLogin(false);
+                      setShowAuthForm(true);
+                    }}
                   >
                     Get Plugin
                   </Button>
@@ -1259,7 +1424,7 @@ const LandingPage = () => {
             </div>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
+          <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-6 max-w-7xl mx-auto">
             {/* Free Plan */}
             <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-100 hover:border-blue-200 transition-colors">
               <div className="text-center">
@@ -1267,23 +1432,23 @@ const LandingPage = () => {
                 <div className="text-4xl font-bold text-blue-600 mb-2">$0</div>
                 <p className="text-gray-600 mb-6">per month</p>
                 
-                <div className="space-y-2 mb-8">
+                <div className="space-y-4 mb-8">
                   <div className="flex items-center">
-                    <Check className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
-                    <span className="text-sm text-gray-700 whitespace-nowrap">100 Credits</span>
+                    <Check className="h-5 w-5 text-green-500 mr-3" />
+                    <span className="text-gray-700">100 Credits</span>
                   </div>
                   <div className="flex items-center">
-                    <Check className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
-                    <span className="text-sm text-gray-700 whitespace-nowrap">Basic support</span>
+                    <Check className="h-5 w-5 text-green-500 mr-3" />
+                    <span className="text-gray-700">Basic support</span>
                   </div>
                   <div className="flex items-center">
-                    <Check className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
-                    <span className="text-sm text-gray-700 whitespace-nowrap">API access</span>
+                    <Check className="h-5 w-5 text-green-500 mr-3" />
+                    <span className="text-gray-700">API access</span>
                   </div>
                 </div>
                 
                 <Button 
-                  onClick={() => handlePlanSelection('free_trial', 'Free', '$0')}
+                  onClick={() => handlePlanSelection('free', 'Free', '$0')}
                   className="w-full bg-gray-100 text-gray-700 hover:bg-gray-200"
                 >
                   Get Started
@@ -1297,7 +1462,7 @@ const LandingPage = () => {
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">Tier 1</h3>
                 <div className="text-3xl font-bold text-blue-600 mb-2">
                   ${billingCycle === 'annual' ? '12' : '15'}
-                  <span className="text-sm text-gray-600 font-normal ml-1">
+                  <span className="text-xl text-gray-600 font-normal ml-1">
                     {billingCycle === 'annual' ? '/month billed annually' : '/month'}
                   </span>
                 </div>
@@ -1305,22 +1470,22 @@ const LandingPage = () => {
                   <p className="text-xs text-gray-500 mb-4">$144/year (Save 20%)</p>
                 )}
                 
-                <div className="space-y-2 mb-8">
+                <div className="space-y-3 mb-8">
                   <div className="flex items-center">
-                    <Check className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
-                    <span className="text-sm text-gray-700 whitespace-nowrap">1,000 Credits</span>
+                    <Check className="h-5 w-5 text-green-500 mr-3" />
+                    <span className="text-gray-700">1,000 Credits</span>
                   </div>
                   <div className="flex items-center">
-                    <Check className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
-                    <span className="text-sm text-gray-700 whitespace-nowrap">Priority support</span>
+                    <Check className="h-5 w-5 text-green-500 mr-3" />
+                    <span className="text-gray-700">Priority support</span>
                   </div>
                   <div className="flex items-center">
-                    <Check className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
-                    <span className="text-sm text-gray-700 whitespace-nowrap">API access</span>
+                    <Check className="h-5 w-5 text-green-500 mr-3" />
+                    <span className="text-gray-700">API access</span>
                   </div>
                   <div className="flex items-center">
-                    <Check className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
-                    <span className="text-sm text-gray-700 whitespace-nowrap">Bulk processing</span>
+                    <Check className="h-5 w-5 text-green-500 mr-3" />
+                    <span className="text-gray-700">Bulk processing</span>
                   </div>
                 </div>
                 
@@ -1336,13 +1501,13 @@ const LandingPage = () => {
             {/* Tier 2 - Most Popular */}
             <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-blue-500 relative transform scale-105">
               <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
-                <span className="bg-blue-600 text-white px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap">Most Popular</span>
+                <span className="bg-blue-600 text-white px-4 py-1 rounded-full text-sm font-medium">Most Popular</span>
               </div>
               <div className="text-center">
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">Tier 2</h3>
                 <div className="text-3xl font-bold text-blue-600 mb-2">
                   ${billingCycle === 'annual' ? '20' : '25'}
-                  <span className="text-sm text-gray-600 font-normal ml-1">
+                  <span className="text-xl text-gray-600 font-normal ml-1">
                     {billingCycle === 'annual' ? '/month billed annually' : '/month'}
                   </span>
                 </div>
@@ -1350,30 +1515,30 @@ const LandingPage = () => {
                   <p className="text-xs text-gray-500 mb-4">$240/year (Save 20%)</p>
                 )}
                 
-                <div className="space-y-2 mb-8">
+                <div className="space-y-3 mb-8">
                   <div className="flex items-center">
-                    <Check className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
-                    <span className="text-sm text-gray-700 whitespace-nowrap">2,500 Credits</span>
+                    <Check className="h-5 w-5 text-green-500 mr-3" />
+                    <span className="text-gray-700">2,500 Credits</span>
                   </div>
                   <div className="flex items-center">
-                    <Check className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
-                    <span className="text-sm text-gray-700 whitespace-nowrap">Premium support</span>
+                    <Check className="h-5 w-5 text-green-500 mr-3" />
+                    <span className="text-gray-700">Premium support</span>
                   </div>
                   <div className="flex items-center">
-                    <Check className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
-                    <span className="text-sm text-gray-700 whitespace-nowrap">Advanced API access</span>
+                    <Check className="h-5 w-5 text-green-500 mr-3" />
+                    <span className="text-gray-700">Advanced API access</span>
                   </div>
                   <div className="flex items-center">
-                    <Check className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
-                    <span className="text-sm text-gray-700 whitespace-nowrap">Priority processing</span>
+                    <Check className="h-5 w-5 text-green-500 mr-3" />
+                    <span className="text-gray-700">Priority processing</span>
                   </div>
                   <div className="flex items-center">
-                    <Check className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
-                    <span className="text-sm text-gray-700 whitespace-nowrap">Bulk processing</span>
+                    <Check className="h-5 w-5 text-green-500 mr-3" />
+                    <span className="text-gray-700">Bulk processing</span>
                   </div>
                   <div className="flex items-center">
-                    <Check className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
-                    <span className="text-sm text-gray-700 whitespace-nowrap">Custom integrations</span>
+                    <Check className="h-5 w-5 text-green-500 mr-3" />
+                    <span className="text-gray-700">Custom integrations</span>
                   </div>
                 </div>
                 
@@ -1391,44 +1556,44 @@ const LandingPage = () => {
               <div className="text-center">
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">Tier 3</h3>
                 <div className="text-3xl font-bold text-blue-600 mb-2">
-                  ${billingCycle === 'annual' ? '36' : '45'}
-                  <span className="text-sm text-gray-600 font-normal ml-1">
+                  ${billingCycle === 'annual' ? '47.20' : '59'}
+                  <span className="text-xl text-gray-600 font-normal ml-1">
                     {billingCycle === 'annual' ? '/month billed annually' : '/month'}
                   </span>
                 </div>
                 {billingCycle === 'annual' && (
-                  <p className="text-xs text-gray-500 mb-4">$432/year (Save 20%)</p>
+                  <p className="text-xs text-gray-500 mb-4">$566.40/year (Save 20%)</p>
                 )}
                 
-                <div className="space-y-2 mb-8">
+                <div className="space-y-3 mb-8">
                   <div className="flex items-center">
-                    <Check className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
-                    <span className="text-sm text-gray-700 whitespace-nowrap">5,000 Credits</span>
+                    <Check className="h-5 w-5 text-green-500 mr-3" />
+                    <span className="text-gray-700">5,000 Credits</span>
                   </div>
                   <div className="flex items-center">
-                    <Check className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
-                    <span className="text-sm text-gray-700 whitespace-nowrap">Premium support</span>
+                    <Check className="h-5 w-5 text-green-500 mr-3" />
+                    <span className="text-gray-700">Premium support</span>
                   </div>
                   <div className="flex items-center">
-                    <Check className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
-                    <span className="text-sm text-gray-700 whitespace-nowrap">Advanced API access</span>
+                    <Check className="h-5 w-5 text-green-500 mr-3" />
+                    <span className="text-gray-700">Advanced API access</span>
                   </div>
                   <div className="flex items-center">
-                    <Check className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
-                    <span className="text-sm text-gray-700 whitespace-nowrap">Priority processing</span>
+                    <Check className="h-5 w-5 text-green-500 mr-3" />
+                    <span className="text-gray-700">Priority processing</span>
                   </div>
                   <div className="flex items-center">
-                    <Check className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
-                    <span className="text-sm text-gray-700 whitespace-nowrap">Unlimited bulk processing</span>
+                    <Check className="h-5 w-5 text-green-500 mr-3" />
+                    <span className="text-gray-700">Unlimited bulk processing</span>
                   </div>
                   <div className="flex items-center">
-                    <Check className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
-                    <span className="text-sm text-gray-700 whitespace-nowrap">Dedicated support</span>
+                    <Check className="h-5 w-5 text-green-500 mr-3" />
+                    <span className="text-gray-700">Dedicated support</span>
                   </div>
                 </div>
                 
                 <Button 
-                  onClick={() => handlePlanSelection('tier3', 'Tier 3', billingCycle === 'annual' ? '$432' : '$45')}
+                  onClick={() => handlePlanSelection('tier3', 'Tier 3', billingCycle === 'annual' ? '$566.40' : '$59')}
                   className="w-full bg-blue-600 text-white hover:bg-blue-700"
                 >
                   Choose Plan
@@ -1436,6 +1601,55 @@ const LandingPage = () => {
               </div>
             </div>
 
+            {/* Tier 4 */}
+            <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-100 hover:border-blue-200 transition-colors">
+              <div className="text-center">
+                <h3 className="text-2xl font-bold text-gray-900 mb-2">Tier 4</h3>
+                <div className="text-3xl font-bold text-blue-600 mb-2">
+                  ${billingCycle === 'annual' ? '95.20' : '119'}
+                  <span className="text-xl text-gray-600 font-normal ml-1">
+                    {billingCycle === 'annual' ? '/month billed annually' : '/month'}
+                  </span>
+                </div>
+                {billingCycle === 'annual' && (
+                  <p className="text-xs text-gray-500 mb-4">$1,142.40/year (Save 20%)</p>
+                )}
+                
+                <div className="space-y-3 mb-8">
+                  <div className="flex items-center">
+                    <Check className="h-5 w-5 text-green-500 mr-3" />
+                    <span className="text-gray-700">10,000 Credits</span>
+                  </div>
+                  <div className="flex items-center">
+                    <Check className="h-5 w-5 text-green-500 mr-3" />
+                    <span className="text-gray-700">Enterprise support</span>
+                  </div>
+                  <div className="flex items-center">
+                    <Check className="h-5 w-5 text-green-500 mr-3" />
+                    <span className="text-gray-700">Advanced API access</span>
+                  </div>
+                  <div className="flex items-center">
+                    <Check className="h-5 w-5 text-green-500 mr-3" />
+                    <span className="text-gray-700">Highest priority processing</span>
+                  </div>
+                  <div className="flex items-center">
+                    <Check className="h-5 w-5 text-green-500 mr-3" />
+                    <span className="text-gray-700">Unlimited bulk processing</span>
+                  </div>
+                  <div className="flex items-center">
+                    <Check className="h-5 w-5 text-green-500 mr-3" />
+                    <span className="text-gray-700">Dedicated account manager</span>
+                  </div>
+                </div>
+                
+                <Button 
+                  onClick={() => handlePlanSelection('tier4', 'Tier 4', billingCycle === 'annual' ? '$1,142.40' : '$119')}
+                  className="w-full bg-blue-600 text-white hover:bg-blue-700"
+                >
+                  Choose Plan
+                </Button>
+              </div>
+            </div>
           </div>
 
           {/* Credit Packs Section */}
@@ -2088,7 +2302,7 @@ const Dashboard = () => {
         body: JSON.stringify({
           paymentId: data.orderID,
           planId: selectedUpgradePlan.id,
-          isSubscription: selectedUpgradePlan.id === 'tier1' || selectedUpgradePlan.id === 'tier2' || selectedUpgradePlan.id === 'tier3'
+          isSubscription: selectedUpgradePlan.id === 'tier1' || selectedUpgradePlan.id === 'tier2'
         })
       });
 
