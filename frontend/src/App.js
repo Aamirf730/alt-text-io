@@ -650,12 +650,11 @@ const LandingPage = () => {
             {/* Logo */}
             <div className="flex items-center">
               <div className="flex items-center space-x-3">
-                <div className="relative w-12 h-8 bg-gradient-to-br from-blue-500 to-blue-700 rounded-full flex items-center justify-center shadow-lg transform -rotate-12" style={{
-                  background: 'linear-gradient(135deg, #3B82F6 0%, #1E40AF 100%)',
-                  boxShadow: '0 4px 12px rgba(59, 130, 246, 0.4), inset 0 -2px 4px rgba(0, 0, 0, 0.1)'
-                }}>
-                  <Zap className="h-5 w-5 text-white transform rotate-12" />
-                </div>
+                <img 
+                  src="/logo-alt-text-pro.png" 
+                  alt="Alt Text Pro Logo" 
+                  className="h-10 w-auto"
+                />
                 <span className="text-2xl font-bold text-gray-900">Alt Text Pro</span>
               </div>
             </div>
@@ -1836,9 +1835,11 @@ const LandingPage = () => {
             {/* Logo & Company Info */}
             <div>
               <div className="flex items-center space-x-2 mb-4">
-                <div className="w-8 h-8 bg-blue-600 rounded-md flex items-center justify-center">
-                  <Brain className="h-5 w-5 text-white" />
-                </div>
+                <img 
+                  src="/logo-alt-text-pro.png" 
+                  alt="Alt Text Pro Logo" 
+                  className="h-8 w-auto"
+                />
                 <span className="text-xl font-bold text-gray-900">Alt Text Pro</span>
               </div>
               <p className="text-gray-600 text-sm leading-relaxed mb-4">
@@ -2703,12 +2704,11 @@ const Dashboard = () => {
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <Link to="/" className="flex items-center space-x-3">
-              <div className="relative w-12 h-8 bg-gradient-to-br from-blue-500 to-blue-700 rounded-full flex items-center justify-center shadow-lg transform -rotate-12" style={{
-                background: 'linear-gradient(135deg, #3B82F6 0%, #1E40AF 100%)',
-                boxShadow: '0 4px 12px rgba(59, 130, 246, 0.4), inset 0 -2px 4px rgba(0, 0, 0, 0.1)'
-              }}>
-                <Zap className="h-5 w-5 text-white transform rotate-12" />
-              </div>
+              <img 
+                src="/logo-alt-text-pro.png" 
+                alt="Alt Text Pro Logo" 
+                className="h-10 w-auto"
+              />
               <span className="text-2xl font-bold text-gray-900">Alt Text Pro</span>
             </Link>
             <div className="flex items-center space-x-4">
