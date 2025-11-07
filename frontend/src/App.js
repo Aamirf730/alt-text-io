@@ -61,8 +61,10 @@ const LandingPage = () => {
   const [isLogin, setIsLogin] = useState(false);
   const [showAuthForm, setShowAuthForm] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
+  const [selectedImages, setSelectedImages] = useState([]);
   const [generatedAltText, setGeneratedAltText] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [bulkResults, setBulkResults] = useState([]);
   const [user, setUser] = useState(null); // Track logged-in user
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -137,73 +139,73 @@ const LandingPage = () => {
     setGeneratedAltText("");
   };
 
-  // Demo alt text generation - calls real API
+  // Demo alt text generation - calls real API (supports bulk processing)
   const generateDemoAltText = async () => {
-    if (!selectedImage) {
-      toast.error("Please select an image first");
+    const imagesToProcess = selectedImages.length > 0 ? selectedImages : (selectedImage ? [selectedImage] : []);
+    
+    if (imagesToProcess.length === 0) {
+      toast.error("Please select at least one image first");
       return;
     }
     
     setIsGenerating(true);
+    setBulkResults([]);
     
     try {
-      // Convert blob URL to base64
-      const response = await fetch(selectedImage);
-      const blob = await response.blob();
+      // Check for Supabase session for authentication
+      const { data: { session } } = await supabase.auth.getSession();
       
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const base64Data = reader.result.split(',')[1];
+      if (!session?.access_token) {
+        toast.error("Please sign up or sign in to generate alt text");
+        setIsGenerating(false);
+        setShowAuthForm(true);
+        return;
+      }
+      
+      // Determine API endpoint
+      let apiBase;
+      if (window.location.hostname === 'localhost') {
+        apiBase = process.env.REACT_APP_API_BASE || 'https://www.alt-text.pro/.netlify/functions';
+      } else {
+        apiBase = '/.netlify/functions';
+      }
+      
+      const endpoint = `${apiBase}/generate-alt-text`;
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`
+      };
+      
+      // Process all images
+      const results = [];
+      for (let i = 0; i < imagesToProcess.length; i++) {
+        const imageUrl = imagesToProcess[i];
         
-        // Check for Supabase session for authentication
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (!session?.access_token) {
-          toast.error("Please sign up or sign in to generate alt text");
-          setIsGenerating(false);
-          setShowAuthForm(true);
-          return;
-        }
-        
-        // Determine API endpoint - use local development or production
-        // For localhost, try Netlify Dev server first, fallback to production
-        let apiBase;
-        if (window.location.hostname === 'localhost') {
-          // Check if we're running with Netlify Dev (port 8888)
-          // If not available, use production API
-          apiBase = process.env.REACT_APP_API_BASE || 'https://www.alt-text.pro/.netlify/functions';
-        } else {
-          // Production - use relative path
-          apiBase = '/.netlify/functions';
-        }
-        
-        const endpoint = `${apiBase}/generate-alt-text`;
-        
-        // Prepare headers with Supabase auth token
-        const headers = {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
-        };
-        
-        console.log('🔍 Generating alt-text from homepage:', {
-          endpoint,
-          hasImage: !!base64Data,
-          imageSize: base64Data?.length,
-          hasToken: !!session.access_token
-        });
-        
-        // Call the real API
         try {
+          // Convert blob URL to base64
+          const response = await fetch(imageUrl);
+          const blob = await response.blob();
+          
+          const base64Data = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              const base64 = reader.result.split(',')[1];
+              resolve(base64);
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+          
+          // Call the API
           const apiResponse = await fetch(endpoint, {
             method: 'POST',
             headers: headers,
             body: JSON.stringify({
               image_base64: base64Data,
-              context: "Landing page demo"
+              context: imagesToProcess.length > 1 ? `Bulk processing - Image ${i + 1} of ${imagesToProcess.length}` : "Landing page demo"
             })
           });
           
-          // Check if response is OK before parsing JSON
           let data;
           try {
             const responseText = await apiResponse.text();
@@ -213,66 +215,95 @@ const LandingPage = () => {
             data = JSON.parse(responseText);
           } catch (parseError) {
             console.error('JSON parse error:', parseError);
-            toast.error("Invalid response from server. Please try again.");
-            setIsGenerating(false);
-            return;
+            results.push({
+              index: i + 1,
+              success: false,
+              error: "Invalid response from server"
+            });
+            continue;
           }
           
           if (apiResponse.ok) {
-            setGeneratedAltText(data.alt_text || data.altText);
+            results.push({
+              index: i + 1,
+              success: true,
+              altText: data.alt_text || data.altText,
+              creditsRemaining: data.credits_remaining
+            });
             
-            // Refresh profile to get updated credits (for display if user stays on page)
-            // Note: This is for homepage - credits will be correct when user goes to dashboard
-            try {
-              const { data: { user: authUser } } = await supabase.auth.getUser();
-              if (authUser) {
-                const { data: profile } = await supabase
-                  .from('profiles')
-                  .select('credits_remaining')
-                  .eq('id', authUser.id)
-                  .single();
-                
-                if (profile) {
-                  console.log('📊 Updated credits after generation:', profile.credits_remaining);
-                }
-              }
-            } catch (err) {
-              console.error('Error refreshing credits:', err);
+            // Update UI for first result
+            if (i === 0) {
+              setGeneratedAltText(data.alt_text || data.altText);
             }
-            
-            toast.success("Alt text generated successfully!");
           } else {
             if (apiResponse.status === 401) {
               toast.error("Session expired. Please sign in again.");
               setShowAuthForm(true);
+              setIsGenerating(false);
+              return;
             } else if (apiResponse.status === 402) {
               toast.error("No credits remaining. Please upgrade your plan.");
+              setIsGenerating(false);
+              return;
             } else {
-              toast.error(data.error || "Failed to generate alt text. Please try again.");
+              results.push({
+                index: i + 1,
+                success: false,
+                error: data.error || "Failed to generate alt text"
+              });
             }
           }
-        } catch (fetchError) {
-          console.error("API fetch error:", fetchError);
-          if (fetchError.message.includes('Failed to fetch') || fetchError.message.includes('NetworkError')) {
-            toast.error("Cannot connect to the API server. If running locally, make sure Netlify Dev is running or use the production site.");
-          } else {
-            toast.error("Failed to connect to the server. Please check your connection.");
+          
+          // Small delay between requests to avoid rate limiting
+          if (i < imagesToProcess.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+        } catch (error) {
+          console.error(`Error processing image ${i + 1}:`, error);
+          results.push({
+            index: i + 1,
+            success: false,
+            error: error.message || "Failed to process image"
+          });
+        }
+      }
+      
+      setBulkResults(results);
+      
+      // Show summary
+      const successCount = results.filter(r => r.success).length;
+      if (imagesToProcess.length > 1) {
+        if (successCount === imagesToProcess.length) {
+          toast.success(`Successfully processed all ${successCount} images!`);
+        } else {
+          toast.warning(`Processed ${successCount} of ${imagesToProcess.length} images.`);
+        }
+      } else {
+        toast.success("Alt text generated successfully!");
+      }
+      
+      // Refresh profile to get updated credits
+      try {
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        if (authUser) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('credits_remaining')
+            .eq('id', authUser.id)
+            .single();
+          
+          if (profile) {
+            console.log('📊 Updated credits after generation:', profile.credits_remaining);
           }
         }
-        
-        setIsGenerating(false);
-      };
-      
-      reader.onerror = () => {
-        toast.error("Failed to process image");
-        setIsGenerating(false);
-      };
-      
-      reader.readAsDataURL(blob);
+      } catch (err) {
+        console.error('Error refreshing credits:', err);
+      }
       
     } catch (error) {
       console.error("Error generating alt text:", error);
       toast.error("Failed to generate alt text. Please try again.");
+    } finally {
       setIsGenerating(false);
     }
   };
@@ -957,17 +988,33 @@ const LandingPage = () => {
                   id="image-upload"
                   type="file"
                   accept="image/*"
+                  multiple
                   className="hidden"
                   onChange={(e) => {
-                    if (e.target.files[0]) {
-                      // Revoke previous URL if exists
+                    if (e.target.files && e.target.files.length > 0) {
+                      // Revoke previous URLs if exist
                       if (selectedImage && selectedImage.startsWith('blob:')) {
                         URL.revokeObjectURL(selectedImage);
                       }
-                      const file = e.target.files[0];
-                      const imageUrl = URL.createObjectURL(file);
-                      setSelectedImage(imageUrl);
+                      selectedImages.forEach(url => {
+                        if (url.startsWith('blob:')) {
+                          URL.revokeObjectURL(url);
+                        }
+                      });
+                      
+                      const files = Array.from(e.target.files);
+                      const imageUrls = files.map(file => URL.createObjectURL(file));
+                      
+                      // Set first image for preview
+                      setSelectedImage(imageUrls[0]);
+                      setSelectedImages(imageUrls);
                       setGeneratedAltText("");
+                      setBulkResults([]);
+                      
+                      // If multiple files, show message
+                      if (files.length > 1) {
+                        toast.info(`${files.length} images selected. Click "Generate Alt Text" to process all.`);
+                      }
                     }
                   }}
                 />
@@ -978,37 +1025,85 @@ const LandingPage = () => {
                   disabled={!selectedImage || isGenerating}
                   className="w-full bg-teal-600 hover:bg-teal-700 disabled:bg-gray-400 text-white py-3 rounded-lg font-medium mb-4"
                 >
-                  {isGenerating ? 'Generating...' : 'Generate Alt Text'}
+                  {isGenerating 
+                    ? (selectedImages.length > 1 
+                        ? `Processing ${selectedImages.length} images...` 
+                        : 'Generating...')
+                    : (selectedImages.length > 1 
+                        ? `Generate Alt Text for ${selectedImages.length} Images` 
+                        : 'Generate Alt Text')}
                 </Button>
                 
                 {/* Generated Alt Text Result */}
                 <div className="space-y-3">
-                  <label className="block text-sm font-medium text-gray-700">Generated Alt Text:</label>
-                  <div className="relative bg-gray-50 rounded-lg p-3 border min-h-[60px] flex items-center">
-                    {generatedAltText ? (
-                      <>
-                        <p className="text-sm text-gray-800 pr-8">
-                          "{generatedAltText}"
+                  <label className="block text-sm font-medium text-gray-700">
+                    {selectedImages.length > 1 ? 'Generated Alt Text Results:' : 'Generated Alt Text:'}
+                  </label>
+                  
+                  {selectedImages.length > 1 && bulkResults.length > 0 ? (
+                    <div className="space-y-2 max-h-96 overflow-y-auto">
+                      {bulkResults.map((result, idx) => (
+                        <div key={idx} className={`bg-gray-50 rounded-lg p-3 border ${result.success ? 'border-green-200' : 'border-red-200'}`}>
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <p className="text-xs font-medium text-gray-600 mb-1">
+                                Image {result.index}:
+                              </p>
+                              {result.success ? (
+                                <p className="text-sm text-gray-800">
+                                  "{result.altText}"
+                                </p>
+                              ) : (
+                                <p className="text-sm text-red-600">
+                                  Error: {result.error}
+                                </p>
+                              )}
+                            </div>
+                            {result.success && (
+                              <button
+                                onClick={() => {
+                                  navigator.clipboard.writeText(result.altText);
+                                  toast.success("Alt text copied to clipboard!");
+                                }}
+                                className="ml-2 p-1 hover:bg-gray-200 rounded transition-colors flex-shrink-0"
+                                title="Copy to clipboard"
+                              >
+                                <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                </svg>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="relative bg-gray-50 rounded-lg p-3 border min-h-[60px] flex items-center">
+                      {generatedAltText ? (
+                        <>
+                          <p className="text-sm text-gray-800 pr-8">
+                            "{generatedAltText}"
+                          </p>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(generatedAltText);
+                              toast.success("Alt text copied to clipboard!");
+                            }}
+                            className="absolute top-2 right-2 p-1 hover:bg-gray-200 rounded transition-colors"
+                            title="Copy to clipboard"
+                          >
+                            <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                          </button>
+                        </>
+                      ) : (
+                        <p className="text-sm text-gray-500">
+                          Alt text will appear here after generation...
                         </p>
-                        <button
-                          onClick={() => {
-                            navigator.clipboard.writeText(generatedAltText);
-                            toast.success("Alt text copied to clipboard!");
-                          }}
-                          className="absolute top-2 right-2 p-1 hover:bg-gray-200 rounded transition-colors"
-                          title="Copy to clipboard"
-                        >
-                          <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                          </svg>
-                        </button>
-                      </>
-                    ) : (
-                      <p className="text-sm text-gray-500">
-                        Alt text will appear here after generation...
-                      </p>
-                    )}
-                  </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
