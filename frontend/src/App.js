@@ -336,7 +336,7 @@ const LandingPage = () => {
         
         if (!isLogin && requiresEmailConfirmation && !emailConfirmed) {
           toast.success(
-            "Please check your email and confirm your account.",
+            "Welcome! Please confirm your email account.",
             { duration: 8000 }
           );
           
@@ -402,9 +402,16 @@ const LandingPage = () => {
           
           // For signups, show email confirmation message instead of welcome message
           if (!isLogin && !emailConfirmed) {
-            toast.success("Please check your email and confirm your account.", { duration: 8000 });
+            toast.success("Welcome! Please confirm your email account.", { duration: 8000 });
+          } else if (!isLogin && emailConfirmed) {
+            // Signup with confirmed email - redirect to dashboard
+            toast.success("Welcome to Alt Text Pro!");
+            setTimeout(() => {
+              window.location.href = "/dashboard";
+            }, 1500);
           } else {
-            toast.success(isLogin ? "Welcome back!" : "Welcome to Alt Text Pro!");
+            // Login
+            toast.success("Welcome back!");
             setTimeout(() => {
               window.location.href = "/dashboard";
             }, 1500);
