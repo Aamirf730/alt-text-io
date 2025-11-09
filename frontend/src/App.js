@@ -334,63 +334,62 @@ const LandingPage = () => {
           email: result.data.user.email
         });
         
-        // For signups, always show email confirmation message (unless email is already confirmed)
+        // For signups, always show email confirmation message
         if (!isLogin) {
-          if (!emailConfirmed) {
-            // Signup with unconfirmed email - show confirmation message
-            toast.success("Welcome! Please confirm your email account.", { duration: 8000 });
-            
-            // Log for debugging
-            console.log('📧 Email confirmation required for:', email);
-            console.log('📧 Supabase URL:', supabaseUrl);
-            
-            // Show warning if Supabase not configured
-            if (supabaseUrl === 'https://placeholder.supabase.co') {
-              toast.error("⚠️ Supabase is not configured! Please set REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_ANON_KEY", { duration: 10000 });
-            }
-          } else {
-            // Signup with confirmed email - redirect to dashboard
+          // Always show email confirmation message for signups
+          toast.success("Welcome! Please confirm your email account.", { duration: 8000 });
+          
+          // Log for debugging
+          console.log('📧 Email confirmation required for:', email);
+          console.log('📧 Supabase URL:', supabaseUrl);
+          console.log('📧 Email confirmed status:', emailConfirmed);
+          
+          // Show warning if Supabase not configured
+          if (supabaseUrl === 'https://placeholder.supabase.co') {
+            toast.error("⚠️ Supabase is not configured! Please set REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_ANON_KEY", { duration: 10000 });
+          }
+          
+          // Only redirect to dashboard if email is already confirmed AND there's a session
+          if (emailConfirmed && result.data.session) {
             // Ensure profile exists with credits
-            if (result.data.session) {
-              try {
-                const { data: profile, error: profileError } = await supabase
+            try {
+              const { data: profile, error: profileError } = await supabase
+                .from('profiles')
+                .select('credits_remaining, id')
+                .eq('id', result.data.user.id)
+                .single();
+              
+              // If profile doesn't exist, create it with default credits
+              if (profileError || !profile) {
+                console.log('Profile not found, creating profile with default credits');
+                const { error: insertError } = await supabase
                   .from('profiles')
-                  .select('credits_remaining, id')
-                  .eq('id', result.data.user.id)
-                  .single();
+                  .insert({
+                    id: result.data.user.id,
+                    email: result.data.user.email,
+                    subscription_plan: 'free',
+                    credits_remaining: 100,
+                    total_processed: 0
+                  });
                 
-                // If profile doesn't exist, create it with default credits
-                if (profileError || !profile) {
-                  console.log('Profile not found, creating profile with default credits');
-                  const { error: insertError } = await supabase
-                    .from('profiles')
-                    .insert({
-                      id: result.data.user.id,
-                      email: result.data.user.email,
-                      subscription_plan: 'free',
-                      credits_remaining: 100,
-                      total_processed: 0
-                    });
-                  
-                  if (insertError) {
-                    console.error('Error creating profile:', insertError);
-                    // Continue anyway, the trigger might create it
-                  }
-                } else if (profile.credits_remaining === null || profile.credits_remaining === undefined) {
-                  // Profile exists but no credits, update it
-                  console.log('Profile exists but has no credits, updating');
-                  await supabase
-                    .from('profiles')
-                    .update({
-                      credits_remaining: 100,
-                      subscription_plan: 'free'
-                    })
-                    .eq('id', result.data.user.id);
+                if (insertError) {
+                  console.error('Error creating profile:', insertError);
+                  // Continue anyway, the trigger might create it
                 }
-              } catch (profileCreateError) {
-                console.error('Error ensuring profile exists:', profileCreateError);
-                // Continue anyway
+              } else if (profile.credits_remaining === null || profile.credits_remaining === undefined) {
+                // Profile exists but no credits, update it
+                console.log('Profile exists but has no credits, updating');
+                await supabase
+                  .from('profiles')
+                  .update({
+                    credits_remaining: 100,
+                    subscription_plan: 'free'
+                  })
+                  .eq('id', result.data.user.id);
               }
+            } catch (profileCreateError) {
+              console.error('Error ensuring profile exists:', profileCreateError);
+              // Continue anyway
             }
             
             // Update user state before redirect
@@ -401,10 +400,9 @@ const LandingPage = () => {
               });
             }
             
-            toast.success("Welcome to Alt Text Pro!");
             setTimeout(() => {
               window.location.href = "/dashboard";
-            }, 1500);
+            }, 2000);
           }
         } else {
           // Login flow
