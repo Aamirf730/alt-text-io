@@ -400,10 +400,15 @@ const LandingPage = () => {
             });
           }
           
-          toast.success(isLogin ? "Welcome back!" : "Welcome to Alt Text Pro!");
-          setTimeout(() => {
-            window.location.href = "/dashboard";
-          }, 1500);
+          // For signups, show email confirmation message instead of welcome message
+          if (!isLogin && !emailConfirmed) {
+            toast.success("Please check your email and confirm your account.", { duration: 8000 });
+          } else {
+            toast.success(isLogin ? "Welcome back!" : "Welcome to Alt Text Pro!");
+            setTimeout(() => {
+              window.location.href = "/dashboard";
+            }, 1500);
+          }
         }
       }
     } catch (error) {
