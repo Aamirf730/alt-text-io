@@ -1627,19 +1627,19 @@ const LandingPage = () => {
       </section>
 
       {/* Call to Action */}
-      <section className="py-20" style={{ background: 'linear-gradient(135deg, #162D4E 0%, #223A64 100%)' }}>
+      <section className="py-20" style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}>
         <div className="max-w-4xl mx-auto text-center px-4 sm:px-6 lg:px-8">
           <h2 className="text-4xl font-bold text-white mb-6">
             Start your free trial today
           </h2>
-          <p className="text-xl mb-8" style={{ color: 'rgba(255, 255, 255, 0.9)' }}>
+          <p className="text-xl mb-8" style={{ color: 'rgba(255, 255, 255, 0.95)' }}>
             First 100 images alt text. No credit card required.
           </p>
           
           <Button 
             size="lg" 
             className="bg-white hover:bg-gray-50 font-semibold px-8 py-4 text-lg rounded-lg transition-colors"
-            style={{ color: '#1AB5AC' }}
+            style={{ color: '#0B4F5E' }}
             onClick={() => {
               setIsLogin(false);
               setShowAuthForm(true);
