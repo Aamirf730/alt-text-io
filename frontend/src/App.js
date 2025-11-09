@@ -2482,7 +2482,27 @@ const Dashboard = () => {
 
       <div className="max-w-7xl mx-auto px-6 py-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">Dashboard</h1>
+          <div className="flex items-center justify-between mb-2">
+            <h1 className="text-3xl font-bold text-gray-800">Dashboard</h1>
+            <a
+              href="/wordpress-plugin/alt-text-pro-plugin.zip"
+              download="alt-text-pro-plugin.zip"
+              className="inline-flex items-center px-4 py-2 text-sm font-medium transition-colors rounded-lg"
+              style={{ 
+                background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)',
+                color: 'white'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)';
+              }}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Download Plugin
+            </a>
+          </div>
           <p className="text-gray-600">Manage your Alt Text Pro subscription and test the service</p>
         </div>
 
