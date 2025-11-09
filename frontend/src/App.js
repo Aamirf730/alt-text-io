@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import "./App.css";
-import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Link, useNavigate } from "react-router-dom";
 import { createClient } from '@supabase/supabase-js';
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
@@ -13,6 +13,7 @@ import { Separator } from "./components/ui/separator";
 import { toast } from "sonner";
 import { Toaster } from "./components/ui/sonner";
 import { Brain, Zap, CheckCircle, Star, ArrowRight, Users, Shield, Rocket, Mail, Chrome, Upload, Eye, EyeOff, Download, Check, X, Search, CreditCard, Calendar, TrendingUp, Key, Copy, Info, AlertTriangle, RefreshCw } from "lucide-react";
+import { Switch } from "./components/ui/switch";
 
 // Initialize Supabase client
 const supabaseUrl = process.env.REACT_APP_SUPABASE_URL || 'https://placeholder.supabase.co';
@@ -295,7 +296,7 @@ const LandingPage = () => {
           email,
           password,
           options: {
-            emailRedirectTo: window.location.origin + '/dashboard',
+            emailRedirectTo: window.location.origin + '/email-confirmed',
             data: {
               subscription_plan: 'free',
               credits_remaining: 100
@@ -335,7 +336,7 @@ const LandingPage = () => {
         
         if (!isLogin && requiresEmailConfirmation && !emailConfirmed) {
           toast.success(
-            "Account created! Please check your email (" + email + ") and click the confirmation link. Didn't receive it? Check spam folder.",
+            "Please check your email and confirm your account.",
             { duration: 8000 }
           );
           
@@ -1255,7 +1256,43 @@ const LandingPage = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold text-gray-900 mb-4">Simple, Transparent Pricing</h2>
-            <p className="text-xl text-gray-600 mb-8">Choose the plan that fits your needs</p>
+            <p className="text-xl text-gray-600 mb-4">Choose the plan that fits your needs</p>
+            
+            {/* Billing Cycle Toggle */}
+            <div className="flex items-center justify-center gap-4 mt-6">
+              <span className={`text-sm font-medium transition-colors min-w-[60px] text-right ${billingCycle === 'monthly' ? 'text-gray-900' : 'text-gray-500'}`}>
+                Monthly
+              </span>
+              <button
+                type="button"
+                onClick={() => setBillingCycle(billingCycle === 'monthly' ? 'annual' : 'monthly')}
+                className={`relative inline-flex h-8 w-16 items-center rounded-full transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                  billingCycle === 'annual' 
+                    ? 'bg-teal-600 focus:ring-teal-500' 
+                    : 'bg-gray-300 focus:ring-gray-400'
+                }`}
+                style={billingCycle === 'annual' 
+                  ? { background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }
+                  : {}
+                }
+                role="switch"
+                aria-checked={billingCycle === 'annual'}
+              >
+                <span
+                  className={`inline-block h-6 w-6 transform rounded-full bg-white shadow-lg transition-transform duration-300 ${
+                    billingCycle === 'annual' ? 'translate-x-9' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+              <span className={`text-sm font-medium transition-colors min-w-[50px] text-left ${billingCycle === 'annual' ? 'text-gray-900' : 'text-gray-500'}`}>
+                Annual
+              </span>
+              <span className={`text-xs text-green-600 font-semibold bg-green-50 px-2 py-1 rounded transition-opacity duration-300 min-w-[70px] text-center ${
+                billingCycle === 'annual' ? 'opacity-100' : 'opacity-0'
+              }`}>
+                Save 10%
+              </span>
+            </div>
           </div>
 
           <div className="grid md:grid-cols-4 gap-6 max-w-7xl mx-auto">
@@ -1265,8 +1302,12 @@ const LandingPage = () => {
                  onMouseLeave={(e) => e.currentTarget.style.borderColor = '#f3f4f6'}>
               <div className="text-center">
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">Free</h3>
-                <div className="text-3xl font-bold mb-2" style={{ color: '#0B4F5E' }}>$0</div>
-                <p className="text-gray-600 mb-6">100 Credits</p>
+                <div className="text-3xl font-bold mb-6" style={{ color: '#0B4F5E' }}>
+                  $0
+                  <span className="text-xs text-gray-500 font-normal ml-1">
+                    {billingCycle === 'monthly' ? 'per Month' : 'per Year'}
+                  </span>
+                </div>
                 
                 <div className="space-y-3 mb-8">
                   <div className="flex items-center">
@@ -1298,11 +1339,16 @@ const LandingPage = () => {
                  onMouseLeave={(e) => e.currentTarget.style.borderColor = '#f3f4f6'}>
               <div className="text-center">
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">Tier 1</h3>
-                <div className="text-3xl font-bold mb-2" style={{ color: '#0B4F5E' }}>
-                  $12
+                <div className="text-3xl font-bold mb-6" style={{ color: '#0B4F5E' }}>
+                  ${billingCycle === 'monthly' ? '12' : '129.60'}
                   <span className="text-xl text-gray-600 font-normal ml-1">USD</span>
+                  <span className="text-xs text-gray-500 font-normal ml-1">
+                    {billingCycle === 'monthly' ? 'per Month' : 'per Year'}
+                  </span>
                 </div>
-                <p className="text-gray-600 mb-6">1,000 Credits</p>
+                {billingCycle === 'annual' && (
+                  <p className="text-xs text-gray-500 mb-2">$10.80/month billed annually</p>
+                )}
                 
                 <div className="space-y-3 mb-8">
                   <div className="flex items-center">
@@ -1324,7 +1370,7 @@ const LandingPage = () => {
                 </div>
                 
                 <Button 
-                  onClick={() => handlePlanSelection('tier1', 'Tier 1', '$12')}
+                  onClick={() => handlePlanSelection('tier1', 'Tier 1', billingCycle === 'monthly' ? '$12' : '$129.60')}
                   className="w-full text-white"
                   style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}
                   onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%)'}
@@ -1342,11 +1388,16 @@ const LandingPage = () => {
               </div>
               <div className="text-center">
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">Tier 2</h3>
-                <div className="text-3xl font-bold mb-2" style={{ color: '#0B4F5E' }}>
-                  $20
+                <div className="text-3xl font-bold mb-6" style={{ color: '#0B4F5E' }}>
+                  ${billingCycle === 'monthly' ? '20' : '216'}
                   <span className="text-xl text-gray-600 font-normal ml-1">USD</span>
+                  <span className="text-xs text-gray-500 font-normal ml-1">
+                    {billingCycle === 'monthly' ? 'per Month' : 'per Year'}
+                  </span>
                 </div>
-                <p className="text-gray-600 mb-6">2,000 Credits</p>
+                {billingCycle === 'annual' && (
+                  <p className="text-xs text-gray-500 mb-2">$18/month billed annually</p>
+                )}
                 
                 <div className="space-y-3 mb-8">
                   <div className="flex items-center">
@@ -1372,7 +1423,7 @@ const LandingPage = () => {
                 </div>
                 
                 <Button 
-                  onClick={() => handlePlanSelection('tier2', 'Tier 2', '$20')}
+                  onClick={() => handlePlanSelection('tier2', 'Tier 2', billingCycle === 'monthly' ? '$20' : '$216')}
                   className="w-full text-white"
                   style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}
                   onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%)'}
@@ -1389,11 +1440,16 @@ const LandingPage = () => {
                  onMouseLeave={(e) => e.currentTarget.style.borderColor = '#f3f4f6'}>
               <div className="text-center">
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">Tier 3</h3>
-                <div className="text-3xl font-bold mb-2" style={{ color: '#0B4F5E' }}>
-                  $40
+                <div className="text-3xl font-bold mb-6" style={{ color: '#0B4F5E' }}>
+                  ${billingCycle === 'monthly' ? '40' : '432'}
                   <span className="text-xl text-gray-600 font-normal ml-1">USD</span>
+                  <span className="text-xs text-gray-500 font-normal ml-1">
+                    {billingCycle === 'monthly' ? 'per Month' : 'per Year'}
+                  </span>
                 </div>
-                <p className="text-gray-600 mb-6">5,000 Credits</p>
+                {billingCycle === 'annual' && (
+                  <p className="text-xs text-gray-500 mb-2">$36/month billed annually</p>
+                )}
                 
                 <div className="space-y-3 mb-8">
                   <div className="flex items-center">
@@ -1419,7 +1475,7 @@ const LandingPage = () => {
                 </div>
                 
                 <Button 
-                  onClick={() => handlePlanSelection('tier3', 'Tier 3', '$40')}
+                  onClick={() => handlePlanSelection('tier3', 'Tier 3', billingCycle === 'monthly' ? '$40' : '$432')}
                   className="w-full text-white"
                   style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}
                   onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%)'}
@@ -1632,7 +1688,22 @@ const LandingPage = () => {
               onClick={handleGoogleAuth}
               disabled={isGoogleLoading}
               variant="outline"
-              className="w-full h-12 text-base font-semibold border-2"
+              className="w-full h-12 text-base font-semibold border-2 transition-colors"
+              style={{ 
+                borderColor: '#0B4F5E',
+                color: '#0B4F5E',
+                backgroundColor: 'transparent'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(26, 181, 172, 0.1)';
+                e.currentTarget.style.color = '#0B4F5E';
+                e.currentTarget.style.borderColor = '#1AB5AC';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent';
+                e.currentTarget.style.color = '#0B4F5E';
+                e.currentTarget.style.borderColor = '#0B4F5E';
+              }}
             >
               {isGoogleLoading ? (
                 <>
@@ -2007,31 +2078,52 @@ const Dashboard = () => {
 
   // Load API key for WordPress plugin
   const loadApiKey = async () => {
-    if (!user?.token) return;
+    if (!user?.id) return;
     
     setIsLoadingApiKey(true);
     try {
-      let apiBase;
-      if (window.location.hostname === 'localhost') {
-        apiBase = process.env.REACT_APP_API_BASE || 'https://www.alt-text.pro/.netlify/functions';
-      } else {
-        apiBase = '/.netlify/functions';
-      }
+      // First, try to get existing API key from Supabase
+      const { data: existingKeys, error: fetchError } = await supabase
+        .from('api_keys')
+        .select('api_key')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(1);
 
-      const response = await fetch(`${apiBase}/get-api-key`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${user.token}`
+      if (fetchError) {
+        console.error('Error fetching API key:', fetchError);
+        // If table doesn't exist or RLS issue, try using the function
+        const { data: functionResult, error: functionError } = await supabase
+          .rpc('get_or_create_api_key', { p_user_id: user.id });
+
+        if (functionError) {
+          console.error('Error calling get_or_create_api_key:', functionError);
+          toast.error('Error loading API key');
+          return;
         }
-      });
 
-      if (response.ok) {
-        const data = await response.json();
-        setApiKey(data.api_key);
-      } else {
-        console.error('Failed to load API key');
-        toast.error('Failed to load API key');
+        setApiKey(functionResult);
+        return;
       }
+
+      // If we have an existing key, use it
+      if (existingKeys && existingKeys.length > 0) {
+        setApiKey(existingKeys[0].api_key);
+        return;
+      }
+
+      // If no key exists, create one using the function
+      const { data: newKey, error: createError } = await supabase
+        .rpc('get_or_create_api_key', { p_user_id: user.id });
+
+      if (createError) {
+        console.error('Error creating API key:', createError);
+        toast.error('Error creating API key');
+        return;
+      }
+
+      setApiKey(newKey);
     } catch (error) {
       console.error('Error loading API key:', error);
       toast.error('Error loading API key');
@@ -2976,6 +3068,143 @@ const Dashboard = () => {
   );
 };
 
+// Email Confirmation Component
+const EmailConfirmation = () => {
+  const [isConfirmed, setIsConfirmed] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const handleEmailConfirmation = async () => {
+      try {
+        // Check both hash and query parameters (Supabase can use either)
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        const queryParams = new URLSearchParams(window.location.search);
+        
+        const accessToken = hashParams.get('access_token') || queryParams.get('access_token');
+        const refreshToken = hashParams.get('refresh_token') || queryParams.get('refresh_token');
+        const type = hashParams.get('type') || queryParams.get('type');
+
+        if (type === 'signup' && accessToken) {
+          // Set the session
+          const { data, error: sessionError } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken || ''
+          });
+
+          if (sessionError) {
+            throw sessionError;
+          }
+
+          if (data.session) {
+            setIsConfirmed(true);
+            // Clear URL hash/query to clean up the URL
+            window.history.replaceState({}, document.title, '/email-confirmed');
+          }
+        } else {
+          // Check if user is already confirmed (might have been redirected here after confirmation)
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session) {
+            setIsConfirmed(true);
+            // Clear URL hash/query to clean up the URL
+            window.history.replaceState({}, document.title, '/email-confirmed');
+          } else {
+            // If no session and no token, show error
+            setError('Invalid confirmation link. Please try signing up again.');
+          }
+        }
+      } catch (err) {
+        console.error('Email confirmation error:', err);
+        setError(err.message || 'Failed to confirm email. Please try again.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    handleEmailConfirmation();
+  }, [navigate]);
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center px-4 py-12">
+      <div className="max-w-md w-full">
+        <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
+          {/* Logo */}
+          <div className="flex justify-center mb-6">
+            <img 
+              src="/logo-alt-text-pro.png" 
+              alt="Alt Text Pro Logo" 
+              className="h-16 w-16 object-contain"
+            />
+          </div>
+
+          {isLoading ? (
+            <>
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4" 
+                   style={{ borderColor: '#1AB5AC' }}></div>
+              <h1 className="text-2xl font-bold text-gray-900 mb-2">Confirming your email...</h1>
+              <p className="text-gray-600">Please wait while we verify your account.</p>
+            </>
+          ) : error ? (
+            <>
+              <div className="mb-4">
+                <X className="h-12 w-12 mx-auto text-red-500" />
+              </div>
+              <h1 className="text-2xl font-bold text-gray-900 mb-2">Confirmation Failed</h1>
+              <p className="text-gray-600 mb-6">{error}</p>
+              <Button
+                onClick={() => navigate('/')}
+                className="w-full"
+                style={{ 
+                  background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)',
+                  color: 'white'
+                }}
+              >
+                Go to Homepage
+              </Button>
+            </>
+          ) : isConfirmed ? (
+            <>
+              <div className="mb-4">
+                <CheckCircle className="h-16 w-16 mx-auto" style={{ color: '#1AB5AC' }} />
+              </div>
+              <h1 className="text-3xl font-bold mb-4" style={{ color: '#0B4F5E' }}>
+                Thanks for confirming your email!
+              </h1>
+              <p className="text-gray-600 mb-6">
+                Your account has been successfully verified. You'll be redirected to your dashboard shortly.
+              </p>
+              <div className="space-y-3">
+                <Button
+                  onClick={() => navigate('/dashboard')}
+                  className="w-full"
+                  style={{ 
+                    background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)',
+                    color: 'white'
+                  }}
+                >
+                  Sign In
+                </Button>
+                <Button
+                  onClick={() => navigate('/')}
+                  variant="outline"
+                  className="w-full"
+                  style={{ 
+                    borderColor: '#0B4F5E',
+                    color: '#0B4F5E'
+                  }}
+                >
+                  Back to Homepage
+                </Button>
+              </div>
+            </>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // Main App Component
 function App() {
   return (
@@ -2984,6 +3213,7 @@ function App() {
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/email-confirmed" element={<EmailConfirmation />} />
         </Routes>
       </BrowserRouter>
       <Toaster />
