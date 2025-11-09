@@ -334,22 +334,81 @@ const LandingPage = () => {
           email: result.data.user.email
         });
         
-        if (!isLogin && requiresEmailConfirmation && !emailConfirmed) {
-          toast.success(
-            "Welcome! Please confirm your email account.",
-            { duration: 8000 }
-          );
-          
-          // Log for debugging
-          console.log('📧 Email confirmation required for:', email);
-          console.log('📧 Supabase URL:', supabaseUrl);
-          
-          // Show warning if Supabase not configured
-          if (supabaseUrl === 'https://placeholder.supabase.co') {
-            toast.error("⚠️ Supabase is not configured! Please set REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_ANON_KEY", { duration: 10000 });
+        // For signups, always show email confirmation message (unless email is already confirmed)
+        if (!isLogin) {
+          if (!emailConfirmed) {
+            // Signup with unconfirmed email - show confirmation message
+            toast.success("Welcome! Please confirm your email account.", { duration: 8000 });
+            
+            // Log for debugging
+            console.log('📧 Email confirmation required for:', email);
+            console.log('📧 Supabase URL:', supabaseUrl);
+            
+            // Show warning if Supabase not configured
+            if (supabaseUrl === 'https://placeholder.supabase.co') {
+              toast.error("⚠️ Supabase is not configured! Please set REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_ANON_KEY", { duration: 10000 });
+            }
+          } else {
+            // Signup with confirmed email - redirect to dashboard
+            // Ensure profile exists with credits
+            if (result.data.session) {
+              try {
+                const { data: profile, error: profileError } = await supabase
+                  .from('profiles')
+                  .select('credits_remaining, id')
+                  .eq('id', result.data.user.id)
+                  .single();
+                
+                // If profile doesn't exist, create it with default credits
+                if (profileError || !profile) {
+                  console.log('Profile not found, creating profile with default credits');
+                  const { error: insertError } = await supabase
+                    .from('profiles')
+                    .insert({
+                      id: result.data.user.id,
+                      email: result.data.user.email,
+                      subscription_plan: 'free',
+                      credits_remaining: 100,
+                      total_processed: 0
+                    });
+                  
+                  if (insertError) {
+                    console.error('Error creating profile:', insertError);
+                    // Continue anyway, the trigger might create it
+                  }
+                } else if (profile.credits_remaining === null || profile.credits_remaining === undefined) {
+                  // Profile exists but no credits, update it
+                  console.log('Profile exists but has no credits, updating');
+                  await supabase
+                    .from('profiles')
+                    .update({
+                      credits_remaining: 100,
+                      subscription_plan: 'free'
+                    })
+                    .eq('id', result.data.user.id);
+                }
+              } catch (profileCreateError) {
+                console.error('Error ensuring profile exists:', profileCreateError);
+                // Continue anyway
+              }
+            }
+            
+            // Update user state before redirect
+            if (result.data.session?.user) {
+              setUser({
+                email: result.data.session.user.email,
+                id: result.data.session.user.id
+              });
+            }
+            
+            toast.success("Welcome to Alt Text Pro!");
+            setTimeout(() => {
+              window.location.href = "/dashboard";
+            }, 1500);
           }
         } else {
-          // Ensure profile exists with credits for both signup and login
+          // Login flow
+          // Ensure profile exists with credits
           if (result.data.session) {
             try {
               const { data: profile, error: profileError } = await supabase
@@ -400,22 +459,10 @@ const LandingPage = () => {
             });
           }
           
-          // For signups, show email confirmation message instead of welcome message
-          if (!isLogin && !emailConfirmed) {
-            toast.success("Welcome! Please confirm your email account.", { duration: 8000 });
-          } else if (!isLogin && emailConfirmed) {
-            // Signup with confirmed email - redirect to dashboard
-            toast.success("Welcome to Alt Text Pro!");
-            setTimeout(() => {
-              window.location.href = "/dashboard";
-            }, 1500);
-          } else {
-            // Login
-            toast.success("Welcome back!");
-            setTimeout(() => {
-              window.location.href = "/dashboard";
-            }, 1500);
-          }
+          toast.success("Welcome back!");
+          setTimeout(() => {
+            window.location.href = "/dashboard";
+          }, 1500);
         }
       }
     } catch (error) {
