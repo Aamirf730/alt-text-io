@@ -27,15 +27,16 @@ To make the contact form work, you need to configure email credentials in Netlif
 3. Add these variables:
 
 ```
-EMAIL_USER = your-email@gmail.com
-EMAIL_PASSWORD = your-app-password-here
+EMAIL_USER = help@wpgeared.com
+EMAIL_PASSWORD = ydppmcqpmapxiju
 EMAIL_SERVICE = gmail
 ```
 
 **Important Notes:**
-- Use your Gmail address for `EMAIL_USER`
-- Use the App Password (not your regular password) for `EMAIL_PASSWORD`
-- The email will be sent FROM `EMAIL_USER` TO `aamirf730@gmail.com`
+- `EMAIL_USER` is set to `help@wpgeared.com` (the sender email)
+- `EMAIL_PASSWORD` is the Gmail App Password for `help@wpgeared.com`
+- The email will be sent FROM `help@wpgeared.com` TO `aamirf730@gmail.com`
+- Make sure `help@wpgeared.com` has 2-Step Verification enabled and you've generated an App Password
 
 ### Step 3: Alternative Email Services
 

@@ -48,8 +48,8 @@ exports.handler = async (event, context) => {
 
     // Email content
     const mailOptions = {
-      from: process.env.EMAIL_USER,
-      to: 'aamirf730@gmail.com', // Your email address
+      from: process.env.EMAIL_USER || 'help@wpgeared.com',
+      to: 'aamirf730@gmail.com', // Recipient email address
       replyTo: email, // Allow replying directly to the sender
       subject: subject || `Contact Form: ${name}`,
       html: `
