@@ -1,34 +1,27 @@
 [build]
   base = "."
   publish = "frontend/build"
-  command = "cd frontend && yarn install --ignore-engines --frozen-lockfile --production=false && NODE_ENV=production yarn build"
+  command = "cd netlify-functions && npm install && cd ../frontend && yarn build"
   functions = "netlify-functions"
-  
+
 [build.environment]
   NODE_VERSION = "18"
-  YARN_VERSION = "1.22.22"
   # These environment variables will be pulled from Netlify dashboard
   # REACT_APP_SUPABASE_URL
   # REACT_APP_SUPABASE_ANON_KEY
   # REACT_APP_BACKEND_URL
 
-# SPA fallback for React Router - this is crucial for fixing 404 errors
-# Exclude plugin downloads from SPA redirect
-[[redirects]]
-  from = "/wordpress-plugin/*.zip"
-  to = "/wordpress-plugin/:splat"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-
-# Redirect all API calls to Netlify functions
+# Redirect all API calls to Netlify functions (MUST come before catch-all)
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
+  status = 200
+
+# SPA fallback for React Router - this is crucial for fixing 404 errors
+# This MUST be last to catch all other routes
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
   status = 200
 
 # Environment variables (set in Netlify dashboard)
