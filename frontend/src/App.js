@@ -3367,8 +3367,8 @@ const ContactPage = () => {
                 <div className="space-y-3 text-gray-600">
                   <div className="flex items-center">
                     <Mail className="h-5 w-5 mr-3" style={{ color: '#1AB5AC' }} />
-                    <a href="mailto:aamirf730@gmail.com" className="hover:text-teal-600 transition-colors">
-                      aamirf730@gmail.com
+                    <a href="mailto:support@alt-text.pro" className="hover:text-teal-600 transition-colors">
+                      support@alt-text.pro
                     </a>
                   </div>
                 </div>
