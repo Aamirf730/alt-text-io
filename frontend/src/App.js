@@ -3188,10 +3188,13 @@ const ContactPage = () => {
           message: ''
         });
       } else {
-        throw new Error(data.error || 'Failed to send message');
+        // Show detailed error message if available
+        const errorMsg = data.details || data.error || 'Failed to send message';
+        throw new Error(errorMsg);
       }
     } catch (error) {
       console.error('Error sending contact form:', error);
+      // Show the detailed error message
       toast.error(error.message || 'Failed to send message. Please try again later.');
     } finally {
       setIsSubmitting(false);
