@@ -1,7 +1,7 @@
 [build]
   base = "."
   publish = "frontend/build"
-  command = "cd netlify-functions && npm install && cd ../frontend && yarn build"
+  command = "cd netlify-functions && npm install && cd ../frontend && yarn install --ignore-engines --frozen-lockfile --production=false && NODE_ENV=production yarn build"
   functions = "netlify-functions"
 
 [build.environment]
