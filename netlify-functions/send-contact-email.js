@@ -3,16 +3,36 @@ const nodemailer = require('nodemailer');
 
 // Create reusable transporter object using SMTP transport
 const createTransporter = () => {
-  // Use environment variables for email configuration
-  // For Gmail, you can use an App Password
-  const transporter = nodemailer.createTransport({
-    service: process.env.EMAIL_SERVICE || 'gmail',
-    auth: {
-      user: process.env.EMAIL_USER, // Your email
-      pass: process.env.EMAIL_PASSWORD, // Your email password or app password
-    },
-  });
-  return transporter;
+  const emailService = process.env.EMAIL_SERVICE || 'gmail';
+  const emailUser = process.env.EMAIL_USER;
+  const emailPassword = process.env.EMAIL_PASSWORD;
+
+  // Check if it's a custom domain (not @gmail.com)
+  const isCustomDomain = emailUser && !emailUser.includes('@gmail.com');
+  
+  // For Gmail or Google Workspace, use service: 'gmail'
+  // For custom domains, we might need explicit SMTP settings
+  if (emailService === 'gmail' || !isCustomDomain) {
+    return nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: emailUser,
+        pass: emailPassword,
+      },
+    });
+  } else {
+    // For custom domains, try Gmail SMTP (works for Google Workspace)
+    // If this doesn't work, you may need to configure custom SMTP settings
+    return nodemailer.createTransport({
+      host: 'smtp.gmail.com',
+      port: 587,
+      secure: false, // true for 465, false for other ports
+      auth: {
+        user: emailUser,
+        pass: emailPassword,
+      },
+    });
+  }
 };
 
 exports.handler = async (event, context) => {
