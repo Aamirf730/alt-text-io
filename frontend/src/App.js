@@ -649,8 +649,8 @@ const LandingPage = () => {
             {/* Centered Navigation Links */}
             <div className="hidden lg:flex items-center space-x-12">
               <a href="#pricing" className="text-gray-700 hover:text-gray-900 font-medium transition-colors">Pricing</a>
+              <Link to="/contact" className="text-gray-700 hover:text-gray-900 font-medium transition-colors">Contact</Link>
               <a href="#support" className="text-gray-700 hover:text-gray-900 font-medium transition-colors">Support</a>
-              <a href="#blog" className="text-gray-700 hover:text-gray-900 font-medium transition-colors">Blog</a>
             </div>
 
             {/* Right Side Buttons */}
@@ -1548,7 +1548,7 @@ const LandingPage = () => {
             <p className="text-gray-600">
               All plans include our advanced AI alt-text generation and multi-language support.
               <br />
-              Need a custom plan? <a href="#support" className="font-medium transition-colors" style={{ color: '#1AB5AC' }} onMouseEnter={(e) => e.currentTarget.style.color = '#0B4F5E'} onMouseLeave={(e) => e.currentTarget.style.color = '#1AB5AC'}>Contact us</a>
+              Need a custom plan? <Link to="/contact" className="font-medium transition-colors" style={{ color: '#1AB5AC' }} onMouseEnter={(e) => e.currentTarget.style.color = '#0B4F5E'} onMouseLeave={(e) => e.currentTarget.style.color = '#1AB5AC'}>Contact us</Link>
             </p>
           </div>
         </div>
@@ -1670,7 +1670,7 @@ const LandingPage = () => {
 
             {/* Links */}
             <div className="flex flex-wrap justify-center gap-6 text-sm text-gray-600">
-              <a href="#support" className="hover:text-gray-900 transition-colors">Contact</a>
+              <Link to="/contact" className="hover:text-gray-900 transition-colors">Contact</Link>
               <a href="#" className="hover:text-gray-900 transition-colors">Terms & Conditions</a>
               <a href="#" className="hover:text-gray-900 transition-colors">Privacy Policy</a>
             </div>
@@ -3145,6 +3145,247 @@ const Dashboard = () => {
   );
 };
 
+// Contact Page Component
+const ContactPage = () => {
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    subject: '',
+    message: ''
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const navigate = useNavigate();
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch('/.netlify/functions/send-contact-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        toast.success('Thank you! Your message has been sent successfully. We\'ll get back to you soon.');
+        setFormData({
+          name: '',
+          email: '',
+          subject: '',
+          message: ''
+        });
+      } else {
+        throw new Error(data.error || 'Failed to send message');
+      }
+    } catch (error) {
+      console.error('Error sending contact form:', error);
+      toast.error(error.message || 'Failed to send message. Please try again later.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      {/* Navigation Header */}
+      <nav className="sticky top-0 z-50 py-4">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="bg-white rounded-full shadow-lg border border-gray-100 px-6 py-3" style={{
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05)'
+          }}>
+            <div className="flex items-center justify-between h-12">
+              <div className="flex items-center">
+                <Link to="/" className="flex items-center space-x-3">
+                  <img 
+                    src="/logo-alt-text-pro.png" 
+                    alt="Alt Text Pro Logo" 
+                    className="h-10 w-10 object-contain"
+                  />
+                  <span className="text-2xl font-bold text-gray-900">Alt Text Pro</span>
+                </Link>
+              </div>
+              <div className="flex items-center space-x-4">
+                <Link to="/" className="text-gray-700 hover:text-gray-900 font-medium transition-colors">
+                  Home
+                </Link>
+                <Link to="/dashboard" className="text-gray-700 hover:text-gray-900 font-medium transition-colors">
+                  Dashboard
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      {/* Contact Form Section */}
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="bg-white rounded-2xl shadow-xl p-8 md:p-12">
+          {/* Header */}
+          <div className="text-center mb-8">
+            <h1 className="text-4xl font-bold mb-4" style={{ color: '#0B4F5E' }}>
+              Get in Touch
+            </h1>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+              Have a question or need help? We'd love to hear from you. Send us a message and we'll respond as soon as possible.
+            </p>
+          </div>
+
+          {/* Contact Form */}
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="grid md:grid-cols-2 gap-6">
+              {/* Name Field */}
+              <div>
+                <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
+                  Name <span className="text-red-500">*</span>
+                </label>
+                <Input
+                  id="name"
+                  name="name"
+                  type="text"
+                  required
+                  value={formData.name}
+                  onChange={handleChange}
+                  placeholder="Your name"
+                  className="w-full"
+                />
+              </div>
+
+              {/* Email Field */}
+              <div>
+                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+                  Email <span className="text-red-500">*</span>
+                </label>
+                <Input
+                  id="email"
+                  name="email"
+                  type="email"
+                  required
+                  value={formData.email}
+                  onChange={handleChange}
+                  placeholder="your.email@example.com"
+                  className="w-full"
+                />
+              </div>
+            </div>
+
+            {/* Subject Field */}
+            <div>
+              <label htmlFor="subject" className="block text-sm font-medium text-gray-700 mb-2">
+                Subject
+              </label>
+              <Input
+                id="subject"
+                name="subject"
+                type="text"
+                value={formData.subject}
+                onChange={handleChange}
+                placeholder="What's this about?"
+                className="w-full"
+              />
+            </div>
+
+            {/* Message Field */}
+            <div>
+              <label htmlFor="message" className="block text-sm font-medium text-gray-700 mb-2">
+                Message <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                id="message"
+                name="message"
+                required
+                value={formData.message}
+                onChange={handleChange}
+                placeholder="Tell us how we can help you..."
+                rows={6}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none"
+              />
+            </div>
+
+            {/* Submit Button */}
+            <div className="flex justify-center">
+              <Button
+                type="submit"
+                disabled={isSubmitting}
+                size="lg"
+                className="px-8 py-3 text-lg font-semibold"
+                style={{
+                  background: isSubmitting 
+                    ? '#9ca3af' 
+                    : 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)',
+                  color: 'white',
+                  minWidth: '200px'
+                }}
+                onMouseEnter={(e) => {
+                  if (!isSubmitting) {
+                    e.currentTarget.style.background = 'linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isSubmitting) {
+                    e.currentTarget.style.background = 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)';
+                  }
+                }}
+              >
+                {isSubmitting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2 inline-block"></div>
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <Mail className="h-5 w-5 mr-2 inline-block" />
+                    Send Message
+                  </>
+                )}
+              </Button>
+            </div>
+          </form>
+
+          {/* Contact Information */}
+          <div className="mt-12 pt-8 border-t border-gray-200">
+            <div className="grid md:grid-cols-2 gap-8">
+              <div>
+                <h3 className="text-lg font-semibold mb-4" style={{ color: '#0B4F5E' }}>
+                  Contact Information
+                </h3>
+                <div className="space-y-3 text-gray-600">
+                  <div className="flex items-center">
+                    <Mail className="h-5 w-5 mr-3" style={{ color: '#1AB5AC' }} />
+                    <a href="mailto:aamirf730@gmail.com" className="hover:text-teal-600 transition-colors">
+                      aamirf730@gmail.com
+                    </a>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold mb-4" style={{ color: '#0B4F5E' }}>
+                  Response Time
+                </h3>
+                <p className="text-gray-600">
+                  We typically respond within 24-48 hours during business days. For urgent matters, please mention it in your message.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // Email Confirmation Component
 const EmailConfirmation = () => {
   const [isConfirmed, setIsConfirmed] = useState(false);
@@ -3290,6 +3531,7 @@ function App() {
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/contact" element={<ContactPage />} />
           <Route path="/email-confirmed" element={<EmailConfirmation />} />
         </Routes>
       </BrowserRouter>
