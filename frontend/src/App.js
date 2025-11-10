@@ -3154,7 +3154,48 @@ const ContactPage = () => {
     message: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [user, setUser] = useState(null);
+  const [showAuthForm, setShowAuthForm] = useState(false);
+  const [isLogin, setIsLogin] = useState(false);
   const navigate = useNavigate();
+
+  // Check authentication state on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          setUser({
+            email: session.user.email,
+            id: session.user.id
+          });
+        } else {
+          setUser(null);
+        }
+      } catch (error) {
+        console.error('Error checking auth:', error);
+        setUser(null);
+      }
+    };
+    
+    checkAuth();
+    
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session?.user) {
+        setUser({
+          email: session.user.email,
+          id: session.user.id
+        });
+      } else {
+        setUser(null);
+      }
+    });
+
+    return () => {
+      subscription?.unsubscribe();
+    };
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -3210,24 +3251,89 @@ const ContactPage = () => {
             boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05)'
           }}>
             <div className="flex items-center justify-between h-12">
-              <div className="flex items-center">
-                <Link to="/" className="flex items-center space-x-3">
-                  <img 
-                    src="/logo-alt-text-pro.png" 
-                    alt="Alt Text Pro Logo" 
-                    className="h-10 w-10 object-contain"
-                  />
-                  <span className="text-2xl font-bold text-gray-900">Alt Text Pro</span>
-                </Link>
+            {/* Logo */}
+            <div className="flex items-center">
+              <div className="flex items-center space-x-3">
+                <img 
+                  src="/logo-alt-text-pro.png" 
+                  alt="Alt Text Pro Logo" 
+                  className="h-10 w-10 object-contain"
+                />
+                <span className="text-2xl font-bold text-gray-900">Alt Text Pro</span>
               </div>
-              <div className="flex items-center space-x-4">
-                <Link to="/" className="text-gray-700 hover:text-gray-900 font-medium transition-colors">
-                  Home
-                </Link>
-                <Link to="/dashboard" className="text-gray-700 hover:text-gray-900 font-medium transition-colors">
-                  Dashboard
-                </Link>
-              </div>
+            </div>
+
+            {/* Centered Navigation Links */}
+            <div className="hidden lg:flex items-center space-x-12">
+              <a href="/#pricing" className="text-gray-700 hover:text-gray-900 font-medium transition-colors">Pricing</a>
+              <Link to="/contact" className="text-gray-700 hover:text-gray-900 font-medium transition-colors">Contact</Link>
+              <a href="/#support" className="text-gray-700 hover:text-gray-900 font-medium transition-colors">Support</a>
+            </div>
+
+            {/* Right Side Buttons */}
+            <div className="hidden lg:flex items-center space-x-3">
+              {user ? (
+                <>
+                  <Link to="/dashboard">
+                    <Button 
+                      variant="outline"
+                      className="text-sm"
+                      style={{
+                        borderColor: '#0B4F5E',
+                        color: '#0B4F5E'
+                      }}
+                    >
+                      Dashboard
+                    </Button>
+                  </Link>
+                  <Button
+                    onClick={async () => {
+                      await supabase.auth.signOut();
+                      setUser(null);
+                      toast.success("Logged out successfully");
+                    }}
+                    variant="outline"
+                    className="text-sm"
+                    style={{
+                      borderColor: '#0B4F5E',
+                      color: '#0B4F5E'
+                    }}
+                  >
+                    Sign Out
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button
+                    onClick={() => {
+                      setShowAuthForm(true);
+                      setIsLogin(true);
+                    }}
+                    variant="outline"
+                    className="text-sm"
+                    style={{
+                      borderColor: '#0B4F5E',
+                      color: '#0B4F5E'
+                    }}
+                  >
+                    Sign In
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setShowAuthForm(true);
+                      setIsLogin(false);
+                    }}
+                    className="text-sm"
+                    style={{
+                      background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)',
+                      color: 'white'
+                    }}
+                  >
+                    Get Started
+                  </Button>
+                </>
+              )}
+            </div>
             </div>
           </div>
         </div>
