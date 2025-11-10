@@ -25,6 +25,22 @@ exports.handler = async (event, context) => {
   }
 
   try {
+    // Check if environment variables are set
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) {
+      console.error('Missing email environment variables:', {
+        hasUser: !!process.env.EMAIL_USER,
+        hasPassword: !!process.env.EMAIL_PASSWORD,
+        hasService: !!process.env.EMAIL_SERVICE
+      });
+      return {
+        statusCode: 500,
+        body: JSON.stringify({ 
+          error: 'Email service not configured',
+          details: 'EMAIL_USER or EMAIL_PASSWORD environment variables are missing'
+        }),
+      };
+    }
+
     const { name, email, subject, message } = JSON.parse(event.body);
 
     // Validate required fields
@@ -45,6 +61,17 @@ exports.handler = async (event, context) => {
     }
 
     const transporter = createTransporter();
+    
+    // Verify transporter was created
+    if (!transporter) {
+      return {
+        statusCode: 500,
+        body: JSON.stringify({ 
+          error: 'Failed to create email transporter',
+          details: 'Could not initialize email service'
+        }),
+      };
+    }
 
     // Email content
     const mailOptions = {
@@ -99,11 +126,32 @@ ${message}
     };
   } catch (error) {
     console.error('Error sending email:', error);
+    console.error('Error stack:', error.stack);
+    console.error('Environment check:', {
+      hasUser: !!process.env.EMAIL_USER,
+      hasPassword: !!process.env.EMAIL_PASSWORD,
+      hasService: !!process.env.EMAIL_SERVICE,
+      userEmail: process.env.EMAIL_USER
+    });
+    
+    // Return more detailed error for debugging (but don't expose sensitive info)
+    let errorMessage = 'Failed to send email';
+    let errorDetails = error.message || 'Unknown error';
+    
+    // Common Gmail errors
+    if (error.message && error.message.includes('Invalid login')) {
+      errorDetails = 'Invalid email credentials. Please check your email and app password.';
+    } else if (error.message && error.message.includes('EAUTH')) {
+      errorDetails = 'Authentication failed. Please verify your email credentials are correct.';
+    } else if (error.message && error.message.includes('ETIMEDOUT') || error.message.includes('ECONNREFUSED')) {
+      errorDetails = 'Connection timeout. Please check your network or try again later.';
+    }
+    
     return {
       statusCode: 500,
       body: JSON.stringify({ 
-        error: 'Failed to send email',
-        details: error.message 
+        error: errorMessage,
+        details: errorDetails
       }),
     };
   }
