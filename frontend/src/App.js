@@ -3274,29 +3274,24 @@ const ContactPage = () => {
             <div className="hidden lg:flex items-center space-x-3">
               {user ? (
                 <>
-                  <Link to="/dashboard">
-                    <Button 
-                      variant="outline"
-                      className="text-sm"
-                      style={{
-                        borderColor: '#0B4F5E',
-                        color: '#0B4F5E'
-                      }}
-                    >
-                      Dashboard
-                    </Button>
-                  </Link>
-                  <Button
+                  <Button 
+                    variant="ghost" 
+                    className="text-white font-medium px-6 py-2.5 rounded-full"
+                    style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)'}
+                    onClick={() => {
+                      window.location.href = "/dashboard";
+                    }}
+                  >
+                    Dashboard
+                  </Button>
+                  <Button 
+                    className="bg-black hover:bg-gray-800 text-white px-6 py-2.5 rounded-full font-medium"
                     onClick={async () => {
                       await supabase.auth.signOut();
                       setUser(null);
-                      toast.success("Logged out successfully");
-                    }}
-                    variant="outline"
-                    className="text-sm"
-                    style={{
-                      borderColor: '#0B4F5E',
-                      color: '#0B4F5E'
+                      toast.success("Signed out successfully");
                     }}
                   >
                     Sign Out
@@ -3304,32 +3299,25 @@ const ContactPage = () => {
                 </>
               ) : (
                 <>
-                  <Button
+                  <Button 
+                    variant="ghost" 
+                    className="text-white font-medium px-6 py-2.5 rounded-full"
+                    style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)'}
                     onClick={() => {
-                      setShowAuthForm(true);
-                      setIsLogin(true);
-                    }}
-                    variant="outline"
-                    className="text-sm"
-                    style={{
-                      borderColor: '#0B4F5E',
-                      color: '#0B4F5E'
+                      window.location.href = "/";
                     }}
                   >
                     Sign In
                   </Button>
-                  <Button
+                  <Button 
+                    className="bg-black hover:bg-gray-800 text-white px-6 py-2.5 rounded-full font-medium"
                     onClick={() => {
-                      setShowAuthForm(true);
-                      setIsLogin(false);
-                    }}
-                    className="text-sm"
-                    style={{
-                      background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)',
-                      color: 'white'
+                      window.location.href = "/";
                     }}
                   >
-                    Get Started
+                    Free Trial
                   </Button>
                 </>
               )}
