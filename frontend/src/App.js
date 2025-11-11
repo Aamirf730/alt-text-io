@@ -70,6 +70,7 @@ const LandingPage = () => {
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [billingCycle, setBillingCycle] = useState('monthly'); // 'monthly' or 'annual'
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Check authentication state on mount and when auth changes
   useEffect(() => {
@@ -736,16 +737,116 @@ const LandingPage = () => {
 
             {/* Mobile menu button */}
             <div className="lg:hidden">
-              <button className="p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
+              <button 
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                className="p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+                aria-label="Toggle mobile menu"
+              >
+                {isMobileMenuOpen ? (
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                ) : (
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                )}
               </button>
             </div>
             </div>
           </div>
         </div>
       </nav>
+
+      {/* Mobile menu dropdown */}
+      {isMobileMenuOpen && (
+        <div className="lg:hidden fixed inset-x-0 top-20 z-50 bg-white border-b border-gray-200 shadow-lg">
+          <div className="px-4 py-6 space-y-4">
+            {/* Navigation Links */}
+            <div className="space-y-3">
+              <a 
+                href="#pricing" 
+                className="block text-gray-700 hover:text-gray-900 font-medium transition-colors py-2"
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                Pricing
+              </a>
+              <Link 
+                to="/contact" 
+                className="block text-gray-700 hover:text-gray-900 font-medium transition-colors py-2"
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                Contact
+              </Link>
+              <Link 
+                to="/docs" 
+                className="block text-gray-700 hover:text-gray-900 font-medium transition-colors py-2"
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                Docs
+              </Link>
+            </div>
+
+            {/* Divider */}
+            <div className="border-t border-gray-200 my-4"></div>
+
+            {/* Auth Buttons */}
+            <div className="space-y-3">
+              {user ? (
+                <>
+                  <Button 
+                    variant="ghost" 
+                    className="w-full text-white font-medium px-6 py-2.5 rounded-full"
+                    style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}
+                    onClick={() => {
+                      setIsMobileMenuOpen(false);
+                      window.location.href = "/dashboard";
+                    }}
+                  >
+                    Dashboard
+                  </Button>
+                  <Button 
+                    className="w-full bg-black hover:bg-gray-800 text-white px-6 py-2.5 rounded-full font-medium"
+                    onClick={async () => {
+                      setIsMobileMenuOpen(false);
+                      await supabase.auth.signOut();
+                      setUser(null);
+                      toast.success("Signed out successfully");
+                    }}
+                  >
+                    Sign Out
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button 
+                    variant="ghost" 
+                    className="w-full text-white font-medium px-6 py-2.5 rounded-full"
+                    style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}
+                    onClick={() => {
+                      setIsMobileMenuOpen(false);
+                      setIsLogin(true);
+                      setShowAuthForm(true);
+                    }}
+                  >
+                    Sign In
+                  </Button>
+                  <Button 
+                    className="w-full bg-black hover:bg-gray-800 text-white px-6 py-2.5 rounded-full font-medium"
+                    onClick={() => {
+                      setIsMobileMenuOpen(false);
+                      setIsLogin(false);
+                      setShowAuthForm(true);
+                    }}
+                  >
+                    Free Trial
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Hero Section */}
       <section className="py-16" style={{ background: 'linear-gradient(135deg, rgba(26, 181, 172, 0.1) 0%, rgba(58, 200, 196, 0.1) 100%)' }}>
