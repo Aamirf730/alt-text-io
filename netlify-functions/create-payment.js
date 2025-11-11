@@ -451,14 +451,22 @@ exports.handler = async (event, context) => {
       paymentResult = await createPayPalOneTimePayment(planId, plan, returnUrl, cancelUrl, accessToken);
     }
 
+    console.log('Payment result received:', JSON.stringify(paymentResult, null, 2));
+    console.log('Payment result has ID:', !!paymentResult.id);
+    console.log('Payment result has links:', !!paymentResult.links);
+    
     if (paymentResult.error || (!paymentResult.id && !paymentResult.links)) {
-      console.error('PayPal payment creation failed:', paymentResult);
+      console.error('=== PAYPAL PAYMENT CREATION FAILED ===');
+      console.error('Payment result:', JSON.stringify(paymentResult, null, 2));
+      console.error('Error:', paymentResult.error);
+      console.error('Message:', paymentResult.message);
       return {
         statusCode: 400,
         headers,
         body: JSON.stringify({ 
           error: 'Payment creation failed',
-          details: paymentResult.error || paymentResult.message || 'Unknown error'
+          details: paymentResult.error || paymentResult.message || 'Unknown error',
+          full_error: paymentResult
         }),
       };
     }
