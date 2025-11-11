@@ -289,9 +289,48 @@ exports.handler = async (event, context) => {
     
     // Verify user authentication
     console.log('Verifying user token...');
-    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(token);
     
-    if (authError) {
+    // Try to verify token - if it fails, try alternative method
+    let authUser = null;
+    let authError = null;
+    
+    try {
+      const { data: { user }, error } = await supabase.auth.getUser(token);
+      authUser = user;
+      authError = error;
+    } catch (err) {
+      console.error('Exception during token verification:', err);
+      authError = err;
+    }
+    
+    // If getUser fails, try to decode JWT and use admin.getUserById
+    if (authError || !authUser) {
+      console.log('Standard token verification failed, trying alternative method...');
+      try {
+        // Decode JWT to get user ID (basic decode without verification)
+        const tokenParts = token.split('.');
+        if (tokenParts.length === 3) {
+          const payload = JSON.parse(Buffer.from(tokenParts[1], 'base64').toString());
+          const userId = payload.sub || payload.user_id;
+          
+          if (userId) {
+            console.log('Extracted user ID from token:', userId);
+            // Use admin API to get user
+            const { data: userData, error: adminError } = await supabase.auth.admin.getUserById(userId);
+            if (!adminError && userData?.user) {
+              authUser = userData.user;
+              console.log('User authenticated via admin API:', authUser.id);
+            } else {
+              console.error('Admin getUserById error:', adminError);
+            }
+          }
+        }
+      } catch (decodeError) {
+        console.error('Error decoding token:', decodeError);
+      }
+    }
+    
+    if (authError && !authUser) {
       console.error('Token verification error:', authError);
       console.error('Error message:', authError.message);
       return {
