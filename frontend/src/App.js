@@ -5680,6 +5680,7 @@ const EmailConfirmation = () => {
               </div>
             </>
           ) : null}
+          </div>
         </div>
       </div>
       <Footer />
