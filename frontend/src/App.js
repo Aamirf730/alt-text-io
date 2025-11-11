@@ -4280,7 +4280,8 @@ const PaymentSuccess = () => {
                 }, 2000);
               }
             } else {
-              setError(result.error || 'Payment completion failed');
+              console.error('Payment completion error:', result);
+              setError(result.error || result.details || 'Payment completion failed');
               setIsProcessing(false);
             }
           } else {
@@ -4326,7 +4327,8 @@ const PaymentSuccess = () => {
               }, 2000);
             }
           } else {
-            setError(result.error || 'Payment completion failed');
+            console.error('Payment completion error:', result);
+            setError(result.error || result.details || 'Payment completion failed');
             setIsProcessing(false);
           }
         }

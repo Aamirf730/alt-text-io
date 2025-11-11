@@ -148,34 +148,43 @@ exports.handler = async (event, context) => {
       // Handle subscription - get subscription details
       paymentResult = await getPayPalSubscription(finalSubscriptionId || paymentId);
       
-      if (!paymentResult || paymentResult.status !== 'ACTIVE') {
-        // Subscription might be in APPROVAL_PENDING state, check for approval
-        if (paymentResult && paymentResult.status === 'APPROVAL_PENDING') {
-          // User needs to approve, return pending status
-          return {
-            statusCode: 200,
-            headers,
-            body: JSON.stringify({
-              success: false,
-              status: 'pending_approval',
-              message: 'Subscription approval pending',
-              approvalUrl: paymentResult.links?.find(l => l.rel === 'approve')?.href
-            }),
-          };
-        }
-        
+      console.log('PayPal subscription result:', JSON.stringify(paymentResult, null, 2));
+      
+      if (!paymentResult) {
         return {
           statusCode: 400,
           headers,
           body: JSON.stringify({ 
-            error: 'Subscription not active',
-            status: paymentResult?.status || 'unknown'
+            error: 'Failed to retrieve subscription details',
+            details: 'No response from PayPal'
           }),
         };
       }
-
-      subscriptionStatus = paymentResult.status;
-      amount = parseFloat(plan.price);
+      
+      // Accept multiple states that indicate the subscription is valid
+      const validStates = ['ACTIVE', 'APPROVAL_PENDING', 'APPROVED'];
+      
+      if (!validStates.includes(paymentResult.status)) {
+        // Subscription might be in APPROVAL_PENDING state, check for approval
+        if (paymentResult.status === 'APPROVAL_PENDING' || paymentResult.status === 'APPROVED') {
+          // Subscription is approved but not yet active - webhook will activate it
+          subscriptionStatus = paymentResult.status;
+          amount = parseFloat(plan.price);
+        } else {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ 
+              error: `Subscription not in valid state: ${paymentResult.status}`,
+              status: paymentResult.status,
+              subscriptionId: finalSubscriptionId || paymentId
+            }),
+          };
+        }
+      } else {
+        subscriptionStatus = paymentResult.status;
+        amount = parseFloat(plan.price);
+      }
     } else {
       // Handle one-time payment
       paymentResult = await capturePayPalPayment(paymentId);
@@ -198,6 +207,13 @@ exports.handler = async (event, context) => {
     }
 
     // Update user subscription using the database function
+    console.log('Calling upgrade_subscription with:', {
+      user_uuid: authUser.id,
+      new_plan: planId,
+      payment_id: paymentId,
+      subscription_id: finalSubscriptionId
+    });
+    
     const { data: upgradeResult, error: upgradeError } = await supabase
       .rpc('upgrade_subscription', {
         user_uuid: authUser.id,
@@ -211,9 +227,15 @@ exports.handler = async (event, context) => {
       return {
         statusCode: 500,
         headers,
-        body: JSON.stringify({ error: 'Failed to upgrade subscription' }),
+        body: JSON.stringify({ 
+          error: 'Failed to upgrade subscription',
+          details: upgradeError.message || JSON.stringify(upgradeError),
+          upgradeResult: upgradeResult
+        }),
       };
     }
+    
+    console.log('Upgrade subscription result:', upgradeResult);
 
     // Update payment record
     const { error: paymentUpdateError } = await supabase
