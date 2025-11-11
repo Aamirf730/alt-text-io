@@ -159,9 +159,12 @@ async function createPayPalSubscription(planId, planDetails, returnUrl, cancelUr
     console.log(`Using PayPal Plan ID: ${paypalPlanId}`);
     
     // Create subscription
+    // Set start_time to at least 5 minutes in the future to ensure token validity
+    const startTime = new Date(Date.now() + 300000).toISOString(); // 5 minutes from now
+    
     const subscriptionData = {
       plan_id: paypalPlanId,
-      start_time: new Date(Date.now() + 60000).toISOString(), // Start 1 minute from now
+      start_time: startTime,
       application_context: {
         brand_name: 'Alt Text Pro',
         locale: 'en-US',
@@ -171,6 +174,8 @@ async function createPayPalSubscription(planId, planDetails, returnUrl, cancelUr
         cancel_url: cancelUrl
       }
     };
+    
+    console.log('Subscription start_time:', startTime);
 
     console.log('Creating PayPal subscription with data:', JSON.stringify(subscriptionData, null, 2));
 
