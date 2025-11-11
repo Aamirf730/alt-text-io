@@ -18,7 +18,19 @@ const PAYPAL_BASE_URL = process.env.PAYPAL_ENVIRONMENT === 'sandbox'
 
 // Get PayPal access token
 async function getPayPalAccessToken() {
+  console.log('PayPal authentication check:');
+  console.log('- PAYPAL_ENVIRONMENT:', process.env.PAYPAL_ENVIRONMENT || 'production (default)');
+  console.log('- PAYPAL_BASE_URL:', PAYPAL_BASE_URL);
+  console.log('- PAYPAL_CLIENT_ID:', PAYPAL_CLIENT_ID ? (PAYPAL_CLIENT_ID.substring(0, 20) + '...') : 'NOT SET');
+  console.log('- PAYPAL_CLIENT_SECRET:', PAYPAL_CLIENT_SECRET ? 'SET (hidden)' : 'NOT SET');
+  
+  if (!PAYPAL_CLIENT_ID || !PAYPAL_CLIENT_SECRET) {
+    throw new Error('PayPal credentials not configured. Please set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET environment variables.');
+  }
+
   const auth = Buffer.from(`${PAYPAL_CLIENT_ID}:${PAYPAL_CLIENT_SECRET}`).toString('base64');
+  
+  console.log('Requesting PayPal access token from:', `${PAYPAL_BASE_URL}/v1/oauth2/token`);
   
   const response = await fetch(`${PAYPAL_BASE_URL}/v1/oauth2/token`, {
     method: 'POST',
@@ -30,6 +42,24 @@ async function getPayPalAccessToken() {
   });
 
   const data = await response.json();
+  
+  if (!response.ok) {
+    console.error('PayPal access token error response:', {
+      status: response.status,
+      statusText: response.statusText,
+      error: data.error,
+      error_description: data.error_description,
+      full_response: data
+    });
+    throw new Error(`Failed to get PayPal access token: ${data.error_description || data.error || JSON.stringify(data)}`);
+  }
+  
+  if (!data.access_token) {
+    console.error('No access token in response:', data);
+    throw new Error('PayPal access token not received in response');
+  }
+  
+  console.log('PayPal access token obtained successfully');
   return data.access_token;
 }
 
@@ -65,7 +95,14 @@ async function capturePayPalPayment(paymentId) {
 
 // Get PayPal subscription details
 async function getPayPalSubscription(subscriptionId) {
+  console.log(`Getting PayPal subscription details for: ${subscriptionId}`);
   const accessToken = await getPayPalAccessToken();
+  
+  if (!accessToken) {
+    throw new Error('Failed to obtain PayPal access token');
+  }
+  
+  console.log(`Fetching subscription from: ${PAYPAL_BASE_URL}/v1/billing/subscriptions/${subscriptionId}`);
   
   const response = await fetch(`${PAYPAL_BASE_URL}/v1/billing/subscriptions/${subscriptionId}`, {
     method: 'GET',
@@ -75,7 +112,22 @@ async function getPayPalSubscription(subscriptionId) {
     },
   });
 
-  return await response.json();
+  const data = await response.json();
+  
+  if (!response.ok) {
+    console.error('PayPal subscription fetch error:', {
+      status: response.status,
+      statusText: response.statusText,
+      subscriptionId: subscriptionId,
+      error: data,
+      accessTokenPresent: !!accessToken,
+      accessTokenPreview: accessToken ? accessToken.substring(0, 20) + '...' : 'NONE'
+    });
+    throw new Error(`Failed to get PayPal subscription: ${data.message || data.error || JSON.stringify(data)}`);
+  }
+
+  console.log(`Subscription status: ${data.status}`);
+  return data;
 }
 
 exports.handler = async (event, context) => {
@@ -162,7 +214,7 @@ exports.handler = async (event, context) => {
     if (actualIsSubscription) {
       // Handle subscription - get subscription details
       paymentResult = await getPayPalSubscription(finalSubscriptionId || paymentId);
-      
+
       console.log('PayPal subscription result:', JSON.stringify(paymentResult, null, 2));
       
       if (!paymentResult) {
@@ -175,7 +227,7 @@ exports.handler = async (event, context) => {
           }),
         };
       }
-      
+
       // Accept multiple states that indicate the subscription is valid
       const validStates = ['ACTIVE', 'APPROVAL_PENDING', 'APPROVED'];
       
@@ -207,7 +259,7 @@ exports.handler = async (event, context) => {
       
       // If order is not yet captured, capture it
       if (orderDetails.status === 'APPROVED') {
-        paymentResult = await capturePayPalPayment(paymentId);
+      paymentResult = await capturePayPalPayment(paymentId);
       } else if (orderDetails.status === 'COMPLETED') {
         // Order already captured (e.g., by PayPalButtons in frontend)
         paymentResult = orderDetails;
