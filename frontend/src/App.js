@@ -119,6 +119,22 @@ const LandingPage = () => {
     };
   }, [selectedImage]);
 
+  // Close mobile menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (isMobileMenuOpen && !event.target.closest('.mobile-menu-container')) {
+        setIsMobileMenuOpen(false);
+      }
+    };
+
+    if (isMobileMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [isMobileMenuOpen]);
+
   const sampleImages = [
     {
       url: "/api/placeholder/300/200",
@@ -760,7 +776,14 @@ const LandingPage = () => {
 
       {/* Mobile menu dropdown */}
       {isMobileMenuOpen && (
-        <div className="lg:hidden fixed inset-x-0 top-20 z-50 bg-white border-b border-gray-200 shadow-lg">
+        <>
+          {/* Backdrop */}
+          <div 
+            className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-40 top-20"
+            onClick={() => setIsMobileMenuOpen(false)}
+          ></div>
+          {/* Menu */}
+          <div className="lg:hidden fixed inset-x-0 top-20 z-50 bg-white border-b border-gray-200 shadow-lg mobile-menu-container">
           <div className="px-4 py-6 space-y-4">
             {/* Navigation Links */}
             <div className="space-y-3">
