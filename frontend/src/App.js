@@ -4503,37 +4503,46 @@ const PaymentSuccess = () => {
 
   if (isProcessing) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-cyan-50 to-teal-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4"></div>
-          <p className="text-gray-700">Processing your payment...</p>
+      <div className="min-h-screen flex flex-col">
+        <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-cyan-50 to-teal-50">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4"></div>
+            <p className="text-gray-700">Processing your payment...</p>
+          </div>
         </div>
+        <Footer />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-cyan-50 to-teal-50">
-        <div className="text-center max-w-md mx-auto p-6">
-          <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">Payment Error</h2>
-          <p className="text-gray-600 mb-6">{error}</p>
-          <Button onClick={() => navigate('/dashboard')} className="bg-teal-600 hover:bg-teal-700">
-            Go to Dashboard
-          </Button>
+      <div className="min-h-screen flex flex-col">
+        <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-cyan-50 to-teal-50">
+          <div className="text-center max-w-md mx-auto p-6">
+            <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">Payment Error</h2>
+            <p className="text-gray-600 mb-6">{error}</p>
+            <Button onClick={() => navigate('/dashboard')} className="bg-teal-600 hover:bg-teal-700">
+              Go to Dashboard
+            </Button>
+          </div>
         </div>
+        <Footer />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-cyan-50 to-teal-50">
-      <div className="text-center max-w-md mx-auto p-6">
-        <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
-        <h2 className="text-2xl font-bold text-gray-800 mb-2">Payment Successful!</h2>
-        <p className="text-gray-600 mb-6">Redirecting to your dashboard...</p>
+    <div className="min-h-screen flex flex-col">
+      <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-cyan-50 to-teal-50">
+        <div className="text-center max-w-md mx-auto p-6">
+          <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">Payment Successful!</h2>
+          <p className="text-gray-600 mb-6">Redirecting to your dashboard...</p>
+        </div>
       </div>
+      <Footer />
     </div>
   );
 };
@@ -4657,18 +4666,21 @@ const AdminDashboard = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4" 
-               style={{ borderColor: '#1AB5AC' }}></div>
-          <p className="text-gray-600">Loading admin dashboard...</p>
+      <div className="min-h-screen flex flex-col bg-gradient-to-br from-gray-50 to-gray-100">
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4" 
+                 style={{ borderColor: '#1AB5AC' }}></div>
+            <p className="text-gray-600">Loading admin dashboard...</p>
+          </div>
         </div>
+        <Footer />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-gray-50 to-gray-100">
       {/* Header */}
       <div className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -5016,6 +5028,7 @@ const AdminDashboard = () => {
           </Card>
         </div>
       )}
+      <Footer />
     </div>
   );
 };
@@ -5530,6 +5543,7 @@ const PrivacyPage = () => {
           </div>
         </div>
       </div>
+      <Footer />
     </div>
   );
 };
@@ -5592,9 +5606,10 @@ const EmailConfirmation = () => {
   }, [navigate]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center px-4 py-12">
-      <div className="max-w-md w-full">
-        <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="flex-1 flex items-center justify-center px-4 py-12">
+        <div className="max-w-md w-full">
+          <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
           {/* Logo */}
           <div className="flex justify-center mb-6">
             <img 
@@ -5688,15 +5703,18 @@ function App() {
           <Route path="/terms" element={<TermsPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/payment-cancelled" element={
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-cyan-50 to-teal-50">
-              <div className="text-center max-w-md mx-auto p-6">
-                <X className="h-12 w-12 text-orange-500 mx-auto mb-4" />
-                <h2 className="text-2xl font-bold text-gray-800 mb-2">Payment Cancelled</h2>
-                <p className="text-gray-600 mb-6">Your payment was cancelled. You can try again anytime.</p>
-                <Button onClick={() => window.location.href = '/dashboard'} className="bg-teal-600 hover:bg-teal-700">
-                  Go to Dashboard
-                </Button>
+            <div className="min-h-screen flex flex-col">
+              <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-cyan-50 to-teal-50">
+                <div className="text-center max-w-md mx-auto p-6">
+                  <X className="h-12 w-12 text-orange-500 mx-auto mb-4" />
+                  <h2 className="text-2xl font-bold text-gray-800 mb-2">Payment Cancelled</h2>
+                  <p className="text-gray-600 mb-6">Your payment was cancelled. You can try again anytime.</p>
+                  <Button onClick={() => window.location.href = '/dashboard'} className="bg-teal-600 hover:bg-teal-700">
+                    Go to Dashboard
+                  </Button>
+                </div>
               </div>
+              <Footer />
             </div>
           } />
         </Routes>
