@@ -2987,7 +2987,8 @@ const Dashboard = () => {
                         <li>Paste this API key in the settings</li>
                         <li>Test the connection and start generating alt-text!</li>
                       </ol>
-                      <div className="mt-3">
+                      <div className="mt-3 flex items-center gap-2">
+                        <span className="text-xs text-gray-500">v1.0.6</span>
                         <a
                           href="/wordpress-plugin/alt-text-pro-plugin.zip"
                           download="alt-text-pro-plugin.zip"
