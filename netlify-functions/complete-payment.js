@@ -96,38 +96,57 @@ async function capturePayPalPayment(paymentId) {
 // Get PayPal subscription details
 async function getPayPalSubscription(subscriptionId) {
   console.log(`Getting PayPal subscription details for: ${subscriptionId}`);
-  const accessToken = await getPayPalAccessToken();
   
-  if (!accessToken) {
-    throw new Error('Failed to obtain PayPal access token');
-  }
-  
-  console.log(`Fetching subscription from: ${PAYPAL_BASE_URL}/v1/billing/subscriptions/${subscriptionId}`);
-  
-  const response = await fetch(`${PAYPAL_BASE_URL}/v1/billing/subscriptions/${subscriptionId}`, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${accessToken}`,
-    },
-  });
-
-  const data = await response.json();
-  
-  if (!response.ok) {
-    console.error('PayPal subscription fetch error:', {
-      status: response.status,
-      statusText: response.statusText,
-      subscriptionId: subscriptionId,
-      error: data,
-      accessTokenPresent: !!accessToken,
-      accessTokenPreview: accessToken ? accessToken.substring(0, 20) + '...' : 'NONE'
+  try {
+    const accessToken = await getPayPalAccessToken();
+    
+    if (!accessToken) {
+      throw new Error('Failed to obtain PayPal access token');
+    }
+    
+    console.log(`Access token obtained, length: ${accessToken.length}`);
+    console.log(`Access token preview: ${accessToken.substring(0, 30)}...`);
+    console.log(`Fetching subscription from: ${PAYPAL_BASE_URL}/v1/billing/subscriptions/${subscriptionId}`);
+    
+    const response = await fetch(`${PAYPAL_BASE_URL}/v1/billing/subscriptions/${subscriptionId}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/json',
+      },
     });
-    throw new Error(`Failed to get PayPal subscription: ${data.message || data.error || JSON.stringify(data)}`);
-  }
 
-  console.log(`Subscription status: ${data.status}`);
-  return data;
+    const data = await response.json();
+    
+    console.log(`PayPal subscription fetch response status: ${response.status}`);
+    console.log(`PayPal subscription fetch response headers:`, Object.fromEntries(response.headers.entries()));
+    
+    if (!response.ok) {
+      console.error('PayPal subscription fetch error:', {
+        status: response.status,
+        statusText: response.statusText,
+        subscriptionId: subscriptionId,
+        error: data,
+        accessTokenPresent: !!accessToken,
+        accessTokenLength: accessToken ? accessToken.length : 0,
+        accessTokenPreview: accessToken ? accessToken.substring(0, 30) + '...' : 'NONE',
+        requestUrl: `${PAYPAL_BASE_URL}/v1/billing/subscriptions/${subscriptionId}`,
+        authorizationHeader: accessToken ? `Bearer ${accessToken.substring(0, 30)}...` : 'MISSING'
+      });
+      throw new Error(`Failed to get PayPal subscription: ${data.name || data.message || data.error || JSON.stringify(data)}`);
+    }
+
+    console.log(`Subscription status: ${data.status}`);
+    return data;
+  } catch (error) {
+    console.error('Error in getPayPalSubscription:', {
+      message: error.message,
+      stack: error.stack,
+      subscriptionId: subscriptionId
+    });
+    throw error;
+  }
 }
 
 exports.handler = async (event, context) => {
