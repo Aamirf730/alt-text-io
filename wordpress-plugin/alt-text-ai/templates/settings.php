@@ -12,7 +12,7 @@ if (!defined('ABSPATH')) {
     <div class="alt-text-ai-header">
         <div class="alt-text-ai-header-content">
             <div class="alt-text-ai-logo">
-                <span class="dashicons dashicons-admin-settings"></span>
+                <img src="<?php echo esc_url(ALT_TEXT_AI_PLUGIN_URL . 'assets/images/logo-alt-text-pro.png'); ?>" alt="Alt Text Pro" />
                 <h1><?php _e('Alt Text Pro Settings', 'alt-text-ai'); ?></h1>
             </div>
             <div class="alt-text-ai-header-actions">
@@ -56,7 +56,7 @@ if (!defined('ABSPATH')) {
                                        class="regular-text" 
                                        placeholder="alt_... or altai_..." 
                                        autocomplete="off" />
-                                <button type="button" class="button button-secondary toggle-visibility" id="toggle-api-key">
+                                <button type="button" class="button button-secondary toggle-visibility" id="toggle-api-key" aria-label="<?php _e('Show API key', 'alt-text-ai'); ?>">
                                     <span class="dashicons dashicons-visibility"></span>
                                 </button>
                                 <button type="button" class="button button-secondary test-connection" id="test-connection">
@@ -280,31 +280,8 @@ if (!defined('ABSPATH')) {
 
 <script type="text/javascript">
 jQuery(document).ready(function($) {
-    // API key visibility toggle - ensure it works regardless of admin.js load order
-    // This handler will work immediately, and admin.js uses event delegation as backup
-    $('#toggle-api-key').on('click', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        var $input = $('#api_key');
-        var $icon = $(this).find('.dashicons');
-        
-        if ($input.length === 0) {
-            console.error('Alt Text Pro: API key input field not found');
-            return false;
-        }
-        
-        if ($input.attr('type') === 'password') {
-            $input.attr('type', 'text');
-            $icon.removeClass('dashicons-visibility').addClass('dashicons-hidden');
-        } else {
-            $input.attr('type', 'password');
-            $icon.removeClass('dashicons-hidden').addClass('dashicons-visibility');
-        }
-        
-        return false;
-    });
-    
+    // Note: API key toggle is handled by admin.js
+
     // Test API connection
     $('#test-connection').on('click', function() {
         var $button = $(this);

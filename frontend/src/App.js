@@ -1457,10 +1457,10 @@ const LandingPage = () => {
                 )}
                 
                 <div className="space-y-3 mb-8">
-                  <div className="flex items-center">
-                    <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-gray-700">2,000 Credits</span>
-                  </div>
+                    <div className="flex items-center">
+                      <Check className="h-5 w-5 text-green-500 mr-3" />
+                      <span className="text-gray-700">2,500 Credits</span>
+                    </div>
                   <div className="flex items-center">
                     <Check className="h-5 w-5 text-green-500 mr-3" />
                     <span className="text-gray-700">Premium support</span>
@@ -2625,14 +2625,14 @@ const Dashboard = () => {
                     </p>
                     <div className="space-y-2">
                       <Button 
-                        onClick={() => handleUpgradePlan('tier1', 'Tier 1', '$15')}
+                        onClick={() => handleUpgradePlan('tier1', 'Tier 1', '$12')}
                         size="sm" 
                         className="w-full text-white"
                   style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}
                   onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%)'}
                   onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)'}
                       >
-                        Upgrade to Tier 1 - $15/month
+                        Upgrade to Tier 1 - $12/month
                       </Button>
                       <Button 
                         onClick={() => handleUpgradePlan('pay_as_go', 'Pay as you go', '$5')}
@@ -3613,7 +3613,7 @@ const DocsPage = () => {
                     <Card className="p-6 border-2 border-teal-500">
                       <Badge className="mb-2" style={{ backgroundColor: '#1AB5AC', color: 'white' }}>Popular</Badge>
                       <h4 className="text-xl font-bold mb-2">Tier 1</h4>
-                      <div className="text-3xl font-bold mb-4" style={{ color: '#0B4F5E' }}>$9<span className="text-sm text-gray-500">/mo</span></div>
+                      <div className="text-3xl font-bold mb-4" style={{ color: '#0B4F5E' }}>$12<span className="text-sm text-gray-500">/mo</span></div>
                       <ul className="space-y-2 text-gray-700 mb-4">
                         <li className="flex items-center"><Check className="h-4 w-4 mr-2 text-green-500" /> 1,000 Credits/month</li>
                         <li className="flex items-center"><Check className="h-4 w-4 mr-2 text-green-500" /> Priority Support</li>
@@ -3622,9 +3622,9 @@ const DocsPage = () => {
                     </Card>
                     <Card className="p-6 border-2">
                       <h4 className="text-xl font-bold mb-2">Tier 2</h4>
-                      <div className="text-3xl font-bold mb-4" style={{ color: '#0B4F5E' }}>$19<span className="text-sm text-gray-500">/mo</span></div>
+                      <div className="text-3xl font-bold mb-4" style={{ color: '#0B4F5E' }}>$20<span className="text-sm text-gray-500">/mo</span></div>
                       <ul className="space-y-2 text-gray-700 mb-4">
-                        <li className="flex items-center"><Check className="h-4 w-4 mr-2 text-green-500" /> 5,000 Credits/month</li>
+                        <li className="flex items-center"><Check className="h-4 w-4 mr-2 text-green-500" /> 2,500 Credits/month</li>
                         <li className="flex items-center"><Check className="h-4 w-4 mr-2 text-green-500" /> Premium Support</li>
                         <li className="flex items-center"><Check className="h-4 w-4 mr-2 text-green-500" /> Advanced Features</li>
                       </ul>

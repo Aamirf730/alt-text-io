@@ -37,9 +37,20 @@ class AltTextAI_API_Client {
         // Get image data
         $image_data = $this->get_image_base64($attachment_id);
         if (!$image_data) {
+            $file_path = get_attached_file($attachment_id);
+            $file_size = $file_path ? filesize($file_path) : 0;
+            $max_size = 15 * 1024 * 1024; // 15MB
+            
+            if ($file_size > $max_size) {
+                return array(
+                    'success' => false,
+                    'message' => sprintf(__('Image file is too large (%s). Maximum size is 15MB.', 'alt-text-ai'), size_format($file_size))
+                );
+            }
+            
             return array(
                 'success' => false,
-                'message' => __('Failed to process image data.', 'alt-text-ai')
+                'message' => __('Failed to process image data. Please check that the image file exists and is readable.', 'alt-text-ai')
             );
         }
         
@@ -52,62 +63,53 @@ class AltTextAI_API_Client {
         // Make API request
         $response = $this->make_request('generate-alt-text', 'POST', $request_data);
         
-        if ($response['success'] && isset($response['data']['alt_text'])) {
-            $alt_text = $response['data']['alt_text'];
-
-            // Treat known placeholder responses as failures so users see actionable errors
-            if (is_string($alt_text)) {
-                $normalized = strtolower(trim($alt_text));
-                $normalized = preg_replace('/[^\w\s]/', '', $normalized); // Strip punctuation for reliable matching
-
-                $placeholders = array(
-                    'image description unavailable',
-                    'alt text unavailable',
-                    'description unavailable',
-                    'no description available',
-                    'alt text not available',
-                    'unable to generate description',
-                    'description not available'
-                );
-
-                foreach ($placeholders as $placeholder) {
-                    if ($normalized === $placeholder || strpos($normalized, $placeholder) !== false) {
-                        error_log('Alt Text Pro API: Placeholder response detected: "' . $alt_text . '". Treating as error.');
-                        return array(
-                            'success' => false,
-                            'message' => __('The API returned a placeholder response. This may indicate an API error or image processing issue. Please check the server logs or try again.', 'alt-text-ai'),
-                            'data' => $response['data']
-                        );
-                    }
-                }
-
-                // Guard against empty strings after normalization
-                if ($normalized === '') {
-                    return array(
-                        'success' => false,
-                        'message' => __('The API returned an empty description. Please try again.', 'alt-text-ai'),
-                        'data' => $response['data']
-                    );
+        // Handle successful response - API can return alt_text in different formats
+        if ($response['success']) {
+            $alt_text = null;
+            $credits_used = 1;
+            $credits_remaining = 0;
+            
+            // Try to find alt_text in different possible locations
+            if (isset($response['data']['alt_text'])) {
+                // Format 1: Nested in data key
+                $alt_text = $response['data']['alt_text'];
+                $credits_used = $response['data']['credits_used'] ?? 1;
+                $credits_remaining = $response['data']['credits_remaining'] ?? 0;
+            } elseif (isset($response['full_response']['alt_text'])) {
+                // Format 2: In full_response (when API returns direct object)
+                $alt_text = $response['full_response']['alt_text'];
+                $credits_used = $response['full_response']['credits_used'] ?? 1;
+                $credits_remaining = $response['full_response']['credits_remaining'] ?? 0;
+            } elseif (isset($response['data']) && is_array($response['data'])) {
+                // Format 3: Check if data is the direct response object (Netlify format)
+                // Netlify returns: { alt_text: "...", credits_used: 1, ... }
+                // make_request wraps it as: { success: true, data: { alt_text: "...", ... } }
+                if (isset($response['data']['alt_text'])) {
+                    $alt_text = $response['data']['alt_text'];
+                    $credits_used = $response['data']['credits_used'] ?? 1;
+                    $credits_remaining = $response['data']['credits_remaining'] ?? 0;
                 }
             }
             
-            // Get credits from response (check multiple possible locations)
-            $credits_used = $response['data']['credits_used'] ?? $response['credits_used'] ?? 1;
-            $credits_remaining = $response['data']['credits_remaining'] ?? $response['credits_remaining'] ?? 0;
-
-            return array(
-                'success' => true,
-                'alt_text' => $alt_text,
-                'credits_used' => $credits_used,
-                'credits_remaining' => $credits_remaining
-            );
+            if (!empty($alt_text)) {
+                return array(
+                    'success' => true,
+                    'alt_text' => $alt_text,
+                    'credits_used' => $credits_used,
+                    'credits_remaining' => $credits_remaining
+                );
+            }
+            
+            // Log for debugging if we have success but no alt_text
+            error_log('Alt Text Pro API: Success response but alt_text not found. Response structure: ' . print_r($response, true));
         }
         
         // Return error response with proper message
         return array(
             'success' => false,
             'message' => $response['message'] ?? __('Failed to generate alt-text. Please check your API key and try again.', 'alt-text-ai'),
-            'data' => $response['data'] ?? null
+            'data' => $response['data'] ?? null,
+            'status_code' => $response['status_code'] ?? null
         );
     }
     
@@ -158,22 +160,49 @@ class AltTextAI_API_Client {
         $file_path = get_attached_file($attachment_id);
         
         if (!$file_path || !file_exists($file_path)) {
+            error_log(sprintf('Alt Text Pro: File not found for attachment %d: %s', $attachment_id, $file_path));
             return false;
         }
         
         // Check if it's an image
         $mime_type = get_post_mime_type($attachment_id);
         if (!str_starts_with($mime_type, 'image/')) {
+            error_log(sprintf('Alt Text Pro: Invalid mime type for attachment %d: %s', $attachment_id, $mime_type));
+            return false;
+        }
+        
+        // Check file size (Gemini API limit is ~20MB, but base64 increases size by ~33%)
+        // So we limit to ~15MB raw file size to be safe
+        $file_size = filesize($file_path);
+        $max_size = 15 * 1024 * 1024; // 15MB in bytes
+        
+        if ($file_size > $max_size) {
+            error_log(sprintf('Alt Text Pro: Image too large for attachment %d: %d bytes (max: %d)', $attachment_id, $file_size, $max_size));
             return false;
         }
         
         // Get image data
         $image_data = file_get_contents($file_path);
         if ($image_data === false) {
+            error_log(sprintf('Alt Text Pro: Failed to read file for attachment %d: %s', $attachment_id, $file_path));
             return false;
         }
         
-        return base64_encode($image_data);
+        // Validate image data is not empty
+        if (empty($image_data)) {
+            error_log(sprintf('Alt Text Pro: Empty image data for attachment %d', $attachment_id));
+            return false;
+        }
+        
+        $base64_data = base64_encode($image_data);
+        
+        // Validate base64 encoding succeeded
+        if (empty($base64_data)) {
+            error_log(sprintf('Alt Text Pro: Failed to encode image to base64 for attachment %d', $attachment_id));
+            return false;
+        }
+        
+        return $base64_data;
     }
     
     /**
@@ -274,7 +303,13 @@ class AltTextAI_API_Client {
                     break;
                 case 402:
                     $error_message = __('No credits remaining. Please upgrade your plan.', 'alt-text-ai');
-                    break;
+                    // Mark as no credits error for bulk processing to stop
+                    return array(
+                        'success' => false,
+                        'message' => $error_message,
+                        'no_credits' => true, // Special flag to indicate credits exhausted
+                        'status_code' => 402
+                    );
                 case 403:
                     $error_message = __('Access forbidden. Please check your API key permissions.', 'alt-text-ai');
                     break;
@@ -314,6 +349,29 @@ class AltTextAI_API_Client {
             );
         }
         
+        // Check for error key FIRST - even when status is 200 (some APIs return errors with 200 status)
+        // This must be checked before checking for success, as error takes priority
+        if (isset($decoded_body['error'])) {
+            $error_message = $decoded_body['error'];
+            
+            // Check if it's an authentication error
+            if (stripos($error_message, 'invalid') !== false || stripos($error_message, 'expired') !== false || stripos($error_message, 'token') !== false) {
+                $error_message = __('Invalid or expired API key. Please check your API key in settings and ensure it\'s correct.', 'alt-text-ai');
+            }
+            
+            // Handle specific Gemini API errors
+            if (stripos($error_message, 'Gemini API') !== false || stripos($error_message, 'empty response') !== false) {
+                $error_message = __('Gemini AI service returned an empty response. This may be due to image content restrictions or API limitations. Please try again or use a different image.', 'alt-text-ai');
+            }
+            
+            return array(
+                'success' => false,
+                'message' => $error_message,
+                'status_code' => $status_code,
+                'data' => $decoded_body
+            );
+        }
+        
         // Check if the API response itself indicates an error (some APIs return 200 with error in body)
         if (isset($decoded_body['success']) && $decoded_body['success'] === false) {
             $error_message = $decoded_body['error'] ?? $decoded_body['message'] ?? __('API returned an error', 'alt-text-ai');
@@ -325,25 +383,10 @@ class AltTextAI_API_Client {
             );
         }
         
-        // Check for error key even when status is 200 (some APIs return errors with 200 status)
-        if (isset($decoded_body['error']) && !isset($decoded_body['success'])) {
-            $error_message = $decoded_body['error'];
-            // Check if it's an authentication error
-            if (stripos($error_message, 'invalid') !== false || stripos($error_message, 'expired') !== false || stripos($error_message, 'token') !== false) {
-                $error_message = __('Invalid or expired API key. Please check your API key in settings and ensure it\'s correct.', 'alt-text-ai');
-            }
-            return array(
-                'success' => false,
-                'message' => $error_message,
-                'status_code' => $status_code,
-                'data' => $decoded_body
-            );
-        }
-        
         // Success response handling - API can return different formats:
         // Format 1: { success: true, data: {...} }
         // Format 2: { success: true, valid: true, user: {...} }
-        // Format 3: Direct data object (e.g., { alt_text: "...", credits_used: 1 })
+        // Format 3: Direct data object
         if (isset($decoded_body['data'])) {
             return array(
                 'success' => true,
@@ -360,28 +403,6 @@ class AltTextAI_API_Client {
                 'data' => array(
                     'user' => $decoded_body['user']
                 ),
-                'status_code' => $status_code,
-                'full_response' => $decoded_body
-            );
-        }
-        
-        // Handle direct format for generate-alt-text: { alt_text: "...", credits_used: 1, ... }
-        // This happens when the API returns the response directly without wrapping in 'data'
-        if (isset($decoded_body['alt_text']) || isset($decoded_body['error'])) {
-            // If there's an error key, treat as error
-            if (isset($decoded_body['error'])) {
-                return array(
-                    'success' => false,
-                    'message' => $decoded_body['error'],
-                    'status_code' => $status_code,
-                    'data' => $decoded_body
-                );
-            }
-            
-            // Otherwise, wrap the direct response in 'data' for consistency
-            return array(
-                'success' => true,
-                'data' => $decoded_body,
                 'status_code' => $status_code,
                 'full_response' => $decoded_body
             );

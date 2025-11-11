@@ -58,9 +58,9 @@ CREATE TABLE public.subscription_plans (
 INSERT INTO public.subscription_plans (id, name, price, credits, billing_cycle, features) VALUES
 ('free', 'Free', 0, 100, 'monthly', 
  '["100 Credits", "Basic support", "API access"]'),
-('tier1', 'Tier 1', 9.00, 1000, 'monthly', 
+('tier1', 'Tier 1', 12.00, 1000, 'monthly', 
  '["1,000 Credits", "Priority support", "API access", "Bulk processing"]'),
-('tier2', 'Tier 2', 19.00, 2500, 'monthly', 
+('tier2', 'Tier 2', 20.00, 2500, 'monthly', 
  '["2,500 Credits", "Premium support", "API access", "Bulk processing", "Custom integrations"]'),
 ('pay_as_go', 'Pay as you go', 4.00, 500, 'one-time', 
  '["No monthly commitment", "Pay only for what you use", "API access", "Standard support"]');
@@ -99,8 +99,8 @@ CREATE POLICY "Anyone can view subscription plans" ON public.subscription_plans
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.profiles (id, email)
-  VALUES (NEW.id, NEW.email);
+  INSERT INTO public.profiles (id, email, subscription_plan, credits_remaining)
+  VALUES (NEW.id, NEW.email, 'free', 100);
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

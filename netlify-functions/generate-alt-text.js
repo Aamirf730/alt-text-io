@@ -4,10 +4,6 @@
 const { createClient } = require('@supabase/supabase-js');
 const { validateApiKey, hasSufficientCredits, deductCredits, updateUserCredits } = require('./utils/api-key-validator');
 
-const fetchFn = typeof fetch === 'function'
-  ? (...args) => fetch(...args)
-  : (...args) => import('node-fetch').then(({ default: fetchModule }) => fetchModule(...args));
-
 // Initialize Supabase client
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -32,45 +28,12 @@ function detectImageMimeType(imageBase64) {
   }
 }
 
-function isPlaceholderAltText(text) {
-  if (!text || typeof text !== 'string') {
-    return true;
-  }
-
-  const normalized = text
-    .toLowerCase()
-    .trim()
-    .replace(/[^\w\s]/g, '');
-
-  if (!normalized) {
-    return true;
-  }
-
-  const placeholders = [
-    'image description unavailable',
-    'alt text unavailable',
-    'description unavailable',
-    'no description available',
-    'alt text not available'
-  ];
-
-  return placeholders.some(placeholder => normalized === placeholder || normalized.includes(placeholder));
-}
-
-function createGeminiError(message, statusCode = 502) {
-  const error = new Error(message);
-  error.statusCode = statusCode;
-  return error;
-}
-
 // Gemini AI integration
 async function generateAltTextWithGemini(imageBase64, context = null) {
   try {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw createGeminiError('GEMINI_API_KEY is not configured', 500);
-    }
-
+    const { GoogleGenerativeAI } = require('@google/generative-ai');
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    
     // Detect the actual image MIME type
     const mimeType = detectImageMimeType(imageBase64);
     console.log('Detected image MIME type:', mimeType);
@@ -100,78 +63,91 @@ OUTPUT FORMAT REQUIREMENTS:
 
 Now write ONE sentence describing this image (no formatting, no options, just the description):`;
 
+    
     if (context) {
       prompt += `\n\nContext about the image: ${context}`;
     }
 
+    const imageParts = [
+      {
+        inlineData: {
+          data: imageBase64,
+          mimeType: mimeType // Use detected MIME type, not hardcoded PNG
+        }
+      }
+    ];
+
+    // Use strict generationConfig to prevent formatting
     const generationConfig = {
       temperature: 0.2, // Lower temperature for more focused responses
       maxOutputTokens: 120, // Strict limit - just enough for alt-text
       topP: 0.7, // Narrow probability mass
-      topK: 20 // Limit token choices
+      topK: 20, // Limit token choices
     };
-
-    const safetySettings = [
-      { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
-      { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
-      { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
-      { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' }
-    ];
-
-    const modelId = process.env.GEMINI_MODEL || 'models/gemini-2.5-flash';
-    const apiBase = process.env.GEMINI_API_BASE || 'https://generativelanguage.googleapis.com/v1beta';
-    const url = `${apiBase}/${modelId}:generateContent?key=${apiKey}`;
-
-    const requestBody = {
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            { text: prompt },
-            {
-              inlineData: {
-                data: imageBase64,
-                mimeType
-              }
-            }
-          ]
-        }
-      ],
-      generationConfig,
-      safetySettings
-    };
-
-    const response = await fetchFn(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(requestBody)
+    
+    // Get model with config
+    const modelWithConfig = genAI.getGenerativeModel({ 
+      model: 'gemini-2.0-flash',
+      generationConfig: generationConfig
     });
-
-    const payload = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      const errorMessage = payload?.error?.message || `Gemini API request failed with status ${response.status}`;
-      throw createGeminiError(errorMessage);
+    
+    const result = await modelWithConfig.generateContent([prompt, ...imageParts]);
+    
+    const response = await result.response;
+    
+    // Check for blocked content or safety issues before getting text
+    const candidates = response.candidates;
+    if (!candidates || candidates.length === 0) {
+      console.error('Gemini API: No candidates in response');
+      console.error('Response object:', JSON.stringify(response, null, 2));
+      throw new Error('Gemini API returned no candidates. The response may have been blocked by safety filters.');
     }
-
-    const candidate = payload?.candidates?.[0];
-    if (!candidate) {
-      throw createGeminiError('Gemini API returned no candidate response');
+    
+    // Check for finish reason (safety blocks, etc.)
+    const finishReason = candidates[0]?.finishReason;
+    if (finishReason && finishReason !== 'STOP') {
+      console.error('Gemini API: Finish reason:', finishReason);
+      if (finishReason === 'SAFETY') {
+        throw new Error('Gemini API blocked the response due to safety filters. The image may contain content that violates safety policies.');
+      } else if (finishReason === 'MAX_TOKENS') {
+        throw new Error('Gemini API response was cut off due to token limit.');
+      } else if (finishReason === 'RECITATION') {
+        throw new Error('Gemini API blocked the response due to recitation policy.');
+      } else {
+        throw new Error(`Gemini API returned unexpected finish reason: ${finishReason}`);
+      }
     }
-
-    const parts = candidate.content?.parts || [];
-    let altText = parts
-      .filter(part => typeof part.text === 'string')
-      .map(part => part.text.trim())
-      .filter(Boolean)
-      .join(' ')
-      .trim();
-
-    if (!altText) {
-      throw createGeminiError('Gemini API returned an empty response');
+    
+    // Check for safety ratings
+    const safetyRatings = candidates[0]?.safetyRatings;
+    if (safetyRatings && safetyRatings.length > 0) {
+      const blockedCategories = safetyRatings.filter(r => r.probability === 'HIGH' || r.probability === 'MEDIUM').map(r => r.category);
+      if (blockedCategories.length > 0) {
+        console.error('Gemini API: Safety ratings blocked:', blockedCategories);
+        throw new Error(`Gemini API blocked the response due to safety concerns: ${blockedCategories.join(', ')}`);
+      }
     }
-
-    console.log('Raw Gemini response:', altText.substring(0, 200)); // Debug log
+    
+    // Try to get text from response
+    let altText;
+    try {
+      altText = response.text().trim();
+    } catch (textError) {
+      console.error('Gemini API: Error calling response.text():', textError);
+      console.error('Response candidates:', JSON.stringify(candidates, null, 2));
+      throw new Error(`Gemini API response.text() failed: ${textError.message}. The response may have been blocked or invalid.`);
+    }
+    
+    console.log('Raw Gemini response:', altText ? altText.substring(0, 200) : '(empty)'); // Debug log
+    
+    // Validate that we got a response
+    if (!altText || altText.length === 0) {
+      console.error('Gemini API: Empty text response');
+      console.error('Response candidates:', JSON.stringify(candidates, null, 2));
+      console.error('Finish reason:', finishReason);
+      console.error('Safety ratings:', JSON.stringify(safetyRatings, null, 2));
+      throw new Error('Gemini API returned empty response. This may be due to safety filters, the model refusing to generate content, or an issue with the image data.');
+    }
     
     // STEP 1: Aggressively remove ALL unwanted introductory sections
     altText = altText
@@ -562,10 +538,6 @@ Now write ONE sentence describing this image (no formatting, no options, just th
       }
     }
     
-    if (isPlaceholderAltText(altText)) {
-      throw createGeminiError('Gemini API returned placeholder text');
-    }
-    
     // Smart truncation to complete words and sentences
     if (altText.length > 125) {
       // Try to find a good breaking point
@@ -589,16 +561,41 @@ Now write ONE sentence describing this image (no formatting, no options, just th
         }
       }
       
-      return truncated;
+      altText = truncated;
+    }
+    
+    // Final validation - ensure alt-text is not empty after all processing
+    altText = altText.trim();
+    if (!altText || altText.length === 0) {
+      throw new Error('Generated alt-text is empty after processing');
+    }
+    
+    // Ensure minimum length (at least 10 characters)
+    if (altText.length < 10) {
+      throw new Error(`Generated alt-text is too short: "${altText}"`);
     }
     
     return altText;
   } catch (error) {
     console.error('Gemini API error:', error);
-    if (error && error.statusCode) {
-      throw error;
+    
+    // Extract error message from Gemini API
+    let errorMessage = "Failed to generate alt-text";
+    if (error.message) {
+      errorMessage = error.message;
+    } else if (error.error?.message) {
+      errorMessage = error.error.message;
+    } else if (typeof error === 'string') {
+      errorMessage = error;
     }
-    throw createGeminiError(error?.message || 'Gemini API request failed');
+    
+    // Check for specific Gemini API errors
+    if (errorMessage.includes('leaked') || errorMessage.includes('reported')) {
+      throw new Error('Your Gemini API key was reported as leaked. Please generate a new API key in Google Cloud Console and update it in Netlify environment variables.');
+    }
+    
+    // Throw error so it can be properly handled by the main handler
+    throw new Error(`Gemini API error: ${errorMessage}`);
   }
 }
 
@@ -703,16 +700,30 @@ exports.handler = async (event, context) => {
     }
     
     // Check if user has sufficient credits
+    console.log('Credit check - User:', user?.email, 'Credits remaining:', creditsRemaining);
     if (!user || creditsRemaining <= 0) {
+      console.error('Credit check FAILED - User:', user?.email, 'Credits:', creditsRemaining);
       return {
         statusCode: 402,
         headers,
         body: JSON.stringify({ error: 'No credits remaining. Please upgrade your plan.' }),
       };
     }
+    console.log('Credit check PASSED - Proceeding with alt-text generation');
 
     // Parse request body
-    const { image_base64, context } = JSON.parse(event.body);
+    let requestBody;
+    try {
+      requestBody = JSON.parse(event.body);
+    } catch (parseError) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Invalid JSON in request body' }),
+      };
+    }
+    
+    const { image_base64, context } = requestBody;
     if (!image_base64) {
       return {
         statusCode: 400,
@@ -721,8 +732,121 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Generate alt-text using Gemini
-    const altText = await generateAltTextWithGemini(image_base64, context);
+    // Validate base64 data size (Gemini API limit is ~20MB for base64)
+    // Base64 increases size by ~33%, so ~15MB raw = ~20MB base64
+    const base64SizeBytes = Buffer.byteLength(image_base64, 'utf8');
+    const maxBase64Size = 20 * 1024 * 1024; // 20MB
+    
+    if (base64SizeBytes > maxBase64Size) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ 
+          error: `Image data is too large (${Math.round(base64SizeBytes / 1024 / 1024)}MB). Maximum size is 20MB.` 
+        }),
+      };
+    }
+    
+    // Validate base64 format (basic check)
+    if (!/^[A-Za-z0-9+/=]+$/.test(image_base64)) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Invalid base64 image data format' }),
+      };
+    }
+
+    // CRITICAL: Re-check credits RIGHT BEFORE generation to prevent race conditions
+    // This ensures we don't generate alt-text if credits were exhausted by another request
+    let finalCreditCheck;
+    if (token.startsWith('altai_') || token.startsWith('alt_')) {
+      // API key method - re-validate user
+      const recheckUser = await validateApiKey(token);
+      if (!recheckUser || recheckUser.credits_remaining <= 0) {
+        return {
+          statusCode: 402,
+          headers,
+          body: JSON.stringify({ error: 'No credits remaining. Please upgrade your plan.' }),
+        };
+      }
+      finalCreditCheck = recheckUser.credits_remaining;
+    } else {
+      // Supabase auth - re-check credits from database
+      const { data: recheckProfile, error: recheckError } = await supabase
+        .from('profiles')
+        .select('credits_remaining')
+        .eq('id', user.id)
+        .single();
+      
+      if (recheckError || !recheckProfile || (recheckProfile.credits_remaining || 0) <= 0) {
+        return {
+          statusCode: 402,
+          headers,
+          body: JSON.stringify({ error: 'No credits remaining. Please upgrade your plan.' }),
+        };
+      }
+      finalCreditCheck = recheckProfile.credits_remaining;
+    }
+    
+    console.log('Pre-generation credit check - Credits remaining:', finalCreditCheck);
+    
+    // Generate alt-text using Gemini with retry logic
+    let altText;
+    let lastError;
+    const maxRetries = 2;
+    
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        altText = await generateAltTextWithGemini(image_base64, context);
+        
+        // Validate alt-text is not empty
+        if (!altText || altText.trim().length === 0) {
+          throw new Error('Generated alt-text is empty');
+        }
+        
+        // Success - break out of retry loop
+        break;
+      } catch (geminiError) {
+        lastError = geminiError;
+        
+        // Don't retry on certain errors (auth, invalid input, etc.)
+        const errorMessage = geminiError.message || '';
+        if (errorMessage.includes('API key') || 
+            errorMessage.includes('invalid') || 
+            errorMessage.includes('leaked') ||
+            errorMessage.includes('reported') ||
+            attempt === maxRetries) {
+          // Return error immediately for non-retryable errors or last attempt
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ 
+              success: false,
+              error: geminiError.message || 'Failed to generate alt-text',
+              message: geminiError.message || 'Failed to generate alt-text'
+            }),
+          };
+        }
+        
+        // Wait before retry (exponential backoff)
+        if (attempt < maxRetries) {
+          await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+        }
+      }
+    }
+    
+    // If we get here and altText is still empty, return error
+    if (!altText || altText.trim().length === 0) {
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ 
+          success: false,
+          error: lastError?.message || 'Failed to generate alt-text',
+          message: lastError?.message || 'Failed to generate alt-text'
+        }),
+      };
+    }
 
     // Deduct credit and update usage
     let newCreditsRemaining = creditsRemaining - 1;
@@ -748,15 +872,66 @@ exports.handler = async (event, context) => {
         if (creditError) {
           console.error('RPC use_credit error:', creditError);
           // Fallback to direct update if RPC fails
-          console.log('RPC failed, using direct update');
-          await supabase
+          // IMPORTANT: Read current value first to ensure accuracy
+          console.log('RPC failed, using direct update with current values');
+          
+          // Get current values from database
+          const { data: currentProfile, error: readError } = await supabase
+            .from('profiles')
+            .select('credits_remaining, total_processed')
+            .eq('id', user.id)
+            .single();
+          
+          if (readError || !currentProfile) {
+            console.error('Failed to read current profile:', readError);
+            throw new Error('Failed to read user credits');
+          }
+          
+          // Calculate new values from current database values
+          const currentCredits = currentProfile.credits_remaining || 0;
+          const currentProcessed = currentProfile.total_processed || 0;
+          const calculatedCredits = Math.max(0, currentCredits - 1); // Prevent negative
+          const calculatedProcessed = currentProcessed + 1;
+          
+          // Update with calculated values
+          const { data: updateResult, error: updateError } = await supabase
             .from('profiles')
             .update({
-              credits_remaining: newCreditsRemaining,
-              total_processed: newTotalProcessed,
+              credits_remaining: calculatedCredits,
+              total_processed: calculatedProcessed,
               updated_at: new Date().toISOString()
             })
-            .eq('id', user.id);
+            .eq('id', user.id)
+            .select('credits_remaining, total_processed')
+            .single();
+          
+          if (updateError) {
+            console.error('Direct update also failed:', updateError);
+            throw updateError;
+          }
+          
+          // Update local variables with actual database values
+          if (updateResult) {
+            newCreditsRemaining = updateResult.credits_remaining;
+            newTotalProcessed = updateResult.total_processed;
+          } else {
+            newCreditsRemaining = calculatedCredits;
+            newTotalProcessed = calculatedProcessed;
+          }
+          
+          // Log usage since RPC didn't handle it
+          try {
+            await supabase
+              .from('usage_logs')
+              .insert({
+                user_id: user.id,
+                credits_used: 1,
+                alt_text_generated: altText,
+                image_context: context || null
+              });
+          } catch (logError) {
+            console.error('Failed to log usage:', logError);
+          }
         } else if (result) {
           // RPC returns JSON object with credits_remaining
           // Supabase RPC with JSON return type wraps it in an array sometimes
@@ -774,22 +949,82 @@ exports.handler = async (event, context) => {
           
           // Extract values from the result object
           if (creditResult && typeof creditResult === 'object') {
-            newCreditsRemaining = creditResult.credits_remaining || newCreditsRemaining;
-            newTotalProcessed = creditResult.total_processed || newTotalProcessed;
-            
-            // Check for error in result
+            // Check for error in result FIRST - before processing success
             if (creditResult.error) {
               console.error('use_credit returned error:', creditResult.error);
+              
+              // Check if it's a "no credits" error - return 402 status
+              if (creditResult.error.toLowerCase().includes('no credits') || 
+                  creditResult.error.toLowerCase().includes('credits remaining')) {
+                return {
+                  statusCode: 402,
+                  headers,
+                  body: JSON.stringify({ error: 'No credits remaining. Please upgrade your plan.' }),
+                };
+              }
+              
+              // For other errors, throw generic error
               throw new Error(creditResult.error);
             }
+            
+            newCreditsRemaining = creditResult.credits_remaining || newCreditsRemaining;
+            newTotalProcessed = creditResult.total_processed || newTotalProcessed;
             
             console.log('✅ Credits updated via RPC:', {
               credits_remaining: newCreditsRemaining,
               total_processed: newTotalProcessed
             });
           }
+          // Note: RPC use_credit already inserts into usage_logs, so no need to insert again
+        } else {
+          // No result, use direct update with current values
+          console.log('RPC returned no result, using direct update with current values');
           
-          // Also insert usage log if RPC didn't (safety check)
+          // Get current values from database
+          const { data: currentProfile, error: readError } = await supabase
+            .from('profiles')
+            .select('credits_remaining, total_processed')
+            .eq('id', user.id)
+            .single();
+          
+          if (readError || !currentProfile) {
+            console.error('Failed to read current profile:', readError);
+            throw new Error('Failed to read user credits');
+          }
+          
+          // Calculate new values from current database values
+          const currentCredits = currentProfile.credits_remaining || 0;
+          const currentProcessed = currentProfile.total_processed || 0;
+          const calculatedCredits = Math.max(0, currentCredits - 1); // Prevent negative
+          const calculatedProcessed = currentProcessed + 1;
+          
+          // Update with calculated values
+          const { data: updateResult, error: updateError } = await supabase
+            .from('profiles')
+            .update({
+              credits_remaining: calculatedCredits,
+              total_processed: calculatedProcessed,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', user.id)
+            .select('credits_remaining, total_processed')
+            .single();
+          
+          if (updateError) {
+            console.error('Direct update failed:', updateError);
+            throw updateError;
+          }
+          
+          // Update local variables with actual database values
+          if (updateResult) {
+            newCreditsRemaining = updateResult.credits_remaining;
+            newTotalProcessed = updateResult.total_processed;
+          } else {
+            newCreditsRemaining = calculatedCredits;
+            newTotalProcessed = calculatedProcessed;
+          }
+          
+          // Log usage since RPC didn't handle it
           try {
             await supabase
               .from('usage_logs')
@@ -800,35 +1035,71 @@ exports.handler = async (event, context) => {
                 image_context: context || null
               });
           } catch (logError) {
-            // Ignore if already logged by RPC
-            console.log('Usage log may already exist or RPC handled it');
+            console.error('Failed to log usage:', logError);
           }
-        } else {
-          // No result, use direct update
-          console.log('RPC returned no result, using direct update');
-          await supabase
-            .from('profiles')
-            .update({
-              credits_remaining: newCreditsRemaining,
-              total_processed: newTotalProcessed,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', user.id);
         }
       } catch (updateError) {
         console.error('Error updating credits:', updateError);
-        // Fallback to direct update
+        // Final fallback: Read current values and update
         try {
-          await supabase
+          // Get current values from database
+          const { data: currentProfile, error: readError } = await supabase
+            .from('profiles')
+            .select('credits_remaining, total_processed')
+            .eq('id', user.id)
+            .single();
+          
+          if (readError || !currentProfile) {
+            throw new Error('Failed to read user credits in fallback');
+          }
+          
+          // Calculate new values from current database values
+          const currentCredits = currentProfile.credits_remaining || 0;
+          const currentProcessed = currentProfile.total_processed || 0;
+          const calculatedCredits = Math.max(0, currentCredits - 1); // Prevent negative
+          const calculatedProcessed = currentProcessed + 1;
+          
+          // Update with calculated values
+          const { data: updateResult, error: finalUpdateError } = await supabase
             .from('profiles')
             .update({
-              credits_remaining: newCreditsRemaining,
-              total_processed: newTotalProcessed,
+              credits_remaining: calculatedCredits,
+              total_processed: calculatedProcessed,
               updated_at: new Date().toISOString()
             })
-            .eq('id', user.id);
+            .eq('id', user.id)
+            .select('credits_remaining, total_processed')
+            .single();
+          
+          if (finalUpdateError) {
+            throw finalUpdateError;
+          }
+          
+          // Update local variables
+          if (updateResult) {
+            newCreditsRemaining = updateResult.credits_remaining;
+            newTotalProcessed = updateResult.total_processed;
+          } else {
+            newCreditsRemaining = calculatedCredits;
+            newTotalProcessed = calculatedProcessed;
+          }
+          
+          // Log usage
+          try {
+            await supabase
+              .from('usage_logs')
+              .insert({
+                user_id: user.id,
+                credits_used: 1,
+                alt_text_generated: altText,
+                image_context: context || null
+              });
+          } catch (logError) {
+            console.error('Failed to log usage:', logError);
+          }
         } catch (directUpdateError) {
-          console.error('Direct update also failed:', directUpdateError);
+          console.error('Final fallback update also failed:', directUpdateError);
+          throw directUpdateError;
         }
       }
     }
@@ -847,9 +1118,9 @@ exports.handler = async (event, context) => {
   } catch (error) {
     console.error('Function error:', error);
     return {
-      statusCode: error.statusCode || 500,
+      statusCode: 500,
       headers,
-      body: JSON.stringify({ error: error.message || 'Internal server error' }),
+      body: JSON.stringify({ error: 'Internal server error' }),
     };
   }
 };

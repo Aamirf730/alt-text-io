@@ -12,7 +12,7 @@ if (!defined('ABSPATH')) {
     <div class="alt-text-ai-header">
         <div class="alt-text-ai-header-content">
             <div class="alt-text-ai-logo">
-                <span class="dashicons dashicons-images-alt2"></span>
+                <img src="<?php echo esc_url(ALT_TEXT_AI_PLUGIN_URL . 'assets/images/logo-alt-text-pro.png'); ?>" alt="Alt Text Pro" />
                 <h1><?php _e('Bulk Alt-Text Generation', 'alt-text-ai'); ?></h1>
             </div>
             <div class="alt-text-ai-header-actions">
@@ -254,6 +254,7 @@ jQuery(document).ready(function($) {
         processId: null,
         isProcessing: false,
         statusInterval: null,
+        processingBatches: {}, // Track batches being processed to prevent duplicates
         
         init: function() {
             this.bindEvents();
@@ -325,6 +326,7 @@ jQuery(document).ready(function($) {
                 type: 'POST',
                 data: {
                     action: 'alt_text_ai_bulk_start',
+                    process_type: processType,
                     batch_size: batchSize,
                     overwrite_existing: overwriteExisting,
                     selected_images: selectedImages,
@@ -334,33 +336,7 @@ jQuery(document).ready(function($) {
                     if (response.success) {
                         self.processId = response.data.process_id;
                         $('#estimated-time').text(response.data.estimated_time);
-                        
-                        // Update progress from initial batch
-                        if (response.data.initial_batch) {
-                            self.updateProgress({
-                                processed: response.data.initial_batch.total_processed,
-                                successful: response.data.initial_batch.successful,
-                                errors: response.data.initial_batch.errors || [],
-                                total_images: response.data.total_images,
-                                status: response.data.initial_batch.completed ? 'completed' : 'running'
-                            });
-                            
-                            if (response.data.initial_batch.completed) {
-                                self.completeProcessing({
-                                    processed: response.data.initial_batch.total_processed,
-                                    successful: response.data.initial_batch.successful,
-                                    errors: response.data.initial_batch.errors || [],
-                                    total_images: response.data.total_images,
-                                    status: 'completed'
-                                });
-                            } else {
-                                // Process next batch
-                                self.processNextBatch(response.data.initial_batch.next_offset, response.data.batch_size);
-                            }
-                        } else {
-                            // Fallback: start status polling
-                            self.startStatusPolling();
-                        }
+                        self.startStatusPolling();
                     } else {
                         self.showError(response.data || '<?php _e("Failed to start processing", "alt-text-ai"); ?>');
                         self.resetUI();
@@ -374,94 +350,6 @@ jQuery(document).ready(function($) {
                     });
                     self.showError('<?php _e("Failed to start processing", "alt-text-ai"); ?> (Check console for details)');
                     self.resetUI();
-                }
-            });
-        },
-        
-        processNextBatch: function(batchOffset, batchSize) {
-            var self = this;
-            
-            if (!this.isProcessing || !this.processId) {
-                return;
-            }
-            
-            $.ajax({
-                url: altTextAI.ajaxUrl,
-                type: 'POST',
-                timeout: 180000, // 3 minutes timeout
-                data: {
-                    action: 'alt_text_ai_bulk_process',
-                    process_id: this.processId,
-                    batch_offset: batchOffset,
-                    batch_size: batchSize,
-                    nonce: altTextAI.nonce
-                },
-                success: function(response) {
-                    if (response.success) {
-                        var batchData = response.data;
-                        
-                        console.log('Batch processing response:', response);
-                        
-                        // Get current status to update totals
-                        $.ajax({
-                            url: altTextAI.ajaxUrl,
-                            type: 'POST',
-                            data: {
-                                action: 'alt_text_ai_bulk_status',
-                                process_id: self.processId,
-                                nonce: altTextAI.nonce
-                            },
-                            success: function(statusResponse) {
-                                console.log('Status check response:', statusResponse);
-                                if (statusResponse.success) {
-                                    self.updateProgress(statusResponse.data);
-                                    
-                                    if (batchData.completed || statusResponse.data.status === 'completed') {
-                                        self.completeProcessing(statusResponse.data);
-                                    } else if (batchData.has_more) {
-                                        // Process next batch after a short delay
-                                        console.log('Processing next batch at offset: ' + batchData.next_offset);
-                                        setTimeout(function() {
-                                            self.processNextBatch(batchData.next_offset, batchSize);
-                                        }, 500);
-                                    } else {
-                                        // Check status one more time
-                                        console.log('No more batches, checking status...');
-                                        setTimeout(function() {
-                                            self.startStatusPolling();
-                                        }, 1000);
-                                    }
-                                }
-                            },
-                            error: function(xhr, status, error) {
-                                console.error('Status check error:', {status: status, error: error, response: xhr.responseText});
-                            }
-                        });
-                    } else {
-                        console.error('Batch processing failed:', response);
-                        self.showError(response.data || '<?php _e("Failed to process batch", "alt-text-ai"); ?>');
-                        // Fallback to status polling
-                        self.startStatusPolling();
-                    }
-                },
-                error: function(xhr, status, error) {
-                    console.error('Batch processing error:', {
-                        status: status,
-                        error: error,
-                        response: xhr.responseText
-                    });
-                    
-                    // If timeout, try to continue with next batch
-                    if (status === 'timeout') {
-                        console.log('Batch timeout, checking status and continuing...');
-                        // Check status and continue
-                        setTimeout(function() {
-                            self.startStatusPolling();
-                        }, 1000);
-                    } else {
-                        // Fallback to status polling
-                        self.startStatusPolling();
-                    }
                 }
             });
         },
@@ -487,8 +375,19 @@ jQuery(document).ready(function($) {
                         if (response.success) {
                             self.updateProgress(response.data);
                             
-                            if (response.data.status === 'completed' || response.data.status === 'cancelled') {
+                            // Check if processing is complete or stopped
+                            if (response.data.status === 'completed' || 
+                                response.data.status === 'cancelled' || 
+                                response.data.status === 'stopped_no_credits') {
                                 self.completeProcessing(response.data);
+                            } else if (response.data.needs_next_batch && response.data.next_batch_offset !== null) {
+                                // Only process next batch if status is still 'running'
+                                if (response.data.status === 'running') {
+                                    var batchKey = response.data.process_id + '_' + response.data.next_batch_offset;
+                                    if (!self.processingBatches || !self.processingBatches[batchKey]) {
+                                        self.processNextBatch(response.data.process_id, response.data.next_batch_offset);
+                                    }
+                                }
                             }
                         } else {
                             console.error('Bulk status check failed:', response);
@@ -503,6 +402,65 @@ jQuery(document).ready(function($) {
                     }
                 });
             }, 2000);
+        },
+        
+        processNextBatch: function(processId, batchOffset) {
+            var self = this;
+            
+            // Prevent duplicate batch processing
+            var batchKey = processId + '_' + batchOffset;
+            if (self.processingBatches && self.processingBatches[batchKey]) {
+                console.log('Batch already being processed, skipping:', batchKey);
+                return;
+            }
+            
+            // Mark this batch as being processed
+            if (!self.processingBatches) {
+                self.processingBatches = {};
+            }
+            self.processingBatches[batchKey] = true;
+            
+            // Clear the needs_next_batch flag by processing the batch
+            $.ajax({
+                url: altTextAI.ajaxUrl,
+                type: 'POST',
+                data: {
+                    action: 'alt_text_ai_bulk_process_batch',
+                    process_id: processId,
+                    batch_offset: batchOffset,
+                    nonce: altTextAI.nonce
+                },
+                success: function(response) {
+                    // Remove batch from processing list
+                    delete self.processingBatches[batchKey];
+                    
+                    if (response.success) {
+                        self.updateProgress(response.data);
+                        
+                        // Continue processing if needed
+                        if (response.data.needs_next_batch && response.data.next_batch_offset !== null) {
+                            // Process next batch after a short delay
+                            setTimeout(function() {
+                                self.processNextBatch(processId, response.data.next_batch_offset);
+                            }, 500);
+                        } else if (response.data.status === 'completed' || response.data.status === 'cancelled') {
+                            self.completeProcessing(response.data);
+                        }
+                    } else {
+                        console.error('Batch processing failed:', response);
+                    }
+                },
+                error: function(xhr, status, error) {
+                    // Remove batch from processing list on error
+                    delete self.processingBatches[batchKey];
+                    
+                    console.error('Batch processing error:', {
+                        status: status,
+                        error: error,
+                        response: xhr.responseText
+                    });
+                }
+            });
         },
         
         updateProgress: function(data) {
@@ -523,38 +481,113 @@ jQuery(document).ready(function($) {
             this.isProcessing = false;
             clearInterval(this.statusInterval);
             
-            // Update final progress
-            this.updateProgress(data);
+            // Update final progress to 100%
+            var percentage = data.total_images > 0 ? Math.round((data.processed / data.total_images) * 100) : 100;
+            $('#progress-fill').css('width', '100%');
+            $('#progress-text').text('100%');
+            $('#processed-count').text(data.processed + ' / ' + data.total_images);
+            $('#successful-count').text(data.successful || 0);
+            $('#error-count').text(data.errors ? data.errors.length : 0);
             
-            // Show results
-            $('#progress-status').text(data.status === 'completed' ? '<?php _e("Completed", "alt-text-ai"); ?>' : '<?php _e("Cancelled", "alt-text-ai"); ?>');
-            $('#results-card').show();
+            // Determine status message
+            var statusMessage = '<?php _e("Completed", "alt-text-ai"); ?>';
+            var isSuccess = true;
+            if (data.status === 'stopped_no_credits') {
+                statusMessage = '<?php _e("Stopped - Credits Exhausted", "alt-text-ai"); ?>';
+                isSuccess = false;
+            } else if (data.status === 'cancelled') {
+                statusMessage = '<?php _e("Cancelled", "alt-text-ai"); ?>';
+                isSuccess = false;
+            }
             
-            var summary = '<div class="results-summary-item">';
-            summary += '<strong><?php _e("Processing Complete", "alt-text-ai"); ?></strong><br>';
-            summary += '<?php _e("Total processed:", "alt-text-ai"); ?> ' + data.processed + '<br>';
-            summary += '<?php _e("Successful:", "alt-text-ai"); ?> ' + (data.successful || 0) + '<br>';
-            summary += '<?php _e("Errors:", "alt-text-ai"); ?> ' + (data.errors ? data.errors.length : 0);
+            $('#progress-status').text(statusMessage).css({
+                'font-weight': 'bold',
+                'font-size': '16px',
+                'color': isSuccess ? '#1AB5AC' : '#d63638'
+            });
+            
+            // Show results card with animation
+            $('#results-card').slideDown(400, function() {
+                // Scroll to results card after it's shown
+                $('html, body').animate({
+                    scrollTop: $('#results-card').offset().top - 100
+                }, 500);
+            });
+            
+            // Build summary with better formatting
+            var summary = '<div class="results-summary-item" style="padding: 20px; background: ' + (isSuccess ? '#f0fdf4' : '#fef2f2') + '; border-radius: 8px; border-left: 4px solid ' + (isSuccess ? '#1AB5AC' : '#d63638') + ';">';
+            if (data.status === 'stopped_no_credits') {
+                summary += '<strong style="color: #d63638; font-size: 18px; display: block; margin-bottom: 12px;"><?php _e("Processing Stopped - Credits Exhausted", "alt-text-ai"); ?></strong>';
+                summary += '<p style="color: #d63638; font-weight: bold; margin-bottom: 16px;"><?php _e("You have run out of credits. Please upgrade your plan or wait for next month\'s credit refill to continue processing.", "alt-text-ai"); ?></p>';
+            } else if (data.status === 'cancelled') {
+                summary += '<strong style="color: #d63638; font-size: 18px; display: block; margin-bottom: 12px;"><?php _e("Processing Cancelled", "alt-text-ai"); ?></strong>';
+            } else {
+                summary += '<strong style="color: #1AB5AC; font-size: 18px; display: block; margin-bottom: 12px;">✓ <?php _e("Processing Complete!", "alt-text-ai"); ?></strong>';
+            }
+            summary += '<div style="margin-top: 16px; line-height: 1.8;">';
+            summary += '<div><strong><?php _e("Total processed:", "alt-text-ai"); ?></strong> ' + data.processed + ' <?php _e("images", "alt-text-ai"); ?></div>';
+            summary += '<div><strong style="color: #1AB5AC;"><?php _e("Successful:", "alt-text-ai"); ?></strong> ' + (data.successful || 0) + ' <?php _e("images", "alt-text-ai"); ?></div>';
+            if (data.errors && data.errors.length > 0) {
+                summary += '<div><strong style="color: #d63638;"><?php _e("Errors:", "alt-text-ai"); ?></strong> ' + data.errors.length + ' <?php _e("images", "alt-text-ai"); ?></div>';
+            }
+            summary += '</div>';
             summary += '</div>';
             
             $('#results-summary').html(summary);
             
             // Show errors if any
             if (data.errors && data.errors.length > 0) {
-                var errorHtml = '<h4><?php _e("Errors:", "alt-text-ai"); ?></h4><ul>';
+                var errorHtml = '<div style="margin-top: 20px; padding: 16px; background: #fef2f2; border-radius: 8px; border-left: 4px solid #d63638;">';
+                errorHtml += '<h4 style="margin: 0 0 12px 0; color: #d63638;"><?php _e("Errors:", "alt-text-ai"); ?></h4><ul style="margin: 0; padding-left: 20px;">';
                 data.errors.forEach(function(error) {
-                    errorHtml += '<li>Image #' + error.image_id + ': ' + error.error + '</li>';
+                    var errorClass = error.error && error.error.toLowerCase().indexOf('credit') !== -1 ? ' style="color: #d63638; font-weight: bold;"' : '';
+                    errorHtml += '<li' + errorClass + ' style="margin-bottom: 8px;">Image #' + error.image_id + ': ' + error.error + '</li>';
                 });
-                errorHtml += '</ul>';
+                errorHtml += '</ul></div>';
                 $('#results-errors').html(errorHtml);
+            } else {
+                $('#results-errors').html('');
+            }
+            
+            // Show success notification
+            if (isSuccess && data.status === 'completed') {
+                this.showSuccessNotification('<?php _e("Bulk processing completed successfully!", "alt-text-ai"); ?>');
             }
             
             this.resetUI();
             
-            // Refresh page stats after a delay
+            // Refresh page stats after a longer delay to give users time to see results
             setTimeout(function() {
                 location.reload();
-            }, 3000);
+            }, 8000);
+        },
+        
+        showSuccessNotification: function(message) {
+            // Create and show a prominent success notification
+            var notification = $('<div>').css({
+                'position': 'fixed',
+                'top': '20px',
+                'right': '20px',
+                'background': 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)',
+                'color': 'white',
+                'padding': '20px 30px',
+                'border-radius': '8px',
+                'box-shadow': '0 4px 20px rgba(26, 181, 172, 0.3)',
+                'z-index': '100000',
+                'font-weight': '600',
+                'font-size': '16px',
+                'max-width': '400px',
+                'animation': 'slideInRight 0.3s ease-out'
+            }).html('✓ ' + message);
+            
+            $('body').append(notification);
+            
+            // Auto-hide after 5 seconds
+            setTimeout(function() {
+                notification.fadeOut(300, function() {
+                    $(this).remove();
+                });
+            }, 5000);
         },
         
         cancelProcessing: function() {

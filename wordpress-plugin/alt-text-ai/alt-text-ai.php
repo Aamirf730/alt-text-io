@@ -3,7 +3,7 @@
  * Plugin Name: Alt Text Pro
  * Plugin URI: https://www.alt-text.pro
  * Description: Automatically generate professional alt-text for your images using AI. Improve accessibility and SEO with our powerful SaaS integration.
- * Version: 1.0.1
+ * Version: 1.0.5
  * Author: Alt Text Pro
  * Author URI: https://www.alt-text.pro
  * License: GPL v2 or later
@@ -22,7 +22,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('ALT_TEXT_AI_VERSION', '1.0.1'); // Updated: Fixed auth-validate endpoint
+define('ALT_TEXT_AI_VERSION', '1.0.5'); // Updated: UI refresh with teal color scheme and logo
 define('ALT_TEXT_AI_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('ALT_TEXT_AI_PLUGIN_PATH', plugin_dir_path(__FILE__));
 define('ALT_TEXT_AI_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -172,9 +172,13 @@ class AltTextAI {
             'post-new.php',
             'media-upload-popup',
             'media-new.php',
-            'toplevel_page_alt-text-ai'
+            'toplevel_page_alt-text-ai',
+            'alt-text-ai_page_alt-text-ai-settings',
+            'alt-text-ai_page_alt-text-ai-bulk',
+            'alt-text-ai_page_alt-text-ai-logs'
         );
         
+        // Check if it's one of our plugin pages
         if (!in_array($hook, $allowed_pages) && strpos($hook, 'alt-text-ai') === false) {
             return;
         }

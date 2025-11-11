@@ -12,7 +12,7 @@ if (!defined('ABSPATH')) {
     <div class="alt-text-ai-header">
         <div class="alt-text-ai-header-content">
             <div class="alt-text-ai-logo">
-                <span class="dashicons dashicons-format-image"></span>
+                <img src="<?php echo esc_url(ALT_TEXT_AI_PLUGIN_URL . 'assets/images/logo-alt-text-pro.png'); ?>" alt="Alt Text Pro" />
                 <h1><?php _e('Alt Text Pro Dashboard', 'alt-text-ai'); ?></h1>
             </div>
             <div class="alt-text-ai-header-actions">
@@ -58,7 +58,20 @@ if (!defined('ABSPATH')) {
                     </div>
                     <div class="stats-card-content">
                         <div class="plan-info">
-                            <div class="plan-name"><?php echo esc_html($usage_stats['subscription_plan'] ?? $usage_stats['current_plan'] ?? 'Free'); ?></div>
+                            <div class="plan-name"><?php 
+                                // Display plan name - convert plan ID to readable name
+                                $plan_id = $usage_stats['subscription_plan'] ?? 'free';
+                                $plan_names = array(
+                                    'free' => __('Free Plan', 'alt-text-ai'),
+                                    'tier1' => __('Tier 1', 'alt-text-ai'),
+                                    'tier2' => __('Tier 2', 'alt-text-ai'),
+                                    'tier3' => __('Tier 3', 'alt-text-ai'),
+                                    'tier4' => __('Tier 4', 'alt-text-ai'),
+                                    'pay_as_go' => __('Pay as you go', 'alt-text-ai'),
+                                    'small_pack' => __('Small Pack', 'alt-text-ai')
+                                );
+                                echo esc_html($plan_names[$plan_id] ?? ucfirst($plan_id));
+                            ?></div>
                             <div class="credits-remaining">
                                 <span class="credits-number"><?php echo number_format($usage_stats['credits_remaining']); ?></span>
                                 <span class="credits-label"><?php _e('credits remaining', 'alt-text-ai'); ?></span>
@@ -66,16 +79,36 @@ if (!defined('ABSPATH')) {
                         </div>
                         <div class="usage-progress">
                             <?php 
-                            $total_processed = $usage_stats['total_processed'] ?? 0;
-                            $credits_remaining = $usage_stats['credits_remaining'] ?? 0;
-                            $total_credits = $total_processed + $credits_remaining;
-                            $usage_percentage = $total_credits > 0 ? ($total_processed / $total_credits) * 100 : 0;
+                            // Get values directly from API response (these are the source of truth)
+                            $credits_remaining = isset($usage_stats['credits_remaining']) ? intval($usage_stats['credits_remaining']) : 0;
+                            $total_credits = isset($usage_stats['total_credits']) ? intval($usage_stats['total_credits']) : 100;
+                            $credits_used_api = isset($usage_stats['credits_used']) ? intval($usage_stats['credits_used']) : null;
+                            
+                            // Calculate credits_used if not provided by API
+                            // Use API value if available, otherwise calculate from remaining
+                            if ($credits_used_api !== null) {
+                                // API provided credits_used - use it directly
+                                $credits_used = $credits_used_api;
+                            } else {
+                                // Calculate from total and remaining
+                                $credits_used = max(0, $total_credits - $credits_remaining);
+                            }
+                            
+                            // Ensure credits_used doesn't exceed total_credits (handle edge cases)
+                            $credits_used = min($credits_used, $total_credits);
+                            
+                            // Ensure credits_remaining is not negative
+                            $credits_remaining = max(0, $credits_remaining);
+                            
+                            // Calculate usage percentage
+                            $usage_percentage = $total_credits > 0 ? ($credits_used / $total_credits) * 100 : 0;
+                            $usage_percentage = min(100, max(0, $usage_percentage)); // Clamp between 0-100
                             ?>
                             <div class="progress-bar">
-                                <div class="progress-fill" style="width: <?php echo min(100, $usage_percentage); ?>%"></div>
+                                <div class="progress-fill" style="width: <?php echo $usage_percentage; ?>%"></div>
                             </div>
                             <div class="progress-text">
-                                <?php printf(__('%d of %d credits used', 'alt-text-ai'), $total_processed, $total_credits); ?>
+                                <?php printf(__('%d of %d credits used', 'alt-text-ai'), $credits_used, $total_credits); ?>
                             </div>
                         </div>
                     </div>

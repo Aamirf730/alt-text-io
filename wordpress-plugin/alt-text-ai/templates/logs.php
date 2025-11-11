@@ -12,7 +12,7 @@ if (!defined('ABSPATH')) {
     <div class="alt-text-ai-header">
         <div class="alt-text-ai-header-content">
             <div class="alt-text-ai-logo">
-                <span class="dashicons dashicons-list-view"></span>
+                <img src="<?php echo esc_url(ALT_TEXT_AI_PLUGIN_URL . 'assets/images/logo-alt-text-pro.png'); ?>" alt="Alt Text Pro" />
                 <h1><?php _e('Usage & Logs', 'alt-text-ai'); ?></h1>
             </div>
             <div class="alt-text-ai-header-actions">

@@ -17,8 +17,7 @@ class AltTextAI_Admin {
     public function __construct() {
         add_action('admin_menu', array($this, 'add_admin_menu'));
         add_action('admin_init', array($this, 'admin_init'));
-        add_filter('attachment_fields_to_edit', array($this, 'add_alt_text_field'), 10, 2);
-        add_filter('attachment_fields_to_save', array($this, 'save_alt_text_field'), 10, 2);
+        // Removed attachment_fields_to_edit filter - using meta box instead to avoid duplication
         add_action('add_meta_boxes', array($this, 'add_media_meta_boxes'));
     }
     

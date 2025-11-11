@@ -4,7 +4,7 @@ Tags: accessibility, alt-text, seo, ai, images, alt attribute, screen readers, w
 Requires at least: 5.0
 Tested up to: 6.4
 Requires PHP: 7.4
-Stable tag: 1.0.1
+Stable tag: 1.0.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -142,6 +142,31 @@ Yes, you can cancel your subscription at any time from your Alt Text Pro dashboa
 6. **Mobile Responsive** - Fully responsive design works on all devices
 
 == Changelog ==
+
+= 1.0.4 =
+* Fixed critical bug: Processing now stops immediately when credits are exhausted
+* Fixed dashboard credit calculation - now correctly displays credits used vs total
+* Improved error messages when credits run out during bulk processing
+* Added proper handling for credit exhaustion across all subscription plans
+* Fixed edge cases in credit display (negative values, exceeding totals)
+
+= 1.0.3 =
+* Fixed processing options - "Process images missing alt-text", "Process all images", and "Process selected images" now work correctly
+* Fixed overwrite existing alt-text checkbox logic
+* Improved batch size handling
+* Better separation of process type and overwrite settings
+
+= 1.0.2 =
+* Fixed successful count tracking in bulk processing
+* Improved progress tracking accuracy across batches
+* Enhanced data persistence for bulk process status
+* Added automatic verification of successful count vs actual processed images
+* Better error handling and debug logging for bulk operations
+
+= 1.0.1 =
+* Fixed API endpoint from auth/validate to auth-validate
+* Enhanced debug logging to show exact URLs
+* Better error handling for 404 responses
 
 = 1.0.0 =
 * Initial release

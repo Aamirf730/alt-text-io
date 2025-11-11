@@ -37,24 +37,26 @@
 
         // Settings page event bindings
         bindSettingsEvents: function() {
-            // API key visibility toggle - use event delegation for reliability
+            // API key visibility toggle
             $(document).on('click', '#toggle-api-key', function(e) {
                 e.preventDefault();
-                var $input = $('#api_key');
-                var $icon = $(this).find('.dashicons');
+                e.stopPropagation();
                 
-                if ($input.length === 0) {
-                    console.error('Alt Text Pro: API key input field not found');
-                    return;
-                }
+                var $input = $('#api_key');
+                var $button = $(this);
+                var $icon = $button.find('.dashicons');
                 
                 if ($input.attr('type') === 'password') {
                     $input.attr('type', 'text');
                     $icon.removeClass('dashicons-visibility').addClass('dashicons-hidden');
+                    $button.attr('aria-label', 'Hide API key');
                 } else {
                     $input.attr('type', 'password');
                     $icon.removeClass('dashicons-hidden').addClass('dashicons-visibility');
+                    $button.attr('aria-label', 'Show API key');
                 }
+                
+                return false;
             });
 
             // Test API connection
