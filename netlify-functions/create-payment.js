@@ -7,6 +7,13 @@ const { createClient } = require('@supabase/supabase-js');
 // Initialize Supabase client
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseUrl || !supabaseServiceKey) {
+  console.error('Supabase configuration missing:');
+  console.error('- SUPABASE_URL:', supabaseUrl ? 'Set' : 'NOT SET');
+  console.error('- SUPABASE_SERVICE_ROLE_KEY:', supabaseServiceKey ? 'Set' : 'NOT SET');
+}
+
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 // PayPal configuration
@@ -265,17 +272,48 @@ exports.handler = async (event, context) => {
       };
     }
 
-    const token = authHeader.replace('Bearer ', '');
+    const token = authHeader.replace('Bearer ', '').trim();
+    
+    // Verify Supabase is configured
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error('Supabase not configured properly');
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ 
+          error: 'Server configuration error',
+          details: 'Supabase credentials not configured'
+        }),
+      };
+    }
     
     // Verify user authentication
+    console.log('Verifying user token...');
     const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(token);
-    if (authError || !authUser) {
+    
+    if (authError) {
+      console.error('Token verification error:', authError);
+      console.error('Error message:', authError.message);
+      return {
+        statusCode: 401,
+        headers,
+        body: JSON.stringify({ 
+          error: 'Token signature verification failed',
+          details: authError.message || 'Invalid or expired token'
+        }),
+      };
+    }
+    
+    if (!authUser) {
+      console.error('No user returned from token verification');
       return {
         statusCode: 401,
         headers,
         body: JSON.stringify({ error: 'Invalid or expired token' }),
       };
     }
+    
+    console.log('User authenticated:', authUser.id);
 
     // Parse request body
     const { planId } = JSON.parse(event.body);
