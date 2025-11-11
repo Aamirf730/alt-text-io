@@ -1975,19 +1975,26 @@ const LandingPage = () => {
 
                           const result = await response.json();
                           
+                          console.log('Payment creation response:', result);
+                          
                           if (!response.ok) {
-                            throw new Error(result.error || 'Payment creation failed');
+                            console.error('Payment creation failed:', result);
+                            const errorMsg = result.error || result.details || 'Payment creation failed';
+                            throw new Error(errorMsg);
                           }
 
                           if (result.approvalUrl) {
                             // Redirect to PayPal approval page
                             window.location.href = result.approvalUrl;
                           } else {
-                            toast.error('Failed to get PayPal approval URL');
+                            console.error('No approval URL in response:', result);
+                            toast.error(`Failed to get PayPal approval URL. Response: ${JSON.stringify(result)}`);
                           }
                         } catch (error) {
                           console.error('PayPal subscription creation error:', error);
-                          toast.error('Failed to create subscription. Please try again.');
+                          const errorMessage = error.message || error.toString() || 'Failed to create subscription. Please try again.';
+                          console.error('Full error details:', error);
+                          toast.error(errorMessage);
                         }
                       }}
                       className="w-full bg-blue-600 hover:bg-blue-700 text-white"

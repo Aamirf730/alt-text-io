@@ -37,7 +37,10 @@ async function getPayPalAccessToken() {
 // Get PayPal Plan ID (from environment variable or create if needed)
 async function getPayPalPlanId(planId, planDetails, accessToken) {
   // First, check if we have a pre-created plan ID in environment variables
-  const envPlanId = process.env[`PAYPAL_PLAN_${planId.toUpperCase()}`];
+  const envVarName = `PAYPAL_PLAN_${planId.toUpperCase()}`;
+  const envPlanId = process.env[envVarName];
+  console.log(`Looking for ${envVarName}: ${envPlanId ? 'Found' : 'Not found'}`);
+  
   if (envPlanId) {
     console.log(`Using pre-created PayPal plan for ${planId}: ${envPlanId}`);
     return envPlanId;
@@ -112,51 +115,62 @@ async function getPayPalPlanId(planId, planDetails, accessToken) {
 
 // Create PayPal subscription
 async function createPayPalSubscription(planId, planDetails, returnUrl, cancelUrl, accessToken) {
-  // First, get the PayPal billing plan ID (from env or create)
-  const paypalPlanId = await getPayPalPlanId(planId, planDetails, accessToken);
-  
-  // Create subscription
-  const subscriptionData = {
-    plan_id: paypalPlanId,
-    start_time: new Date(Date.now() + 60000).toISOString(), // Start 1 minute from now
-    subscriber: {
-      name: {
-        given_name: 'Customer',
-        surname: 'Alt Text Pro'
-      }
-    },
-    application_context: {
-      brand_name: 'Alt Text Pro',
-      locale: 'en-US',
-      shipping_preference: 'NO_SHIPPING',
-      user_action: 'SUBSCRIBE_NOW',
-      payment_method: {
-        payer_selected: 'PAYPAL',
-        payee_preferred: 'IMMEDIATE_PAYMENT_REQUIRED'
+  try {
+    // First, get the PayPal billing plan ID (from env or create)
+    console.log(`Getting PayPal Plan ID for ${planId}...`);
+    const paypalPlanId = await getPayPalPlanId(planId, planDetails, accessToken);
+    console.log(`Using PayPal Plan ID: ${paypalPlanId}`);
+    
+    // Create subscription
+    const subscriptionData = {
+      plan_id: paypalPlanId,
+      start_time: new Date(Date.now() + 60000).toISOString(), // Start 1 minute from now
+      subscriber: {
+        name: {
+          given_name: 'Customer',
+          surname: 'Alt Text Pro'
+        }
       },
-      return_url: returnUrl,
-      cancel_url: cancelUrl
+      application_context: {
+        brand_name: 'Alt Text Pro',
+        locale: 'en-US',
+        shipping_preference: 'NO_SHIPPING',
+        user_action: 'SUBSCRIBE_NOW',
+        payment_method: {
+          payer_selected: 'PAYPAL',
+          payee_preferred: 'IMMEDIATE_PAYMENT_REQUIRED'
+        },
+        return_url: returnUrl,
+        cancel_url: cancelUrl
+      }
+    };
+
+    console.log('Creating PayPal subscription with data:', JSON.stringify(subscriptionData, null, 2));
+
+    const response = await fetch(`${PAYPAL_BASE_URL}/v1/billing/subscriptions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+        'PayPal-Request-Id': `SUB_${planId}_${Date.now()}`
+      },
+      body: JSON.stringify(subscriptionData)
+    });
+
+    const result = await response.json();
+    
+    if (!response.ok) {
+      console.error('PayPal subscription creation failed:', JSON.stringify(result, null, 2));
+      console.error('Response status:', response.status);
+      throw new Error(result.message || result.error_description || JSON.stringify(result) || 'Failed to create subscription');
     }
-  };
 
-  const response = await fetch(`${PAYPAL_BASE_URL}/v1/billing/subscriptions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${accessToken}`,
-      'PayPal-Request-Id': `SUB_${planId}_${Date.now()}`
-    },
-    body: JSON.stringify(subscriptionData)
-  });
-
-  const result = await response.json();
-  
-  if (!response.ok) {
-    console.error('PayPal subscription creation failed:', result);
-    throw new Error(result.message || 'Failed to create subscription');
+    console.log('PayPal subscription created successfully:', result.id);
+    return result;
+  } catch (error) {
+    console.error('Error in createPayPalSubscription:', error);
+    throw error;
   }
-
-  return result;
   }
 
 // Create one-time PayPal payment
