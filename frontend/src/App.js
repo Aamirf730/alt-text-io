@@ -3384,7 +3384,10 @@ const Dashboard = () => {
                       }
                     } catch (error) {
                       console.error('PayPal subscription creation error:', error);
-                      toast.error('Failed to create subscription. Please try again.');
+                      console.error('Error message:', error.message);
+                      console.error('Error stack:', error.stack);
+                      const errorMessage = error.message || error.toString() || 'Failed to create subscription. Please try again.';
+                      toast.error(errorMessage);
                     }
                   }}
                   className="w-full bg-blue-600 hover:bg-blue-700 text-white"
