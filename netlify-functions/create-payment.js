@@ -193,6 +193,8 @@ async function createPayPalSubscription(planId, planDetails, returnUrl, cancelUr
     }
 
     console.log('PayPal subscription created successfully:', result.id);
+    console.log('Full subscription response:', JSON.stringify(result, null, 2));
+    console.log('Subscription links:', result.links ? JSON.stringify(result.links, null, 2) : 'No links');
     return result;
   } catch (error) {
     console.error('Error in createPayPalSubscription:', error);
@@ -492,10 +494,44 @@ exports.handler = async (event, context) => {
 
     // Extract approval URL
     let approvalUrl = null;
-    if (paymentResult.links) {
-      const approvalLink = paymentResult.links.find(link => link.rel === 'approve' || link.rel === 'approve_url');
+    console.log('Extracting approval URL from payment result...');
+    console.log('Payment result links:', paymentResult.links ? JSON.stringify(paymentResult.links, null, 2) : 'No links array');
+    
+    if (paymentResult.links && Array.isArray(paymentResult.links)) {
+      // PayPal Subscriptions API uses 'approve' as the rel value
+      const approvalLink = paymentResult.links.find(link => 
+        link.rel === 'approve' || 
+        link.rel === 'approve_url' ||
+        link.rel === 'approval_url'
+      );
       approvalUrl = approvalLink ? approvalLink.href : null;
+      console.log('Found approval link:', approvalLink ? JSON.stringify(approvalLink, null, 2) : 'Not found');
+    } else if (isSubscription && paymentResult.id) {
+      // For subscriptions, if no links, construct the approval URL
+      // PayPal subscription approval URLs follow this pattern:
+      // https://www.paypal.com/webapps/billing/subscriptions?ba_token=XXXXX
+      // But we need to get it from the subscription details
+      console.log('No links found, subscription ID:', paymentResult.id);
+      // Try to get subscription details to find approval URL
+      try {
+        const subResponse = await fetch(`${PAYPAL_BASE_URL}/v1/billing/subscriptions/${paymentResult.id}`, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        const subDetails = await subResponse.json();
+        console.log('Subscription details:', JSON.stringify(subDetails, null, 2));
+        if (subDetails.links) {
+          const approveLink = subDetails.links.find(link => link.rel === 'approve');
+          approvalUrl = approveLink ? approveLink.href : null;
+        }
+      } catch (err) {
+        console.error('Error fetching subscription details:', err);
+      }
     }
+    
+    console.log('Final approval URL:', approvalUrl || 'NOT FOUND');
 
     return {
       statusCode: 200,
