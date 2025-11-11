@@ -211,7 +211,7 @@ exports.handler = async (event, context) => {
       user_uuid: authUser.id,
       new_plan: planId,
       payment_id: paymentId,
-      subscription_id: finalSubscriptionId
+      subscription_id_param: finalSubscriptionId
     });
     
     const { data: upgradeResult, error: upgradeError } = await supabase
@@ -219,7 +219,7 @@ exports.handler = async (event, context) => {
         user_uuid: authUser.id,
         new_plan: planId,
         payment_id: paymentId,
-        subscription_id: finalSubscriptionId
+        subscription_id_param: finalSubscriptionId
       });
 
     if (upgradeError) {
