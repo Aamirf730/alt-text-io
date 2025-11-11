@@ -33,6 +33,21 @@ async function getPayPalAccessToken() {
   return data.access_token;
 }
 
+// Get PayPal order details (to check if already captured)
+async function getPayPalOrder(orderId) {
+  const accessToken = await getPayPalAccessToken();
+  
+  const response = await fetch(`${PAYPAL_BASE_URL}/v2/checkout/orders/${orderId}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${accessToken}`,
+    },
+  });
+
+  return await response.json();
+}
+
 // Capture PayPal payment
 async function capturePayPalPayment(paymentId) {
   const accessToken = await getPayPalAccessToken();
@@ -187,7 +202,25 @@ exports.handler = async (event, context) => {
       }
     } else {
       // Handle one-time payment
-      paymentResult = await capturePayPalPayment(paymentId);
+      // First, check if order is already captured (if captured via PayPalButtons)
+      let orderDetails = await getPayPalOrder(paymentId);
+      
+      // If order is not yet captured, capture it
+      if (orderDetails.status === 'APPROVED') {
+        paymentResult = await capturePayPalPayment(paymentId);
+      } else if (orderDetails.status === 'COMPLETED') {
+        // Order already captured (e.g., by PayPalButtons in frontend)
+        paymentResult = orderDetails;
+      } else {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ 
+            error: 'Payment not in valid state',
+            status: orderDetails.status 
+          }),
+        };
+      }
       
       if (paymentResult.status !== 'COMPLETED') {
         return {
