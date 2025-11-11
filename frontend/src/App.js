@@ -55,6 +55,43 @@ const paypalOptions = {
   "disable-funding": "paylater,card"
 };
 
+// Footer Component (Reusable)
+const Footer = () => {
+  return (
+    <footer className="bg-white border-t border-gray-200 py-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex flex-col items-center text-center space-y-6">
+          {/* Logo & Company Info */}
+          <div className="flex items-center space-x-2">
+            <img 
+              src="/logo-alt-text-pro.png" 
+              alt="Alt Text Pro Logo" 
+              className="h-10 w-10 object-contain"
+            />
+            <span className="text-2xl font-bold text-gray-900">Alt Text Pro</span>
+          </div>
+          
+          <p className="text-gray-600 text-sm max-w-md">
+            Automatically generate alt text for images in over 130 languages.
+          </p>
+
+          {/* Links */}
+          <div className="flex flex-wrap justify-center gap-6 text-sm text-gray-600">
+            <Link to="/contact" className="hover:text-gray-900 transition-colors">Contact</Link>
+            <Link to="/terms" className="hover:text-gray-900 transition-colors">Terms & Conditions</Link>
+            <Link to="/privacy" className="hover:text-gray-900 transition-colors">Privacy Policy</Link>
+          </div>
+
+          {/* Copyright */}
+          <p className="text-gray-500 text-sm pt-4 border-t border-gray-200 w-full">
+            © 2024 Alt Text Pro. All rights reserved.
+          </p>
+        </div>
+      </div>
+    </footer>
+  );
+};
+
 // Landing Page Component
 const LandingPage = () => {
   const [email, setEmail] = useState("");
@@ -1802,37 +1839,7 @@ const LandingPage = () => {
       </section>
 
       {/* Footer */}
-      <footer className="bg-white border-t border-gray-200 py-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col items-center text-center space-y-6">
-            {/* Logo & Company Info */}
-            <div className="flex items-center space-x-2">
-              <img 
-                src="/logo-alt-text-pro.png" 
-                alt="Alt Text Pro Logo" 
-                className="h-10 w-10 object-contain"
-              />
-              <span className="text-2xl font-bold text-gray-900">Alt Text Pro</span>
-                </div>
-            
-            <p className="text-gray-600 text-sm max-w-md">
-                Automatically generate alt text for images in over 130 languages.
-              </p>
-
-            {/* Links */}
-            <div className="flex flex-wrap justify-center gap-6 text-sm text-gray-600">
-              <Link to="/contact" className="hover:text-gray-900 transition-colors">Contact</Link>
-              <Link to="/terms" className="hover:text-gray-900 transition-colors">Terms & Conditions</Link>
-              <Link to="/privacy" className="hover:text-gray-900 transition-colors">Privacy Policy</Link>
-            </div>
-
-            {/* Copyright */}
-            <p className="text-gray-500 text-sm pt-4 border-t border-gray-200 w-full">
-              © 2024 Alt Text Pro. All rights reserved.
-            </p>
-          </div>
-        </div>
-      </footer>
+      <Footer />
 
       {/* Auth Modal */}
       {showAuthForm && (
@@ -2987,7 +2994,8 @@ const Dashboard = () => {
                         <li>Paste this API key in the settings</li>
                         <li>Test the connection and start generating alt-text!</li>
                       </ol>
-                      <div className="mt-3">
+                      <div className="mt-3 flex items-center gap-2">
+                        <span className="text-xs text-gray-500">v1.0.6</span>
                         <a
                           href="/wordpress-plugin/alt-text-pro-plugin.zip"
                           download="alt-text-pro-plugin.zip"
@@ -3419,6 +3427,7 @@ const Dashboard = () => {
           </div>
         </div>
       )}
+      <Footer />
     </div>
   );
 };
@@ -4359,6 +4368,7 @@ const ContactPage = () => {
           </div>
         </div>
       </div>
+      <Footer />
     </div>
   );
 };
@@ -5246,6 +5256,7 @@ const TermsPage = () => {
           </div>
         </div>
       </div>
+      <Footer />
     </div>
   );
 };
@@ -5656,6 +5667,7 @@ const EmailConfirmation = () => {
           ) : null}
         </div>
       </div>
+      <Footer />
     </div>
   );
 };
