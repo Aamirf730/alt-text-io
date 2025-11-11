@@ -2086,101 +2086,66 @@ const LandingPage = () => {
                 </div>
 
                 <div className="mb-6">
-                  {/* For subscriptions, use PayPal's native subscription buttons */}
+                  {/* For subscriptions, use backend API to create subscription and redirect to PayPal */}
                   {(selectedPlan.id === 'tier1' || selectedPlan.id === 'tier2' || selectedPlan.id === 'tier3') ? (
-                    <PayPalScriptProvider options={paypalSubscriptionOptions}>
-                      <PayPalButtons
-                        style={{
-                          shape: 'pill',
-                          color: 'blue',
-                          layout: 'vertical',
-                          label: 'subscribe'
-                        }}
-                        createSubscription={async (data, actions) => {
-                          // Get the PayPal plan ID for this subscription tier
-                          const paypalPlanId = PAYPAL_PLAN_IDS[selectedPlan.id];
-                          if (!paypalPlanId) {
-                            throw new Error(`PayPal plan ID not found for ${selectedPlan.id}. Please configure REACT_APP_PAYPAL_PLAN_${selectedPlan.id.toUpperCase()} in environment variables.`);
+                    <Button
+                      onClick={async () => {
+                        try {
+                          const { data: { session } } = await supabase.auth.getSession();
+                          if (!session?.access_token) {
+                            toast.error('Please sign in to continue');
+                            return;
                           }
+
+                          let apiBase;
+                          if (window.location.hostname === 'localhost') {
+                            apiBase = process.env.REACT_APP_API_BASE || 'https://www.alt-text.pro/.netlify/functions';
+                          } else {
+                            apiBase = '/.netlify/functions';
+                          }
+
+                          console.log('Creating subscription via backend API for plan:', selectedPlan.id);
+
+                          const response = await fetch(`${apiBase}/create-payment`, {
+                            method: 'POST',
+                            headers: {
+                              'Content-Type': 'application/json',
+                              'Authorization': `Bearer ${session.access_token}`
+                            },
+                            body: JSON.stringify({
+                              planId: selectedPlan.id
+                            })
+                          });
+
+                          const result = await response.json();
                           
-                          console.log(`🔍 Creating subscription with plan ID: ${paypalPlanId} for ${selectedPlan.id}`);
-                          console.log(`🔍 All plan IDs:`, PAYPAL_PLAN_IDS);
+                          console.log('Payment creation response:', result);
                           
-                          // Create the subscription using PayPal's plan ID
-                          try {
-                            const result = await actions.subscription.create({
-                              plan_id: paypalPlanId
-                            });
-                            console.log(`✅ Subscription creation initiated:`, result);
-                            return result;
-                          } catch (error) {
-                            console.error(`❌ Subscription creation error:`, error);
-                            console.error(`❌ Plan ID used: ${paypalPlanId}`);
-                            throw error;
+                          if (!response.ok) {
+                            console.error('Payment creation failed:', result);
+                            const errorMsg = result.error || result.details || 'Payment creation failed';
+                            throw new Error(errorMsg);
                           }
-                        }}
-                        onApprove={async (data, actions) => {
-                          try {
-                            console.log('Subscription approved:', data);
-                            const { data: { session } } = await supabase.auth.getSession();
-                            if (!session?.access_token) {
-                              throw new Error('No valid session');
-                            }
 
-                            let apiBase;
-                            if (window.location.hostname === 'localhost') {
-                              apiBase = process.env.REACT_APP_API_BASE || 'https://www.alt-text.pro/.netlify/functions';
-                            } else {
-                              apiBase = '/.netlify/functions';
-                            }
-
-                            // For subscriptions, data.subscriptionID contains the subscription ID
-                            const subscriptionId = data.subscriptionID;
-                            console.log('Subscription ID:', subscriptionId);
-
-                            // Call our complete-payment function to update the database
-                            const response = await fetch(`${apiBase}/complete-payment`, {
-                              method: 'POST',
-                              headers: {
-                                'Content-Type': 'application/json',
-                                'Authorization': `Bearer ${session.access_token}`
-                              },
-                              body: JSON.stringify({
-                                paymentId: subscriptionId,
-                                planId: selectedPlan.id,
-                                subscriptionId: subscriptionId
-                              })
-                            });
-
-                            const result = await response.json();
-                            
-                            if (!response.ok) {
-                              throw new Error(result.error || result.details || 'Payment completion failed');
-                            }
-
-                            toast.success(`Successfully subscribed to ${selectedPlan.name}!`);
-                            setShowPaymentModal(false);
-                            setSelectedPlan(null);
-                            
-                            // Refresh page or redirect to dashboard
-                            setTimeout(() => {
-                              window.location.href = '/dashboard';
-                            }, 1500);
-                          } catch (error) {
-                            console.error('Subscription approval error:', error);
-                            toast.error(error.message || 'Failed to complete subscription. Please contact support.');
+                          if (result.approvalUrl) {
+                            console.log('Redirecting to PayPal approval URL:', result.approvalUrl);
+                            // Redirect to PayPal approval page
+                            window.location.href = result.approvalUrl;
+                          } else {
+                            console.error('No approval URL in response:', result);
+                            toast.error(`Failed to get PayPal approval URL. Response: ${JSON.stringify(result)}`);
                           }
-                        }}
-                        onError={(error) => {
-                          console.error('PayPal subscription error:', error);
-                          toast.error('Subscription failed. Please try again.');
-                        }}
-                        onCancel={(data) => {
-                          console.log('Subscription cancelled:', data);
-                          toast.info('Subscription cancelled');
-                        }}
-                      />
-                    </PayPalScriptProvider>
+                        } catch (error) {
+                          console.error('PayPal subscription creation error:', error);
+                          const errorMessage = error.message || error.toString() || 'Failed to create subscription. Please try again.';
+                          console.error('Full error details:', error);
+                          toast.error(errorMessage);
+                        }
+                      }}
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                      Subscribe with PayPal
+                    </Button>
                   ) : (
                   <PayPalScriptProvider options={paypalOptions}>
                     <PayPalButtons
@@ -3387,98 +3352,64 @@ const Dashboard = () => {
             </div>
 
             <div className="mb-6">
-              {/* For subscriptions, use a regular button that redirects to PayPal */}
+              {/* For subscriptions, use backend API to create subscription and redirect to PayPal */}
               {(selectedUpgradePlan.id === 'tier1' || selectedUpgradePlan.id === 'tier2' || selectedUpgradePlan.id === 'tier3') ? (
-                <PayPalScriptProvider options={paypalSubscriptionOptions}>
-                  <PayPalButtons
-                    style={{
-                      shape: 'pill',
-                      color: 'blue',
-                      layout: 'vertical',
-                      label: 'subscribe'
-                    }}
-                    createSubscription={async (data, actions) => {
-                      // Get the PayPal plan ID for this subscription tier
-                      const paypalPlanId = PAYPAL_PLAN_IDS[selectedUpgradePlan.id];
-                      if (!paypalPlanId) {
-                        throw new Error(`PayPal plan ID not found for ${selectedUpgradePlan.id}. Please configure PAYPAL_PLAN_${selectedUpgradePlan.id.toUpperCase()} in environment variables.`);
+                <Button
+                  onClick={async () => {
+                    try {
+                      if (!user?.token) {
+                        toast.error('Please sign in to continue');
+                        return;
                       }
+
+                      let apiBase;
+                      if (window.location.hostname === 'localhost') {
+                        apiBase = process.env.REACT_APP_API_BASE || 'https://www.alt-text.pro/.netlify/functions';
+                      } else {
+                        apiBase = '/.netlify/functions';
+                      }
+
+                      console.log('Creating subscription via backend API for plan:', selectedUpgradePlan.id);
+
+                      const response = await fetch(`${apiBase}/create-payment`, {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          'Authorization': `Bearer ${user.token}`
+                        },
+                        body: JSON.stringify({
+                          planId: selectedUpgradePlan.id
+                        })
+                      });
+
+                      const result = await response.json();
                       
-                      console.log(`🔍 Creating subscription with plan ID: ${paypalPlanId} for ${selectedUpgradePlan.id}`);
-                      console.log(`🔍 All plan IDs:`, PAYPAL_PLAN_IDS);
+                      console.log('Payment creation response:', result);
                       
-                      // Create the subscription using PayPal's plan ID
-                      try {
-                        const result = await actions.subscription.create({
-                          plan_id: paypalPlanId
-                        });
-                        console.log(`✅ Subscription creation initiated:`, result);
-                        return result;
-                      } catch (error) {
-                        console.error(`❌ Subscription creation error:`, error);
-                        console.error(`❌ Plan ID used: ${paypalPlanId}`);
-                        throw error;
+                      if (!response.ok) {
+                        console.error('Payment creation failed:', result);
+                        throw new Error(result.error || result.details || 'Payment creation failed');
                       }
-                    }}
-                    onApprove={async (data, actions) => {
-                      try {
-                        console.log('Subscription approved:', data);
-                        if (!user?.token) {
-                          throw new Error('No valid session');
-                        }
 
-                        let apiBase;
-                        if (window.location.hostname === 'localhost') {
-                          apiBase = process.env.REACT_APP_API_BASE || 'https://www.alt-text.pro/.netlify/functions';
-                        } else {
-                          apiBase = '/.netlify/functions';
-                        }
-
-                        // For subscriptions, data.subscriptionID contains the subscription ID
-                        const subscriptionId = data.subscriptionID;
-                        console.log('Subscription ID:', subscriptionId);
-
-                        // Call our complete-payment function to update the database
-                        const response = await fetch(`${apiBase}/complete-payment`, {
-                          method: 'POST',
-                          headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${user.token}`
-                          },
-                          body: JSON.stringify({
-                            paymentId: subscriptionId,
-                            planId: selectedUpgradePlan.id,
-                            subscriptionId: subscriptionId
-                          })
-                        });
-
-                        const result = await response.json();
-                        
-                        if (!response.ok) {
-                          throw new Error(result.error || result.details || 'Payment completion failed');
-                        }
-
-                        toast.success(`Successfully subscribed to ${selectedUpgradePlan.name}!`);
-                        setShowUpgradeModal(false);
-                        setSelectedUpgradePlan(null);
-                        
-                        // Reload dashboard data
-                        await loadDashboard();
-                      } catch (error) {
-                        console.error('Subscription approval error:', error);
-                        toast.error(error.message || 'Failed to complete subscription. Please contact support.');
+                      if (result.approvalUrl) {
+                        console.log('Redirecting to PayPal approval URL:', result.approvalUrl);
+                        // Redirect to PayPal approval page
+                        window.location.href = result.approvalUrl;
+                      } else {
+                        console.error('No approval URL in response:', result);
+                        toast.error(`Failed to get PayPal approval URL. Response: ${JSON.stringify(result)}`);
                       }
-                    }}
-                    onError={(error) => {
-                      console.error('PayPal subscription error:', error);
-                      toast.error('Subscription failed. Please try again.');
-                    }}
-                    onCancel={(data) => {
-                      console.log('Subscription cancelled:', data);
-                      toast.info('Subscription cancelled');
-                    }}
-                  />
-                </PayPalScriptProvider>
+                    } catch (error) {
+                      console.error('PayPal subscription creation error:', error);
+                      const errorMessage = error.message || error.toString() || 'Failed to create subscription. Please try again.';
+                      console.error('Full error details:', error);
+                      toast.error(errorMessage);
+                    }
+                  }}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  Subscribe with PayPal
+                </Button>
               ) : (
               <PayPalScriptProvider options={paypalOptions}>
                 <PayPalButtons
