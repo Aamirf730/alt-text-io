@@ -122,7 +122,10 @@ const LandingPage = () => {
   // Close mobile menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (isMobileMenuOpen && !event.target.closest('.mobile-menu-container')) {
+      // Don't close if clicking the menu button or inside the menu
+      if (isMobileMenuOpen && 
+          !event.target.closest('.mobile-menu-container') && 
+          !event.target.closest('button[aria-label="Toggle mobile menu"]')) {
         setIsMobileMenuOpen(false);
       }
     };
@@ -752,10 +755,13 @@ const LandingPage = () => {
             </div>
 
             {/* Mobile menu button */}
-            <div className="lg:hidden">
+            <div className="lg:hidden relative z-50">
               <button 
-                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsMobileMenuOpen(!isMobileMenuOpen);
+                }}
+                className="p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors relative z-50"
                 aria-label="Toggle mobile menu"
               >
                 {isMobileMenuOpen ? (
@@ -4686,6 +4692,8 @@ function App() {
               </div>
             </div>
           } />
+          <Route path="/admin" element={<AdminLogin />} />
+          <Route path="/admin/dashboard" element={<AdminDashboard />} />
         </Routes>
       </BrowserRouter>
       <Toaster />
