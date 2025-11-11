@@ -1822,8 +1822,8 @@ const LandingPage = () => {
             {/* Links */}
             <div className="flex flex-wrap justify-center gap-6 text-sm text-gray-600">
               <Link to="/contact" className="hover:text-gray-900 transition-colors">Contact</Link>
-              <a href="#" className="hover:text-gray-900 transition-colors">Terms & Conditions</a>
-              <a href="#" className="hover:text-gray-900 transition-colors">Privacy Policy</a>
+              <Link to="/terms" className="hover:text-gray-900 transition-colors">Terms & Conditions</Link>
+              <Link to="/privacy" className="hover:text-gray-900 transition-colors">Privacy Policy</Link>
             </div>
 
             {/* Copyright */}
@@ -2708,24 +2708,27 @@ const Dashboard = () => {
         <div className="mb-8">
           <div className="flex items-center justify-between mb-2">
             <h1 className="text-3xl font-bold text-gray-800">Dashboard</h1>
-            <a
-              href="/wordpress-plugin/alt-text-pro-plugin.zip"
-              download="alt-text-pro-plugin.zip"
-              className="inline-flex items-center px-4 py-2 text-sm font-medium transition-colors rounded-lg"
-              style={{ 
-                background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)',
-                color: 'white'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)';
-              }}
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Download Plugin
-            </a>
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-gray-500">v1.0.6</span>
+              <a
+                href="/wordpress-plugin/alt-text-pro-plugin.zip"
+                download="alt-text-pro-plugin.zip"
+                className="inline-flex items-center px-4 py-2 text-sm font-medium transition-colors rounded-lg"
+                style={{ 
+                  background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)',
+                  color: 'white'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)';
+                }}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Download Plugin
+              </a>
+            </div>
           </div>
           <p className="text-gray-600">Manage your Alt Text Pro subscription and test the service</p>
         </div>
@@ -4525,6 +4528,1001 @@ const PaymentSuccess = () => {
   );
 };
 
+// Admin Dashboard Component
+const AdminDashboard = () => {
+  const [user, setUser] = useState(null);
+  const [users, setUsers] = useState([]);
+  const [stats, setStats] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterPlan, setFilterPlan] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [selectedUser, setSelectedUser] = useState(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const checkAuthAndLoadData = async () => {
+      try {
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError || !session) {
+          toast.error("Please sign in to access the admin dashboard");
+          navigate("/");
+          return;
+        }
+        
+        setUser({ 
+          email: session.user.email, 
+          id: session.user.id,
+          token: session.access_token
+        });
+        
+        await loadUsers(session.access_token);
+      } catch (error) {
+        console.error("Error checking auth:", error);
+        toast.error("Authentication error");
+        navigate("/");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    checkAuthAndLoadData();
+  }, [navigate]);
+
+  const loadUsers = async (token) => {
+    try {
+      let apiBase;
+      if (window.location.hostname === 'localhost') {
+        apiBase = process.env.REACT_APP_API_BASE || 'https://www.alt-text.pro/.netlify/functions';
+      } else {
+        apiBase = '/.netlify/functions';
+      }
+
+      const response = await fetch(`${apiBase}/admin-get-users`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.status === 403) {
+        toast.error("Access denied. Superuser privileges required.");
+        navigate("/");
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(`API returned status ${response.status}`);
+      }
+
+      const result = await response.json();
+      if (result.success && result.data) {
+        setUsers(result.data.users || []);
+        setStats(result.data.stats || null);
+      } else {
+        throw new Error('Invalid API response format');
+      }
+    } catch (error) {
+      console.error("Error loading users:", error);
+      toast.error("Failed to load users. Please try again.");
+    }
+  };
+
+  const handleRefresh = async () => {
+    if (user?.token) {
+      setIsLoading(true);
+      await loadUsers(user.token);
+      setIsLoading(false);
+      toast.success("Users refreshed");
+    }
+  };
+
+  const filteredUsers = users.filter(user => {
+    const matchesSearch = 
+      user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.id?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesPlan = filterPlan === "all" || user.subscription_plan === filterPlan;
+    const matchesStatus = filterStatus === "all" || user.subscription_status === filterStatus;
+    return matchesSearch && matchesPlan && matchesStatus;
+  });
+
+  const formatDate = (dateString) => {
+    if (!dateString) return "N/A";
+    return new Date(dateString).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+  };
+
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD"
+    }).format(amount || 0);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4" 
+               style={{ borderColor: '#1AB5AC' }}></div>
+          <p className="text-gray-600">Loading admin dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      {/* Header */}
+      <div className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
+              <p className="text-gray-600 mt-1">Manage users, credits, and subscriptions</p>
+            </div>
+            <div className="flex items-center space-x-4">
+              <Button
+                onClick={handleRefresh}
+                variant="outline"
+                className="flex items-center space-x-2"
+              >
+                <RefreshCw className="h-4 w-4" />
+                <span>Refresh</span>
+              </Button>
+              <Button
+                onClick={async () => {
+                  await supabase.auth.signOut();
+                  navigate("/");
+                  toast.success("Signed out");
+                }}
+                variant="outline"
+              >
+                Sign Out
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Statistics Cards */}
+        {stats && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium text-gray-600">Total Users</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-gray-900">{users.length}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium text-gray-600">Total Revenue</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-green-600">{formatCurrency(stats.total_revenue)}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium text-gray-600">Active Users</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-blue-600">{stats.active_users}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium text-gray-600">Total Credits Used</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-purple-600">{stats.total_credits_used.toLocaleString()}</div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Filters */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Filters</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">Search</label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    type="text"
+                    placeholder="Search by email or ID..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">Plan</label>
+                <select
+                  value={filterPlan}
+                  onChange={(e) => setFilterPlan(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500"
+                >
+                  <option value="all">All Plans</option>
+                  <option value="free">Free</option>
+                  <option value="tier1">Tier 1</option>
+                  <option value="tier2">Tier 2</option>
+                  <option value="tier3">Tier 3</option>
+                  <option value="pay_as_go">Pay as You Go</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">Status</label>
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500"
+                >
+                  <option value="all">All Statuses</option>
+                  <option value="active">Active</option>
+                  <option value="cancelled">Cancelled</option>
+                  <option value="expired">Expired</option>
+                  <option value="pending">Pending</option>
+                </select>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Users Table */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Users ({filteredUsers.length})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Email</th>
+                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Plan</th>
+                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Status</th>
+                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Credits</th>
+                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Processed</th>
+                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Total Paid</th>
+                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Created</th>
+                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredUsers.length === 0 ? (
+                    <tr>
+                      <td colSpan="8" className="text-center py-8 text-gray-500">
+                        No users found
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredUsers.map((userData) => (
+                      <tr key={userData.id} className="border-b hover:bg-gray-50">
+                        <td className="py-3 px-4">
+                          <div className="font-medium text-gray-900">{userData.email}</div>
+                          <div className="text-xs text-gray-500 font-mono">{userData.id.substring(0, 8)}...</div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <Badge className="bg-purple-100 text-purple-700">
+                            {userData.subscription_plan || "free"}
+                          </Badge>
+                        </td>
+                        <td className="py-3 px-4">
+                          <Badge 
+                            className={
+                              userData.subscription_status === "active" 
+                                ? "bg-green-100 text-green-700"
+                                : userData.subscription_status === "cancelled"
+                                ? "bg-red-100 text-red-700"
+                                : "bg-yellow-100 text-yellow-700"
+                            }
+                          >
+                            {userData.subscription_status || "active"}
+                          </Badge>
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="font-semibold">{userData.credits_remaining || 0}</div>
+                          <div className="text-xs text-gray-500">
+                            Used: {userData.total_credits_used || 0}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="font-semibold">{userData.total_processed || 0}</div>
+                          <div className="text-xs text-gray-500">
+                            Logs: {userData.total_usage_count || 0}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="font-semibold text-green-600">
+                            {formatCurrency(userData.total_paid || 0)}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {userData.payment_count || 0} payment(s)
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-sm text-gray-600">
+                          {formatDate(userData.created_at)}
+                        </td>
+                        <td className="py-3 px-4">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setSelectedUser(userData)}
+                          >
+                            View Details
+                          </Button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* User Details Modal */}
+      {selectedUser && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <Card className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <CardTitle>User Details</CardTitle>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedUser(null)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-gray-700">Email</label>
+                <p className="text-gray-900">{selectedUser.email}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700">User ID</label>
+                <p className="text-gray-900 font-mono text-sm">{selectedUser.id}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Subscription Plan</label>
+                  <p className="text-gray-900">
+                    <Badge className="bg-purple-100 text-purple-700">
+                      {selectedUser.subscription_plan || "free"}
+                    </Badge>
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Subscription Status</label>
+                  <p className="text-gray-900">
+                    <Badge 
+                      className={
+                        selectedUser.subscription_status === "active" 
+                          ? "bg-green-100 text-green-700"
+                          : "bg-red-100 text-red-700"
+                      }
+                    >
+                      {selectedUser.subscription_status || "active"}
+                    </Badge>
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Credits Remaining</label>
+                  <p className="text-2xl font-bold text-gray-900">{selectedUser.credits_remaining || 0}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Total Processed</label>
+                  <p className="text-2xl font-bold text-gray-900">{selectedUser.total_processed || 0}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Total Credits Used</label>
+                  <p className="text-gray-900">{selectedUser.total_credits_used || 0}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Total Usage Count</label>
+                  <p className="text-gray-900">{selectedUser.total_usage_count || 0}</p>
+                </div>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700">Total Paid</label>
+                <p className="text-2xl font-bold text-green-600">
+                  {formatCurrency(selectedUser.total_paid || 0)}
+                </p>
+                <p className="text-sm text-gray-500">
+                  {selectedUser.payment_count || 0} payment(s)
+                </p>
+              </div>
+              {selectedUser.latest_payment && (
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Latest Payment</label>
+                  <div className="bg-gray-50 p-3 rounded-md">
+                    <p className="text-sm">
+                      <span className="font-semibold">Amount:</span> {formatCurrency(selectedUser.latest_payment.amount)}
+                    </p>
+                    <p className="text-sm">
+                      <span className="font-semibold">Status:</span> {selectedUser.latest_payment.status}
+                    </p>
+                    <p className="text-sm">
+                      <span className="font-semibold">Plan:</span> {selectedUser.latest_payment.plan_id}
+                    </p>
+                    <p className="text-sm">
+                      <span className="font-semibold">Date:</span> {formatDate(selectedUser.latest_payment.created_at)}
+                    </p>
+                  </div>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Created At</label>
+                  <p className="text-gray-900">{formatDate(selectedUser.created_at)}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Updated At</label>
+                  <p className="text-gray-900">{formatDate(selectedUser.updated_at)}</p>
+                </div>
+              </div>
+              {selectedUser.next_billing_date && (
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Next Billing Date</label>
+                  <p className="text-gray-900">{formatDate(selectedUser.next_billing_date)}</p>
+                </div>
+              )}
+              {selectedUser.expires_at && (
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Expires At</label>
+                  <p className="text-gray-900">{formatDate(selectedUser.expires_at)}</p>
+                </div>
+              )}
+              {selectedUser.subscription_id && (
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Subscription ID</label>
+                  <p className="text-gray-900 font-mono text-sm">{selectedUser.subscription_id}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Terms & Conditions Page Component
+const TermsPage = () => {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      {/* Navigation Header */}
+      <nav className="sticky top-0 z-50 py-4">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="bg-white rounded-full shadow-lg border border-gray-100 px-6 py-3" style={{
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05)'
+          }}>
+            <div className="flex items-center justify-between h-12">
+              <div className="flex items-center">
+                <Link to="/" className="flex items-center space-x-3">
+                  <img 
+                    src="/logo-alt-text-pro.png" 
+                    alt="Alt Text Pro Logo" 
+                    className="h-10 w-10 object-contain"
+                  />
+                  <span className="text-2xl font-bold text-gray-900">Alt Text Pro</span>
+                </Link>
+              </div>
+              <div className="hidden lg:flex items-center space-x-12">
+                <a href="/#pricing" className="text-gray-700 hover:text-gray-900 font-medium transition-colors">Pricing</a>
+                <Link to="/contact" className="text-gray-700 hover:text-gray-900 font-medium transition-colors">Contact</Link>
+                <Link to="/docs" className="text-gray-700 hover:text-gray-900 font-medium transition-colors">Docs</Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      {/* Content */}
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="bg-white rounded-2xl shadow-xl p-8 md:p-12">
+          <h1 className="text-4xl font-bold text-gray-900 mb-2">Terms & Conditions</h1>
+          <p className="text-gray-600 mb-8">Last updated: November 2024</p>
+
+          <div className="prose prose-lg max-w-none space-y-8">
+            <section>
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4">1. Introduction and Acceptance</h2>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                Welcome to Alt Text Pro ("we," "our," or "us"). These Terms & Conditions ("Terms") govern your access to and use of our AI-powered alt-text generation service, including our website, API, and WordPress plugin (collectively, the "Service").
+              </p>
+              <p className="text-gray-700 leading-relaxed">
+                By accessing or using our Service, you agree to be bound by these Terms. If you do not agree to these Terms, you may not use the Service.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4">2. Service Description</h2>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                Alt Text Pro is an AI-powered service that automatically generates descriptive alt text for images using Google Gemini AI technology. Our Service includes:
+              </p>
+              <ul className="list-disc list-inside text-gray-700 space-y-2 ml-4">
+                <li>Web-based alt-text generation tool</li>
+                <li>RESTful API for programmatic access</li>
+                <li>WordPress plugin for automated alt-text generation</li>
+                <li>Support for over 130 languages</li>
+                <li>Bulk processing capabilities</li>
+              </ul>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4">3. Account Registration and User Responsibilities</h2>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                To use our Service, you must:
+              </p>
+              <ul className="list-disc list-inside text-gray-700 space-y-2 ml-4 mb-4">
+                <li>Create an account with a valid email address</li>
+                <li>Provide accurate and complete information</li>
+                <li>Maintain the security of your account credentials</li>
+                <li>Be at least 18 years old or have parental consent</li>
+              </ul>
+              <p className="text-gray-700 leading-relaxed">
+                You are responsible for all activities that occur under your account. You must immediately notify us of any unauthorized use of your account.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4">4. Subscription Plans and Pricing</h2>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                We offer the following subscription plans:
+              </p>
+              <div className="bg-gray-50 rounded-lg p-6 mb-4">
+                <ul className="space-y-3 text-gray-700">
+                  <li><strong>Free Plan:</strong> $0/month - 100 credits per month</li>
+                  <li><strong>Tier 1:</strong> $12/month - 1,000 credits per month</li>
+                  <li><strong>Tier 2:</strong> $20/month - 2,500 credits per month</li>
+                  <li><strong>Tier 3:</strong> $40/month - 5,000 credits per month</li>
+                  <li><strong>Pay as you go:</strong> $5 one-time - 500 credits (no expiration)</li>
+                  <li><strong>Small Pack:</strong> $3 one-time - 100 credits (no expiration)</li>
+                </ul>
+              </div>
+              <p className="text-gray-700 leading-relaxed">
+                All prices are in USD. Subscription plans renew automatically on a monthly basis unless cancelled. Credits reset at the beginning of each billing cycle for subscription plans. One-time credit packs do not expire.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4">5. Payment Terms</h2>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                Payments are processed through PayPal. By subscribing, you authorize us to charge your PayPal account for the subscription fee on a recurring monthly basis.
+              </p>
+              <ul className="list-disc list-inside text-gray-700 space-y-2 ml-4">
+                <li>Subscription fees are charged in advance for each billing period</li>
+                <li>One-time payments are charged immediately upon purchase</li>
+                <li>All fees are non-refundable except as required by law</li>
+                <li>If payment fails, your account may be suspended until payment is received</li>
+                <li>We reserve the right to change our pricing with 30 days' notice</li>
+              </ul>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4">6. Cancellation and Refund Policy</h2>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                You may cancel your subscription at any time through your PayPal account or by contacting us. Cancellation will take effect at the end of your current billing period.
+              </p>
+              <ul className="list-disc list-inside text-gray-700 space-y-2 ml-4">
+                <li>No refunds are provided for partial billing periods</li>
+                <li>Unused credits expire at the end of the billing period for subscription plans</li>
+                <li>One-time credit packs are non-refundable</li>
+                <li>Refunds may be provided at our sole discretion in exceptional circumstances</li>
+              </ul>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4">7. API Usage Terms</h2>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                If you use our API:
+              </p>
+              <ul className="list-disc list-inside text-gray-700 space-y-2 ml-4">
+                <li>You must keep your API key secure and confidential</li>
+                <li>You are responsible for all API usage under your account</li>
+                <li>You must not share your API key with third parties</li>
+                <li>You must comply with rate limits and usage restrictions</li>
+                <li>We reserve the right to revoke API access for violations of these Terms</li>
+              </ul>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4">8. WordPress Plugin Usage</h2>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                Our WordPress plugin is provided "as is" for use with WordPress websites. By using the plugin:
+              </p>
+              <ul className="list-disc list-inside text-gray-700 space-y-2 ml-4">
+                <li>You must have a valid Alt Text Pro account with active credits</li>
+                <li>You are responsible for ensuring the plugin is compatible with your WordPress installation</li>
+                <li>We are not responsible for any issues arising from plugin conflicts or WordPress updates</li>
+                <li>The plugin may be updated or discontinued at any time</li>
+              </ul>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4">9. Prohibited Uses</h2>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                You agree not to:
+              </p>
+              <ul className="list-disc list-inside text-gray-700 space-y-2 ml-4">
+                <li>Use the Service for any illegal or unauthorized purpose</li>
+                <li>Violate any laws in your jurisdiction</li>
+                <li>Infringe upon the intellectual property rights of others</li>
+                <li>Attempt to reverse engineer or extract source code from the Service</li>
+                <li>Use automated systems to abuse or overload our Service</li>
+                <li>Share your account credentials with others</li>
+                <li>Use the Service to generate alt text for illegal, harmful, or offensive content</li>
+              </ul>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4">10. Intellectual Property Rights</h2>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                The Service, including all content, features, and functionality, is owned by Alt Text Pro and protected by international copyright, trademark, and other intellectual property laws.
+              </p>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                Generated alt text is provided for your use, but you acknowledge that:
+              </p>
+              <ul className="list-disc list-inside text-gray-700 space-y-2 ml-4">
+                <li>Alt text is generated using AI technology and may not always be accurate</li>
+                <li>You are responsible for reviewing and editing generated alt text as needed</li>
+                <li>We do not claim ownership of the alt text generated for your images</li>
+              </ul>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4">11. Limitation of Liability</h2>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                TO THE MAXIMUM EXTENT PERMITTED BY LAW, ALT TEXT PRO SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, INCLUDING BUT NOT LIMITED TO LOSS OF PROFITS, DATA, OR USE, ARISING OUT OF OR RELATING TO YOUR USE OF THE SERVICE.
+              </p>
+              <p className="text-gray-700 leading-relaxed">
+                Our total liability for any claims arising from the Service shall not exceed the amount you paid us in the 12 months preceding the claim. We are not responsible for the accuracy, quality, or appropriateness of AI-generated alt text.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4">12. Service Modifications and Termination</h2>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                We reserve the right to:
+              </p>
+              <ul className="list-disc list-inside text-gray-700 space-y-2 ml-4">
+                <li>Modify, suspend, or discontinue the Service at any time</li>
+                <li>Change features, pricing, or availability without prior notice</li>
+                <li>Terminate or suspend your account for violations of these Terms</li>
+                <li>Refuse service to anyone for any reason</li>
+              </ul>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4">13. Governing Law and Disputes</h2>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                These Terms shall be governed by and construed in accordance with the laws of the United States, without regard to its conflict of law provisions.
+              </p>
+              <p className="text-gray-700 leading-relaxed">
+                Any disputes arising from these Terms or the Service shall be resolved through binding arbitration or in the courts of the United States.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4">14. Contact Information</h2>
+              <p className="text-gray-700 leading-relaxed">
+                If you have any questions about these Terms, please contact us at:
+              </p>
+              <p className="text-gray-700 leading-relaxed mt-2">
+                <strong>Email:</strong> help@wpgeared.com<br />
+                <strong>Website:</strong> <Link to="/contact" className="text-teal-600 hover:text-teal-700">www.alt-text.pro/contact</Link>
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4">15. Changes to Terms</h2>
+              <p className="text-gray-700 leading-relaxed">
+                We reserve the right to modify these Terms at any time. We will notify users of material changes via email or through the Service. Your continued use of the Service after such modifications constitutes acceptance of the updated Terms.
+              </p>
+            </section>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Privacy Policy Page Component
+const PrivacyPage = () => {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      {/* Navigation Header */}
+      <nav className="sticky top-0 z-50 py-4">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="bg-white rounded-full shadow-lg border border-gray-100 px-6 py-3" style={{
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05)'
+          }}>
+            <div className="flex items-center justify-between h-12">
+              <div className="flex items-center">
+                <Link to="/" className="flex items-center space-x-3">
+                  <img 
+                    src="/logo-alt-text-pro.png" 
+                    alt="Alt Text Pro Logo" 
+                    className="h-10 w-10 object-contain"
+                  />
+                  <span className="text-2xl font-bold text-gray-900">Alt Text Pro</span>
+                </Link>
+              </div>
+              <div className="hidden lg:flex items-center space-x-12">
+                <a href="/#pricing" className="text-gray-700 hover:text-gray-900 font-medium transition-colors">Pricing</a>
+                <Link to="/contact" className="text-gray-700 hover:text-gray-900 font-medium transition-colors">Contact</Link>
+                <Link to="/docs" className="text-gray-700 hover:text-gray-900 font-medium transition-colors">Docs</Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      {/* Content */}
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="bg-white rounded-2xl shadow-xl p-8 md:p-12">
+          <h1 className="text-4xl font-bold text-gray-900 mb-2">Privacy Policy</h1>
+          <p className="text-gray-600 mb-8">Last updated: November 2024</p>
+
+          <div className="prose prose-lg max-w-none space-y-8">
+            <section>
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4">1. Introduction</h2>
+              <p className="text-gray-700 leading-relaxed">
+                Alt Text Pro ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our AI-powered alt-text generation service.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4">2. Information We Collect</h2>
+              <h3 className="text-xl font-semibold text-gray-900 mb-3 mt-4">2.1 Account Information</h3>
+              <ul className="list-disc list-inside text-gray-700 space-y-2 ml-4">
+                <li>Email address (required for account creation)</li>
+                <li>Password (stored in encrypted/hashed format)</li>
+                <li>Account creation date and last login information</li>
+              </ul>
+
+              <h3 className="text-xl font-semibold text-gray-900 mb-3 mt-4">2.2 Payment Information</h3>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                Payment processing is handled by PayPal. We do not store your credit card or PayPal account details. PayPal may share transaction information with us, including:
+              </p>
+              <ul className="list-disc list-inside text-gray-700 space-y-2 ml-4">
+                <li>Payment amount and currency</li>
+                <li>Transaction date and status</li>
+                <li>Subscription plan information</li>
+                <li>PayPal transaction IDs</li>
+              </ul>
+
+              <h3 className="text-xl font-semibold text-gray-900 mb-3 mt-4">2.3 Usage Data</h3>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                We collect information about how you use our Service:
+              </p>
+              <ul className="list-disc list-inside text-gray-700 space-y-2 ml-4">
+                <li>Number of images processed</li>
+                <li>Credits used and remaining</li>
+                <li>API usage statistics</li>
+                <li>Subscription plan and status</li>
+                <li>Feature usage patterns</li>
+              </ul>
+
+              <h3 className="text-xl font-semibold text-gray-900 mb-3 mt-4">2.4 Technical Information</h3>
+              <ul className="list-disc list-inside text-gray-700 space-y-2 ml-4">
+                <li>IP address</li>
+                <li>Browser type and version</li>
+                <li>Device information</li>
+                <li>API keys (for authenticated API access)</li>
+              </ul>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4">3. How We Use Your Information</h2>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                We use the information we collect to:
+              </p>
+              <ul className="list-disc list-inside text-gray-700 space-y-2 ml-4">
+                <li>Provide, maintain, and improve our Service</li>
+                <li>Process payments and manage subscriptions</li>
+                <li>Send service-related communications (account updates, billing notices)</li>
+                <li>Respond to your inquiries and provide customer support</li>
+                <li>Monitor and analyze usage patterns to improve our Service</li>
+                <li>Detect, prevent, and address technical issues or security threats</li>
+                <li>Comply with legal obligations</li>
+              </ul>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4">4. Data Storage</h2>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                Your data is stored securely using Supabase, a cloud-based database platform. Supabase provides:
+              </p>
+              <ul className="list-disc list-inside text-gray-700 space-y-2 ml-4">
+                <li>Encrypted data storage</li>
+                <li>Secure authentication and authorization</li>
+                <li>Regular backups and data redundancy</li>
+                <li>Compliance with industry security standards</li>
+              </ul>
+              <p className="text-gray-700 leading-relaxed mt-4">
+                Data is stored in the United States, but may be processed in other jurisdictions as part of Supabase's global infrastructure.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4">5. Third-Party Services</h2>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                We use the following third-party services that may process your data:
+              </p>
+
+              <h3 className="text-xl font-semibold text-gray-900 mb-3 mt-4">5.1 Supabase</h3>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                We use Supabase for user authentication, database storage, and user management. Supabase's privacy policy applies to data stored in their systems.
+              </p>
+
+              <h3 className="text-xl font-semibold text-gray-900 mb-3 mt-4">5.2 PayPal</h3>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                Payment processing is handled by PayPal. When you make a payment, PayPal collects and processes your payment information according to their privacy policy. We receive transaction details but not your full payment credentials.
+              </p>
+
+              <h3 className="text-xl font-semibold text-gray-900 mb-3 mt-4">5.3 Google Gemini AI</h3>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                We use Google's Gemini AI to generate alt text for your images. When you submit an image for processing, it is sent to Google's AI service. Google's privacy policy applies to data processed by their AI services.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4">6. Data Security</h2>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                We implement appropriate technical and organizational measures to protect your personal information:
+              </p>
+              <ul className="list-disc list-inside text-gray-700 space-y-2 ml-4">
+                <li>Encryption of data in transit (HTTPS/TLS)</li>
+                <li>Encryption of sensitive data at rest</li>
+                <li>Secure password hashing (passwords are never stored in plain text)</li>
+                <li>Regular security audits and updates</li>
+                <li>Access controls and authentication requirements</li>
+                <li>API key security and rotation</li>
+              </ul>
+              <p className="text-gray-700 leading-relaxed mt-4">
+                However, no method of transmission over the Internet or electronic storage is 100% secure. While we strive to protect your data, we cannot guarantee absolute security.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4">7. Your Rights and Choices</h2>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                Depending on your location, you may have the following rights regarding your personal information:
+              </p>
+              <ul className="list-disc list-inside text-gray-700 space-y-2 ml-4">
+                <li><strong>Access:</strong> Request a copy of the personal information we hold about you</li>
+                <li><strong>Correction:</strong> Request correction of inaccurate or incomplete information</li>
+                <li><strong>Deletion:</strong> Request deletion of your personal information (subject to legal obligations)</li>
+                <li><strong>Portability:</strong> Request transfer of your data to another service</li>
+                <li><strong>Objection:</strong> Object to certain processing of your information</li>
+                <li><strong>Restriction:</strong> Request restriction of processing in certain circumstances</li>
+              </ul>
+              <p className="text-gray-700 leading-relaxed mt-4">
+                To exercise these rights, please contact us at help@wpgeared.com. We will respond to your request within 30 days.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4">8. Data Retention</h2>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                We retain your personal information for as long as necessary to:
+              </p>
+              <ul className="list-disc list-inside text-gray-700 space-y-2 ml-4">
+                <li>Provide our Service to you</li>
+                <li>Comply with legal obligations</li>
+                <li>Resolve disputes and enforce our agreements</li>
+              </ul>
+              <p className="text-gray-700 leading-relaxed mt-4">
+                When you delete your account, we will delete or anonymize your personal information, except where we are required to retain it for legal or legitimate business purposes.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4">9. Cookies and Tracking</h2>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                We use cookies and similar tracking technologies to:
+              </p>
+              <ul className="list-disc list-inside text-gray-700 space-y-2 ml-4">
+                <li>Maintain your login session</li>
+                <li>Remember your preferences</li>
+                <li>Analyze Service usage and performance</li>
+              </ul>
+              <p className="text-gray-700 leading-relaxed mt-4">
+                You can control cookies through your browser settings. However, disabling cookies may limit your ability to use certain features of our Service.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4">10. Children's Privacy</h2>
+              <p className="text-gray-700 leading-relaxed">
+                Our Service is not intended for children under 18 years of age. We do not knowingly collect personal information from children. If you believe we have collected information from a child, please contact us immediately, and we will delete such information.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4">11. International Data Transfers</h2>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                Your information may be transferred to and processed in countries other than your country of residence. These countries may have data protection laws that differ from those in your country.
+              </p>
+              <p className="text-gray-700 leading-relaxed">
+                By using our Service, you consent to the transfer of your information to the United States and other countries where our service providers operate. We ensure appropriate safeguards are in place for such transfers.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4">12. California Privacy Rights</h2>
+              <p className="text-gray-700 leading-relaxed">
+                If you are a California resident, you have additional rights under the California Consumer Privacy Act (CCPA), including the right to know what personal information we collect, the right to delete personal information, and the right to opt-out of the sale of personal information. We do not sell your personal information.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4">13. European Privacy Rights (GDPR)</h2>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                If you are located in the European Economic Area (EEA), you have additional rights under the General Data Protection Regulation (GDPR):
+              </p>
+              <ul className="list-disc list-inside text-gray-700 space-y-2 ml-4">
+                <li>Right to access your personal data</li>
+                <li>Right to rectification of inaccurate data</li>
+                <li>Right to erasure ("right to be forgotten")</li>
+                <li>Right to restrict processing</li>
+                <li>Right to data portability</li>
+                <li>Right to object to processing</li>
+                <li>Right to withdraw consent</li>
+              </ul>
+              <p className="text-gray-700 leading-relaxed mt-4">
+                To exercise these rights, contact us at help@wpgeared.com. We will respond within one month.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4">14. Policy Updates</h2>
+              <p className="text-gray-700 leading-relaxed">
+                We may update this Privacy Policy from time to time. We will notify you of any material changes by posting the new Privacy Policy on this page and updating the "Last updated" date. We encourage you to review this Privacy Policy periodically.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4">15. Contact Us</h2>
+              <p className="text-gray-700 leading-relaxed">
+                If you have any questions about this Privacy Policy or our data practices, please contact us at:
+              </p>
+              <p className="text-gray-700 leading-relaxed mt-2">
+                <strong>Email:</strong> help@wpgeared.com<br />
+                <strong>Website:</strong> <Link to="/contact" className="text-teal-600 hover:text-teal-700">www.alt-text.pro/contact</Link>
+              </p>
+            </section>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // Email Confirmation Component
 const EmailConfirmation = () => {
   const [isConfirmed, setIsConfirmed] = useState(false);
@@ -4670,10 +5668,13 @@ function App() {
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/contact" element={<ContactPage />} />
           <Route path="/docs" element={<DocsPage />} />
           <Route path="/email-confirmed" element={<EmailConfirmation />} />
           <Route path="/payment-success" element={<PaymentSuccess />} />
+          <Route path="/terms" element={<TermsPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/payment-cancelled" element={
             <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-cyan-50 to-teal-50">
               <div className="text-center max-w-md mx-auto p-6">
