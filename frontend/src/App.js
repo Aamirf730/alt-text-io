@@ -558,7 +558,7 @@ const LandingPage = () => {
         throw new Error(result.error || 'Payment creation failed');
       }
 
-      // Store subscription info in selectedPlan for later use
+      // Store subscription info in selectedPlan for later use (for one-time payments)
       if (result.isSubscription && result.subscriptionId) {
         setSelectedPlan(prev => ({
           ...prev,
@@ -567,8 +567,8 @@ const LandingPage = () => {
         }));
       }
 
-      // Return the payment ID or subscription ID
-      return result.paymentId || result.subscriptionId;
+      // Return the payment ID for one-time payments
+      return result.paymentId;
     } catch (error) {
       console.error('PayPal order creation error:', error);
       toast.error('Failed to create payment. Please try again.');
@@ -1476,10 +1476,10 @@ const LandingPage = () => {
                 )}
                 
                 <div className="space-y-3 mb-8">
-                    <div className="flex items-center">
-                      <Check className="h-5 w-5 text-green-500 mr-3" />
-                      <span className="text-gray-700">2,500 Credits</span>
-                    </div>
+                  <div className="flex items-center">
+                    <Check className="h-5 w-5 text-green-500 mr-3" />
+                    <span className="text-gray-700">2,500 Credits</span>
+                  </div>
                   <div className="flex items-center">
                     <Check className="h-5 w-5 text-green-500 mr-3" />
                     <span className="text-gray-700">Premium support</span>
@@ -1681,11 +1681,11 @@ const LandingPage = () => {
                 className="h-10 w-10 object-contain"
               />
               <span className="text-2xl font-bold text-gray-900">Alt Text Pro</span>
-            </div>
+                </div>
             
             <p className="text-gray-600 text-sm max-w-md">
-              Automatically generate alt text for images in over 130 languages.
-            </p>
+                Automatically generate alt text for images in over 130 languages.
+              </p>
 
             {/* Links */}
             <div className="flex flex-wrap justify-center gap-6 text-sm text-gray-600">
@@ -1937,20 +1937,72 @@ const LandingPage = () => {
                 </div>
 
                 <div className="mb-6">
-                  <PayPalScriptProvider options={paypalOptions}>
-                    <PayPalButtons
-                      createOrder={createPayPalOrder}
-                      onApprove={onPayPalApprove}
-                      onError={onPayPalError}
-                      onCancel={onPayPalCancel}
-                      style={{
-                        layout: "vertical",
-                        color: "blue",
-                        shape: "rect",
-                        label: "paypal"
+                  {/* For subscriptions, use a regular button that redirects to PayPal */}
+                  {(selectedPlan.id === 'tier1' || selectedPlan.id === 'tier2' || selectedPlan.id === 'tier3') ? (
+                    <Button
+                      onClick={async () => {
+                        try {
+                          const { data: { session } } = await supabase.auth.getSession();
+                          if (!session?.access_token) {
+                            toast.error('Please sign in to continue');
+                            return;
+                          }
+
+                          let apiBase;
+                          if (window.location.hostname === 'localhost') {
+                            apiBase = process.env.REACT_APP_API_BASE || 'https://www.alt-text.pro/.netlify/functions';
+                          } else {
+                            apiBase = '/.netlify/functions';
+                          }
+
+                          const response = await fetch(`${apiBase}/create-payment`, {
+                            method: 'POST',
+                            headers: {
+                              'Content-Type': 'application/json',
+                              'Authorization': `Bearer ${session.access_token}`
+                            },
+                            body: JSON.stringify({
+                              planId: selectedPlan.id
+                            })
+                          });
+
+                          const result = await response.json();
+                          
+                          if (!response.ok) {
+                            throw new Error(result.error || 'Payment creation failed');
+                          }
+
+                          if (result.approvalUrl) {
+                            // Redirect to PayPal approval page
+                            window.location.href = result.approvalUrl;
+                          } else {
+                            toast.error('Failed to get PayPal approval URL');
+                          }
+                        } catch (error) {
+                          console.error('PayPal subscription creation error:', error);
+                          toast.error('Failed to create subscription. Please try again.');
+                        }
                       }}
-                    />
-                  </PayPalScriptProvider>
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                      Subscribe with PayPal
+                    </Button>
+                  ) : (
+                    <PayPalScriptProvider options={paypalOptions}>
+                      <PayPalButtons
+                        createOrder={createPayPalOrder}
+                        onApprove={onPayPalApprove}
+                        onError={onPayPalError}
+                        onCancel={onPayPalCancel}
+                        style={{
+                          layout: "vertical",
+                          color: "blue",
+                          shape: "rect",
+                          label: "paypal"
+                        }}
+                      />
+                    </PayPalScriptProvider>
+                  )}
                 </div>
 
                 <div className="flex space-x-3">
@@ -3130,26 +3182,77 @@ const Dashboard = () => {
             </div>
 
             <div className="mb-6">
-              <PayPalScriptProvider options={paypalOptions}>
-                <PayPalButtons
-                  createOrder={createUpgradePayPalOrder}
-                  onApprove={onUpgradePayPalApprove}
-                  onError={(error) => {
-                    console.error('PayPal error:', error);
-                    toast.error('Payment failed. Please try again.');
+              {/* For subscriptions, use a regular button that redirects to PayPal */}
+              {(selectedUpgradePlan.id === 'tier1' || selectedUpgradePlan.id === 'tier2' || selectedUpgradePlan.id === 'tier3') ? (
+                <Button
+                  onClick={async () => {
+                    try {
+                      if (!user?.token) {
+                        toast.error('Please sign in to continue');
+                        return;
+                      }
+
+                      let apiBase;
+                      if (window.location.hostname === 'localhost') {
+                        apiBase = process.env.REACT_APP_API_BASE || 'https://www.alt-text.pro/.netlify/functions';
+                      } else {
+                        apiBase = '/.netlify/functions';
+                      }
+
+                      const response = await fetch(`${apiBase}/create-payment`, {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          'Authorization': `Bearer ${user.token}`
+                        },
+                        body: JSON.stringify({
+                          planId: selectedUpgradePlan.id
+                        })
+                      });
+
+                      const result = await response.json();
+                      
+                      if (!response.ok) {
+                        throw new Error(result.error || 'Payment creation failed');
+                      }
+
+                      if (result.approvalUrl) {
+                        // Redirect to PayPal approval page
+                        window.location.href = result.approvalUrl;
+                      } else {
+                        toast.error('Failed to get PayPal approval URL');
+                      }
+                    } catch (error) {
+                      console.error('PayPal subscription creation error:', error);
+                      toast.error('Failed to create subscription. Please try again.');
+                    }
                   }}
-                  onCancel={(data) => {
-                    console.log('PayPal payment cancelled:', data);
-                    toast.info('Payment cancelled');
-                  }}
-                  style={{
-                    layout: "vertical",
-                    color: "blue",
-                    shape: "rect",
-                    label: "paypal"
-                  }}
-                />
-              </PayPalScriptProvider>
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  Subscribe with PayPal
+                </Button>
+              ) : (
+                <PayPalScriptProvider options={paypalOptions}>
+                  <PayPalButtons
+                    createOrder={createUpgradePayPalOrder}
+                    onApprove={onUpgradePayPalApprove}
+                    onError={(error) => {
+                      console.error('PayPal error:', error);
+                      toast.error('Payment failed. Please try again.');
+                    }}
+                    onCancel={(data) => {
+                      console.log('PayPal payment cancelled:', data);
+                      toast.info('Payment cancelled');
+                    }}
+                    style={{
+                      layout: "vertical",
+                      color: "blue",
+                      shape: "rect",
+                      label: "paypal"
+                    }}
+                  />
+                </PayPalScriptProvider>
+              )}
             </div>
 
             <div className="flex space-x-3">
@@ -4111,6 +4214,169 @@ const ContactPage = () => {
   );
 };
 
+// Payment Success Handler Component
+const PaymentSuccess = () => {
+  const [isProcessing, setIsProcessing] = useState(true);
+  const [error, setError] = useState(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const handlePaymentSuccess = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) {
+          setError('Please sign in to complete your payment');
+          setIsProcessing(false);
+          return;
+        }
+
+        // Get query parameters from PayPal redirect
+        const params = new URLSearchParams(window.location.search);
+        const subscriptionId = params.get('subscription_id') || params.get('token');
+        const planId = params.get('plan');
+
+        if (!subscriptionId && !planId) {
+          // Check if this is a subscription approval
+          const hashParams = new URLSearchParams(window.location.hash.substring(1));
+          const token = hashParams.get('token') || params.get('token');
+          
+          if (token) {
+            // This might be a subscription token
+            // Complete the payment
+            let apiBase;
+            if (window.location.hostname === 'localhost') {
+              apiBase = process.env.REACT_APP_API_BASE || 'https://www.alt-text.pro/.netlify/functions';
+            } else {
+              apiBase = '/.netlify/functions';
+            }
+
+            const response = await fetch(`${apiBase}/complete-payment`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session.access_token}`
+              },
+              body: JSON.stringify({
+                paymentId: token,
+                planId: planId || 'tier1', // Default to tier1 if not specified
+                subscriptionId: token
+              })
+            });
+
+            const result = await response.json();
+            
+            if (response.ok) {
+              if (result.status === 'pending_approval') {
+                // Subscription is pending approval - webhook will handle activation
+                toast.success('Subscription created! Your account will be activated shortly.');
+                setTimeout(() => {
+                  navigate('/dashboard');
+                }, 2000);
+              } else {
+                // Success - redirect to dashboard
+                toast.success('Payment successful!');
+                setTimeout(() => {
+                  navigate('/dashboard');
+                }, 2000);
+              }
+            } else {
+              setError(result.error || 'Payment completion failed');
+              setIsProcessing(false);
+            }
+          } else {
+            setError('Invalid payment return');
+            setIsProcessing(false);
+          }
+        } else {
+          // Complete the payment with the provided IDs
+          let apiBase;
+          if (window.location.hostname === 'localhost') {
+            apiBase = process.env.REACT_APP_API_BASE || 'https://www.alt-text.pro/.netlify/functions';
+          } else {
+            apiBase = '/.netlify/functions';
+          }
+
+          const response = await fetch(`${apiBase}/complete-payment`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session.access_token}`
+            },
+            body: JSON.stringify({
+              paymentId: subscriptionId || params.get('token'),
+              planId: planId,
+              subscriptionId: subscriptionId
+            })
+          });
+
+          const result = await response.json();
+          
+          if (response.ok) {
+            if (result.status === 'pending_approval') {
+              // Subscription is pending approval - webhook will handle activation
+              toast.success('Subscription created! Your account will be activated shortly.');
+              setTimeout(() => {
+                navigate('/dashboard');
+              }, 2000);
+            } else {
+              // Success - redirect to dashboard
+              toast.success('Payment successful!');
+              setTimeout(() => {
+                navigate('/dashboard');
+              }, 2000);
+            }
+          } else {
+            setError(result.error || 'Payment completion failed');
+            setIsProcessing(false);
+          }
+        }
+      } catch (err) {
+        console.error('Payment success handler error:', err);
+        setError('An error occurred processing your payment');
+        setIsProcessing(false);
+      }
+    };
+
+    handlePaymentSuccess();
+  }, [navigate]);
+
+  if (isProcessing) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-cyan-50 to-teal-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4"></div>
+          <p className="text-gray-700">Processing your payment...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-cyan-50 to-teal-50">
+        <div className="text-center max-w-md mx-auto p-6">
+          <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">Payment Error</h2>
+          <p className="text-gray-600 mb-6">{error}</p>
+          <Button onClick={() => navigate('/dashboard')} className="bg-teal-600 hover:bg-teal-700">
+            Go to Dashboard
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-cyan-50 to-teal-50">
+      <div className="text-center max-w-md mx-auto p-6">
+        <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
+        <h2 className="text-2xl font-bold text-gray-800 mb-2">Payment Successful!</h2>
+        <p className="text-gray-600 mb-6">Redirecting to your dashboard...</p>
+      </div>
+    </div>
+  );
+};
+
 // Email Confirmation Component
 const EmailConfirmation = () => {
   const [isConfirmed, setIsConfirmed] = useState(false);
@@ -4259,6 +4525,19 @@ function App() {
           <Route path="/contact" element={<ContactPage />} />
           <Route path="/docs" element={<DocsPage />} />
           <Route path="/email-confirmed" element={<EmailConfirmation />} />
+          <Route path="/payment-success" element={<PaymentSuccess />} />
+          <Route path="/payment-cancelled" element={
+            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-cyan-50 to-teal-50">
+              <div className="text-center max-w-md mx-auto p-6">
+                <X className="h-12 w-12 text-orange-500 mx-auto mb-4" />
+                <h2 className="text-2xl font-bold text-gray-800 mb-2">Payment Cancelled</h2>
+                <p className="text-gray-600 mb-6">Your payment was cancelled. You can try again anytime.</p>
+                <Button onClick={() => window.location.href = '/dashboard'} className="bg-teal-600 hover:bg-teal-700">
+                  Go to Dashboard
+                </Button>
+              </div>
+            </div>
+          } />
         </Routes>
       </BrowserRouter>
       <Toaster />
