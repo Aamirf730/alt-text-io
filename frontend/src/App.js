@@ -869,6 +869,7 @@ const LandingPage = () => {
             </div>
           </div>
         </div>
+        </>
       )}
 
       {/* Hero Section */}
