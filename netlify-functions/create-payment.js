@@ -234,7 +234,7 @@ async function createPayPalSubscription(planId, planDetails, returnUrl, cancelUr
     });
 
     const result = await response.json();
-    
+
     if (!response.ok) {
       console.error('PayPal subscription creation failed:', JSON.stringify(result, null, 2));
       console.error('Response status:', response.status);
@@ -488,7 +488,9 @@ exports.handler = async (event, context) => {
       ? 'http://localhost:3000' 
       : 'https://www.alt-text.pro';
     
-    const returnUrl = `${baseUrl}/payment-success?plan=${planId}`;
+    // Include subscription ID in return URL if it's a subscription
+    // We'll set this after creating the subscription
+    let returnUrl = `${baseUrl}/payment-success?plan=${planId}`;
     const cancelUrl = `${baseUrl}/payment-cancelled`;
 
     // Verify PayPal environment variables

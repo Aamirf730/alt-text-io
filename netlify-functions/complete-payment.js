@@ -224,7 +224,35 @@ exports.handler = async (event, context) => {
 
     // Determine if this is actually a subscription based on billing_cycle
     const actualIsSubscription = plan.billing_cycle === 'monthly' || plan.billing_cycle === 'yearly';
-    const finalSubscriptionId = subscriptionId || (actualIsSubscription ? paymentId : null);
+    
+    // If subscription ID is not provided but this is a subscription, try to find it from database
+    let finalSubscriptionId = subscriptionId;
+    if (actualIsSubscription && !finalSubscriptionId) {
+      // Try to find the most recent pending subscription for this user and plan
+      const { data: pendingPayment, error: lookupError } = await supabase
+        .from('payments')
+        .select('subscription_id')
+        .eq('user_id', authUser.id)
+        .eq('plan_id', planId)
+        .eq('status', 'pending')
+        .not('subscription_id', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      
+      if (!lookupError && pendingPayment?.subscription_id) {
+        finalSubscriptionId = pendingPayment.subscription_id;
+        console.log('Found subscription ID from database:', finalSubscriptionId);
+      } else {
+        // Fallback: use paymentId if it looks like a subscription ID (starts with I-)
+        if (paymentId && paymentId.startsWith('I-')) {
+          finalSubscriptionId = paymentId;
+          console.log('Using paymentId as subscription ID:', finalSubscriptionId);
+        }
+      }
+    } else if (!actualIsSubscription) {
+      finalSubscriptionId = null;
+    }
 
     let paymentResult;
     let amount = 0;
@@ -232,7 +260,20 @@ exports.handler = async (event, context) => {
 
     if (actualIsSubscription) {
       // Handle subscription - get subscription details
-      paymentResult = await getPayPalSubscription(finalSubscriptionId || paymentId);
+      if (!finalSubscriptionId && !paymentId) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ 
+            error: 'Subscription ID is required',
+            details: 'No subscription ID provided and could not find one in database'
+          }),
+        };
+      }
+      
+      const subscriptionIdToUse = finalSubscriptionId || paymentId;
+      console.log('Attempting to verify subscription with ID:', subscriptionIdToUse);
+      paymentResult = await getPayPalSubscription(subscriptionIdToUse);
 
       console.log('PayPal subscription result:', JSON.stringify(paymentResult, null, 2));
       
