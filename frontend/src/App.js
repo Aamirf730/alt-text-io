@@ -2103,12 +2103,21 @@ const LandingPage = () => {
                             throw new Error(`PayPal plan ID not found for ${selectedPlan.id}. Please configure REACT_APP_PAYPAL_PLAN_${selectedPlan.id.toUpperCase()} in environment variables.`);
                           }
                           
-                          console.log(`Creating subscription with plan ID: ${paypalPlanId} for ${selectedPlan.id}`);
+                          console.log(`🔍 Creating subscription with plan ID: ${paypalPlanId} for ${selectedPlan.id}`);
+                          console.log(`🔍 All plan IDs:`, PAYPAL_PLAN_IDS);
                           
                           // Create the subscription using PayPal's plan ID
-                          return actions.subscription.create({
-                            plan_id: paypalPlanId
-                          });
+                          try {
+                            const result = await actions.subscription.create({
+                              plan_id: paypalPlanId
+                            });
+                            console.log(`✅ Subscription creation initiated:`, result);
+                            return result;
+                          } catch (error) {
+                            console.error(`❌ Subscription creation error:`, error);
+                            console.error(`❌ Plan ID used: ${paypalPlanId}`);
+                            throw error;
+                          }
                         }}
                         onApprove={async (data, actions) => {
                           try {
@@ -3395,12 +3404,21 @@ const Dashboard = () => {
                         throw new Error(`PayPal plan ID not found for ${selectedUpgradePlan.id}. Please configure PAYPAL_PLAN_${selectedUpgradePlan.id.toUpperCase()} in environment variables.`);
                       }
                       
-                      console.log(`Creating subscription with plan ID: ${paypalPlanId} for ${selectedUpgradePlan.id}`);
+                      console.log(`🔍 Creating subscription with plan ID: ${paypalPlanId} for ${selectedUpgradePlan.id}`);
+                      console.log(`🔍 All plan IDs:`, PAYPAL_PLAN_IDS);
                       
                       // Create the subscription using PayPal's plan ID
-                      return actions.subscription.create({
-                        plan_id: paypalPlanId
-                      });
+                      try {
+                        const result = await actions.subscription.create({
+                          plan_id: paypalPlanId
+                        });
+                        console.log(`✅ Subscription creation initiated:`, result);
+                        return result;
+                      } catch (error) {
+                        console.error(`❌ Subscription creation error:`, error);
+                        console.error(`❌ Plan ID used: ${paypalPlanId}`);
+                        throw error;
+                      }
                     }}
                     onApprove={async (data, actions) => {
                       try {
