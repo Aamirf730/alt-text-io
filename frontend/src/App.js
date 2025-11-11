@@ -4541,6 +4541,10 @@ const EmailConfirmation = () => {
   useEffect(() => {
     const handleEmailConfirmation = async () => {
       try {
+        console.log('🔍 Email confirmation - Full URL:', window.location.href);
+        console.log('🔍 Hash:', window.location.hash);
+        console.log('🔍 Search:', window.location.search);
+        
         // Check both hash and query parameters (Supabase can use either)
         const hashParams = new URLSearchParams(window.location.hash.substring(1));
         const queryParams = new URLSearchParams(window.location.search);
@@ -4548,37 +4552,84 @@ const EmailConfirmation = () => {
         const accessToken = hashParams.get('access_token') || queryParams.get('access_token');
         const refreshToken = hashParams.get('refresh_token') || queryParams.get('refresh_token');
         const type = hashParams.get('type') || queryParams.get('type');
+        const token = hashParams.get('token') || queryParams.get('token');
+        const code = hashParams.get('code') || queryParams.get('code');
 
-        if (type === 'signup' && accessToken) {
-          // Set the session
+        console.log('🔍 Extracted params:', { type, hasAccessToken: !!accessToken, hasToken: !!token, hasCode: !!code });
+
+        // Method 1: Direct session with access_token (most common)
+        if (accessToken) {
+          console.log('✅ Found access_token, setting session...');
           const { data, error: sessionError } = await supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken || ''
           });
 
           if (sessionError) {
+            console.error('❌ Session error:', sessionError);
             throw sessionError;
           }
 
           if (data.session) {
+            console.log('✅ Session created successfully');
             setIsConfirmed(true);
-            // Clear URL hash/query to clean up the URL
             window.history.replaceState({}, document.title, '/email-confirmed');
-          }
-        } else {
-          // Check if user is already confirmed (might have been redirected here after confirmation)
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session) {
-            setIsConfirmed(true);
-            // Clear URL hash/query to clean up the URL
-            window.history.replaceState({}, document.title, '/email-confirmed');
-          } else {
-            // If no session and no token, show error
-            setError('Invalid confirmation link. Please try signing up again.');
+            return;
           }
         }
+
+        // Method 2: Exchange code for session (if Supabase sends a code)
+        if (code) {
+          console.log('✅ Found code, exchanging for session...');
+          const { data, error: codeError } = await supabase.auth.exchangeCodeForSession(code);
+          
+          if (codeError) {
+            console.error('❌ Code exchange error:', codeError);
+            throw codeError;
+          }
+
+          if (data.session) {
+            console.log('✅ Code exchanged for session successfully');
+            setIsConfirmed(true);
+            window.history.replaceState({}, document.title, '/email-confirmed');
+            return;
+          }
+        }
+
+        // Method 3: Verify OTP token (if Supabase sends a token)
+        if (token && type) {
+          console.log('✅ Found token and type, verifying OTP...');
+          const { data, error: verifyError } = await supabase.auth.verifyOtp({
+            token_hash: token,
+            type: type === 'signup' ? 'signup' : 'email'
+          });
+
+          if (verifyError) {
+            console.error('❌ OTP verification error:', verifyError);
+            // Don't throw yet, try other methods
+          } else if (data.session) {
+            console.log('✅ OTP verified successfully');
+            setIsConfirmed(true);
+            window.history.replaceState({}, document.title, '/email-confirmed');
+            return;
+          }
+        }
+
+        // Method 4: Check if user is already confirmed (might have been auto-confirmed)
+        console.log('🔍 Checking for existing session...');
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          console.log('✅ Found existing session');
+          setIsConfirmed(true);
+          window.history.replaceState({}, document.title, '/email-confirmed');
+          return;
+        }
+
+        // If we get here, nothing worked
+        console.error('❌ No valid confirmation method found');
+        setError('Invalid confirmation link. Please try signing up again or request a new confirmation email.');
       } catch (err) {
-        console.error('Email confirmation error:', err);
+        console.error('❌ Email confirmation error:', err);
         setError(err.message || 'Failed to confirm email. Please try again.');
       } finally {
         setIsLoading(false);
