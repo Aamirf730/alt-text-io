@@ -25,7 +25,12 @@ BEGIN
   -- Update user subscription
   UPDATE public.profiles p
   SET 
-    subscription_plan = new_plan,
+    -- For credit packs, keep the current subscription plan and just add credits
+    -- For subscription plans, change to the new plan
+    subscription_plan = CASE
+      WHEN new_plan IN ('pay_as_go', 'small_pack') THEN p.subscription_plan
+      ELSE new_plan
+    END,
     credits_remaining = CASE
       WHEN new_plan IN ('pay_as_go', 'small_pack') THEN p.credits_remaining + plan_credits
       ELSE plan_credits

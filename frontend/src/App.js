@@ -598,6 +598,13 @@ const LandingPage = () => {
                                   selectedPlan.id === 'tier3';
       const subscriptionId = isSubscriptionPlan ? data.orderID : null;
 
+      // For one-time payments, capture the order first using PayPalButtons actions
+      // For subscriptions, we don't need to capture (handled by PayPal)
+      if (!isSubscriptionPlan && actions && actions.order) {
+        const captureResult = await actions.order.capture();
+        console.log('PayPal order captured:', captureResult);
+      }
+
       const response = await fetch(`${apiBase}/complete-payment`, {
         method: 'POST',
         headers: {
@@ -617,7 +624,7 @@ const LandingPage = () => {
         throw new Error(result.error || 'Payment completion failed');
       }
 
-      toast.success(`Successfully upgraded to ${selectedPlan.name}!`);
+      toast.success(`Successfully ${isSubscriptionPlan ? 'subscribed to' : 'purchased'} ${selectedPlan.name}!`);
       setShowPaymentModal(false);
       setSelectedPlan(null);
       
@@ -2172,6 +2179,13 @@ const Dashboard = () => {
                                   selectedUpgradePlan.id === 'tier3';
       const subscriptionId = isSubscriptionPlan ? data.orderID : null;
 
+      // For one-time payments, capture the order first using PayPalButtons actions
+      // For subscriptions, we don't need to capture (handled by PayPal)
+      if (!isSubscriptionPlan && actions && actions.order) {
+        const captureResult = await actions.order.capture();
+        console.log('PayPal order captured:', captureResult);
+      }
+
       const response = await fetch(`${apiBase}/complete-payment`, {
         method: 'POST',
         headers: {
@@ -2191,7 +2205,7 @@ const Dashboard = () => {
         throw new Error(result.error || 'Payment completion failed');
       }
 
-      toast.success(`Successfully upgraded to ${selectedUpgradePlan.name}!`);
+      toast.success(`Successfully ${isSubscriptionPlan ? 'subscribed to' : 'purchased'} ${selectedUpgradePlan.name}!`);
       setShowUpgradeModal(false);
       setSelectedUpgradePlan(null);
       
