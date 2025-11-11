@@ -122,10 +122,7 @@ const LandingPage = () => {
   // Close mobile menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
-      // Don't close if clicking the menu button or inside the menu
-      if (isMobileMenuOpen && 
-          !event.target.closest('.mobile-menu-container') && 
-          !event.target.closest('button[aria-label="Toggle mobile menu"]')) {
+      if (isMobileMenuOpen && !event.target.closest('.mobile-menu-container')) {
         setIsMobileMenuOpen(false);
       }
     };
@@ -755,13 +752,10 @@ const LandingPage = () => {
             </div>
 
             {/* Mobile menu button */}
-            <div className="lg:hidden relative z-50">
+            <div className="lg:hidden">
               <button 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsMobileMenuOpen(!isMobileMenuOpen);
-                }}
-                className="p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors relative z-50"
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                className="p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
                 aria-label="Toggle mobile menu"
               >
                 {isMobileMenuOpen ? (
@@ -769,9 +763,9 @@ const LandingPage = () => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 ) : (
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
                 )}
               </button>
             </div>
@@ -2133,20 +2127,20 @@ const LandingPage = () => {
                       Subscribe with PayPal
                     </Button>
                   ) : (
-                  <PayPalScriptProvider options={paypalOptions}>
-                    <PayPalButtons
-                      createOrder={createPayPalOrder}
-                      onApprove={onPayPalApprove}
-                      onError={onPayPalError}
-                      onCancel={onPayPalCancel}
-                      style={{
-                        layout: "vertical",
-                        color: "blue",
-                        shape: "rect",
-                        label: "paypal"
-                      }}
-                    />
-                  </PayPalScriptProvider>
+                    <PayPalScriptProvider options={paypalOptions}>
+                      <PayPalButtons
+                        createOrder={createPayPalOrder}
+                        onApprove={onPayPalApprove}
+                        onError={onPayPalError}
+                        onCancel={onPayPalCancel}
+                        style={{
+                          layout: "vertical",
+                          color: "blue",
+                          shape: "rect",
+                          label: "paypal"
+                        }}
+                      />
+                    </PayPalScriptProvider>
                   )}
                 </div>
 
@@ -3384,26 +3378,26 @@ const Dashboard = () => {
                   Subscribe with PayPal
                 </Button>
               ) : (
-              <PayPalScriptProvider options={paypalOptions}>
-                <PayPalButtons
-                  createOrder={createUpgradePayPalOrder}
-                  onApprove={onUpgradePayPalApprove}
-                  onError={(error) => {
-                    console.error('PayPal error:', error);
-                    toast.error('Payment failed. Please try again.');
-                  }}
-                  onCancel={(data) => {
-                    console.log('PayPal payment cancelled:', data);
-                    toast.info('Payment cancelled');
-                  }}
-                  style={{
-                    layout: "vertical",
-                    color: "blue",
-                    shape: "rect",
-                    label: "paypal"
-                  }}
-                />
-              </PayPalScriptProvider>
+                <PayPalScriptProvider options={paypalOptions}>
+                  <PayPalButtons
+                    createOrder={createUpgradePayPalOrder}
+                    onApprove={onUpgradePayPalApprove}
+                    onError={(error) => {
+                      console.error('PayPal error:', error);
+                      toast.error('Payment failed. Please try again.');
+                    }}
+                    onCancel={(data) => {
+                      console.log('PayPal payment cancelled:', data);
+                      toast.info('Payment cancelled');
+                    }}
+                    style={{
+                      layout: "vertical",
+                      color: "blue",
+                      shape: "rect",
+                      label: "paypal"
+                    }}
+                  />
+                </PayPalScriptProvider>
               )}
             </div>
 
@@ -4541,10 +4535,6 @@ const EmailConfirmation = () => {
   useEffect(() => {
     const handleEmailConfirmation = async () => {
       try {
-        console.log('🔍 Email confirmation - Full URL:', window.location.href);
-        console.log('🔍 Hash:', window.location.hash);
-        console.log('🔍 Search:', window.location.search);
-        
         // Check both hash and query parameters (Supabase can use either)
         const hashParams = new URLSearchParams(window.location.hash.substring(1));
         const queryParams = new URLSearchParams(window.location.search);
@@ -4552,84 +4542,37 @@ const EmailConfirmation = () => {
         const accessToken = hashParams.get('access_token') || queryParams.get('access_token');
         const refreshToken = hashParams.get('refresh_token') || queryParams.get('refresh_token');
         const type = hashParams.get('type') || queryParams.get('type');
-        const token = hashParams.get('token') || queryParams.get('token');
-        const code = hashParams.get('code') || queryParams.get('code');
 
-        console.log('🔍 Extracted params:', { type, hasAccessToken: !!accessToken, hasToken: !!token, hasCode: !!code });
-
-        // Method 1: Direct session with access_token (most common)
-        if (accessToken) {
-          console.log('✅ Found access_token, setting session...');
+        if (type === 'signup' && accessToken) {
+          // Set the session
           const { data, error: sessionError } = await supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken || ''
           });
 
           if (sessionError) {
-            console.error('❌ Session error:', sessionError);
             throw sessionError;
           }
 
           if (data.session) {
-            console.log('✅ Session created successfully');
             setIsConfirmed(true);
+            // Clear URL hash/query to clean up the URL
             window.history.replaceState({}, document.title, '/email-confirmed');
-            return;
           }
-        }
-
-        // Method 2: Exchange code for session (if Supabase sends a code)
-        if (code) {
-          console.log('✅ Found code, exchanging for session...');
-          const { data, error: codeError } = await supabase.auth.exchangeCodeForSession(code);
-          
-          if (codeError) {
-            console.error('❌ Code exchange error:', codeError);
-            throw codeError;
-          }
-
-          if (data.session) {
-            console.log('✅ Code exchanged for session successfully');
+        } else {
+          // Check if user is already confirmed (might have been redirected here after confirmation)
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session) {
             setIsConfirmed(true);
+            // Clear URL hash/query to clean up the URL
             window.history.replaceState({}, document.title, '/email-confirmed');
-            return;
+          } else {
+            // If no session and no token, show error
+            setError('Invalid confirmation link. Please try signing up again.');
           }
         }
-
-        // Method 3: Verify OTP token (if Supabase sends a token)
-        if (token && type) {
-          console.log('✅ Found token and type, verifying OTP...');
-          const { data, error: verifyError } = await supabase.auth.verifyOtp({
-            token_hash: token,
-            type: type === 'signup' ? 'signup' : 'email'
-          });
-
-          if (verifyError) {
-            console.error('❌ OTP verification error:', verifyError);
-            // Don't throw yet, try other methods
-          } else if (data.session) {
-            console.log('✅ OTP verified successfully');
-            setIsConfirmed(true);
-            window.history.replaceState({}, document.title, '/email-confirmed');
-            return;
-          }
-        }
-
-        // Method 4: Check if user is already confirmed (might have been auto-confirmed)
-        console.log('🔍 Checking for existing session...');
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session) {
-          console.log('✅ Found existing session');
-          setIsConfirmed(true);
-          window.history.replaceState({}, document.title, '/email-confirmed');
-          return;
-        }
-
-        // If we get here, nothing worked
-        console.error('❌ No valid confirmation method found');
-        setError('Invalid confirmation link. Please try signing up again or request a new confirmation email.');
       } catch (err) {
-        console.error('❌ Email confirmation error:', err);
+        console.error('Email confirmation error:', err);
         setError(err.message || 'Failed to confirm email. Please try again.');
       } finally {
         setIsLoading(false);
@@ -4637,7 +4580,7 @@ const EmailConfirmation = () => {
     };
 
     handleEmailConfirmation();
-  }, []);
+  }, [navigate]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center px-4 py-12">
@@ -4743,8 +4686,6 @@ function App() {
               </div>
             </div>
           } />
-          <Route path="/admin" element={<AdminLogin />} />
-          <Route path="/admin/dashboard" element={<AdminDashboard />} />
         </Routes>
       </BrowserRouter>
       <Toaster />
