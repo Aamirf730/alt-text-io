@@ -19,6 +19,10 @@ const PAYPAL_BASE_URL = process.env.PAYPAL_ENVIRONMENT === 'sandbox'
 
 // Get PayPal access token
 async function getPayPalAccessToken() {
+  if (!PAYPAL_CLIENT_ID || !PAYPAL_CLIENT_SECRET) {
+    throw new Error('PayPal credentials not configured. Please set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET environment variables.');
+  }
+
   const auth = Buffer.from(`${PAYPAL_CLIENT_ID}:${PAYPAL_CLIENT_SECRET}`).toString('base64');
   
   const response = await fetch(`${PAYPAL_BASE_URL}/v1/oauth2/token`, {
@@ -31,6 +35,16 @@ async function getPayPalAccessToken() {
   });
 
   const data = await response.json();
+  
+  if (!response.ok) {
+    console.error('PayPal access token error:', data);
+    throw new Error(`Failed to get PayPal access token: ${data.error_description || data.error || JSON.stringify(data)}`);
+  }
+  
+  if (!data.access_token) {
+    throw new Error('PayPal access token not received in response');
+  }
+  
   return data.access_token;
 }
 
@@ -307,19 +321,35 @@ exports.handler = async (event, context) => {
     const returnUrl = `${baseUrl}/payment-success?plan=${planId}`;
     const cancelUrl = `${baseUrl}/payment-cancelled`;
 
+    // Verify PayPal environment variables
+    console.log('PayPal Configuration Check:');
+    console.log('- PAYPAL_ENVIRONMENT:', process.env.PAYPAL_ENVIRONMENT);
+    console.log('- PAYPAL_BASE_URL:', PAYPAL_BASE_URL);
+    console.log('- PAYPAL_CLIENT_ID:', PAYPAL_CLIENT_ID ? 'Set' : 'NOT SET');
+    console.log('- PAYPAL_CLIENT_SECRET:', PAYPAL_CLIENT_SECRET ? 'Set' : 'NOT SET');
+    console.log('- PAYPAL_PRODUCT_ID:', process.env.PAYPAL_PRODUCT_ID || 'NOT SET');
+    console.log('- PAYPAL_PLAN_TIER1:', process.env.PAYPAL_PLAN_TIER1 || 'NOT SET');
+    console.log('- PAYPAL_PLAN_TIER2:', process.env.PAYPAL_PLAN_TIER2 || 'NOT SET');
+    console.log('- PAYPAL_PLAN_TIER3:', process.env.PAYPAL_PLAN_TIER3 || 'NOT SET');
+
     // Get PayPal access token
+    console.log('Getting PayPal access token...');
     const accessToken = await getPayPalAccessToken();
+    console.log('Access token obtained successfully');
 
     let paymentResult;
     let isSubscription = false;
 
     // Determine if this is a subscription or one-time payment
+    console.log('Plan billing cycle:', plan.billing_cycle);
     if (plan.billing_cycle === 'monthly' || plan.billing_cycle === 'yearly') {
       // Create PayPal subscription
+      console.log('Creating PayPal subscription...');
       isSubscription = true;
       paymentResult = await createPayPalSubscription(planId, plan, returnUrl, cancelUrl, accessToken);
     } else {
       // Create one-time payment
+      console.log('Creating one-time PayPal payment...');
       isSubscription = false;
       paymentResult = await createPayPalOneTimePayment(planId, plan, returnUrl, cancelUrl, accessToken);
     }
@@ -376,12 +406,15 @@ exports.handler = async (event, context) => {
 
   } catch (error) {
     console.error('Payment creation error:', error);
+    console.error('Error stack:', error.stack);
+    console.error('Error details:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
     return {
       statusCode: 500,
       headers,
       body: JSON.stringify({ 
         error: 'Internal server error',
-        details: error.message 
+        details: error.message || error.toString(),
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
       }),
     };
   }
