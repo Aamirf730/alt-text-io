@@ -55,43 +55,6 @@ const paypalOptions = {
   "disable-funding": "paylater,card"
 };
 
-// Footer Component (Reusable)
-const Footer = () => {
-  return (
-    <footer className="bg-white border-t border-gray-200 py-12">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col items-center text-center space-y-6">
-          {/* Logo & Company Info */}
-          <div className="flex items-center space-x-2">
-            <img 
-              src="/logo-alt-text-pro.png" 
-              alt="Alt Text Pro Logo" 
-              className="h-10 w-10 object-contain"
-            />
-            <span className="text-2xl font-bold text-gray-900">Alt Text Pro</span>
-          </div>
-          
-          <p className="text-gray-600 text-sm max-w-md">
-            Automatically generate alt text for images in over 130 languages.
-          </p>
-
-          {/* Links */}
-          <div className="flex flex-wrap justify-center gap-6 text-sm text-gray-600">
-            <Link to="/contact" className="hover:text-gray-900 transition-colors">Contact</Link>
-            <Link to="/terms" className="hover:text-gray-900 transition-colors">Terms & Conditions</Link>
-            <Link to="/privacy" className="hover:text-gray-900 transition-colors">Privacy Policy</Link>
-          </div>
-
-          {/* Copyright */}
-          <p className="text-gray-500 text-sm pt-4 border-t border-gray-200 w-full">
-            © 2024 Alt Text Pro. All rights reserved.
-          </p>
-        </div>
-      </div>
-    </footer>
-  );
-};
-
 // Landing Page Component
 const LandingPage = () => {
   const [email, setEmail] = useState("");
@@ -1839,7 +1802,37 @@ const LandingPage = () => {
       </section>
 
       {/* Footer */}
-      <Footer />
+      <footer className="bg-white border-t border-gray-200 py-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col items-center text-center space-y-6">
+            {/* Logo & Company Info */}
+            <div className="flex items-center space-x-2">
+              <img 
+                src="/logo-alt-text-pro.png" 
+                alt="Alt Text Pro Logo" 
+                className="h-10 w-10 object-contain"
+              />
+              <span className="text-2xl font-bold text-gray-900">Alt Text Pro</span>
+                </div>
+            
+            <p className="text-gray-600 text-sm max-w-md">
+                Automatically generate alt text for images in over 130 languages.
+              </p>
+
+            {/* Links */}
+            <div className="flex flex-wrap justify-center gap-6 text-sm text-gray-600">
+              <Link to="/contact" className="hover:text-gray-900 transition-colors">Contact</Link>
+              <Link to="/terms" className="hover:text-gray-900 transition-colors">Terms & Conditions</Link>
+              <Link to="/privacy" className="hover:text-gray-900 transition-colors">Privacy Policy</Link>
+            </div>
+
+            {/* Copyright */}
+            <p className="text-gray-500 text-sm pt-4 border-t border-gray-200 w-full">
+              © 2024 Alt Text Pro. All rights reserved.
+            </p>
+          </div>
+        </div>
+      </footer>
 
       {/* Auth Modal */}
       {showAuthForm && (
@@ -2713,30 +2706,30 @@ const Dashboard = () => {
 
       <div className="max-w-7xl mx-auto px-6 py-8">
         <div className="mb-8">
-          <div className="flex items-center justify-between mb-2">
-            <h1 className="text-3xl font-bold text-gray-800">Dashboard</h1>
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-gray-500">v1.0.6</span>
-              <a
-                href="/wordpress-plugin/alt-text-pro-plugin.zip"
-                download="alt-text-pro-plugin.zip"
-                className="inline-flex items-center px-4 py-2 text-sm font-medium transition-colors rounded-lg"
-                style={{ 
-                  background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)',
-                  color: 'white'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)';
-                }}
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Download Plugin
-              </a>
+            <div className="flex items-center justify-between mb-2">
+              <h1 className="text-3xl font-bold text-gray-800">Dashboard</h1>
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-gray-500">v1.0.6</span>
+                <a
+                  href="/wordpress-plugin/alt-text-pro-plugin.zip"
+                  download="alt-text-pro-plugin.zip"
+                  className="inline-flex items-center px-4 py-2 text-sm font-medium transition-colors rounded-lg"
+                  style={{ 
+                    background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)',
+                    color: 'white'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)';
+                  }}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Download Plugin
+                </a>
+              </div>
             </div>
-          </div>
           <p className="text-gray-600">Manage your Alt Text Pro subscription and test the service</p>
         </div>
 
@@ -2994,8 +2987,7 @@ const Dashboard = () => {
                         <li>Paste this API key in the settings</li>
                         <li>Test the connection and start generating alt-text!</li>
                       </ol>
-                      <div className="mt-3 flex items-center gap-2">
-                        <span className="text-xs text-gray-500">v1.0.6</span>
+                      <div className="mt-3">
                         <a
                           href="/wordpress-plugin/alt-text-pro-plugin.zip"
                           download="alt-text-pro-plugin.zip"
@@ -3427,7 +3419,6 @@ const Dashboard = () => {
           </div>
         </div>
       )}
-      <Footer />
     </div>
   );
 };
@@ -4368,7 +4359,6 @@ const ContactPage = () => {
           </div>
         </div>
       </div>
-      <Footer />
     </div>
   );
 };
@@ -4503,46 +4493,37 @@ const PaymentSuccess = () => {
 
   if (isProcessing) {
     return (
-      <div className="min-h-screen flex flex-col">
-        <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-cyan-50 to-teal-50">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4"></div>
-            <p className="text-gray-700">Processing your payment...</p>
-          </div>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-cyan-50 to-teal-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4"></div>
+          <p className="text-gray-700">Processing your payment...</p>
         </div>
-        <Footer />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen flex flex-col">
-        <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-cyan-50 to-teal-50">
-          <div className="text-center max-w-md mx-auto p-6">
-            <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">Payment Error</h2>
-            <p className="text-gray-600 mb-6">{error}</p>
-            <Button onClick={() => navigate('/dashboard')} className="bg-teal-600 hover:bg-teal-700">
-              Go to Dashboard
-            </Button>
-          </div>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-cyan-50 to-teal-50">
+        <div className="text-center max-w-md mx-auto p-6">
+          <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">Payment Error</h2>
+          <p className="text-gray-600 mb-6">{error}</p>
+          <Button onClick={() => navigate('/dashboard')} className="bg-teal-600 hover:bg-teal-700">
+            Go to Dashboard
+          </Button>
         </div>
-        <Footer />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-cyan-50 to-teal-50">
-        <div className="text-center max-w-md mx-auto p-6">
-          <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">Payment Successful!</h2>
-          <p className="text-gray-600 mb-6">Redirecting to your dashboard...</p>
-        </div>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-cyan-50 to-teal-50">
+      <div className="text-center max-w-md mx-auto p-6">
+        <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
+        <h2 className="text-2xl font-bold text-gray-800 mb-2">Payment Successful!</h2>
+        <p className="text-gray-600 mb-6">Redirecting to your dashboard...</p>
       </div>
-      <Footer />
     </div>
   );
 };
@@ -4666,21 +4647,18 @@ const AdminDashboard = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex flex-col bg-gradient-to-br from-gray-50 to-gray-100">
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4" 
-                 style={{ borderColor: '#1AB5AC' }}></div>
-            <p className="text-gray-600">Loading admin dashboard...</p>
-          </div>
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4" 
+               style={{ borderColor: '#1AB5AC' }}></div>
+          <p className="text-gray-600">Loading admin dashboard...</p>
         </div>
-        <Footer />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       {/* Header */}
       <div className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -5028,7 +5006,6 @@ const AdminDashboard = () => {
           </Card>
         </div>
       )}
-      <Footer />
     </div>
   );
 };
@@ -5269,7 +5246,6 @@ const TermsPage = () => {
           </div>
         </div>
       </div>
-      <Footer />
     </div>
   );
 };
@@ -5543,7 +5519,6 @@ const PrivacyPage = () => {
           </div>
         </div>
       </div>
-      <Footer />
     </div>
   );
 };
@@ -5606,10 +5581,9 @@ const EmailConfirmation = () => {
   }, [navigate]);
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-gray-50 to-gray-100">
-      <div className="flex-1 flex items-center justify-center px-4 py-12">
-        <div className="max-w-md w-full">
-          <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center px-4 py-12">
+      <div className="max-w-md w-full">
+        <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
           {/* Logo */}
           <div className="flex justify-center mb-6">
             <img 
@@ -5680,10 +5654,8 @@ const EmailConfirmation = () => {
               </div>
             </>
           ) : null}
-          </div>
         </div>
       </div>
-      <Footer />
     </div>
   );
 };
@@ -5704,18 +5676,15 @@ function App() {
           <Route path="/terms" element={<TermsPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/payment-cancelled" element={
-            <div className="min-h-screen flex flex-col">
-              <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-cyan-50 to-teal-50">
-                <div className="text-center max-w-md mx-auto p-6">
-                  <X className="h-12 w-12 text-orange-500 mx-auto mb-4" />
-                  <h2 className="text-2xl font-bold text-gray-800 mb-2">Payment Cancelled</h2>
-                  <p className="text-gray-600 mb-6">Your payment was cancelled. You can try again anytime.</p>
-                  <Button onClick={() => window.location.href = '/dashboard'} className="bg-teal-600 hover:bg-teal-700">
-                    Go to Dashboard
-                  </Button>
-                </div>
+            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-cyan-50 to-teal-50">
+              <div className="text-center max-w-md mx-auto p-6">
+                <X className="h-12 w-12 text-orange-500 mx-auto mb-4" />
+                <h2 className="text-2xl font-bold text-gray-800 mb-2">Payment Cancelled</h2>
+                <p className="text-gray-600 mb-6">Your payment was cancelled. You can try again anytime.</p>
+                <Button onClick={() => window.location.href = '/dashboard'} className="bg-teal-600 hover:bg-teal-700">
+                  Go to Dashboard
+                </Button>
               </div>
-              <Footer />
             </div>
           } />
         </Routes>
