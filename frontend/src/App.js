@@ -45,6 +45,8 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 
 // PayPal configuration
 const PAYPAL_CLIENT_ID = process.env.REACT_APP_PAYPAL_CLIENT_ID || 'test';
+// PayPal SDK automatically detects sandbox vs production based on client ID
+// Sandbox client IDs are different from production ones
 const paypalOptions = {
   "client-id": PAYPAL_CLIENT_ID,
   currency: "USD",
@@ -556,7 +558,17 @@ const LandingPage = () => {
         throw new Error(result.error || 'Payment creation failed');
       }
 
-      return result.paymentId;
+      // Store subscription info in selectedPlan for later use
+      if (result.isSubscription && result.subscriptionId) {
+        setSelectedPlan(prev => ({
+          ...prev,
+          isSubscription: true,
+          subscriptionId: result.subscriptionId
+        }));
+      }
+
+      // Return the payment ID or subscription ID
+      return result.paymentId || result.subscriptionId;
     } catch (error) {
       console.error('PayPal order creation error:', error);
       toast.error('Failed to create payment. Please try again.');
@@ -579,6 +591,13 @@ const LandingPage = () => {
         apiBase = '/.netlify/functions';
       }
 
+      // Get subscriptionId - for subscriptions, orderID is the subscription ID
+      // Check if this is a subscription plan based on plan ID
+      const isSubscriptionPlan = selectedPlan.id === 'tier1' || 
+                                  selectedPlan.id === 'tier2' || 
+                                  selectedPlan.id === 'tier3';
+      const subscriptionId = isSubscriptionPlan ? data.orderID : null;
+
       const response = await fetch(`${apiBase}/complete-payment`, {
         method: 'POST',
         headers: {
@@ -588,7 +607,7 @@ const LandingPage = () => {
         body: JSON.stringify({
           paymentId: data.orderID,
           planId: selectedPlan.id,
-          isSubscription: selectedPlan.id === 'tier1' || selectedPlan.id === 'tier2'
+          subscriptionId: subscriptionId
         })
       });
 
@@ -2094,6 +2113,13 @@ const Dashboard = () => {
         apiBase = '/.netlify/functions';
       }
 
+      // Get subscriptionId - for subscriptions, orderID is the subscription ID
+      // Check if this is a subscription plan
+      const isSubscriptionPlan = selectedUpgradePlan.id === 'tier1' || 
+                                  selectedUpgradePlan.id === 'tier2' || 
+                                  selectedUpgradePlan.id === 'tier3';
+      const subscriptionId = isSubscriptionPlan ? data.orderID : null;
+
       const response = await fetch(`${apiBase}/complete-payment`, {
         method: 'POST',
         headers: {
@@ -2103,7 +2129,7 @@ const Dashboard = () => {
         body: JSON.stringify({
           paymentId: data.orderID,
           planId: selectedUpgradePlan.id,
-          isSubscription: selectedUpgradePlan.id === 'tier1' || selectedUpgradePlan.id === 'tier2'
+          subscriptionId: subscriptionId
         })
       });
 

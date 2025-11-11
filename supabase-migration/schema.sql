@@ -62,6 +62,8 @@ INSERT INTO public.subscription_plans (id, name, price, credits, billing_cycle, 
  '["1,000 Credits", "Priority support", "API access", "Bulk processing"]'),
 ('tier2', 'Tier 2', 20.00, 2500, 'monthly', 
  '["2,500 Credits", "Premium support", "API access", "Bulk processing", "Custom integrations"]'),
+('tier3', 'Tier 3', 40.00, 5000, 'monthly', 
+ '["5,000 Credits", "Premium support", "Advanced API access", "Priority processing", "Bulk processing", "Custom integrations"]'),
 ('pay_as_go', 'Pay as you go', 4.00, 500, 'one-time', 
  '["No monthly commitment", "Pay only for what you use", "API access", "Standard support"]');
 

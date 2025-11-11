@@ -11,7 +11,10 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 // PayPal configuration
 const PAYPAL_CLIENT_ID = process.env.PAYPAL_CLIENT_ID;
 const PAYPAL_CLIENT_SECRET = process.env.PAYPAL_CLIENT_SECRET;
-const PAYPAL_BASE_URL = 'https://api-m.paypal.com'; // Production PayPal API
+// Use sandbox if PAYPAL_ENVIRONMENT is set to 'sandbox', otherwise use production
+const PAYPAL_BASE_URL = process.env.PAYPAL_ENVIRONMENT === 'sandbox' 
+  ? 'https://api-m.sandbox.paypal.com' 
+  : 'https://api-m.paypal.com';
 
 // Get PayPal access token
 async function getPayPalAccessToken() {
@@ -109,7 +112,7 @@ exports.handler = async (event, context) => {
     }
 
     // Parse request body
-    const { paymentId, planId, isSubscription = false } = JSON.parse(event.body);
+    const { paymentId, planId, isSubscription = false, subscriptionId } = JSON.parse(event.body);
     if (!paymentId || !planId) {
       return {
         statusCode: 400,
@@ -118,29 +121,61 @@ exports.handler = async (event, context) => {
       };
     }
 
+    // Get plan details to determine billing cycle
+    const { data: plan, error: planError } = await supabase
+      .from('subscription_plans')
+      .select('*')
+      .eq('id', planId)
+      .single();
+
+    if (planError || !plan) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Invalid plan' }),
+      };
+    }
+
+    // Determine if this is actually a subscription based on billing_cycle
+    const actualIsSubscription = plan.billing_cycle === 'monthly' || plan.billing_cycle === 'yearly';
+    const finalSubscriptionId = subscriptionId || (actualIsSubscription ? paymentId : null);
+
     let paymentResult;
     let amount = 0;
+    let subscriptionStatus = null;
 
-    if (isSubscription) {
-      // Handle subscription
-      paymentResult = await getPayPalSubscription(paymentId);
+    if (actualIsSubscription) {
+      // Handle subscription - get subscription details
+      paymentResult = await getPayPalSubscription(finalSubscriptionId || paymentId);
       
-      if (paymentResult.status !== 'ACTIVE') {
+      if (!paymentResult || paymentResult.status !== 'ACTIVE') {
+        // Subscription might be in APPROVAL_PENDING state, check for approval
+        if (paymentResult && paymentResult.status === 'APPROVAL_PENDING') {
+          // User needs to approve, return pending status
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({
+              success: false,
+              status: 'pending_approval',
+              message: 'Subscription approval pending',
+              approvalUrl: paymentResult.links?.find(l => l.rel === 'approve')?.href
+            }),
+          };
+        }
+        
         return {
           statusCode: 400,
           headers,
-          body: JSON.stringify({ error: 'Subscription not active' }),
+          body: JSON.stringify({ 
+            error: 'Subscription not active',
+            status: paymentResult?.status || 'unknown'
+          }),
         };
       }
 
-      // Get plan details for amount
-      const { data: plan } = await supabase
-        .from('subscription_plans')
-        .select('price')
-        .eq('id', planId)
-        .single();
-      
-      amount = plan ? plan.price : 0;
+      subscriptionStatus = paymentResult.status;
+      amount = parseFloat(plan.price);
     } else {
       // Handle one-time payment
       paymentResult = await capturePayPalPayment(paymentId);
@@ -149,7 +184,10 @@ exports.handler = async (event, context) => {
         return {
           statusCode: 400,
           headers,
-          body: JSON.stringify({ error: 'Payment not completed' }),
+          body: JSON.stringify({ 
+            error: 'Payment not completed',
+            status: paymentResult.status 
+          }),
         };
       }
 
@@ -165,7 +203,7 @@ exports.handler = async (event, context) => {
         user_uuid: authUser.id,
         new_plan: planId,
         payment_id: paymentId,
-        subscription_id: isSubscription ? paymentId : null
+        subscription_id: finalSubscriptionId
       });
 
     if (upgradeError) {
@@ -183,6 +221,7 @@ exports.handler = async (event, context) => {
       .update({
         amount: amount,
         status: 'completed',
+        subscription_id: finalSubscriptionId,
         updated_at: new Date().toISOString()
       })
       .eq('payment_id', paymentId)
@@ -209,9 +248,11 @@ exports.handler = async (event, context) => {
       body: JSON.stringify({
         success: true,
         paymentId: paymentId,
+        subscriptionId: finalSubscriptionId,
+        isSubscription: actualIsSubscription,
         plan: profile?.subscription_plan,
         credits_remaining: profile?.credits_remaining,
-        subscription_status: profile?.subscription_status,
+        subscription_status: subscriptionStatus || profile?.subscription_status,
         next_billing_date: profile?.next_billing_date
       }),
     };

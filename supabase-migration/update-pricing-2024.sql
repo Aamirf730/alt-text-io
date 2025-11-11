@@ -4,7 +4,7 @@
 -- First, update the profiles table constraint to include new tiers
 ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_subscription_plan_check;
 ALTER TABLE public.profiles ADD CONSTRAINT profiles_subscription_plan_check 
-  CHECK (subscription_plan IN ('free', 'tier1', 'tier2', 'tier3', 'tier4', 'pay_as_go', 'small_pack'));
+  CHECK (subscription_plan IN ('free', 'tier1', 'tier2', 'tier3', 'pay_as_go', 'small_pack'));
 
 -- Update subscription_plans table structure to support annual pricing
 ALTER TABLE public.subscription_plans 
@@ -33,14 +33,9 @@ INSERT INTO public.subscription_plans (id, name, price, annual_price, credits, b
  true, 0.01),
 
 -- Tier 3: New high-volume tier
-('tier3', 'Tier 3', 59.00, 566.40, 5000, 'monthly', 
+('tier3', 'Tier 3', 40.00, 432.00, 5000, 'monthly', 
  '["5,000 Credits each month", "Premium support", "Advanced API access", "Priority processing", "Bulk processing", "Custom integrations", "Dedicated support"]'::jsonb, 
  false, 0.0118),
-
--- Tier 4: New enterprise tier
-('tier4', 'Tier 4', 119.00, 1142.40, 10000, 'monthly', 
- '["10,000 Credits each month", "Enterprise support", "Advanced API access", "Highest priority processing", "Unlimited bulk processing", "Custom integrations", "Dedicated account manager"]'::jsonb, 
- false, 0.0119),
 
 -- Pay as you go: Updated pricing
 ('pay_as_go', 'Pay as you go', 5.00, NULL, 500, 'one-time', 
@@ -94,7 +89,7 @@ BEGIN
     subscription_status = 'active',
     subscription_id = COALESCE(subscription_id, subscription_id),
     next_billing_date = CASE 
-      WHEN new_plan IN ('tier1', 'tier2', 'tier3', 'tier4') THEN NOW() + INTERVAL '1 month'
+      WHEN new_plan IN ('tier1', 'tier2', 'tier3') THEN NOW() + INTERVAL '1 month'
       ELSE NULL
     END,
     updated_at = NOW()

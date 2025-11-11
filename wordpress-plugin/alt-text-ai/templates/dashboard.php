@@ -66,7 +66,6 @@ if (!defined('ABSPATH')) {
                                     'tier1' => __('Tier 1', 'alt-text-ai'),
                                     'tier2' => __('Tier 2', 'alt-text-ai'),
                                     'tier3' => __('Tier 3', 'alt-text-ai'),
-                                    'tier4' => __('Tier 4', 'alt-text-ai'),
                                     'pay_as_go' => __('Pay as you go', 'alt-text-ai'),
                                     'small_pack' => __('Small Pack', 'alt-text-ai')
                                 );
