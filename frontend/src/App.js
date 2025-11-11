@@ -2101,6 +2101,8 @@ const LandingPage = () => {
                           const result = await response.json();
                           
                           console.log('Payment creation response:', result);
+                          console.log('Response status:', response.status);
+                          console.log('Approval URL received:', result.approvalUrl);
                           
                           if (!response.ok) {
                             console.error('Payment creation failed:', result);
@@ -2109,6 +2111,7 @@ const LandingPage = () => {
                           }
 
                           if (result.approvalUrl) {
+                            console.log('Redirecting to PayPal approval URL:', result.approvalUrl);
                             // Redirect to PayPal approval page
                             window.location.href = result.approvalUrl;
                           } else {
@@ -3362,15 +3365,22 @@ const Dashboard = () => {
 
                       const result = await response.json();
                       
+                      console.log('Payment creation response:', result);
+                      console.log('Response status:', response.status);
+                      console.log('Approval URL received:', result.approvalUrl);
+                      
                       if (!response.ok) {
-                        throw new Error(result.error || 'Payment creation failed');
+                        console.error('Payment creation failed:', result);
+                        throw new Error(result.error || result.details || 'Payment creation failed');
                       }
 
                       if (result.approvalUrl) {
+                        console.log('Redirecting to PayPal approval URL:', result.approvalUrl);
                         // Redirect to PayPal approval page
                         window.location.href = result.approvalUrl;
                       } else {
-                        toast.error('Failed to get PayPal approval URL');
+                        console.error('No approval URL in response:', result);
+                        toast.error(`Failed to get PayPal approval URL. Response: ${JSON.stringify(result)}`);
                       }
                     } catch (error) {
                       console.error('PayPal subscription creation error:', error);
