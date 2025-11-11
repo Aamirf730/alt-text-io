@@ -243,6 +243,14 @@ async function createPayPalOneTimePayment(planId, planDetails, returnUrl, cancel
 }
 
 exports.handler = async (event, context) => {
+  // Log function invocation
+  console.log('=== CREATE-PAYMENT FUNCTION CALLED ===');
+  console.log('Timestamp:', new Date().toISOString());
+  console.log('HTTP Method:', event.httpMethod);
+  console.log('Path:', event.path);
+  console.log('Headers:', JSON.stringify(event.headers, null, 2));
+  console.log('Body:', event.body);
+  
   // Enable CORS
   const headers = {
     'Access-Control-Allow-Origin': '*',
@@ -268,9 +276,13 @@ exports.handler = async (event, context) => {
   }
 
   try {
+    console.log('Processing request...');
+    
     // Get authorization token
     const authHeader = event.headers.authorization;
+    console.log('Authorization header present:', !!authHeader);
     if (!authHeader) {
+      console.error('ERROR: No authorization header');
       return {
         statusCode: 401,
         headers,
