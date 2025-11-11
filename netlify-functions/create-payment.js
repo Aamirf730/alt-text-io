@@ -76,7 +76,7 @@ async function getPayPalPlanId(planId, planDetails, accessToken) {
     payment_preferences: {
       auto_bill_outstanding: true,
       setup_fee: {
-        value: planDetails.price.toString(),
+        value: '0',
         currency_code: 'USD'
       },
       setup_fee_failure_action: 'CONTINUE',
@@ -99,7 +99,7 @@ async function getPayPalPlanId(planId, planDetails, accessToken) {
   });
 
   const result = await response.json();
-  
+
   if (response.ok && result.id) {
     console.log(`✅ Created PayPal plan for ${planId}: ${result.id}`);
     console.log(`⚠️ Add this to Netlify environment variables: PAYPAL_PLAN_${planId.toUpperCase()}=${result.id}`);
@@ -108,7 +108,7 @@ async function getPayPalPlanId(planId, planDetails, accessToken) {
     console.error('Error creating PayPal plan:', result);
     throw new Error(`Failed to create PayPal subscription plan: ${result.message || JSON.stringify(result)}`);
   }
-}
+  }
 
 // Create PayPal subscription
 async function createPayPalSubscription(planId, planDetails, returnUrl, cancelUrl, accessToken) {
@@ -157,7 +157,7 @@ async function createPayPalSubscription(planId, planDetails, returnUrl, cancelUr
   }
 
   return result;
-}
+  }
 
 // Create one-time PayPal payment
 async function createPayPalOneTimePayment(planId, planDetails, returnUrl, cancelUrl, accessToken) {
@@ -197,7 +197,7 @@ async function createPayPalOneTimePayment(planId, planDetails, returnUrl, cancel
     console.error('PayPal payment creation failed:', result);
     throw new Error(result.message || 'Failed to create payment');
   }
-
+  
   return result;
 }
 

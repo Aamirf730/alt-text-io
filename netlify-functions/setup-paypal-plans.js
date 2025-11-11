@@ -79,7 +79,7 @@ async function createPayPalPlan(accessToken, productId, planDetails) {
     payment_preferences: {
       auto_bill_outstanding: true,
       setup_fee: {
-        value: planDetails.price.toString(),
+        value: '0',
         currency_code: 'USD'
       },
       setup_fee_failure_action: 'CONTINUE',
