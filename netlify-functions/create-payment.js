@@ -177,26 +177,42 @@ async function getPayPalPlanId(planId, planDetails, accessToken) {
   }
 
 // Create PayPal subscription
-async function createPayPalSubscription(planId, planDetails, returnUrl, cancelUrl, accessToken) {
+async function createPayPalSubscription(planId, planDetails, returnUrl, cancelUrl, accessToken, userEmail, userName = null) {
   try {
     // First, get the PayPal billing plan ID (from env or create)
     console.log(`Getting PayPal Plan ID for ${planId}...`);
     const paypalPlanId = await getPayPalPlanId(planId, planDetails, accessToken);
     console.log(`Using PayPal Plan ID: ${paypalPlanId}`);
     
-    // Create subscription
+    // Create subscription according to PayPal's official API documentation
     // Set start_time to immediate (or very near future) for better compatibility
     // PayPal subscriptions should start immediately after approval
     const startTime = new Date(Date.now() + 10000).toISOString(); // 10 seconds from now (minimal delay)
     
+    // Build subscriber object if we have user information
+    const subscriber = userEmail ? {
+      email_address: userEmail,
+      ...(userName && {
+        name: {
+          given_name: userName.split(' ')[0] || userName,
+          surname: userName.split(' ').slice(1).join(' ') || ''
+        }
+      })
+    } : undefined;
+    
     const subscriptionData = {
       plan_id: paypalPlanId,
       start_time: startTime,
+      ...(subscriber && { subscriber }),
       application_context: {
         brand_name: 'Alt Text Pro',
         locale: 'en-US',
         shipping_preference: 'NO_SHIPPING',
         user_action: 'SUBSCRIBE_NOW',
+        payment_method: {
+          payer_selected: 'PAYPAL',
+          payee_preferred: 'IMMEDIATE_PAYMENT_REQUIRED'
+        },
         return_url: returnUrl,
         cancel_url: cancelUrl
       }
@@ -494,13 +510,20 @@ exports.handler = async (event, context) => {
     let paymentResult;
     let isSubscription = false;
 
+    // Get user email for subscriber object
+    const userEmail = authUser.email || authUser.user_metadata?.email;
+    const userName = authUser.user_metadata?.full_name || authUser.user_metadata?.name;
+    
+    console.log('User email for subscription:', userEmail);
+    console.log('User name for subscription:', userName || 'Not provided');
+
     // Determine if this is a subscription or one-time payment
     console.log('Plan billing cycle:', plan.billing_cycle);
     if (plan.billing_cycle === 'monthly' || plan.billing_cycle === 'yearly') {
       // Create PayPal subscription
       console.log('Creating PayPal subscription...');
       isSubscription = true;
-      paymentResult = await createPayPalSubscription(planId, plan, returnUrl, cancelUrl, accessToken);
+      paymentResult = await createPayPalSubscription(planId, plan, returnUrl, cancelUrl, accessToken, userEmail, userName);
     } else {
       // Create one-time payment
       console.log('Creating one-time PayPal payment...');
