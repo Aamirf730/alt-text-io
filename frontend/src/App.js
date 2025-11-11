@@ -769,9 +769,9 @@ const LandingPage = () => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 ) : (
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                  </svg>
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
                 )}
               </button>
             </div>
@@ -2133,20 +2133,20 @@ const LandingPage = () => {
                       Subscribe with PayPal
                     </Button>
                   ) : (
-                    <PayPalScriptProvider options={paypalOptions}>
-                      <PayPalButtons
-                        createOrder={createPayPalOrder}
-                        onApprove={onPayPalApprove}
-                        onError={onPayPalError}
-                        onCancel={onPayPalCancel}
-                        style={{
-                          layout: "vertical",
-                          color: "blue",
-                          shape: "rect",
-                          label: "paypal"
-                        }}
-                      />
-                    </PayPalScriptProvider>
+                  <PayPalScriptProvider options={paypalOptions}>
+                    <PayPalButtons
+                      createOrder={createPayPalOrder}
+                      onApprove={onPayPalApprove}
+                      onError={onPayPalError}
+                      onCancel={onPayPalCancel}
+                      style={{
+                        layout: "vertical",
+                        color: "blue",
+                        shape: "rect",
+                        label: "paypal"
+                      }}
+                    />
+                  </PayPalScriptProvider>
                   )}
                 </div>
 
@@ -3384,26 +3384,26 @@ const Dashboard = () => {
                   Subscribe with PayPal
                 </Button>
               ) : (
-                <PayPalScriptProvider options={paypalOptions}>
-                  <PayPalButtons
-                    createOrder={createUpgradePayPalOrder}
-                    onApprove={onUpgradePayPalApprove}
-                    onError={(error) => {
-                      console.error('PayPal error:', error);
-                      toast.error('Payment failed. Please try again.');
-                    }}
-                    onCancel={(data) => {
-                      console.log('PayPal payment cancelled:', data);
-                      toast.info('Payment cancelled');
-                    }}
-                    style={{
-                      layout: "vertical",
-                      color: "blue",
-                      shape: "rect",
-                      label: "paypal"
-                    }}
-                  />
-                </PayPalScriptProvider>
+              <PayPalScriptProvider options={paypalOptions}>
+                <PayPalButtons
+                  createOrder={createUpgradePayPalOrder}
+                  onApprove={onUpgradePayPalApprove}
+                  onError={(error) => {
+                    console.error('PayPal error:', error);
+                    toast.error('Payment failed. Please try again.');
+                  }}
+                  onCancel={(data) => {
+                    console.log('PayPal payment cancelled:', data);
+                    toast.info('Payment cancelled');
+                  }}
+                  style={{
+                    layout: "vertical",
+                    color: "blue",
+                    shape: "rect",
+                    label: "paypal"
+                  }}
+                />
+              </PayPalScriptProvider>
               )}
             </div>
 
@@ -4627,7 +4627,7 @@ const EmailConfirmation = () => {
 
         // If we get here, nothing worked
         console.error('❌ No valid confirmation method found');
-        setError('Invalid confirmation link. Please try signing up again or request a new confirmation email.');');
+        setError('Invalid confirmation link. Please try signing up again or request a new confirmation email.');
       } catch (err) {
         console.error('❌ Email confirmation error:', err);
         setError(err.message || 'Failed to confirm email. Please try again.');
