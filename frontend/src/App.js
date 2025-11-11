@@ -47,12 +47,29 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 const PAYPAL_CLIENT_ID = process.env.REACT_APP_PAYPAL_CLIENT_ID || 'test';
 // PayPal SDK automatically detects sandbox vs production based on client ID
 // Sandbox client IDs are different from production ones
+
+// PayPal plan ID mapping - update these with your actual PayPal plan IDs from the dashboard
+// You can also set these via environment variables: REACT_APP_PAYPAL_PLAN_TIER1, etc.
+const PAYPAL_PLAN_IDS = {
+  tier1: process.env.REACT_APP_PAYPAL_PLAN_TIER1 || 'P-8MW1788774227562KNEJXD6Q', // Update with your Tier 1 plan ID
+  tier2: process.env.REACT_APP_PAYPAL_PLAN_TIER2 || '', // Update with your Tier 2 plan ID
+  tier3: process.env.REACT_APP_PAYPAL_PLAN_TIER3 || ''  // Update with your Tier 3 plan ID
+};
+
 const paypalOptions = {
   "client-id": PAYPAL_CLIENT_ID,
   currency: "USD",
   intent: "capture",
   "enable-funding": "venmo",
   "disable-funding": "paylater,card"
+};
+
+// PayPal subscription options (for subscription plans)
+const paypalSubscriptionOptions = {
+  "client-id": PAYPAL_CLIENT_ID,
+  currency: "USD",
+  vault: true,
+  intent: "subscription"
 };
 
 // Landing Page Component
