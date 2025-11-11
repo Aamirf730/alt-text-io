@@ -763,9 +763,9 @@ const LandingPage = () => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 ) : (
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                  </svg>
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
                 )}
               </button>
             </div>
@@ -2127,20 +2127,20 @@ const LandingPage = () => {
                       Subscribe with PayPal
                     </Button>
                   ) : (
-                    <PayPalScriptProvider options={paypalOptions}>
-                      <PayPalButtons
-                        createOrder={createPayPalOrder}
-                        onApprove={onPayPalApprove}
-                        onError={onPayPalError}
-                        onCancel={onPayPalCancel}
-                        style={{
-                          layout: "vertical",
-                          color: "blue",
-                          shape: "rect",
-                          label: "paypal"
-                        }}
-                      />
-                    </PayPalScriptProvider>
+                  <PayPalScriptProvider options={paypalOptions}>
+                    <PayPalButtons
+                      createOrder={createPayPalOrder}
+                      onApprove={onPayPalApprove}
+                      onError={onPayPalError}
+                      onCancel={onPayPalCancel}
+                      style={{
+                        layout: "vertical",
+                        color: "blue",
+                        shape: "rect",
+                        label: "paypal"
+                      }}
+                    />
+                  </PayPalScriptProvider>
                   )}
                 </div>
 
@@ -2709,7 +2709,7 @@ const Dashboard = () => {
             <div className="flex items-center justify-between mb-2">
               <h1 className="text-3xl font-bold text-gray-800">Dashboard</h1>
               <div className="flex items-center gap-3">
-                <span className="text-sm text-gray-500">v1.0.6</span>
+                <span className="text-sm text-gray-500">v1.0.7</span>
                 <a
                   href="/wordpress-plugin/alt-text-pro-plugin.zip"
                   download="alt-text-pro-plugin.zip"
@@ -2988,7 +2988,7 @@ const Dashboard = () => {
                         <li>Test the connection and start generating alt-text!</li>
                       </ol>
                       <div className="mt-3 flex items-center gap-2">
-                        <span className="text-xs text-gray-500">v1.0.6</span>
+                        <span className="text-xs text-gray-500">v1.0.7</span>
                         <a
                           href="/wordpress-plugin/alt-text-pro-plugin.zip"
                           download="alt-text-pro-plugin.zip"
@@ -3382,26 +3382,26 @@ const Dashboard = () => {
                   Subscribe with PayPal
                 </Button>
               ) : (
-                <PayPalScriptProvider options={paypalOptions}>
-                  <PayPalButtons
-                    createOrder={createUpgradePayPalOrder}
-                    onApprove={onUpgradePayPalApprove}
-                    onError={(error) => {
-                      console.error('PayPal error:', error);
-                      toast.error('Payment failed. Please try again.');
-                    }}
-                    onCancel={(data) => {
-                      console.log('PayPal payment cancelled:', data);
-                      toast.info('Payment cancelled');
-                    }}
-                    style={{
-                      layout: "vertical",
-                      color: "blue",
-                      shape: "rect",
-                      label: "paypal"
-                    }}
-                  />
-                </PayPalScriptProvider>
+              <PayPalScriptProvider options={paypalOptions}>
+                <PayPalButtons
+                  createOrder={createUpgradePayPalOrder}
+                  onApprove={onUpgradePayPalApprove}
+                  onError={(error) => {
+                    console.error('PayPal error:', error);
+                    toast.error('Payment failed. Please try again.');
+                  }}
+                  onCancel={(data) => {
+                    console.log('PayPal payment cancelled:', data);
+                    toast.info('Payment cancelled');
+                  }}
+                  style={{
+                    layout: "vertical",
+                    color: "blue",
+                    shape: "rect",
+                    label: "paypal"
+                  }}
+                />
+              </PayPalScriptProvider>
               )}
             </div>
 
