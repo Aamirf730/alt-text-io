@@ -26,11 +26,19 @@ const PAYPAL_BASE_URL = process.env.PAYPAL_ENVIRONMENT === 'sandbox'
 
 // Get PayPal access token
 async function getPayPalAccessToken() {
+  console.log('PayPal authentication check:');
+  console.log('- PAYPAL_ENVIRONMENT:', process.env.PAYPAL_ENVIRONMENT || 'production (default)');
+  console.log('- PAYPAL_BASE_URL:', PAYPAL_BASE_URL);
+  console.log('- PAYPAL_CLIENT_ID:', PAYPAL_CLIENT_ID ? (PAYPAL_CLIENT_ID.substring(0, 20) + '...') : 'NOT SET');
+  console.log('- PAYPAL_CLIENT_SECRET:', PAYPAL_CLIENT_SECRET ? 'SET (hidden)' : 'NOT SET');
+  
   if (!PAYPAL_CLIENT_ID || !PAYPAL_CLIENT_SECRET) {
     throw new Error('PayPal credentials not configured. Please set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET environment variables.');
   }
 
   const auth = Buffer.from(`${PAYPAL_CLIENT_ID}:${PAYPAL_CLIENT_SECRET}`).toString('base64');
+  
+  console.log('Requesting PayPal access token from:', `${PAYPAL_BASE_URL}/v1/oauth2/token`);
   
   const response = await fetch(`${PAYPAL_BASE_URL}/v1/oauth2/token`, {
     method: 'POST',
@@ -44,14 +52,22 @@ async function getPayPalAccessToken() {
   const data = await response.json();
   
   if (!response.ok) {
-    console.error('PayPal access token error:', data);
+    console.error('PayPal access token error response:', {
+      status: response.status,
+      statusText: response.statusText,
+      error: data.error,
+      error_description: data.error_description,
+      full_response: data
+    });
     throw new Error(`Failed to get PayPal access token: ${data.error_description || data.error || JSON.stringify(data)}`);
   }
   
   if (!data.access_token) {
+    console.error('No access token in response:', data);
     throw new Error('PayPal access token not received in response');
   }
   
+  console.log('PayPal access token obtained successfully');
   return data.access_token;
 }
 
