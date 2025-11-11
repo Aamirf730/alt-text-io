@@ -20,13 +20,29 @@ Check that all these are set in Netlify (Site settings → Environment variables
 - `PAYPAL_PLAN_TIER3` (sandbox plan ID)
 - `REACT_APP_PAYPAL_CLIENT_ID` (same as PAYPAL_CLIENT_ID)
 
-## Step 2: Create a Sandbox Test Account (Optional)
+## Step 2: Create a Sandbox Test Account (REQUIRED)
+
+**IMPORTANT**: You cannot use the same PayPal account that created the product/plans (seller account) to test purchases. You need a separate **buyer account**.
+
+### Create a Buyer Account:
 
 1. Go to: https://developer.paypal.com/dashboard/accounts
-2. Make sure you're on **Sandbox** tab
-3. Click **"Create Account"**
-4. Create a **Personal** account for testing
-5. Note the email and password (you'll use this to test payments)
+2. Make sure you're on **Sandbox** tab (not Production)
+3. Click **"Create Account"** button
+4. Select **"Personal"** account type
+5. Fill in the details:
+   - Email: Use a test email (e.g., `buyer-test@example.com`)
+   - Password: Create a password (you'll need this to log in)
+   - Country: Select your country
+6. Click **"Create Account"**
+7. **Note down the email and password** - you'll use this to test payments
+
+### Why You Need a Separate Account:
+
+- The account that created the product/plans is the **seller account**
+- PayPal doesn't allow the seller to also be the buyer in the same transaction
+- You'll see this error if you try: *"You are logging in to the account of the seller for this purchase. Please change your login information and try again."*
+- Solution: Always use a different sandbox account (buyer account) to test purchases
 
 ## Step 3: Test Subscription Flow
 

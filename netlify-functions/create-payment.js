@@ -284,9 +284,11 @@ exports.handler = async (event, context) => {
     }
 
     // Create return and cancel URLs
-    const baseUrl = process.env.NODE_ENV === 'production' 
-      ? 'https://www.alt-text.pro' 
-      : 'http://localhost:3000';
+    // Get the origin from the request headers, or default to production URL
+    const origin = event.headers.origin || event.headers.referer?.split('/').slice(0, 3).join('/') || 'https://www.alt-text.pro';
+    const baseUrl = origin.includes('localhost') 
+      ? 'http://localhost:3000' 
+      : 'https://www.alt-text.pro';
     
     const returnUrl = `${baseUrl}/payment-success?plan=${planId}`;
     const cancelUrl = `${baseUrl}/payment-cancelled`;
