@@ -162,21 +162,11 @@ async function createPayPalSubscription(planId, planDetails, returnUrl, cancelUr
     const subscriptionData = {
       plan_id: paypalPlanId,
       start_time: new Date(Date.now() + 60000).toISOString(), // Start 1 minute from now
-      subscriber: {
-        name: {
-          given_name: 'Customer',
-          surname: 'Alt Text Pro'
-        }
-      },
       application_context: {
         brand_name: 'Alt Text Pro',
         locale: 'en-US',
         shipping_preference: 'NO_SHIPPING',
         user_action: 'SUBSCRIBE_NOW',
-        payment_method: {
-          payer_selected: 'PAYPAL',
-          payee_preferred: 'IMMEDIATE_PAYMENT_REQUIRED'
-        },
         return_url: returnUrl,
         cancel_url: cancelUrl
       }
