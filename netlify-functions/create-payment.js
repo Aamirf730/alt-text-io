@@ -226,8 +226,30 @@ async function createPayPalSubscription(planId, planDetails, returnUrl, cancelUr
     }
 
     console.log('PayPal subscription created successfully:', result.id);
+    console.log('Subscription status:', result.status);
     console.log('Full subscription response:', JSON.stringify(result, null, 2));
     console.log('Subscription links:', result.links ? JSON.stringify(result.links, null, 2) : 'No links');
+    
+    // Validate that we have an approval URL with ba_token
+    if (result.links && result.links.length > 0) {
+      const approveLink = result.links.find(link => link.rel === 'approve');
+      if (approveLink) {
+        console.log('Approval URL found:', approveLink.href);
+        // Validate the ba_token is present
+        try {
+          const urlObj = new URL(approveLink.href);
+          const baToken = urlObj.searchParams.get('ba_token');
+          if (!baToken) {
+            console.warn('⚠️ Approval URL does not contain ba_token parameter');
+          } else {
+            console.log('✅ ba_token found in approval URL (length:', baToken.length, ')');
+          }
+        } catch (err) {
+          console.warn('⚠️ Could not parse approval URL:', err.message);
+        }
+      }
+    }
+    
     return result;
   } catch (error) {
     console.error('Error in createPayPalSubscription:', error);
