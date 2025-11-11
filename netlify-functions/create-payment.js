@@ -185,8 +185,9 @@ async function createPayPalSubscription(planId, planDetails, returnUrl, cancelUr
     console.log(`Using PayPal Plan ID: ${paypalPlanId}`);
     
     // Create subscription
-    // Set start_time to at least 5 minutes in the future to ensure token validity
-    const startTime = new Date(Date.now() + 300000).toISOString(); // 5 minutes from now
+    // Set start_time to immediate (or very near future) for better compatibility
+    // PayPal subscriptions should start immediately after approval
+    const startTime = new Date(Date.now() + 10000).toISOString(); // 10 seconds from now (minimal delay)
     
     const subscriptionData = {
       plan_id: paypalPlanId,
@@ -202,6 +203,7 @@ async function createPayPalSubscription(planId, planDetails, returnUrl, cancelUr
     };
     
     console.log('Subscription start_time:', startTime);
+    console.log('Current time:', new Date().toISOString());
 
     console.log('Creating PayPal subscription with data:', JSON.stringify(subscriptionData, null, 2));
 
