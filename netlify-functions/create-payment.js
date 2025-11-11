@@ -289,6 +289,8 @@ exports.handler = async (event, context) => {
     
     // Verify user authentication
     console.log('Verifying user token...');
+    console.log('Supabase URL being used:', supabaseUrl);
+    console.log('Token preview:', token ? token.substring(0, 20) + '...' : 'NO TOKEN');
     
     // Try to verify token - if it fails, try alternative method
     let authUser = null;
