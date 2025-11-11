@@ -80,6 +80,32 @@ async function getPayPalPlanId(planId, planDetails, accessToken) {
   
   if (envPlanId) {
     console.log(`Using pre-created PayPal plan for ${planId}: ${envPlanId}`);
+    
+    // Verify the plan exists and is active
+    try {
+      const planResponse = await fetch(`${PAYPAL_BASE_URL}/v1/billing/plans/${envPlanId}`, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (planResponse.ok) {
+        const planData = await planResponse.json();
+        console.log(`Plan ${envPlanId} status: ${planData.status}`);
+        if (planData.status === 'ACTIVE') {
+          return envPlanId;
+        } else {
+          console.warn(`Plan ${envPlanId} is not ACTIVE, status: ${planData.status}`);
+        }
+      } else {
+        console.warn(`Plan ${envPlanId} verification failed: ${planResponse.status}`);
+      }
+    } catch (err) {
+      console.warn(`Error verifying plan ${envPlanId}:`, err.message);
+      // Continue anyway - plan might still work
+    }
+    
     return envPlanId;
   }
 
