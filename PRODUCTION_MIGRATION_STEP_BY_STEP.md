@@ -122,20 +122,55 @@ Follow these steps in order. Complete each step before moving to the next.
 
 ## 📋 STEP 7: Set Up Production Webhook
 
-1. **Go back to Apps**: Click "Dashboard" → "My Apps & Credentials"
-2. **Make sure you're on Production/Live tab**
-3. **Click on your app** (`Alt Text Pro Production`)
-4. **Scroll down** to find "Webhooks" section
-5. **Click "Add Webhook"** or "Edit Webhook" (if one exists)
-6. **Webhook URL**: Enter exactly: `https://www.alt-text.pro/.netlify/functions/paypal-webhook`
-7. **Event types** - Select these events (check the boxes):
-   - ✅ `BILLING.SUBSCRIPTION.ACTIVATED`
-   - ✅ `BILLING.SUBSCRIPTION.CANCELLED`
-   - ✅ `BILLING.SUBSCRIPTION.PAYMENT.FAILED`
-   - ✅ `BILLING.SUBSCRIPTION.SUSPENDED`
-   - ✅ `PAYMENT.SALE.COMPLETED`
-8. **Click "Save"**
-9. **Copy the Webhook ID** (if shown - you might need this later)
+1. **Go back to Apps**: 
+   - Click "Dashboard" → "My Apps & Credentials"
+   - OR go directly to: https://developer.paypal.com/dashboard/applications
+
+2. **Make sure you're on Live/Production tab**:
+   - Look at the top of the page
+   - You should see tabs: "Sandbox" and "Live" (or "Production")
+   - **Click on "Live" tab** (NOT Sandbox!)
+
+3. **Click on your production app**:
+   - Find `Alt Text Pro Production` in the list
+   - Click on it to open the app details
+
+4. **Find the Webhooks section**:
+   - Scroll down in the app details page
+   - Look for a section called **"Live Webhooks"** or **"Webhooks"**
+   - It might be in a sidebar on the left, or in the main content area
+   - If you don't see it, try clicking on different tabs/sections in the app details page
+
+5. **Add the Webhook**:
+   - Click **"Add Webhook"** button (or "Create Webhook")
+   - If you see an existing webhook, you can click "Edit" or "Add another webhook"
+
+6. **Configure the Webhook**:
+   - **Webhook URL**: Enter exactly: `https://www.alt-text.pro/.netlify/functions/paypal-webhook`
+   - **Event types** - Select these events (check the boxes):
+     - ✅ `BILLING.SUBSCRIPTION.ACTIVATED`
+     - ✅ `BILLING.SUBSCRIPTION.CANCELLED`
+     - ✅ `BILLING.SUBSCRIPTION.PAYMENT.FAILED`
+     - ✅ `BILLING.SUBSCRIPTION.SUSPENDED`
+     - ✅ `PAYMENT.SALE.COMPLETED`
+   - **Click "Save"** or "Create Webhook"
+
+7. **Verify the Webhook**:
+   - After saving, you should see the webhook listed
+   - The status should show as "Active" or "Enabled"
+   - **Copy the Webhook ID** if shown (you might need this later)
+
+**⚠️ If you can't find "Add Webhook" button:**
+- Make sure you're on the **Live** tab, not Sandbox
+- Make sure you've clicked on your **production app** (not sandbox app)
+- Try refreshing the page
+- Some PayPal accounts may have webhooks in a different location - look for "Webhooks" in the left sidebar or main menu
+
+**Alternative method (if webhook is in a different location):**
+- Go to: https://developer.paypal.com/dashboard/webhooks
+- Make sure you're on **Live** tab
+- Click "Add Webhook" from there
+- Select your app when prompted
 
 **✅ Checkpoint:** Webhook is configured with URL: `https://www.alt-text.pro/.netlify/functions/paypal-webhook`
 
