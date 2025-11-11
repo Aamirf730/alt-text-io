@@ -124,7 +124,11 @@ exports.handler = async (event, context) => {
 
     // Calculate statistics
     const totalGenerated = usageLogs ? usageLogs.length : 0;
-    const creditsUsed = usageLogs ? usageLogs.reduce((sum, log) => sum + (log.credits_used || 1), 0) : 0;
+    
+    // Use total_processed from profile instead of summing all usage_logs
+    // This ensures we only show usage from the current plan period
+    // (total_processed is reset to 0 when upgrading to a subscription plan)
+    const creditsUsed = profile.total_processed || 0;
     
     // Get subscription plan details
     const { data: planDetails, error: planError } = await supabase
