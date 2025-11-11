@@ -4627,7 +4627,7 @@ const EmailConfirmation = () => {
 
         // If we get here, nothing worked
         console.error('❌ No valid confirmation method found');
-        setError('Invalid confirmation link. Please try signing up again or request a new confirmation email.');
+        setError('Invalid confirmation link. Please try signing up again or request a new confirmation email.');');
       } catch (err) {
         console.error('❌ Email confirmation error:', err);
         setError(err.message || 'Failed to confirm email. Please try again.');
