@@ -93,20 +93,28 @@ async function getPayPalPlanId(planId, planDetails, accessToken) {
       if (planResponse.ok) {
         const planData = await planResponse.json();
         console.log(`Plan ${envPlanId} status: ${planData.status}`);
+        console.log(`Plan ${envPlanId} details:`, JSON.stringify(planData, null, 2));
+        
         if (planData.status === 'ACTIVE') {
+          // Double-check that the plan has all required fields
+          if (!planData.id || !planData.product_id) {
+            console.error(`Plan ${envPlanId} is missing required fields`);
+            throw new Error(`Plan ${envPlanId} is missing required fields`);
+          }
           return envPlanId;
         } else {
-          console.warn(`Plan ${envPlanId} is not ACTIVE, status: ${planData.status}`);
+          console.error(`Plan ${envPlanId} is not ACTIVE, status: ${planData.status}`);
+          throw new Error(`Plan ${envPlanId} is not ACTIVE. Current status: ${planData.status}. Please activate the plan in PayPal dashboard.`);
         }
       } else {
-        console.warn(`Plan ${envPlanId} verification failed: ${planResponse.status}`);
+        const errorData = await planResponse.json();
+        console.error(`Plan ${envPlanId} verification failed:`, planResponse.status, errorData);
+        throw new Error(`Failed to verify plan ${envPlanId}: ${errorData.message || planResponse.statusText}`);
       }
     } catch (err) {
-      console.warn(`Error verifying plan ${envPlanId}:`, err.message);
-      // Continue anyway - plan might still work
+      console.error(`Error verifying plan ${envPlanId}:`, err.message);
+      throw err; // Don't continue if plan verification fails
     }
-    
-    return envPlanId;
   }
 
   // If no pre-created plan, try to create one (requires PAYPAL_PRODUCT_ID)
@@ -242,19 +250,35 @@ async function createPayPalSubscription(planId, planDetails, returnUrl, cancelUr
       const approveLink = result.links.find(link => link.rel === 'approve');
       if (approveLink) {
         console.log('Approval URL found:', approveLink.href);
-        // Validate the ba_token is present
+        // Validate the ba_token is present and URL format is correct
         try {
           const urlObj = new URL(approveLink.href);
           const baToken = urlObj.searchParams.get('ba_token');
+          
+          // Ensure the URL is for subscription approval, not one-time payment
+          if (!approveLink.href.includes('/billing/subscriptions')) {
+            console.error('⚠️ Approval URL is not for subscriptions:', approveLink.href);
+            throw new Error('Invalid approval URL format - not a subscription URL');
+          }
+          
           if (!baToken) {
-            console.warn('⚠️ Approval URL does not contain ba_token parameter');
+            console.error('⚠️ Approval URL does not contain ba_token parameter');
+            throw new Error('Approval URL missing ba_token parameter');
           } else {
             console.log('✅ ba_token found in approval URL (length:', baToken.length, ')');
+            console.log('✅ Approval URL is correct format for subscriptions');
           }
         } catch (err) {
-          console.warn('⚠️ Could not parse approval URL:', err.message);
+          console.error('⚠️ Error validating approval URL:', err.message);
+          throw err;
         }
+      } else {
+        console.error('⚠️ No approval link found in subscription response');
+        throw new Error('No approval URL returned from PayPal');
       }
+    } else {
+      console.error('⚠️ No links found in subscription response');
+      throw new Error('No links returned from PayPal subscription creation');
     }
     
     return result;
