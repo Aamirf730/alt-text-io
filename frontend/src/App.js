@@ -4910,7 +4910,7 @@ const AdminDashboard = () => {
       {/* User Details Modal */}
       {selectedUser && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <Card className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <Card className="max-w-2xl w-full max-h-[90vh] overflow-y-auto bg-white shadow-xl">
             <CardHeader>
               <div className="flex justify-between items-center">
                 <CardTitle>User Details</CardTitle>
