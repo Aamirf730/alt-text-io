@@ -206,11 +206,7 @@ async function createPayPalSubscription(planId, planDetails, returnUrl, cancelUr
         return_url: returnUrl,
         cancel_url: cancelUrl
       },
-      payment_source: { // Explicitly define payment source
-        paypal: {
-          email_address: userEmail
-        }
-      }
+      // Removed payment_source to simplify payload for subscriptions
     };
     console.log('Subscription start will default to PayPal activation time');
     console.log('Subscription creation requested at:', new Date().toISOString());
