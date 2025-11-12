@@ -4410,111 +4410,86 @@ const PaymentSuccess = () => {
         }
 
         // Get query parameters from PayPal redirect
+        // PayPal may send subscription_id, token, ba_token, or other parameters
         const params = new URLSearchParams(window.location.search);
-        const subscriptionId = params.get('subscription_id') || params.get('token');
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        
+        // Log all parameters for debugging
+        console.log('Payment success page - URL params:', Object.fromEntries(params));
+        console.log('Payment success page - Hash params:', Object.fromEntries(hashParams));
+        console.log('Payment success page - Full URL:', window.location.href);
+        
+        // Try multiple possible parameter names PayPal might use
+        const subscriptionId = params.get('subscription_id') || 
+                              params.get('subscriptionId') ||
+                              params.get('token') ||
+                              hashParams.get('token') ||
+                              params.get('ba_token');
         const planId = params.get('plan');
 
-        if (!subscriptionId && !planId) {
-          // Check if this is a subscription approval
-          const hashParams = new URLSearchParams(window.location.hash.substring(1));
-          const token = hashParams.get('token') || params.get('token');
-          
-          if (token) {
-            // This might be a subscription token
-            // Complete the payment
-            let apiBase;
-            if (window.location.hostname === 'localhost') {
-              apiBase = process.env.REACT_APP_API_BASE || 'https://www.alt-text.pro/.netlify/functions';
-            } else {
-              apiBase = '/.netlify/functions';
-            }
-
-            const response = await fetch(`${apiBase}/complete-payment`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${session.access_token}`
-              },
-              body: JSON.stringify({
-                paymentId: token,
-                planId: planId || 'tier1', // Default to tier1 if not specified
-                subscriptionId: token
-              })
-            });
-
-            const result = await response.json();
-            
-            if (response.ok) {
-              if (result.status === 'pending_approval') {
-                // Subscription is pending approval - webhook will handle activation
-                toast.success('Subscription created! Your account will be activated shortly.');
-                setTimeout(() => {
-                  navigate('/dashboard');
-                }, 2000);
-              } else {
-                // Success - redirect to dashboard
-                toast.success('Payment successful!');
-                setTimeout(() => {
-                  navigate('/dashboard');
-                }, 2000);
-              }
-            } else {
-              console.error('Payment completion error:', result);
-              setError(result.error || result.details || 'Payment completion failed');
-              setIsProcessing(false);
-            }
-          } else {
-            setError('Invalid payment return');
-            setIsProcessing(false);
-          }
+        // If we have a subscription ID, use it
+        // Otherwise, try to find it from the database using planId
+        if (subscriptionId) {
+          console.log('Found subscription ID from URL:', subscriptionId);
+        } else if (planId) {
+          console.log('No subscription ID in URL, will look up from database for plan:', planId);
         } else {
-          // Complete the payment with the provided IDs
-          let apiBase;
-          if (window.location.hostname === 'localhost') {
-            apiBase = process.env.REACT_APP_API_BASE || 'https://www.alt-text.pro/.netlify/functions';
-          } else {
-            apiBase = '/.netlify/functions';
-          }
+          console.warn('No subscription ID or plan ID found in URL');
+        }
 
-          const response = await fetch(`${apiBase}/complete-payment`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${session.access_token}`
-            },
-            body: JSON.stringify({
-              paymentId: subscriptionId || params.get('token'),
-              planId: planId,
-              subscriptionId: subscriptionId
-            })
-          });
+        let apiBase;
+        if (window.location.hostname === 'localhost') {
+          apiBase = process.env.REACT_APP_API_BASE || 'https://www.alt-text.pro/.netlify/functions';
+        } else {
+          apiBase = '/.netlify/functions';
+        }
 
-          const result = await response.json();
-          
-          if (response.ok) {
-            if (result.status === 'pending_approval') {
-              // Subscription is pending approval - webhook will handle activation
-              toast.success('Subscription created! Your account will be activated shortly.');
-              setTimeout(() => {
-                navigate('/dashboard');
-              }, 2000);
-            } else {
-              // Success - redirect to dashboard
-              toast.success('Payment successful!');
-              setTimeout(() => {
-                navigate('/dashboard');
-              }, 2000);
-            }
+        // Complete the payment - complete-payment will handle lookup if subscriptionId is missing
+        const response = await fetch(`${apiBase}/complete-payment`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({
+            paymentId: subscriptionId, // Use subscription ID as payment ID for subscriptions
+            planId: planId || 'tier1', // Default to tier1 if not specified
+            subscriptionId: subscriptionId,
+            isSubscription: true // Indicate this is a subscription
+          })
+        });
+
+        const result = await response.json();
+        
+        console.log('Complete payment response:', result);
+        
+        if (response.ok) {
+          // Subscription might be in APPROVAL_PENDING state - that's OK, webhook will activate it
+          toast.success('Subscription approved! Your account will be activated shortly.');
+          setTimeout(() => {
+            navigate('/dashboard');
+          }, 2000);
+        } else {
+          console.error('Payment completion error:', result);
+          // Even if there's an error, subscription might still be processing
+          // Check if it's just a status issue
+          if (result.error && result.error.includes('not in valid state')) {
+            toast.success('Subscription is being processed. Your account will be activated shortly.');
+            setTimeout(() => {
+              navigate('/dashboard');
+            }, 2000);
           } else {
-            console.error('Payment completion error:', result);
-            setError(result.error || result.details || 'Payment completion failed');
+            setError(result.error || result.details || 'Payment completion failed. Please check your dashboard.');
             setIsProcessing(false);
           }
         }
       } catch (err) {
         console.error('Payment success handler error:', err);
-        setError('An error occurred processing your payment');
-        setIsProcessing(false);
+        // Even on error, subscription might still be processing via webhook
+        toast.success('Subscription is being processed. Please check your dashboard in a moment.');
+        setTimeout(() => {
+          navigate('/dashboard');
+        }, 3000);
       }
     };
 

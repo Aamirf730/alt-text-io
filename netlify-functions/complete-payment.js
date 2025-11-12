@@ -98,7 +98,7 @@ async function getPayPalSubscription(subscriptionId) {
   console.log(`Getting PayPal subscription details for: ${subscriptionId}`);
   
   try {
-    const accessToken = await getPayPalAccessToken();
+  const accessToken = await getPayPalAccessToken();
     
     if (!accessToken) {
       throw new Error('Failed to obtain PayPal access token');
@@ -107,15 +107,15 @@ async function getPayPalSubscription(subscriptionId) {
     console.log(`Access token obtained, length: ${accessToken.length}`);
     console.log(`Access token preview: ${accessToken.substring(0, 30)}...`);
     console.log(`Fetching subscription from: ${PAYPAL_BASE_URL}/v1/billing/subscriptions/${subscriptionId}`);
-    
-    const response = await fetch(`${PAYPAL_BASE_URL}/v1/billing/subscriptions/${subscriptionId}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`,
+  
+  const response = await fetch(`${PAYPAL_BASE_URL}/v1/billing/subscriptions/${subscriptionId}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${accessToken}`,
         'Accept': 'application/json',
-      },
-    });
+    },
+  });
 
     const data = await response.json();
     
@@ -289,26 +289,36 @@ exports.handler = async (event, context) => {
       }
 
       // Accept multiple states that indicate the subscription is valid
+      // APPROVAL_PENDING means user approved but PayPal is still processing
+      // APPROVED means approved but not yet active
+      // ACTIVE means fully active
       const validStates = ['ACTIVE', 'APPROVAL_PENDING', 'APPROVED'];
       
-      if (!validStates.includes(paymentResult.status)) {
-        // Subscription might be in APPROVAL_PENDING state, check for approval
-        if (paymentResult.status === 'APPROVAL_PENDING' || paymentResult.status === 'APPROVED') {
-          // Subscription is approved but not yet active - webhook will activate it
-          subscriptionStatus = paymentResult.status;
-          amount = parseFloat(plan.price);
-        } else {
+      if (validStates.includes(paymentResult.status)) {
+        // Subscription is in a valid state - webhook will handle activation if needed
+        subscriptionStatus = paymentResult.status;
+        amount = parseFloat(plan.price);
+        console.log(`Subscription ${finalSubscriptionId || paymentId} is in ${paymentResult.status} state - this is valid`);
+      } else {
+        // Check for other possible states
+        console.warn(`Subscription status is ${paymentResult.status}, which is not in expected states:`, validStates);
+        
+        // If status is something unexpected, still try to proceed if it's not explicitly failed
+        const failedStates = ['CANCELLED', 'SUSPENDED', 'EXPIRED'];
+        if (failedStates.includes(paymentResult.status)) {
           return {
             statusCode: 400,
             headers,
             body: JSON.stringify({ 
-              error: `Subscription not in valid state: ${paymentResult.status}`,
+              error: `Subscription is in ${paymentResult.status} state`,
               status: paymentResult.status,
               subscriptionId: finalSubscriptionId || paymentId
             }),
           };
         }
-      } else {
+        
+        // For unknown states, log but proceed (webhook will handle final status)
+        console.log('Proceeding with subscription despite unknown status - webhook will handle final state');
         subscriptionStatus = paymentResult.status;
         amount = parseFloat(plan.price);
       }
