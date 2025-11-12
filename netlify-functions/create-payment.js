@@ -184,11 +184,6 @@ async function createPayPalSubscription(planId, planDetails, returnUrl, cancelUr
     const paypalPlanId = await getPayPalPlanId(planId, planDetails, accessToken);
     console.log(`Using PayPal Plan ID: ${paypalPlanId}`);
     
-    // Create subscription according to PayPal's official API documentation
-    // Set start_time to immediate (or very near future) for better compatibility
-    // PayPal subscriptions should start immediately after approval
-    const startTime = new Date(Date.now() + 10000).toISOString(); // 10 seconds from now (minimal delay)
-    
     // Build subscriber object if we have user information
     const subscriber = userEmail ? {
       email_address: userEmail,
@@ -200,9 +195,10 @@ async function createPayPalSubscription(planId, planDetails, returnUrl, cancelUr
       })
     } : undefined;
     
+    // Let PayPal determine start_time during approval. Supplying a value that's too close causes
+    // "Something went wrong" errors because PayPal requires it to be at least ~10 minutes ahead.
     const subscriptionData = {
       plan_id: paypalPlanId,
-      start_time: startTime,
       ...(subscriber && { subscriber }),
       application_context: {
         brand_name: 'Alt Text Pro',
@@ -217,9 +213,8 @@ async function createPayPalSubscription(planId, planDetails, returnUrl, cancelUr
         cancel_url: cancelUrl
       }
     };
-    
-    console.log('Subscription start_time:', startTime);
-    console.log('Current time:', new Date().toISOString());
+    console.log('Subscription start will default to PayPal activation time');
+    console.log('Subscription creation requested at:', new Date().toISOString());
 
     console.log('Creating PayPal subscription with data:', JSON.stringify(subscriptionData, null, 2));
 
