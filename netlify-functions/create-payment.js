@@ -187,12 +187,6 @@ async function createPayPalSubscription(planId, planDetails, returnUrl, cancelUr
     // Build subscriber object if we have user information
     const subscriber = userEmail ? {
       email_address: userEmail,
-      ...(userName && {
-        name: {
-          given_name: userName.split(' ')[0] || userName,
-          surname: userName.split(' ').slice(1).join(' ') || ''
-        }
-      })
     } : undefined;
     
     // Let PayPal determine start_time during approval. Supplying a value that's too close causes
@@ -207,10 +201,15 @@ async function createPayPalSubscription(planId, planDetails, returnUrl, cancelUr
         user_action: 'SUBSCRIBE_NOW',
         payment_method: {
           payer_selected: 'PAYPAL',
-          payee_preferred: 'IMMEDIATE_PAYMENT_REQUIRED'
+          // payee_preferred: 'IMMEDIATE_PAYMENT_REQUIRED' // Removing this to simplify
         },
         return_url: returnUrl,
         cancel_url: cancelUrl
+      },
+      payment_source: { // Explicitly define payment source
+        paypal: {
+          email_address: userEmail
+        }
       }
     };
     console.log('Subscription start will default to PayPal activation time');
