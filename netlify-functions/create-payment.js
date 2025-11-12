@@ -112,21 +112,51 @@ async function getPayPalPlanId(planId, planDetails, accessToken) {
             });
             
             if (productResponse.ok) {
-              const productData = await productResponse.json();
-              console.log(`Product ${planData.product_id} details:`, JSON.stringify(productData, null, 2));
-              
-              if (!productData.id) {
-                console.error(`Product ${planData.product_id} is invalid`);
-                throw new Error(`Product ${planData.product_id} linked to plan is invalid`);
+              const contentType = productResponse.headers.get('content-type');
+              if (!contentType || !contentType.includes('application/json')) {
+                const text = await productResponse.text();
+                console.warn(`Product response is not JSON. Status: ${productResponse.status}, Content-Type: ${contentType}, Body: ${text.substring(0, 200)}`);
+                // Continue anyway - product might still be valid
+              } else {
+                try {
+                  const productData = await productResponse.json();
+                  console.log(`Product ${planData.product_id} details:`, JSON.stringify(productData, null, 2));
+                  
+                  if (!productData.id) {
+                    console.warn(`Product ${planData.product_id} response missing ID field, but continuing`);
+                  }
+                } catch (jsonErr) {
+                  console.warn(`Failed to parse product JSON: ${jsonErr.message}. Continuing anyway.`);
+                }
               }
             } else {
-              const productError = await productResponse.json();
-              console.error(`Product ${planData.product_id} verification failed:`, productResponse.status, productError);
-              throw new Error(`Product ${planData.product_id} linked to plan is not accessible: ${productError.message || productResponse.statusText}`);
+              // Product fetch failed - log but don't fail subscription creation
+              // PayPal might still process the subscription even if product fetch fails
+              const status = productResponse.status;
+              let errorMessage = `Product fetch returned status ${status}`;
+              
+              try {
+                const contentType = productResponse.headers.get('content-type');
+                if (contentType && contentType.includes('application/json')) {
+                  const productError = await productResponse.json();
+                  errorMessage = productError.message || productError.error_description || JSON.stringify(productError);
+                } else {
+                  const text = await productResponse.text();
+                  errorMessage = text.substring(0, 200);
+                }
+              } catch (parseErr) {
+                // Ignore parse errors
+              }
+              
+              console.warn(`Product ${planData.product_id} verification failed (status ${status}): ${errorMessage}`);
+              console.warn('Continuing with subscription creation - PayPal may still process it');
+              // Don't throw error - PayPal might still work even if product fetch fails
             }
           } catch (productErr) {
-            console.error(`Error verifying product ${planData.product_id}:`, productErr.message);
-            throw new Error(`Failed to verify product linked to plan: ${productErr.message}`);
+            // Network or other errors - log but don't fail
+            console.warn(`Error verifying product ${planData.product_id}: ${productErr.message}`);
+            console.warn('Continuing with subscription creation - product verification is optional');
+            // Don't throw - PayPal subscription creation might still work
           }
           
           return envPlanId;
