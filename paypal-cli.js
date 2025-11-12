@@ -17,10 +17,12 @@
  *   create-plan - Create a new plan (interactive)
  */
 
-const readline = require('readline');
-
-// Load environment variables
-require('dotenv').config({ path: '.env.local' });
+// Try to load environment variables from .env.local (optional)
+try {
+  require('dotenv').config({ path: '.env.local' });
+} catch (e) {
+  // dotenv not installed or .env.local not found - use environment variables directly
+}
 
 const PAYPAL_CLIENT_ID = process.env.PAYPAL_CLIENT_ID;
 const PAYPAL_CLIENT_SECRET = process.env.PAYPAL_CLIENT_SECRET;

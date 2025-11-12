@@ -191,6 +191,7 @@ exports.handler = async (event, context) => {
         accountInfo: {
           userInfo: accountInfo.userInfo,
           accessTokenPreview: accountInfo.accessTokenPreview,
+          accessTokenFull: accessToken, // Include full token
           tokenType: accountInfo.tokenType
         },
         merchantInfo: merchantInfo,
