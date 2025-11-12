@@ -2120,6 +2120,9 @@ const LandingPage = () => {
                           const result = await response.json();
                           
                           console.log('Payment creation response:', result);
+                          console.log('Approval URL received:', result.approvalUrl);
+                          console.log('Is subscription:', result.isSubscription);
+                          console.log('Subscription ID:', result.subscriptionId);
                           
                           if (!response.ok) {
                             console.error('Payment creation failed:', result);
@@ -2128,9 +2131,39 @@ const LandingPage = () => {
                           }
 
                           if (result.approvalUrl) {
-                            console.log('Redirecting to PayPal approval URL:', result.approvalUrl);
+                            // Validate the approval URL format
+                            const approvalUrl = result.approvalUrl;
+                            console.log('Full approval URL:', approvalUrl);
+                            
+                            // Check if it's a subscription URL (should contain /billing/subscriptions)
+                            if (approvalUrl.includes('/billing/subscriptions')) {
+                              console.log('✅ Approval URL is for subscriptions');
+                            } else if (approvalUrl.includes('/webapps/hermes') || approvalUrl.includes('/checkout')) {
+                              console.error('❌ WARNING: Approval URL appears to be for one-time payment, not subscription!');
+                              console.error('URL:', approvalUrl);
+                              toast.error('PayPal returned incorrect payment type. Please contact support.');
+                              return;
+                            }
+                            
+                            // Check for ba_token (subscription) vs token (order)
+                            const urlObj = new URL(approvalUrl);
+                            const baToken = urlObj.searchParams.get('ba_token');
+                            const orderToken = urlObj.searchParams.get('token');
+                            
+                            if (baToken) {
+                              console.log('✅ Found ba_token (subscription):', baToken.substring(0, 20) + '...');
+                            } else if (orderToken) {
+                              console.error('❌ ERROR: Found order token instead of ba_token! This is a one-time payment, not a subscription!');
+                              console.error('Order token:', orderToken);
+                              toast.error('PayPal created a one-time payment instead of subscription. Please contact support.');
+                              return;
+                            } else {
+                              console.warn('⚠️ No ba_token or token found in approval URL');
+                            }
+                            
+                            console.log('Redirecting to PayPal approval URL:', approvalUrl);
                             // Redirect to PayPal approval page
-                            window.location.href = result.approvalUrl;
+                            window.location.href = approvalUrl;
                           } else {
                             console.error('No approval URL in response:', result);
                             toast.error(`Failed to get PayPal approval URL. Response: ${JSON.stringify(result)}`);
