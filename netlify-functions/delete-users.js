@@ -1,6 +1,6 @@
-// Netlify Function to Delete User Accounts
+// Netlify Function to Delete Test User Accounts
 // File: netlify-functions/delete-users.js
-// Requires superuser authentication
+// This function deletes users and all their associated data from Supabase
 
 const { createClient } = require('@supabase/supabase-js');
 
@@ -43,31 +43,9 @@ exports.handler = async (event, context) => {
   }
 
   try {
-    // Check environment variables
-    console.log('=== ENVIRONMENT VARIABLES CHECK ===');
-    console.log('SUPABASE_URL:', supabaseUrl ? (supabaseUrl.substring(0, 30) + '...') : 'NOT SET');
-    console.log('SUPABASE_SERVICE_ROLE_KEY:', supabaseServiceKey ? 'SET (hidden)' : 'NOT SET');
-    console.log('SUPERUSER_EMAILS:', SUPERUSER_EMAILS.length > 0 ? SUPERUSER_EMAILS.join(', ') : 'NOT SET');
-    
-    if (!supabaseUrl || !supabaseServiceKey) {
-      console.error('CRITICAL: Supabase configuration missing!');
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ 
-          error: 'Server configuration error',
-          details: 'Supabase credentials not configured'
-        }),
-      };
-    }
-
-    // Get authorization token
-    console.log('=== AUTHENTICATION CHECK ===');
+    // Verify authentication
     const authHeader = event.headers.authorization || event.headers.Authorization;
-    console.log('Authorization header present:', !!authHeader);
-    
     if (!authHeader) {
-      console.error('ERROR: No authorization header');
       return {
         statusCode: 401,
         headers,
@@ -76,65 +54,32 @@ exports.handler = async (event, context) => {
     }
 
     const token = authHeader.replace('Bearer ', '').trim();
-    console.log('Token preview:', token ? (token.substring(0, 20) + '...') : 'NO TOKEN');
     
     // Validate JWT token and get user
-    console.log('Validating JWT token with Supabase...');
-    let user = null;
-    let authError = null;
-    
-    try {
-      const { data: { user: authUser }, error: getUserError } = await supabase.auth.getUser(token);
-      user = authUser;
-      authError = getUserError;
-      
-      if (authError) {
-        console.error('Supabase getUser error:', authError);
-      } else if (user) {
-        console.log('User authenticated successfully');
-        console.log('User email:', user.email);
-      }
-    } catch (err) {
-      console.error('Exception during token validation:', err);
-      authError = err;
-    }
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     
     if (authError || !user) {
-      console.error('Authentication failed');
       return {
         statusCode: 401,
         headers,
-        body: JSON.stringify({ 
-          error: 'Invalid or expired token',
-          details: authError?.message || 'User not found'
-        }),
+        body: JSON.stringify({ error: 'Invalid or expired token' }),
       };
     }
 
     // Check if user is a superuser
-    console.log('=== SUPERUSER CHECK ===');
-    console.log('User email:', user.email);
-    console.log('Superuser emails list:', SUPERUSER_EMAILS);
-    console.log('Is superuser?', SUPERUSER_EMAILS.includes(user.email));
-    
     if (!SUPERUSER_EMAILS.includes(user.email)) {
-      console.error('Access denied - user is not a superuser');
       return {
         statusCode: 403,
         headers,
-        body: JSON.stringify({ 
-          error: 'Access denied. Superuser privileges required.'
-        }),
+        body: JSON.stringify({ error: 'Access denied. Superuser privileges required.' }),
       };
     }
 
-    // Parse request body to get emails to delete
-    console.log('=== PARSING REQUEST ===');
+    // Parse request body
     let requestBody;
     try {
       requestBody = JSON.parse(event.body);
-    } catch (err) {
-      console.error('Error parsing request body:', err);
+    } catch (parseError) {
       return {
         statusCode: 400,
         headers,
@@ -143,108 +88,118 @@ exports.handler = async (event, context) => {
     }
 
     const emailsToDelete = requestBody.emails || [];
+    
     if (!Array.isArray(emailsToDelete) || emailsToDelete.length === 0) {
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ error: 'emails array is required and must not be empty' }),
+        body: JSON.stringify({ error: 'Please provide an array of email addresses to delete' }),
       };
     }
 
     console.log('Emails to delete:', emailsToDelete);
 
-    const results = {
-      deleted: [],
-      notFound: [],
-      errors: []
-    };
+    const results = [];
+    const errors = [];
 
-    // Delete each user
+    // Get all users from auth
+    const { data: { users: allUsers }, error: listError } = await supabase.auth.admin.listUsers();
+    
+    if (listError) {
+      console.error('Error listing users:', listError);
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Failed to list users', details: listError.message }),
+      };
+    }
+
+    // Process each email
     for (const email of emailsToDelete) {
-      console.log(`\n=== DELETING USER: ${email} ===`);
-      
       try {
-        // Step 1: Find user by email
-        const { data: authUsers, error: listError } = await supabase.auth.admin.listUsers();
+        console.log(`Processing deletion for: ${email}`);
         
-        if (listError) {
-          console.error(`Error listing users for ${email}:`, listError);
-          results.errors.push({ email, error: listError.message });
-          continue;
-        }
-
-        const authUser = authUsers.users.find(u => u.email.toLowerCase() === email.toLowerCase());
+        // Find user by email
+        const authUser = allUsers.find(u => u.email === email);
         
         if (!authUser) {
           console.log(`User not found: ${email}`);
-          results.notFound.push(email);
+          results.push({
+            email,
+            status: 'not_found',
+            message: 'User not found in auth.users'
+          });
           continue;
         }
 
-        console.log(`Found user: ${authUser.id} (${authUser.email})`);
+        const userId = authUser.id;
+        console.log(`Found user: ${email} (ID: ${userId})`);
 
-        // Step 2: Delete related data from profiles table
-        console.log('Deleting profile data...');
-        const { error: profileDeleteError } = await supabase
-          .from('profiles')
-          .delete()
-          .eq('id', authUser.id);
-
-        if (profileDeleteError) {
-          console.error(`Error deleting profile for ${email}:`, profileDeleteError);
-          // Continue anyway - might not have a profile
-        } else {
-          console.log('Profile deleted');
-        }
-
-        // Step 3: Delete usage logs (should cascade, but doing explicitly)
-        console.log('Deleting usage logs...');
-        const { error: usageDeleteError } = await supabase
+        // Delete related data first (profiles, payments, usage_logs)
+        // Note: These should cascade delete, but we'll delete them explicitly to be safe
+        
+        // Delete usage logs
+        const { error: usageError } = await supabase
           .from('usage_logs')
           .delete()
-          .eq('user_id', authUser.id);
-
-        if (usageDeleteError) {
-          console.error(`Error deleting usage logs for ${email}:`, usageDeleteError);
+          .eq('user_id', userId);
+        
+        if (usageError) {
+          console.error(`Error deleting usage logs for ${email}:`, usageError);
         } else {
-          console.log('Usage logs deleted');
+          console.log(`Deleted usage logs for ${email}`);
         }
 
-        // Step 4: Delete payments (should cascade, but doing explicitly)
-        console.log('Deleting payments...');
-        const { error: paymentsDeleteError } = await supabase
+        // Delete payments
+        const { error: paymentsError } = await supabase
           .from('payments')
           .delete()
-          .eq('user_id', authUser.id);
-
-        if (paymentsDeleteError) {
-          console.error(`Error deleting payments for ${email}:`, paymentsDeleteError);
+          .eq('user_id', userId);
+        
+        if (paymentsError) {
+          console.error(`Error deleting payments for ${email}:`, paymentsError);
         } else {
-          console.log('Payments deleted');
+          console.log(`Deleted payments for ${email}`);
         }
 
-        // Step 5: Delete from auth.users (this is the main deletion)
-        console.log('Deleting auth user...');
-        const { error: deleteError } = await supabase.auth.admin.deleteUser(authUser.id);
+        // Delete profile
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .delete()
+          .eq('id', userId);
+        
+        if (profileError) {
+          console.error(`Error deleting profile for ${email}:`, profileError);
+        } else {
+          console.log(`Deleted profile for ${email}`);
+        }
 
+        // Finally, delete the auth user
+        const { error: deleteError } = await supabase.auth.admin.deleteUser(userId);
+        
         if (deleteError) {
           console.error(`Error deleting auth user for ${email}:`, deleteError);
-          results.errors.push({ email, error: deleteError.message });
+          errors.push({
+            email,
+            error: deleteError.message
+          });
         } else {
-          console.log(`✅ Successfully deleted user: ${email}`);
-          results.deleted.push(email);
+          console.log(`Successfully deleted user: ${email}`);
+          results.push({
+            email,
+            status: 'deleted',
+            message: 'User and all associated data deleted successfully'
+          });
         }
 
-      } catch (err) {
-        console.error(`Exception deleting user ${email}:`, err);
-        results.errors.push({ email, error: err.message });
+      } catch (error) {
+        console.error(`Error processing ${email}:`, error);
+        errors.push({
+          email,
+          error: error.message
+        });
       }
     }
-
-    console.log('\n=== DELETION SUMMARY ===');
-    console.log('Deleted:', results.deleted.length);
-    console.log('Not found:', results.notFound.length);
-    console.log('Errors:', results.errors.length);
 
     return {
       statusCode: 200,
@@ -252,25 +207,19 @@ exports.handler = async (event, context) => {
       body: JSON.stringify({
         success: true,
         message: `Processed ${emailsToDelete.length} user(s)`,
-        results: {
-          deleted: results.deleted,
-          notFound: results.notFound,
-          errors: results.errors
-        }
+        results,
+        errors: errors.length > 0 ? errors : undefined
       }),
     };
 
   } catch (error) {
-    console.error('=== UNEXPECTED ERROR ===');
-    console.error('Error message:', error.message);
-    console.error('Error stack:', error.stack);
-    
+    console.error('Unexpected error:', error);
     return {
       statusCode: 500,
       headers,
       body: JSON.stringify({ 
         error: 'Internal server error',
-        details: error.message || error.toString()
+        details: error.message
       }),
     };
   }
