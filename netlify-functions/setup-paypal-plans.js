@@ -56,11 +56,13 @@ async function createPayPalProduct(accessToken) {
 }
 
 // Create PayPal Subscription Plan
+// According to PayPal API docs: https://developer.paypal.com/docs/api/subscriptions/v1/
 async function createPayPalPlan(accessToken, productId, planDetails) {
   const billingPlan = {
     product_id: productId,
     name: `Alt Text Pro - ${planDetails.name}`,
     description: `${planDetails.credits} credits per month - ${planDetails.name}`,
+    status: 'ACTIVE', // Explicitly set to ACTIVE as per documentation
     billing_cycles: [{
       frequency: {
         interval_unit: 'MONTH',
@@ -78,10 +80,7 @@ async function createPayPalPlan(accessToken, productId, planDetails) {
     }],
     payment_preferences: {
       auto_bill_outstanding: true,
-      setup_fee: {
-        value: '0',
-        currency_code: 'USD'
-      },
+      // Removed setup_fee since it's 0 and optional per PayPal docs
       setup_fee_failure_action: 'CONTINUE',
       payment_failure_threshold: 3
     },

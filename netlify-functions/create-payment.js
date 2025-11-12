@@ -120,10 +120,12 @@ async function getPayPalPlanId(planId, planDetails, accessToken) {
   const planDescription = `${planDetails.credits} credits per month`;
   
   // Create a billing plan
+  // According to PayPal API docs: https://developer.paypal.com/docs/api/subscriptions/v1/
   const billingPlan = {
     product_id: productId,
     name: planName,
     description: planDescription,
+    status: 'ACTIVE', // Explicitly set to ACTIVE as per documentation
     billing_cycles: [{
       frequency: {
         interval_unit: 'MONTH',
@@ -141,10 +143,7 @@ async function getPayPalPlanId(planId, planDetails, accessToken) {
     }],
     payment_preferences: {
       auto_bill_outstanding: true,
-      setup_fee: {
-        value: '0',
-        currency_code: 'USD'
-      },
+      // Removed setup_fee since it's 0 and optional per PayPal docs
       setup_fee_failure_action: 'CONTINUE',
       payment_failure_threshold: 3
     },
@@ -185,12 +184,15 @@ async function createPayPalSubscription(planId, planDetails, returnUrl, cancelUr
     console.log(`Using PayPal Plan ID: ${paypalPlanId}`);
     
     // Build subscriber object if we have user information
+    // According to PayPal API docs: subscriber is optional but recommended
     const subscriber = userEmail ? {
       email_address: userEmail,
+      ...(userName && { name: { full_name: userName } })
     } : undefined;
     
     // Let PayPal determine start_time during approval. Supplying a value that's too close causes
     // "Something went wrong" errors because PayPal requires it to be at least ~10 minutes ahead.
+    // According to PayPal API docs: https://developer.paypal.com/docs/api/subscriptions/v1/
     const subscriptionData = {
       plan_id: paypalPlanId,
       ...(subscriber && { subscriber }),
@@ -199,14 +201,13 @@ async function createPayPalSubscription(planId, planDetails, returnUrl, cancelUr
         locale: 'en-US',
         shipping_preference: 'NO_SHIPPING',
         user_action: 'SUBSCRIBE_NOW',
-        payment_method: {
-          payer_selected: 'PAYPAL',
-          // payee_preferred: 'IMMEDIATE_PAYMENT_REQUIRED' // Removing this to simplify
-        },
+        // Removed payment_method.payer_selected as it's optional and restricting to 'PAYPAL' 
+        // can cause issues - let PayPal handle payment method selection
         return_url: returnUrl,
         cancel_url: cancelUrl
       },
-      // Removed payment_source to simplify payload for subscriptions
+      // Add custom_id for tracking (optional but recommended)
+      custom_id: `ALTTEXT_${planId}_${Date.now()}`
     };
     console.log('Subscription start will default to PayPal activation time');
     console.log('Subscription creation requested at:', new Date().toISOString());
