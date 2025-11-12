@@ -101,6 +101,34 @@ async function getPayPalPlanId(planId, planDetails, accessToken) {
             console.error(`Plan ${envPlanId} is missing required fields`);
             throw new Error(`Plan ${envPlanId} is missing required fields`);
           }
+          
+          // Verify the product exists and is active
+          try {
+            const productResponse = await fetch(`${PAYPAL_BASE_URL}/v1/catalog/products/${planData.product_id}`, {
+              headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
+              }
+            });
+            
+            if (productResponse.ok) {
+              const productData = await productResponse.json();
+              console.log(`Product ${planData.product_id} details:`, JSON.stringify(productData, null, 2));
+              
+              if (!productData.id) {
+                console.error(`Product ${planData.product_id} is invalid`);
+                throw new Error(`Product ${planData.product_id} linked to plan is invalid`);
+              }
+            } else {
+              const productError = await productResponse.json();
+              console.error(`Product ${planData.product_id} verification failed:`, productResponse.status, productError);
+              throw new Error(`Product ${planData.product_id} linked to plan is not accessible: ${productError.message || productResponse.statusText}`);
+            }
+          } catch (productErr) {
+            console.error(`Error verifying product ${planData.product_id}:`, productErr.message);
+            throw new Error(`Failed to verify product linked to plan: ${productErr.message}`);
+          }
+          
           return envPlanId;
         } else {
           console.error(`Plan ${envPlanId} is not ACTIVE, status: ${planData.status}`);
