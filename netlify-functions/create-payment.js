@@ -262,13 +262,27 @@ async function createPayPalSubscription(planId, planDetails, returnUrl, cancelUr
     const subscriptionData = {
       plan_id: paypalPlanId,
       ...(subscriber && { subscriber }),
+      // Add payment_source to specify payment method preference
+      // This helps PayPal identify the payment instrument and avoid "selectedFuturePaymentInstrument" error
+      payment_source: {
+        paypal: {
+          experience_context: {
+            payment_method_preference: 'IMMEDIATE_PAYMENT_REQUIRED',
+            brand_name: 'Alt Text Pro',
+            locale: 'en-US',
+            landing_page: 'NO_PREFERENCE',
+            shipping_preference: 'NO_SHIPPING',
+            user_action: 'SUBSCRIBE_NOW',
+            return_url: returnUrl,
+            cancel_url: cancelUrl
+          }
+        }
+      },
       application_context: {
         brand_name: 'Alt Text Pro',
         locale: 'en-US',
         shipping_preference: 'NO_SHIPPING',
         user_action: 'SUBSCRIBE_NOW',
-        // Removed payment_method.payer_selected as it's optional and restricting to 'PAYPAL' 
-        // can cause issues - let PayPal handle payment method selection
         return_url: returnUrl,
         cancel_url: cancelUrl
       },
