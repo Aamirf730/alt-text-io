@@ -259,7 +259,7 @@ exports.handler = async (event, context) => {
     let subscriptionStatus = null;
 
     if (actualIsSubscription) {
-      // Handle subscription - get subscription details
+      // Handle subscription - get subscription details and verify status
       if (!finalSubscriptionId && !paymentId) {
         return {
           statusCode: 400,
@@ -272,10 +272,17 @@ exports.handler = async (event, context) => {
       }
       
       const subscriptionIdToUse = finalSubscriptionId || paymentId;
-      console.log('Attempting to verify subscription with ID:', subscriptionIdToUse);
+      console.log('🔍 Verifying subscription status with PayPal API for:', subscriptionIdToUse);
+      
+      // Verify subscription status from PayPal (like PaymentDetails API in Adaptive Payments)
       paymentResult = await getPayPalSubscription(subscriptionIdToUse);
 
-      console.log('PayPal subscription result:', JSON.stringify(paymentResult, null, 2));
+      console.log('✅ PayPal subscription verification result:', JSON.stringify(paymentResult, null, 2));
+      console.log('📊 Subscription Status:', paymentResult.status);
+      console.log('📊 Subscription ID:', paymentResult.id);
+      console.log('📊 Plan ID:', paymentResult.plan_id);
+      console.log('📊 Create Time:', paymentResult.create_time);
+      console.log('📊 Start Time:', paymentResult.start_time);
       
       if (!paymentResult) {
         return {
@@ -283,44 +290,73 @@ exports.handler = async (event, context) => {
           headers,
           body: JSON.stringify({ 
             error: 'Failed to retrieve subscription details',
-            details: 'No response from PayPal'
+            details: 'No response from PayPal API - subscription may not exist',
+            subscriptionId: subscriptionIdToUse
           }),
         };
       }
 
+      // Verify the subscription belongs to the correct plan
+      if (paymentResult.plan_id) {
+        const expectedPlanId = process.env[`PAYPAL_PLAN_${planId.toUpperCase()}`];
+        console.log('🔍 Verifying plan ID match:');
+        console.log('  Expected:', expectedPlanId);
+        console.log('  Actual:', paymentResult.plan_id);
+        
+        // Note: We don't fail if plan IDs don't match exactly, as PayPal might use different plan IDs
+        // But we log it for debugging
+        if (expectedPlanId && paymentResult.plan_id !== expectedPlanId) {
+          console.warn('⚠️ Plan ID mismatch - subscription may be for different plan');
+        }
+      }
+
       // Accept multiple states that indicate the subscription is valid
-      // APPROVAL_PENDING means user approved but PayPal is still processing
-      // APPROVED means approved but not yet active
-      // ACTIVE means fully active
+      // APPROVAL_PENDING: User approved but PayPal is still processing (webhook will activate)
+      // APPROVED: Approved but not yet active (webhook will activate)
+      // ACTIVE: Fully active and billing
       const validStates = ['ACTIVE', 'APPROVAL_PENDING', 'APPROVED'];
+      const processingStates = ['APPROVAL_PENDING', 'APPROVED']; // States that need webhook to activate
+      const failedStates = ['CANCELLED', 'SUSPENDED', 'EXPIRED'];
       
       if (validStates.includes(paymentResult.status)) {
-        // Subscription is in a valid state - webhook will handle activation if needed
+        // Subscription is in a valid state
         subscriptionStatus = paymentResult.status;
         amount = parseFloat(plan.price);
-        console.log(`Subscription ${finalSubscriptionId || paymentId} is in ${paymentResult.status} state - this is valid`);
-      } else {
-        // Check for other possible states
-        console.warn(`Subscription status is ${paymentResult.status}, which is not in expected states:`, validStates);
         
-        // If status is something unexpected, still try to proceed if it's not explicitly failed
-        const failedStates = ['CANCELLED', 'SUSPENDED', 'EXPIRED'];
-        if (failedStates.includes(paymentResult.status)) {
-          return {
-            statusCode: 400,
-            headers,
-            body: JSON.stringify({ 
-              error: `Subscription is in ${paymentResult.status} state`,
-              status: paymentResult.status,
-              subscriptionId: finalSubscriptionId || paymentId
-            }),
-          };
+        if (processingStates.includes(paymentResult.status)) {
+          console.log(`⏳ Subscription ${subscriptionIdToUse} is in ${paymentResult.status} state - webhook will activate it shortly`);
+        } else {
+          console.log(`✅ Subscription ${subscriptionIdToUse} is ACTIVE`);
         }
-        
-        // For unknown states, log but proceed (webhook will handle final status)
-        console.log('Proceeding with subscription despite unknown status - webhook will handle final state');
+      } else if (failedStates.includes(paymentResult.status)) {
+        // Subscription explicitly failed
+        console.error(`❌ Subscription is in failed state: ${paymentResult.status}`);
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ 
+            error: `Subscription is in ${paymentResult.status} state`,
+            status: paymentResult.status,
+            subscriptionId: subscriptionIdToUse,
+            details: 'Subscription was cancelled, suspended, or expired. Please create a new subscription.'
+          }),
+        };
+      } else {
+        // Unknown state - log but proceed (webhook will handle final status)
+        console.warn(`⚠️ Subscription status is ${paymentResult.status}, which is unexpected`);
+        console.warn('   Proceeding anyway - webhook will handle final state');
         subscriptionStatus = paymentResult.status;
         amount = parseFloat(plan.price);
+      }
+      
+      // Additional verification: Check if subscription has billing agreement
+      if (paymentResult.billing_info) {
+        console.log('💳 Billing Info:', JSON.stringify(paymentResult.billing_info, null, 2));
+      }
+      
+      // Log subscriber information
+      if (paymentResult.subscriber) {
+        console.log('👤 Subscriber:', JSON.stringify(paymentResult.subscriber, null, 2));
       }
     } else {
       // Handle one-time payment

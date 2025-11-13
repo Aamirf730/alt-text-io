@@ -4612,7 +4612,10 @@ const PaymentSuccess = () => {
           apiBase = '/.netlify/functions';
         }
 
-        // Complete the payment - complete-payment will handle lookup if subscriptionId is missing
+        // Complete the payment - backend will verify subscription status with PayPal API
+        // Similar to PaymentDetails API in Adaptive Payments - we verify server-side
+        console.log('🔄 Verifying subscription status with PayPal API...');
+        
         const response = await fetch(`${apiBase}/complete-payment`, {
           method: 'POST',
           headers: {
@@ -4629,25 +4632,56 @@ const PaymentSuccess = () => {
 
         const result = await response.json();
         
-        console.log('Complete payment response:', result);
+        console.log('✅ Complete payment response:', result);
+        console.log('📊 Subscription Status:', result.subscription_status);
+        console.log('📊 Subscription ID:', result.subscriptionId);
         
         if (response.ok) {
-          // Subscription might be in APPROVAL_PENDING state - that's OK, webhook will activate it
-          toast.success('Subscription approved! Your account will be activated shortly.');
-          setTimeout(() => {
-            navigate('/dashboard');
-          }, 2000);
-        } else {
-          console.error('Payment completion error:', result);
-          // Even if there's an error, subscription might still be processing
-          // Check if it's just a status issue
-          if (result.error && result.error.includes('not in valid state')) {
-            toast.success('Subscription is being processed. Your account will be activated shortly.');
+          // Backend verified subscription status from PayPal API
+          const status = result.subscription_status;
+          
+          if (status === 'ACTIVE') {
+            // Subscription is fully active
+            toast.success('Subscription activated successfully!');
+            setTimeout(() => {
+              navigate('/dashboard');
+            }, 1500);
+          } else if (status === 'APPROVAL_PENDING' || status === 'APPROVED') {
+            // Subscription approved but PayPal is still processing - webhook will activate
+            toast.success('Subscription approved! Your account will be activated shortly.');
             setTimeout(() => {
               navigate('/dashboard');
             }, 2000);
           } else {
-            setError(result.error || result.details || 'Payment completion failed. Please check your dashboard.');
+            // Other valid states
+            toast.success('Subscription is being processed. Please check your dashboard.');
+            setTimeout(() => {
+              navigate('/dashboard');
+            }, 2000);
+          }
+        } else {
+          console.error('❌ Payment completion error:', result);
+          
+          // Check error type
+          if (result.error && (
+            result.error.includes('not in valid state') ||
+            result.error.includes('APPROVAL_PENDING') ||
+            result.error.includes('being processed')
+          )) {
+            // Subscription might still be processing - webhook will handle it
+            toast.success('Subscription is being processed. Your account will be activated shortly.');
+            setTimeout(() => {
+              navigate('/dashboard');
+            }, 2000);
+          } else if (result.error && result.error.includes('CANCELLED')) {
+            setError('Subscription was cancelled. Please try subscribing again.');
+            setIsProcessing(false);
+          } else if (result.error && result.error.includes('SUSPENDED')) {
+            setError('Subscription is suspended. Please contact support.');
+            setIsProcessing(false);
+          } else {
+            // Other errors - show error but also suggest checking dashboard
+            setError(result.error || result.details || 'Payment verification failed. Please check your dashboard - subscription may still be processing.');
             setIsProcessing(false);
           }
         }
