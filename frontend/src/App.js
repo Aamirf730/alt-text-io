@@ -576,14 +576,31 @@ const LandingPage = () => {
 
       console.log('Creating PayPal subscription via SDK for plan:', selectedPlan.id);
       console.log('PayPal Plan ID:', paypalPlanId);
+      console.log('Actions object:', actions);
+      console.log('Actions.subscription available:', !!actions.subscription);
+
+      // Check if actions.subscription exists
+      if (!actions || !actions.subscription) {
+        console.error('❌ actions.subscription is not available!');
+        console.error('Available actions:', Object.keys(actions || {}));
+        throw new Error('PayPal subscription actions not available. Please use server-side subscription creation.');
+      }
 
       // Use PayPal SDK's createSubscription method
       // This returns a subscription ID directly, avoiding redirects
-      return actions.subscription.create({
+      const subscriptionId = await actions.subscription.create({
         plan_id: paypalPlanId
       });
+      
+      console.log('✅ Subscription created via SDK:', subscriptionId);
+      return subscriptionId;
     } catch (error) {
       console.error('PayPal subscription creation error:', error);
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
       toast.error('Failed to create subscription. Please try again.');
       throw error;
     }
@@ -2149,22 +2166,77 @@ const LandingPage = () => {
                 </div>
 
                 <div className="mb-6">
-                  {/* For subscriptions, use PayPal SDK subscription buttons (no redirects) */}
+                  {/* For subscriptions, use server-side API to create subscription */}
                   {(selectedPlan.id === 'tier1' || selectedPlan.id === 'tier2' || selectedPlan.id === 'tier3') ? (
-                    <PayPalScriptProvider options={paypalSubscriptionOptions}>
-                      <PayPalButtons
-                        createSubscription={createPayPalSubscription}
-                        onApprove={onPayPalSubscriptionApprove}
-                        onError={onPayPalError}
-                        onCancel={onPayPalCancel}
-                        style={{
-                          layout: "vertical",
-                          color: "blue",
-                          shape: "rect",
-                          label: "subscribe"
-                        }}
-                      />
-                    </PayPalScriptProvider>
+                    <Button
+                      onClick={async () => {
+                        try {
+                          const { data: { session } } = await supabase.auth.getSession();
+                          if (!session?.access_token) {
+                            toast.error('Please sign in to continue');
+                            return;
+                          }
+
+                          let apiBase;
+                          if (window.location.hostname === 'localhost') {
+                            apiBase = process.env.REACT_APP_API_BASE || 'https://www.alt-text.pro/.netlify/functions';
+                          } else {
+                            apiBase = '/.netlify/functions';
+                          }
+
+                          console.log('Creating subscription via backend API for plan:', selectedPlan.id);
+
+                          const response = await fetch(`${apiBase}/create-payment`, {
+                            method: 'POST',
+                            headers: {
+                              'Content-Type': 'application/json',
+                              'Authorization': `Bearer ${session.access_token}`
+                            },
+                            body: JSON.stringify({
+                              planId: selectedPlan.id
+                            })
+                          });
+
+                          const result = await response.json();
+                          
+                          console.log('Payment creation response:', result);
+                          
+                          if (!response.ok) {
+                            console.error('Payment creation failed:', result);
+                            const errorMsg = result.error || result.details || 'Payment creation failed';
+                            throw new Error(errorMsg);
+                          }
+
+                          if (result.approvalUrl) {
+                            const approvalUrl = result.approvalUrl;
+                            console.log('Approval URL received:', approvalUrl);
+                            
+                            // Validate it's a subscription URL
+                            if (!approvalUrl.includes('/billing/subscriptions') || !approvalUrl.includes('ba_token')) {
+                              console.error('❌ Invalid subscription URL:', approvalUrl);
+                              toast.error('PayPal returned incorrect payment type. Please contact support.');
+                              return;
+                            }
+                            
+                            // Redirect to PayPal approval page
+                            console.log('Redirecting to PayPal approval URL:', approvalUrl);
+                            window.location.href = approvalUrl;
+                            
+                          } else {
+                            console.error('No approval URL in response:', result);
+                            toast.error(`Failed to get PayPal approval URL. Response: ${JSON.stringify(result)}`);
+                          }
+                        } catch (error) {
+                          console.error('PayPal subscription creation error:', error);
+                          const errorMessage = error.message || error.toString() || 'Failed to create subscription. Please try again.';
+                          console.error('Full error details:', error);
+                          toast.error(errorMessage);
+                        }
+                      }}
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                      Subscribe with PayPal
+                    </Button>
                   ) : (
                   <PayPalScriptProvider options={paypalOptions}>
                     <PayPalButtons
@@ -3438,28 +3510,74 @@ const Dashboard = () => {
             </div>
 
             <div className="mb-6">
-              {/* For subscriptions, use PayPal SDK subscription buttons (no redirects) */}
+              {/* For subscriptions, use server-side API to create subscription */}
               {(selectedUpgradePlan.id === 'tier1' || selectedUpgradePlan.id === 'tier2' || selectedUpgradePlan.id === 'tier3') ? (
-                <PayPalScriptProvider options={paypalSubscriptionOptions}>
-                  <PayPalButtons
-                    createSubscription={createUpgradePayPalSubscription}
-                    onApprove={onUpgradePayPalSubscriptionApprove}
-                    onError={(error) => {
-                      console.error('PayPal error:', error);
-                      toast.error('Payment failed. Please try again.');
-                    }}
-                    onCancel={(data) => {
-                      console.log('PayPal payment cancelled:', data);
-                      toast.info('Payment cancelled');
-                    }}
-                    style={{
-                      layout: "vertical",
-                      color: "blue",
-                      shape: "rect",
-                      label: "subscribe"
-                    }}
-                  />
-                </PayPalScriptProvider>
+                <Button
+                  onClick={async () => {
+                    try {
+                      if (!user?.token) {
+                        toast.error('Please sign in to continue');
+                        return;
+                      }
+
+                      let apiBase;
+                      if (window.location.hostname === 'localhost') {
+                        apiBase = process.env.REACT_APP_API_BASE || 'https://www.alt-text.pro/.netlify/functions';
+                      } else {
+                        apiBase = '/.netlify/functions';
+                      }
+
+                      console.log('Creating subscription via backend API for plan:', selectedUpgradePlan.id);
+
+                      const response = await fetch(`${apiBase}/create-payment`, {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          'Authorization': `Bearer ${user.token}`
+                        },
+                        body: JSON.stringify({
+                          planId: selectedUpgradePlan.id
+                        })
+                      });
+
+                      const result = await response.json();
+                      
+                      console.log('Payment creation response:', result);
+                      
+                      if (!response.ok) {
+                        console.error('Payment creation failed:', result);
+                        throw new Error(result.error || result.details || 'Payment creation failed');
+                      }
+
+                      if (result.approvalUrl) {
+                        const approvalUrl = result.approvalUrl;
+                        console.log('Approval URL received:', approvalUrl);
+                        
+                        // Validate it's a subscription URL
+                        if (!approvalUrl.includes('/billing/subscriptions') || !approvalUrl.includes('ba_token')) {
+                          console.error('❌ Invalid subscription URL:', approvalUrl);
+                          toast.error('PayPal returned incorrect payment type. Please contact support.');
+                          return;
+                        }
+                        
+                        // Redirect to PayPal approval page
+                        console.log('Redirecting to PayPal approval URL:', approvalUrl);
+                        window.location.href = approvalUrl;
+                      } else {
+                        console.error('No approval URL in response:', result);
+                        toast.error(`Failed to get PayPal approval URL. Response: ${JSON.stringify(result)}`);
+                      }
+                    } catch (error) {
+                      console.error('PayPal subscription creation error:', error);
+                      const errorMessage = error.message || error.toString() || 'Failed to create subscription. Please try again.';
+                      console.error('Full error details:', error);
+                      toast.error(errorMessage);
+                    }
+                  }}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  Subscribe with PayPal
+                </Button>
               ) : (
               <PayPalScriptProvider options={paypalOptions}>
                 <PayPalButtons
