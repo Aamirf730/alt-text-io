@@ -697,16 +697,27 @@ exports.handler = async (event, context) => {
     };
 
   } catch (error) {
-    console.error('Payment creation error:', error);
+    console.error('❌ Payment creation error:', error);
+    console.error('Error name:', error.name);
+    console.error('Error message:', error.message);
     console.error('Error stack:', error.stack);
-    console.error('Error details:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
+    
+    // Log more details for debugging
+    if (error.response) {
+      console.error('Error response status:', error.response.status);
+      console.error('Error response data:', JSON.stringify(error.response.data, null, 2));
+    }
+    
+    // Return detailed error for debugging
     return {
       statusCode: 500,
       headers,
       body: JSON.stringify({ 
         error: 'Internal server error',
         details: error.message || error.toString(),
-        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        errorName: error.name,
+        // Include stack trace in production for now to debug
+        stack: error.stack
       }),
     };
   }
