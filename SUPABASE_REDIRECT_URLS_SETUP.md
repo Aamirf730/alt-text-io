@@ -61,17 +61,19 @@ Click **Save** or the checkmark button to save all changes.
 
 ## ✅ Minimal Required URLs
 
-If you want to keep it simple, you only need **2 URLs**:
+If you want to keep it simple, you only need **3 URLs**:
 
-1. `http://localhost:3000/**` (for local development)
-2. `https://www.alt-text.pro/**` (for production)
+1. `http://localhost:8888/**` (for Netlify Dev - recommended)
+2. `http://localhost:3000/**` (for React dev server standalone)
+3. `https://www.alt-text.pro/**` (for production)
 
 The `**` wildcard will match:
-- `http://localhost:3000/dashboard`
-- `http://localhost:3000/`
-- `https://www.alt-text.pro/dashboard`
-- `https://www.alt-text.pro/`
+- `http://localhost:8888/dashboard` (Netlify Dev)
+- `http://localhost:3000/dashboard` (React dev server)
+- `https://www.alt-text.pro/dashboard` (Production)
 - Any other paths on those domains
+
+**Note**: When using `npm run dev` (Netlify Dev), the app runs on port **8888**, not 3000.
 
 ---
 
@@ -120,6 +122,7 @@ https://www.alt-text.pro
 
 **Redirect URLs:**
 ```
+http://localhost:8888/**
 http://localhost:3000/**
 https://www.alt-text.pro/**
 ```
@@ -142,5 +145,6 @@ https://www.alt-text.pro/**
 **Project ID:** qurbdtzrngzfzevgoolp  
 **Project URL:** https://qurbdtzrngzfzevgoolp.supabase.co  
 **Production Site:** https://www.alt-text.pro  
-**Local Development:** http://localhost:3000
+**Local Development (Netlify Dev):** http://localhost:8888  
+**Local Development (React only):** http://localhost:3000
 

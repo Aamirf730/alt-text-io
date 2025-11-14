@@ -129,7 +129,7 @@ You can provide context for better alt-text generation:
 - Check the plugin dashboard for status information
 - Review the usage logs for error details
 - Visit our documentation at https://www.alt-text.pro/docs
-- Contact support at https://www.alt-text.pro/support
+- Contact support at https://www.alt-text.pro/contact
 
 ## 📊 Usage Guidelines
 
@@ -210,7 +210,7 @@ After installation:
 
 Need help? We're here for you:
 - **Documentation**: https://www.alt-text.pro/docs
-- **Support Portal**: https://www.alt-text.pro/support
+- **Support Portal**: https://www.alt-text.pro/contact
 - **Feature Requests**: We love hearing your ideas!
 - **Community**: Join our user community for tips and tricks
 

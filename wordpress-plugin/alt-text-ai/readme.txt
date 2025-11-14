@@ -4,7 +4,7 @@ Tags: accessibility, alt-text, seo, ai, images, alt attribute, screen readers, w
 Requires at least: 5.0
 Tested up to: 6.4
 Requires PHP: 7.4
-Stable tag: 1.0.4
+Stable tag: 1.0.7
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -142,6 +142,16 @@ Yes, you can cancel your subscription at any time from your Alt Text Pro dashboa
 6. **Mobile Responsive** - Fully responsive design works on all devices
 
 == Changelog ==
+
+= 1.0.7 =
+* Version update
+
+= 1.0.6 =
+* Added real-time completion notifications for bulk processing
+* Added immediate credit exhaustion alerts during processing
+* Improved error notifications with visual feedback
+* Enhanced status updates during bulk processing
+* Fixed notification display for all completion statuses
 
 = 1.0.4 =
 * Fixed critical bug: Processing now stops immediately when credits are exhausted

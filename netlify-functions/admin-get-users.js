@@ -152,9 +152,9 @@ exports.handler = async (event, context) => {
     
     try {
       const { data: profilesData, error: profilesErr } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false });
+      .from('profiles')
+      .select('*')
+      .order('created_at', { ascending: false });
       
       profiles = profilesData || [];
       profilesError = profilesErr;
@@ -192,15 +192,15 @@ exports.handler = async (event, context) => {
     
     try {
       const { data: paymentsData, error: paymentsErr } = await supabase
-        .from('payments')
-        .select('*')
-        .order('created_at', { ascending: false });
-      
+      .from('payments')
+      .select('*')
+      .order('created_at', { ascending: false });
+
       payments = paymentsData || [];
       paymentsError = paymentsErr;
       
-      if (paymentsError) {
-        console.error('Error fetching payments:', paymentsError);
+    if (paymentsError) {
+      console.error('Error fetching payments:', paymentsError);
       } else {
         console.log('Payments fetched successfully');
         console.log('Number of payments:', payments.length);
@@ -217,15 +217,15 @@ exports.handler = async (event, context) => {
     
     try {
       const { data: usageData, error: usageErr } = await supabase
-        .from('usage_logs')
-        .select('user_id, credits_used, created_at')
-        .order('created_at', { ascending: false });
-      
+      .from('usage_logs')
+      .select('user_id, credits_used, created_at')
+      .order('created_at', { ascending: false });
+
       usageLogs = usageData || [];
       usageError = usageErr;
       
-      if (usageError) {
-        console.error('Error fetching usage logs:', usageError);
+    if (usageError) {
+      console.error('Error fetching usage logs:', usageError);
       } else {
         console.log('Usage logs fetched successfully');
         console.log('Number of usage logs:', usageLogs.length);
@@ -273,17 +273,17 @@ exports.handler = async (event, context) => {
     console.log('Enriched profiles count:', enrichedProfiles.length);
     
     const response = {
-      success: true,
-      data: {
-        users: enrichedProfiles,
-        total_users: enrichedProfiles.length,
-        stats: {
-          total_revenue: enrichedProfiles.reduce((sum, p) => sum + (p.total_paid || 0), 0),
-          active_users: enrichedProfiles.filter(p => p.subscription_status === 'active').length,
-          total_credits_used: enrichedProfiles.reduce((sum, p) => sum + (p.total_credits_used || 0), 0),
-          total_credits_remaining: enrichedProfiles.reduce((sum, p) => sum + (p.credits_remaining || 0), 0),
+        success: true,
+        data: {
+          users: enrichedProfiles,
+          total_users: enrichedProfiles.length,
+          stats: {
+            total_revenue: enrichedProfiles.reduce((sum, p) => sum + (p.total_paid || 0), 0),
+            active_users: enrichedProfiles.filter(p => p.subscription_status === 'active').length,
+            total_credits_used: enrichedProfiles.reduce((sum, p) => sum + (p.total_credits_used || 0), 0),
+            total_credits_remaining: enrichedProfiles.reduce((sum, p) => sum + (p.credits_remaining || 0), 0),
+          }
         }
-      }
     };
 
     console.log('Response prepared successfully');

@@ -37,8 +37,8 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     detectSessionInUrl: true,
     flowType: 'pkce',
-    site: window.location.origin === 'http://localhost:3000' 
-      ? 'http://localhost:3000' 
+    site: (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+      ? window.location.origin
       : 'https://www.alt-text.pro'
   }
 });
@@ -202,12 +202,11 @@ const LandingPage = () => {
         }
         
         // Determine API endpoint - use local development or production
-        // For localhost, try Netlify Dev server first, fallback to production
+        // For localhost, use Netlify Dev server (port 9999)
         let apiBase;
-        if (window.location.hostname === 'localhost') {
-          // Check if we're running with Netlify Dev (port 8888)
-          // If not available, use production API
-          apiBase = process.env.REACT_APP_API_BASE || 'https://www.alt-text.pro/.netlify/functions';
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+          // Use localhost Netlify Dev functions (port 9999)
+          apiBase = process.env.REACT_APP_API_BASE || 'http://localhost:9999/.netlify/functions';
         } else {
           // Production - use relative path
           apiBase = '/.netlify/functions';
@@ -615,8 +614,9 @@ const LandingPage = () => {
       }
 
       let apiBase;
-      if (window.location.hostname === 'localhost') {
-        apiBase = process.env.REACT_APP_API_BASE || 'https://www.alt-text.pro/.netlify/functions';
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        // Use localhost Netlify Dev functions (port 9999)
+        apiBase = process.env.REACT_APP_API_BASE || 'http://localhost:9999/.netlify/functions';
       } else {
         apiBase = '/.netlify/functions';
       }
@@ -659,8 +659,9 @@ const LandingPage = () => {
       console.log('Subscription ID:', data.subscriptionID);
 
       let apiBase;
-      if (window.location.hostname === 'localhost') {
-        apiBase = process.env.REACT_APP_API_BASE || 'https://www.alt-text.pro/.netlify/functions';
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        // Use localhost Netlify Dev functions (port 9999)
+        apiBase = process.env.REACT_APP_API_BASE || 'http://localhost:9999/.netlify/functions';
       } else {
         apiBase = '/.netlify/functions';
       }
@@ -708,8 +709,9 @@ const LandingPage = () => {
       }
 
       let apiBase;
-      if (window.location.hostname === 'localhost') {
-        apiBase = process.env.REACT_APP_API_BASE || 'https://www.alt-text.pro/.netlify/functions';
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        // Use localhost Netlify Dev functions (port 9999)
+        apiBase = process.env.REACT_APP_API_BASE || 'http://localhost:9999/.netlify/functions';
       } else {
         apiBase = '/.netlify/functions';
       }
@@ -2178,8 +2180,8 @@ const LandingPage = () => {
                           }
 
                           let apiBase;
-                          if (window.location.hostname === 'localhost') {
-                            apiBase = process.env.REACT_APP_API_BASE || 'https://www.alt-text.pro/.netlify/functions';
+                          if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                            apiBase = process.env.REACT_APP_API_BASE || 'http://localhost:9999/.netlify/functions';
                           } else {
                             apiBase = '/.netlify/functions';
                           }
@@ -2195,17 +2197,26 @@ const LandingPage = () => {
                             body: JSON.stringify({
                               planId: selectedPlan.id
                             })
+                          }).catch((fetchError) => {
+                            console.error('Fetch error:', fetchError);
+                            throw new Error(`Failed to connect to payment service. Please ensure Netlify Dev is running on port 9999. Error: ${fetchError.message}`);
                           });
 
-                          const result = await response.json();
-                          
-                          console.log('Payment creation response:', result);
-                          
                           if (!response.ok) {
-                            console.error('Payment creation failed:', result);
-                            const errorMsg = result.error || result.details || 'Payment creation failed';
+                            const errorText = await response.text();
+                            let errorData;
+                            try {
+                              errorData = JSON.parse(errorText);
+                            } catch {
+                              errorData = { error: errorText || 'Payment creation failed' };
+                            }
+                            console.error('Payment creation failed:', errorData);
+                            const errorMsg = errorData.error || errorData.details || 'Payment creation failed';
                             throw new Error(errorMsg);
                           }
+
+                          const result = await response.json();
+                          console.log('Payment creation response:', result);
 
                           if (result.approvalUrl) {
                             const approvalUrl = result.approvalUrl;
@@ -2310,8 +2321,9 @@ const Dashboard = () => {
   const loadSubscriptionData = async (token) => {
     try {
       let apiBase;
-      if (window.location.hostname === 'localhost') {
-        apiBase = process.env.REACT_APP_API_BASE || 'https://www.alt-text.pro/.netlify/functions';
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        // Use localhost Netlify Dev functions (port 9999)
+        apiBase = process.env.REACT_APP_API_BASE || 'http://localhost:9999/.netlify/functions';
       } else {
         apiBase = '/.netlify/functions';
       }
@@ -2393,8 +2405,9 @@ const Dashboard = () => {
       }
 
       let apiBase;
-      if (window.location.hostname === 'localhost') {
-        apiBase = process.env.REACT_APP_API_BASE || 'https://www.alt-text.pro/.netlify/functions';
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        // Use localhost Netlify Dev functions (port 9999)
+        apiBase = process.env.REACT_APP_API_BASE || 'http://localhost:9999/.netlify/functions';
       } else {
         apiBase = '/.netlify/functions';
       }
@@ -2439,8 +2452,9 @@ const Dashboard = () => {
       console.log('Subscription ID:', data.subscriptionID);
 
       let apiBase;
-      if (window.location.hostname === 'localhost') {
-        apiBase = process.env.REACT_APP_API_BASE || 'https://www.alt-text.pro/.netlify/functions';
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        // Use localhost Netlify Dev functions (port 9999)
+        apiBase = process.env.REACT_APP_API_BASE || 'http://localhost:9999/.netlify/functions';
       } else {
         apiBase = '/.netlify/functions';
       }
@@ -2485,8 +2499,9 @@ const Dashboard = () => {
       }
 
       let apiBase;
-      if (window.location.hostname === 'localhost') {
-        apiBase = process.env.REACT_APP_API_BASE || 'https://www.alt-text.pro/.netlify/functions';
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        // Use localhost Netlify Dev functions (port 9999)
+        apiBase = process.env.REACT_APP_API_BASE || 'http://localhost:9999/.netlify/functions';
       } else {
         apiBase = '/.netlify/functions';
       }
@@ -2609,8 +2624,9 @@ const Dashboard = () => {
       
       // Fetch real usage data from API (same endpoint the plugin uses for consistency)
       let apiBase;
-      if (window.location.hostname === 'localhost') {
-        apiBase = process.env.REACT_APP_API_BASE || 'https://www.alt-text.pro/.netlify/functions';
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        // Use localhost Netlify Dev functions (port 9999)
+        apiBase = process.env.REACT_APP_API_BASE || 'http://localhost:9999/.netlify/functions';
       } else {
         apiBase = '/.netlify/functions';
       }
@@ -2740,9 +2756,9 @@ const Dashboard = () => {
       // Determine API endpoint - use local development or production
       // For localhost, use production API (Netlify Dev server not required)
       let apiBase;
-      if (window.location.hostname === 'localhost') {
-        // Use production API when running React dev server standalone
-        apiBase = process.env.REACT_APP_API_BASE || 'https://www.alt-text.pro/.netlify/functions';
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        // Use localhost Netlify Dev functions (port 9999)
+        apiBase = process.env.REACT_APP_API_BASE || 'http://localhost:9999/.netlify/functions';
       } else {
         // Production - use relative path
         apiBase = '/.netlify/functions';
@@ -3521,8 +3537,8 @@ const Dashboard = () => {
                       }
 
                       let apiBase;
-                      if (window.location.hostname === 'localhost') {
-                        apiBase = process.env.REACT_APP_API_BASE || 'https://www.alt-text.pro/.netlify/functions';
+                      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                        apiBase = process.env.REACT_APP_API_BASE || 'http://localhost:9999/.netlify/functions';
                       } else {
                         apiBase = '/.netlify/functions';
                       }
@@ -4780,8 +4796,9 @@ const AdminDashboard = () => {
   const loadUsers = async (token) => {
     try {
       let apiBase;
-      if (window.location.hostname === 'localhost') {
-        apiBase = process.env.REACT_APP_API_BASE || 'https://www.alt-text.pro/.netlify/functions';
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        // Use localhost Netlify Dev functions (port 9999)
+        apiBase = process.env.REACT_APP_API_BASE || 'http://localhost:9999/.netlify/functions';
       } else {
         apiBase = '/.netlify/functions';
       }

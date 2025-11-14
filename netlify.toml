@@ -1,8 +1,14 @@
 [build]
   base = "."
   publish = "frontend/build"
-  command = "cd netlify-functions && npm install && cd ../frontend && yarn install --ignore-engines --frozen-lockfile --production=false --network-timeout 100000 && NODE_ENV=production yarn build"
+  command = "cd netlify-functions && npm install && cd ../frontend && yarn install --ignore-engines --frozen-lockfile --production=false && NODE_ENV=production yarn build"
   functions = "netlify-functions"
+
+[dev]
+  port = 9999
+  targetPort = 3000
+  watch = ["netlify-functions"]
+
 
 [build.environment]
   NODE_VERSION = "18"
@@ -16,13 +22,6 @@
   from = "/api/*"
   to = "/.netlify/functions/:splat"
   status = 200
-
-# Allow direct access to WordPress plugin files (MUST come before SPA fallback)
-[[redirects]]
-  from = "/wordpress-plugin/*"
-  to = "/wordpress-plugin/:splat"
-  status = 200
-  force = true
 
 # SPA fallback for React Router - this is crucial for fixing 404 errors
 # This MUST be last to catch all other routes

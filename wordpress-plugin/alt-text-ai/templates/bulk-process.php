@@ -255,6 +255,7 @@ jQuery(document).ready(function($) {
         isProcessing: false,
         statusInterval: null,
         processingBatches: {}, // Track batches being processed to prevent duplicates
+        notificationsShown: {}, // Track which notifications have been shown to prevent duplicates
         
         init: function() {
             this.bindEvents();
@@ -314,6 +315,7 @@ jQuery(document).ready(function($) {
             $('#progress-card').show();
             $('#results-card').hide();
             this.isProcessing = true;
+            this.notificationsShown = {}; // Reset notifications when starting new process
             
             // Update UI
             $('#start-bulk-process').hide();
@@ -472,8 +474,43 @@ jQuery(document).ready(function($) {
             $('#successful-count').text(data.successful || 0);
             $('#error-count').text(data.errors ? data.errors.length : 0);
             
+            // Update status message based on current state
             if (data.status === 'running') {
-                $('#progress-status').text('<?php _e("Processing...", "alt-text-ai"); ?>');
+                $('#progress-status').text('<?php _e("Processing...", "alt-text-ai"); ?>').css({
+                    'font-weight': 'normal',
+                    'font-size': '14px',
+                    'color': '#333'
+                });
+            } else if (data.status === 'stopped_no_credits') {
+                // Show error immediately during processing
+                $('#progress-status').text('<?php _e("Stopped - Credits Exhausted", "alt-text-ai"); ?>').css({
+                    'font-weight': 'bold',
+                    'font-size': '16px',
+                    'color': '#d63638'
+                });
+                
+                // Show error notification immediately (only once)
+                if (!this.notificationsShown['credits_exhausted']) {
+                    this.showErrorNotification('<?php _e("Credits exhausted! Processing stopped. Please upgrade your plan or wait for next month\'s credit refill.", "alt-text-ai"); ?>');
+                    this.notificationsShown['credits_exhausted'] = true;
+                }
+            }
+            
+            // Check for credit-related errors in the errors array and show notification
+            if (data.errors && data.errors.length > 0) {
+                var creditError = data.errors.find(function(error) {
+                    return error.error && (
+                        error.error.toLowerCase().indexOf('credit') !== -1 ||
+                        error.error.toLowerCase().indexOf('no credits') !== -1 ||
+                        error.error.toLowerCase().indexOf('credits remaining') !== -1
+                    );
+                });
+                
+                if (creditError && data.status === 'running' && !this.notificationsShown['credits_warning']) {
+                    // Show error notification if credits run out during processing
+                    this.showErrorNotification('<?php _e("Credits exhausted! Processing will stop after current batch.", "alt-text-ai"); ?>');
+                    this.notificationsShown['credits_warning'] = true;
+                }
             }
         },
         
@@ -549,9 +586,15 @@ jQuery(document).ready(function($) {
                 $('#results-errors').html('');
             }
             
-            // Show success notification
-            if (isSuccess && data.status === 'completed') {
+            // Show completion notification for all statuses
+            if (data.status === 'completed') {
                 this.showSuccessNotification('<?php _e("Bulk processing completed successfully!", "alt-text-ai"); ?>');
+            } else if (data.status === 'stopped_no_credits') {
+                // Show error notification for credit exhaustion
+                this.showErrorNotification('<?php _e("Processing stopped - Credits exhausted. Please upgrade your plan or wait for next month\'s credit refill.", "alt-text-ai"); ?>');
+            } else if (data.status === 'cancelled') {
+                // Show info notification for cancellation
+                this.showInfoNotification('<?php _e("Processing cancelled by user.", "alt-text-ai"); ?>');
             }
             
             this.resetUI();
@@ -579,6 +622,62 @@ jQuery(document).ready(function($) {
                 'max-width': '400px',
                 'animation': 'slideInRight 0.3s ease-out'
             }).html('✓ ' + message);
+            
+            $('body').append(notification);
+            
+            // Auto-hide after 5 seconds
+            setTimeout(function() {
+                notification.fadeOut(300, function() {
+                    $(this).remove();
+                });
+            }, 5000);
+        },
+        
+        showErrorNotification: function(message) {
+            // Create and show a prominent error notification
+            var notification = $('<div>').css({
+                'position': 'fixed',
+                'top': '20px',
+                'right': '20px',
+                'background': '#d63638',
+                'color': 'white',
+                'padding': '20px 30px',
+                'border-radius': '8px',
+                'box-shadow': '0 4px 20px rgba(214, 54, 56, 0.3)',
+                'z-index': '100000',
+                'font-weight': '600',
+                'font-size': '16px',
+                'max-width': '400px',
+                'animation': 'slideInRight 0.3s ease-out'
+            }).html('⚠ ' + message);
+            
+            $('body').append(notification);
+            
+            // Auto-hide after 8 seconds (longer for errors)
+            setTimeout(function() {
+                notification.fadeOut(300, function() {
+                    $(this).remove();
+                });
+            }, 8000);
+        },
+        
+        showInfoNotification: function(message) {
+            // Create and show an info notification
+            var notification = $('<div>').css({
+                'position': 'fixed',
+                'top': '20px',
+                'right': '20px',
+                'background': '#2271b1',
+                'color': 'white',
+                'padding': '20px 30px',
+                'border-radius': '8px',
+                'box-shadow': '0 4px 20px rgba(34, 113, 177, 0.3)',
+                'z-index': '100000',
+                'font-weight': '600',
+                'font-size': '16px',
+                'max-width': '400px',
+                'animation': 'slideInRight 0.3s ease-out'
+            }).html('ℹ ' + message);
             
             $('body').append(notification);
             

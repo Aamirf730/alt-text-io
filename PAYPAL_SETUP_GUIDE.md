@@ -1,90 +1,61 @@
-# PayPal Setup Guide - Fix Payment Failures
+# PayPal Setup Guide
 
-## 🚨 **Issue Identified**
-Your payment system is failing because **PayPal credentials are missing** from Netlify environment variables.
+## Current Issue
+Your PayPal credentials are failing authentication with error: "Client Authentication failed"
 
-## 🔧 **Solution: Set Up PayPal Credentials**
+## Quick Fix Steps
 
-### **Step 1: Get PayPal Credentials**
+### 1. Get PayPal Sandbox Credentials
 
-#### **For Testing (Sandbox):**
-1. Go to [PayPal Developer Dashboard](https://developer.paypal.com/developer/applications/)
+1. Go to [PayPal Developer Dashboard](https://developer.paypal.com/dashboard/)
 2. Log in with your PayPal account
-3. Click **"Create App"**
-4. Fill in:
-   - **App Name**: `Alt-Text AI`
-   - **Merchant**: Select your account
-   - **Features**: Check **"Accept payments"**
-5. Click **"Create App"**
-6. Copy your **Client ID** and **Client Secret**
+3. Click **"Apps & Credentials"** in the left sidebar
+4. Make sure you're viewing **"Sandbox"** (not Live)
+5. Find your app or click **"Create App"** to create a new one
+6. Copy the **Client ID** and **Secret**
 
-#### **For Production (Live):**
-1. In the same app, switch to **"Live"** mode
-2. Get your **Live Client ID** and **Live Client Secret**
+### 2. Test Your Credentials
 
-### **Step 2: Add Credentials to Netlify**
+Run the test script:
+```bash
+node test-paypal-credentials.js
+```
 
-1. Go to [Netlify Dashboard](https://app.netlify.com/projects/alt-text-ai)
-2. Navigate to **Site settings** → **Environment variables**
-3. Add these variables:
+This will verify your credentials work before updating files.
+
+### 3. Update Local .env File
+
+Edit `.env` in the root directory:
+```bash
+PAYPAL_CLIENT_ID=your_new_sandbox_client_id
+PAYPAL_CLIENT_SECRET=your_new_sandbox_secret
+PAYPAL_ENVIRONMENT=sandbox
+```
+
+### 4. Update Netlify Environment Variables (for production)
 
 ```bash
-# For Sandbox Testing
-PAYPAL_CLIENT_ID=your_sandbox_client_id
-PAYPAL_CLIENT_SECRET=your_sandbox_client_secret
-
-# For Production (when ready)
-# PAYPAL_CLIENT_ID=your_live_client_id  
-# PAYPAL_CLIENT_SECRET=your_live_client_secret
+netlify env:set PAYPAL_CLIENT_ID "your_new_sandbox_client_id"
+netlify env:set PAYPAL_CLIENT_SECRET "your_new_sandbox_secret"
+netlify env:set PAYPAL_ENVIRONMENT "sandbox"
 ```
 
-### **Step 3: Configure PayPal App Settings**
+### 5. Restart Netlify Dev
 
-In your PayPal app settings, add these **Return URLs**:
+After updating credentials:
+1. Stop Netlify Dev (Ctrl+C)
+2. Restart: `netlify dev --port 9999`
 
-```
-https://www.alt-text.pro/payment-success
-https://www.alt-text.pro/payment-cancelled
-https://www.alt-text.pro/
-```
+## Important Notes
 
-### **Step 4: Deploy Changes**
+- **Sandbox vs Production**: Make sure you're using SANDBOX credentials for local development
+- **Matching Credentials**: Client ID and Secret must be from the same PayPal app
+- **Active Account**: Your PayPal Developer account must be active
 
-After adding the environment variables:
-1. Go to **Deploys** in Netlify
-2. Click **"Trigger deploy"** → **"Deploy site"**
+## Verification
 
-## 🧪 **Testing the Fix**
+After updating, test the PayPal button again. You should see:
+- ✅ Connection to port 9999 works
+- ✅ PayPal authentication succeeds
+- ✅ Payment creation works
 
-After setup, test the debug endpoint:
-```bash
-curl "https://www.alt-text.pro/.netlify/functions/debug-payment"
-```
-
-You should see:
-```json
-{
-  "paypal": {
-    "connected": true,
-    "tokenReceived": true
-  }
-}
-```
-
-## 📋 **Updated Pricing Plans**
-
-I've also prepared an update to match your pricing requirements:
-
-- **Free**: 100 Credits/month - $0
-- **Tier 1**: 1000 Credits/month - $9  
-- **Tier 2**: 2500 Credits/month - $19
-- **Pay as you go**: 500 Credits - $4 (one-time)
-
-## 🚀 **Next Steps**
-
-1. ✅ **Add PayPal credentials to Netlify** (most important)
-2. ✅ **Update subscription plans** in Supabase
-3. ✅ **Test payment flow**
-4. ✅ **Switch to production PayPal** when ready
-
-Once you add the PayPal credentials, the payment system will work immediately! 🎉

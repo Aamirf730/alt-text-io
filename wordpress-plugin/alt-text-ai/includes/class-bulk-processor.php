@@ -73,7 +73,7 @@ class AltTextAI_Bulk_Processor {
                 } elseif ($process_type === 'all') {
                     // For "all" type: include all images, but if overwrite is false, skip those with alt-text
                     if (empty($overwrite_existing)) {
-                        $existing_alt = get_post_meta($image_id, '_wp_attachment_image_alt', true);
+                $existing_alt = get_post_meta($image_id, '_wp_attachment_image_alt', true);
                         if (!empty($existing_alt) && trim($existing_alt) !== '') {
                             continue; // Skip images with existing alt-text if overwrite is disabled
                         }
@@ -82,7 +82,7 @@ class AltTextAI_Bulk_Processor {
                 }
                 // For "selected" type: include all selected images, filtering handled by get_selected_images()
                 
-                $filtered_images[] = $image_id;
+                    $filtered_images[] = $image_id;
             }
             $images_to_process = $filtered_images;
         }
@@ -544,7 +544,7 @@ class AltTextAI_Bulk_Processor {
             $successful = count($process_data['successful_image_ids']);
         } else {
             // Last resort: calculate from processed minus errors
-            $successful = max(0, $processed - $error_count);
+        $successful = max(0, $processed - $error_count);
         }
         
         // Ensure successful count matches the actual successful_image_ids count
@@ -621,7 +621,7 @@ class AltTextAI_Bulk_Processor {
             if ($early_stop && isset($process_data['status']) && $process_data['status'] === 'stopped_no_credits') {
                 $process_data['status'] = 'stopped_no_credits';
             } else {
-                $process_data['status'] = 'completed';
+            $process_data['status'] = 'completed';
             }
             
             $process_data['completed_at'] = current_time('mysql');
@@ -674,12 +674,12 @@ class AltTextAI_Bulk_Processor {
                 );
             } else {
                 $subject = __('Alt Text Pro: Bulk Processing Complete', 'alt-text-ai');
-                $message = sprintf(
-                    __("Your bulk alt-text generation process has completed.\n\nResults:\n- Total images: %d\n- Successfully processed: %d\n- Errors: %d\n\nYou can view the detailed results in your WordPress admin dashboard.", 'alt-text-ai'),
-                    $process_data['total_images'],
+            $message = sprintf(
+                __("Your bulk alt-text generation process has completed.\n\nResults:\n- Total images: %d\n- Successfully processed: %d\n- Errors: %d\n\nYou can view the detailed results in your WordPress admin dashboard.", 'alt-text-ai'),
+                $process_data['total_images'],
                     $process_data['successful'] ?? 0,
                     count($process_data['errors'] ?? array())
-                );
+            );
             }
             
             wp_mail($user->user_email, $subject, $message);

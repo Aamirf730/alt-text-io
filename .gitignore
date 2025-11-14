@@ -80,3 +80,10 @@ agenthub/agents/youtube/db
 android-sdk/ 
 # Local Netlify folder
 .netlify
+
+# Environment variables (local development only)
+.env
+.env.local
+.env.development
+.env.production.local
+.env.test.local

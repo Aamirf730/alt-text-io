@@ -102,3 +102,5 @@ The detailed logging I added should help identify the exact issue. Look for:
 - Full PayPal API error response
 - Subscription ID being used
 
+
+

@@ -8,6 +8,16 @@
     "@supabase/supabase-js": "^2.56.0",
     "node-fetch": "^3.3.2"
   },
+  "scripts": {
+    "dev": "netlify dev",
+    "dev:functions": "netlify dev --live --command \"cd frontend && yarn start\"",
+    "dev:frontend": "cd frontend && yarn start",
+    "dev:static": "netlify dev",
+    "install:all": "cd netlify-functions && npm install && cd ../frontend && yarn install --ignore-engines --frozen-lockfile --production=false"
+  },
+  "devDependencies": {
+    "netlify-cli": "^17.0.0"
+  },
   "engines": {
     "node": "18"
   }

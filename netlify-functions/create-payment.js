@@ -555,9 +555,15 @@ exports.handler = async (event, context) => {
     // Create return and cancel URLs
     // Get the origin from the request headers, or default to production URL
     const origin = event.headers.origin || event.headers.referer?.split('/').slice(0, 3).join('/') || 'https://www.alt-text.pro';
-    const baseUrl = origin.includes('localhost') 
-      ? 'http://localhost:3000' 
-      : 'https://www.alt-text.pro';
+    let baseUrl;
+    if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+      // Extract port from origin, default to 8888 (Netlify Dev default)
+      const urlMatch = origin.match(/http:\/\/[^:]+:(\d+)/);
+      const port = urlMatch ? urlMatch[1] : '8888';
+      baseUrl = `http://localhost:${port}`;
+    } else {
+      baseUrl = 'https://www.alt-text.pro';
+    }
     
     // Include subscription ID in return URL if it's a subscription
     // We'll set this after creating the subscription

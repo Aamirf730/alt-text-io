@@ -92,12 +92,12 @@ class AltTextAI_API_Client {
             }
             
             if (!empty($alt_text)) {
-                return array(
-                    'success' => true,
+            return array(
+                'success' => true,
                     'alt_text' => $alt_text,
                     'credits_used' => $credits_used,
                     'credits_remaining' => $credits_remaining
-                );
+            );
             }
             
             // Log for debugging if we have success but no alt_text
