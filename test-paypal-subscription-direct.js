@@ -15,7 +15,7 @@ const PAYPAL_BASE_URL = PAYPAL_ENVIRONMENT === 'sandbox'
   ? 'https://api-m.sandbox.paypal.com' 
   : 'https://api-m.paypal.com';
 
-const PLAN_ID = process.env.PAYPAL_PLAN_TIER1 || 'P-10836440LT044463FNEJT6IA';
+const PLAN_ID = process.env.PAYPAL_PLAN_TIER1 || 'P-8R4278588L5455645NEMOH6A';
 
 async function getAccessToken() {
   if (!PAYPAL_CLIENT_ID || !PAYPAL_CLIENT_SECRET) {

@@ -51,9 +51,9 @@ const PAYPAL_CLIENT_ID = process.env.REACT_APP_PAYPAL_CLIENT_ID || 'test';
 // PayPal plan ID mapping - production plan IDs from PayPal dashboard
 // You can also override these via environment variables: REACT_APP_PAYPAL_PLAN_TIER1, etc.
 const PAYPAL_PLAN_IDS = {
-  tier1: process.env.REACT_APP_PAYPAL_PLAN_TIER1 || 'P-10836440LT044463FNEJT6IA',
-  tier2: process.env.REACT_APP_PAYPAL_PLAN_TIER2 || 'P-7US9083943782122RNEJT6II',
-  tier3: process.env.REACT_APP_PAYPAL_PLAN_TIER3 || 'P-0FH659595N652425UNEJT6II'
+  tier1: process.env.REACT_APP_PAYPAL_PLAN_TIER1 || 'P-8R4278588L5455645NEMOH6A',
+  tier2: process.env.REACT_APP_PAYPAL_PLAN_TIER2 || 'P-5XP84993MM234080GNEMOTRQ',
+  tier3: process.env.REACT_APP_PAYPAL_PLAN_TIER3 || 'P-2DC95956TS8763323NEMOWJQ'
 };
 
 const paypalOptions = {
@@ -2168,86 +2168,25 @@ const LandingPage = () => {
                 </div>
 
                 <div className="mb-6">
-                  {/* For subscriptions, use server-side API to create subscription */}
+                  {/* For subscriptions, use PayPal SDK subscription button */}
                   {(selectedPlan.id === 'tier1' || selectedPlan.id === 'tier2' || selectedPlan.id === 'tier3') ? (
-                    <Button
-                      onClick={async () => {
-                        try {
-                          const { data: { session } } = await supabase.auth.getSession();
-                          if (!session?.access_token) {
-                            toast.error('Please sign in to continue');
-                            return;
-                          }
-
-                          let apiBase;
-                          if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-                            apiBase = process.env.REACT_APP_API_BASE || 'http://localhost:9999/.netlify/functions';
-                          } else {
-                            apiBase = '/.netlify/functions';
-                          }
-
-                          console.log('Creating subscription via backend API for plan:', selectedPlan.id);
-
-                          const response = await fetch(`${apiBase}/create-payment`, {
-                            method: 'POST',
-                            headers: {
-                              'Content-Type': 'application/json',
-                              'Authorization': `Bearer ${session.access_token}`
-                            },
-                            body: JSON.stringify({
-                              planId: selectedPlan.id
-                            })
-                          }).catch((fetchError) => {
-                            console.error('Fetch error:', fetchError);
-                            throw new Error(`Failed to connect to payment service. Please ensure Netlify Dev is running on port 9999. Error: ${fetchError.message}`);
-                          });
-
-                          if (!response.ok) {
-                            const errorText = await response.text();
-                            let errorData;
-                            try {
-                              errorData = JSON.parse(errorText);
-                            } catch {
-                              errorData = { error: errorText || 'Payment creation failed' };
-                            }
-                            console.error('Payment creation failed:', errorData);
-                            const errorMsg = errorData.error || errorData.details || 'Payment creation failed';
-                            throw new Error(errorMsg);
-                          }
-
-                          const result = await response.json();
-                          console.log('Payment creation response:', result);
-
-                          if (result.approvalUrl) {
-                            const approvalUrl = result.approvalUrl;
-                            console.log('Approval URL received:', approvalUrl);
-                            
-                            // Validate it's a subscription URL
-                            if (!approvalUrl.includes('/billing/subscriptions') || !approvalUrl.includes('ba_token')) {
-                              console.error('❌ Invalid subscription URL:', approvalUrl);
-                              toast.error('PayPal returned incorrect payment type. Please contact support.');
-                              return;
-                            }
-                            
-                            // Redirect to PayPal approval page
-                            console.log('Redirecting to PayPal approval URL:', approvalUrl);
-                            window.location.href = approvalUrl;
-                            
-                          } else {
-                            console.error('No approval URL in response:', result);
-                            toast.error(`Failed to get PayPal approval URL. Response: ${JSON.stringify(result)}`);
-                          }
-                        } catch (error) {
-                          console.error('PayPal subscription creation error:', error);
-                          const errorMessage = error.message || error.toString() || 'Failed to create subscription. Please try again.';
-                          console.error('Full error details:', error);
-                          toast.error(errorMessage);
-                        }
+                    <PayPalSubscriptionButton 
+                      planId={selectedPlan.id}
+                      planName={selectedPlan.name}
+                      paypalPlanId={PAYPAL_PLAN_IDS[selectedPlan.id]}
+                      onSuccess={() => {
+                        toast.success(`Successfully subscribed to ${selectedPlan.name}!`);
+                        setShowPaymentModal(false);
+                        setSelectedPlan(null);
+                        setTimeout(() => {
+                          window.location.href = "/dashboard";
+                        }, 1500);
                       }}
-                      className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-                    >
-                      Subscribe with PayPal
-                    </Button>
+                      onError={(error) => {
+                        console.error('PayPal subscription error:', error);
+                        toast.error(error.message || 'Subscription failed. Please try again.');
+                      }}
+                    />
                   ) : (
                   <PayPalScriptProvider options={paypalOptions}>
                     <PayPalButtons
@@ -3567,17 +3506,66 @@ const Dashboard = () => {
 
                       if (result.approvalUrl) {
                         const approvalUrl = result.approvalUrl;
-                        console.log('Approval URL received:', approvalUrl);
+                        console.log('═══════════════════════════════════════════════════════════');
+                        console.log('🔗 PAYPAL APPROVAL URL RECEIVED (Dashboard)');
+                        console.log('═══════════════════════════════════════════════════════════');
+                        console.log('Approval URL:', approvalUrl);
+                        console.log('Plan ID:', selectedUpgradePlan.id);
+                        console.log('Subscription ID:', result.subscriptionId);
+                        console.log('Payment ID:', result.paymentId);
+                        console.log('Is Subscription:', result.isSubscription);
+                        
+                        // Parse and log URL details
+                        try {
+                          const urlObj = new URL(approvalUrl);
+                          console.log('URL Details:');
+                          console.log('  - Protocol:', urlObj.protocol);
+                          console.log('  - Host:', urlObj.host);
+                          console.log('  - Pathname:', urlObj.pathname);
+                          console.log('  - Search params:', Object.fromEntries(urlObj.searchParams));
+                          
+                          const baToken = urlObj.searchParams.get('ba_token');
+                          if (baToken) {
+                            console.log('  - ba_token present:', true);
+                            console.log('  - ba_token length:', baToken.length);
+                            console.log('  - ba_token preview:', baToken.substring(0, 15) + '...' + baToken.substring(baToken.length - 5));
+                          } else {
+                            console.error('  - ⚠️ ba_token MISSING!');
+                          }
+                        } catch (urlError) {
+                          console.error('Error parsing approval URL:', urlError);
+                        }
                         
                         // Validate it's a subscription URL
                         if (!approvalUrl.includes('/billing/subscriptions') || !approvalUrl.includes('ba_token')) {
                           console.error('❌ Invalid subscription URL:', approvalUrl);
+                          console.error('  - Contains /billing/subscriptions:', approvalUrl.includes('/billing/subscriptions'));
+                          console.error('  - Contains ba_token:', approvalUrl.includes('ba_token'));
                           toast.error('PayPal returned incorrect payment type. Please contact support.');
                           return;
                         }
                         
+                        // Log redirect details
+                        console.log('═══════════════════════════════════════════════════════════');
+                        console.log('🚀 REDIRECTING TO PAYPAL (Dashboard)');
+                        console.log('═══════════════════════════════════════════════════════════');
+                        console.log('Redirect URL:', approvalUrl);
+                        console.log('Timestamp:', new Date().toISOString());
+                        console.log('User Agent:', navigator.userAgent);
+                        console.log('Current URL:', window.location.href);
+                        console.log('═══════════════════════════════════════════════════════════');
+                        
+                        // Store approval URL details in sessionStorage for debugging
+                        try {
+                          sessionStorage.setItem('paypal_approval_url', approvalUrl);
+                          sessionStorage.setItem('paypal_plan_id', selectedUpgradePlan.id);
+                          sessionStorage.setItem('paypal_subscription_id', result.subscriptionId || '');
+                          sessionStorage.setItem('paypal_redirect_timestamp', new Date().toISOString());
+                        } catch (e) {
+                          console.warn('Could not store approval URL in sessionStorage:', e);
+                        }
+                        
                         // Redirect to PayPal approval page
-                        console.log('Redirecting to PayPal approval URL:', approvalUrl);
                         window.location.href = approvalUrl;
                       } else {
                         console.error('No approval URL in response:', result);
@@ -4577,162 +4565,215 @@ const ContactPage = () => {
   );
 };
 
-// Payment Success Handler Component
-const PaymentSuccess = () => {
-  const [isProcessing, setIsProcessing] = useState(true);
-  const [error, setError] = useState(null);
-  const navigate = useNavigate();
+// PayPal Subscription Button Component (using native SDK)
+// This uses PayPal's native JavaScript SDK with createSubscription
+const PayPalSubscriptionButton = ({ planId, planName, paypalPlanId, onSuccess, onError }) => {
+  const [isLoading, setIsLoading] = useState(false);
+  const [scriptLoaded, setScriptLoaded] = useState(false);
+  const buttonContainerRef = React.useRef(null);
 
   useEffect(() => {
-    const handlePaymentSuccess = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.access_token) {
-          setError('Please sign in to complete your payment');
-          setIsProcessing(false);
-          return;
-        }
+    // Load PayPal SDK script if not already loaded
+    if (!window.paypal) {
+      const script = document.createElement('script');
+      script.src = `https://www.paypal.com/sdk/js?client-id=${PAYPAL_CLIENT_ID}&vault=true&intent=subscription`;
+      script.async = true;
+      script.setAttribute('data-sdk-integration-source', 'button-factory');
+      script.onload = () => {
+        setScriptLoaded(true);
+      };
+      script.onerror = () => {
+        console.error('Failed to load PayPal SDK');
+        onError?.({ message: 'Failed to load PayPal SDK. Please refresh the page.' });
+      };
+      document.body.appendChild(script);
+    } else {
+      setScriptLoaded(true);
+    }
 
-        // Get query parameters from PayPal redirect
-        // PayPal may send subscription_id, token, ba_token, or other parameters
-        const params = new URLSearchParams(window.location.search);
-        const hashParams = new URLSearchParams(window.location.hash.substring(1));
-        
-        // Log all parameters for debugging
-        console.log('Payment success page - URL params:', Object.fromEntries(params));
-        console.log('Payment success page - Hash params:', Object.fromEntries(hashParams));
-        console.log('Payment success page - Full URL:', window.location.href);
-        
-        // Try multiple possible parameter names PayPal might use
-        const subscriptionId = params.get('subscription_id') || 
-                              params.get('subscriptionId') ||
-                              params.get('token') ||
-                              hashParams.get('token') ||
-                              params.get('ba_token');
-        const planId = params.get('plan');
-
-        // If we have a subscription ID, use it
-        // Otherwise, try to find it from the database using planId
-        if (subscriptionId) {
-          console.log('Found subscription ID from URL:', subscriptionId);
-        } else if (planId) {
-          console.log('No subscription ID in URL, will look up from database for plan:', planId);
-        } else {
-          console.warn('No subscription ID or plan ID found in URL');
-        }
-
-        let apiBase;
-        if (window.location.hostname === 'localhost') {
-          apiBase = process.env.REACT_APP_API_BASE || 'https://www.alt-text.pro/.netlify/functions';
-        } else {
-          apiBase = '/.netlify/functions';
-        }
-
-        // Complete the payment - backend will verify subscription status with PayPal API
-        // Similar to PaymentDetails API in Adaptive Payments - we verify server-side
-        console.log('🔄 Verifying subscription status with PayPal API...');
-        
-        const response = await fetch(`${apiBase}/complete-payment`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`
-          },
-          body: JSON.stringify({
-            paymentId: subscriptionId, // Use subscription ID as payment ID for subscriptions
-            planId: planId || 'tier1', // Default to tier1 if not specified
-            subscriptionId: subscriptionId,
-            isSubscription: true // Indicate this is a subscription
-          })
-        });
-
-        const result = await response.json();
-        
-        console.log('✅ Complete payment response:', result);
-        console.log('📊 Subscription Status:', result.subscription_status);
-        console.log('📊 Subscription ID:', result.subscriptionId);
-        
-        if (response.ok) {
-          // Backend verified subscription status from PayPal API
-          const status = result.subscription_status;
-          
-          if (status === 'ACTIVE') {
-            // Subscription is fully active
-            toast.success('Subscription activated successfully!');
-            setTimeout(() => {
-              navigate('/dashboard');
-            }, 1500);
-          } else if (status === 'APPROVAL_PENDING' || status === 'APPROVED') {
-            // Subscription approved but PayPal is still processing - webhook will activate
-            toast.success('Subscription approved! Your account will be activated shortly.');
-            setTimeout(() => {
-              navigate('/dashboard');
-            }, 2000);
-          } else {
-            // Other valid states
-            toast.success('Subscription is being processed. Please check your dashboard.');
-            setTimeout(() => {
-              navigate('/dashboard');
-            }, 2000);
-          }
-        } else {
-          console.error('❌ Payment completion error:', result);
-          
-          // Check error type
-          if (result.error && (
-            result.error.includes('not in valid state') ||
-            result.error.includes('APPROVAL_PENDING') ||
-            result.error.includes('being processed')
-          )) {
-            // Subscription might still be processing - webhook will handle it
-            toast.success('Subscription is being processed. Your account will be activated shortly.');
-            setTimeout(() => {
-              navigate('/dashboard');
-            }, 2000);
-          } else if (result.error && result.error.includes('CANCELLED')) {
-            setError('Subscription was cancelled. Please try subscribing again.');
-            setIsProcessing(false);
-          } else if (result.error && result.error.includes('SUSPENDED')) {
-            setError('Subscription is suspended. Please contact support.');
-            setIsProcessing(false);
-          } else {
-            // Other errors - show error but also suggest checking dashboard
-            setError(result.error || result.details || 'Payment verification failed. Please check your dashboard - subscription may still be processing.');
-            setIsProcessing(false);
-          }
-        }
-      } catch (err) {
-        console.error('Payment success handler error:', err);
-        // Even on error, subscription might still be processing via webhook
-        toast.success('Subscription is being processed. Please check your dashboard in a moment.');
-        setTimeout(() => {
-          navigate('/dashboard');
-        }, 3000);
+    return () => {
+      // Cleanup: remove PayPal buttons if component unmounts
+      if (buttonContainerRef.current) {
+        buttonContainerRef.current.innerHTML = '';
       }
     };
+  }, [onError]);
 
-    handlePaymentSuccess();
-  }, [navigate]);
+  useEffect(() => {
+    if (!scriptLoaded || !window.paypal || !buttonContainerRef.current) return;
 
-  if (isProcessing) {
+    // Clear any existing buttons
+    buttonContainerRef.current.innerHTML = '';
+
+    // Render PayPal subscription button using native SDK
+    window.paypal.Buttons({
+      style: {
+        shape: 'pill',
+        color: 'blue',
+        layout: 'vertical',
+        label: 'subscribe'
+      },
+      createSubscription: function(data, actions) {
+        console.log('Creating PayPal subscription for plan:', paypalPlanId);
+        return actions.subscription.create({
+          plan_id: paypalPlanId
+        });
+      },
+      onApprove: async function(data, actions) {
+        try {
+          setIsLoading(true);
+          console.log('PayPal subscription approved:', data);
+          console.log('Subscription ID:', data.subscriptionID);
+
+          // Get user session
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session?.access_token) {
+            throw new Error('Please sign in to continue');
+          }
+
+          // Determine API base URL
+          let apiBase;
+          if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            apiBase = process.env.REACT_APP_API_BASE || 'http://localhost:9999/.netlify/functions';
+          } else {
+            apiBase = '/.netlify/functions';
+          }
+
+          // Complete the subscription on our backend
+          const response = await fetch(`${apiBase}/complete-payment`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session.access_token}`
+            },
+            body: JSON.stringify({
+              subscriptionId: data.subscriptionID,
+              planId: planId
+            })
+          });
+
+          const result = await response.json();
+          
+          if (!response.ok) {
+            throw new Error(result.error || 'Subscription completion failed');
+          }
+
+          console.log('Subscription completed successfully:', result);
+          onSuccess?.();
+        } catch (error) {
+          console.error('Subscription completion error:', error);
+          onError?.(error);
+        } finally {
+          setIsLoading(false);
+        }
+      },
+      onError: function(err) {
+        console.error('PayPal button error:', err);
+        setIsLoading(false);
+        onError?.({ message: err.message || 'PayPal subscription failed. Please try again.' });
+      },
+      onCancel: function(data) {
+        console.log('PayPal subscription cancelled:', data);
+        setIsLoading(false);
+        toast.info('Subscription cancelled');
+      }
+    }).render(buttonContainerRef.current);
+  }, [scriptLoaded, paypalPlanId, planId, onSuccess, onError]);
+
+  if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-cyan-50 to-teal-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4"></div>
-          <p className="text-gray-700">Processing your payment...</p>
-        </div>
+      <div className="w-full flex items-center justify-center py-4">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <span className="ml-3 text-gray-700">Processing subscription...</span>
       </div>
     );
   }
 
-  if (error) {
+  return (
+    <div className="w-full">
+      <div ref={buttonContainerRef} id={`paypal-button-container-${paypalPlanId}`}></div>
+    </div>
+  );
+};
+
+// Payment Success Handler Component
+// Following guidance pattern - simplified subscription activation
+const PaymentSuccess = () => {
+  const [status, setStatus] = useState('processing');
+  const navigate = useNavigate();
+  
+  // Use URLSearchParams to get query parameters (following guidance pattern)
+  const searchParams = new URLSearchParams(window.location.search);
+  const hashParams = new URLSearchParams(window.location.hash.substring(1));
+
+  useEffect(() => {
+    const subscriptionId = searchParams.get('subscription_id') || 
+                          searchParams.get('subscriptionId') ||
+                          hashParams.get('subscription_id') ||
+                          hashParams.get('subscriptionId') ||
+                          searchParams.get('token') ||
+                          hashParams.get('token');
+    
+    if (subscriptionId) {
+      // Determine API base URL
+      let apiBase;
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        apiBase = process.env.REACT_APP_API_BASE || 'http://localhost:9999/.netlify/functions';
+      } else {
+        apiBase = '/.netlify/functions';
+      }
+      
+      // Activate subscription (following guidance pattern)
+      fetch(`${apiBase}/activate-subscription`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subscriptionId })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === 'ACTIVE') {
+          setStatus('success');
+          // Redirect to dashboard or update user state
+          setTimeout(() => {
+            navigate('/dashboard');
+          }, 2000);
+        } else if (data.status === 'APPROVAL_PENDING' || data.status === 'APPROVED') {
+          setStatus('pending');
+          // Still redirect - webhook will activate
+          setTimeout(() => {
+            navigate('/dashboard');
+          }, 2000);
+        } else {
+          setStatus('pending');
+          // Unknown status - redirect anyway
+          setTimeout(() => {
+            navigate('/dashboard');
+          }, 2000);
+        }
+      })
+      .catch(error => {
+        console.error('Subscription activation error:', error);
+        setStatus('error');
+      });
+    } else {
+      // No subscription ID found - might be one-time payment or error
+      console.warn('No subscription ID found in URL parameters');
+      setStatus('error');
+    }
+  }, [searchParams, hashParams, navigate]);
+
+  // Following guidance pattern - simple status-based rendering
+  if (status === 'success') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-cyan-50 to-teal-50">
         <div className="text-center max-w-md mx-auto p-6">
-          <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">Payment Error</h2>
-          <p className="text-gray-600 mb-6">{error}</p>
-          <Button onClick={() => navigate('/dashboard')} className="bg-teal-600 hover:bg-teal-700">
+          <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
+          <h1 className="text-3xl font-bold text-gray-800 mb-2">✓ Subscription Activated!</h1>
+          <p className="text-gray-600 mb-6">Welcome to Alt Text Pro! Your subscription is now active.</p>
+          <Button 
+            onClick={() => navigate('/dashboard')} 
+            className="bg-teal-600 hover:bg-teal-700 text-white px-6 py-2 rounded-lg"
+          >
             Go to Dashboard
           </Button>
         </div>
@@ -4740,15 +4781,48 @@ const PaymentSuccess = () => {
     );
   }
 
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-cyan-50 to-teal-50">
-      <div className="text-center max-w-md mx-auto p-6">
-        <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
-        <h2 className="text-2xl font-bold text-gray-800 mb-2">Payment Successful!</h2>
-        <p className="text-gray-600 mb-6">Redirecting to your dashboard...</p>
+  if (status === 'processing') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-cyan-50 to-teal-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4"></div>
+          <p className="text-gray-700">Processing your subscription...</p>
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
+
+  if (status === 'pending') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-cyan-50 to-teal-50">
+        <div className="text-center max-w-md mx-auto p-6">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4"></div>
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">Subscription Pending</h2>
+          <p className="text-gray-600 mb-6">Your subscription is being processed. You will be redirected to your dashboard shortly.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (status === 'error') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-cyan-50 to-teal-50">
+        <div className="text-center max-w-md mx-auto p-6">
+          <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">Something went wrong</h2>
+          <p className="text-gray-600 mb-6">Please contact support if this issue persists.</p>
+          <Button 
+            onClick={() => navigate('/dashboard')} 
+            className="bg-teal-600 hover:bg-teal-700 text-white px-6 py-2 rounded-lg"
+          >
+            Go to Dashboard
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
 };
 
 // Admin Dashboard Component
