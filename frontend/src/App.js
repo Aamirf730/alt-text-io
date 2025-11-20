@@ -2864,8 +2864,8 @@ const Dashboard = () => {
           <div className="flex items-center gap-3">
             <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">Plugin v1.3.8</span>
             <a
-              href="/wordpress-plugin/alt-text-pro-plugin.zip"
-              download="alt-text-pro-plugin.zip"
+              href="/wordpress-plugin/alt-text-pro-plugin-1.3.8.zip"
+              download="alt-text-pro-plugin-1.3.8.zip"
               className="inline-flex items-center px-4 py-2 text-sm font-medium text-white transition-all rounded-lg shadow-sm hover:shadow hover:-translate-y-0.5"
               style={{ 
                 background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)'
@@ -3753,7 +3753,7 @@ const DocsPage = () => {
                   <div className="bg-gray-50 p-6 rounded-lg my-4">
                     <h4 className="font-semibold mb-3">Method 2: Manual Installation</h4>
                     <ol className="list-decimal list-inside space-y-2 text-gray-700">
-                      <li>Download the plugin from <a href="https://www.alt-text.pro/wordpress-plugin/alt-text-pro-plugin.zip" className="text-teal-600 hover:underline">alt-text.pro/wordpress-plugin/alt-text-pro-plugin.zip</a></li>
+                      <li>Download the plugin from <a href="https://www.alt-text.pro/wordpress-plugin/alt-text-pro-plugin-1.3.8.zip" className="text-teal-600 hover:underline">alt-text.pro/wordpress-plugin/alt-text-pro-plugin-1.3.8.zip</a></li>
                       <li>Extract the zip file</li>
                       <li>Upload the <code className="bg-gray-200 px-2 py-1 rounded">alt-text-ai</code> folder to <code className="bg-gray-200 px-2 py-1 rounded">/wp-content/plugins/</code></li>
                       <li>Go to <strong>Plugins</strong> in WordPress admin and activate <strong>Alt Text Pro</strong></li>
