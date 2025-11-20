@@ -1,0 +1,25 @@
+Alt-Text Pro Full Backup
+Generated: Thu Nov 20 01:13:49 IST 2025
+Backup Name: alt-text-pro-backup-20251120_011349
+
+=== INCLUDED ===
+- Frontend React application
+- Netlify serverless functions
+- WordPress plugin
+- Database migrations
+- Configuration files
+- Documentation
+- Setup scripts
+
+=== EXCLUDED ===
+- node_modules/
+- build/ directories
+- .env files (sensitive data)
+- .git/ directory
+- *.log files
+- Cache directories
+
+=== DATABASE ===
+Project ID: qurbdtzrngzfzevgoolp
+Backup Date: Thu Nov 20 01:13:49 IST 2025
+Tables: profiles, subscription_plans, payments, usage_logs, api_keys

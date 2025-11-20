@@ -4,18 +4,18 @@
 
 /* Professional Color Scheme - Logo Colors */
 :root {
-  /* Logo Teal/Cyan Gradient - Primary Actions */
-  --logo-teal-start: #1AB5AC;
-  --logo-teal-end: #3AC8C4;
-  --logo-teal-gradient: linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%);
+  /* Midnight Green Gradient - Primary Actions */
+  --logo-teal-start: #0D4F5E;
+  --logo-teal-end: #004953;
+  --logo-teal-gradient: linear-gradient(135deg, #0D4F5E 0%, #004953 100%);
   
   /* Deep Navy Blue - Secondary Elements */
   --logo-navy-start: #162D4E;
   --logo-navy-end: #223A64;
   --logo-navy-gradient: linear-gradient(135deg, #162D4E 0%, #223A64 100%);
   
-  /* Dark Teal - Accent Elements */
-  --logo-dark-teal: #0B4F5E;
+  /* Dark Midnight Green - Accent Elements */
+  --logo-dark-teal: #003a42;
   
   /* Dark Green Button - Special CTAs */
   --logo-green-start: #006160;
@@ -27,13 +27,13 @@
   --logo-border-dark: #E0E0E0;
   
   /* Legacy compatibility - mapped to logo colors */
-  --primary-teal: #1AB5AC;
-  --primary-teal-dark: #0B4F5E;
-  --primary-teal-light: #3AC8C4;
+  --primary-teal: #0D4F5E;
+  --primary-teal-dark: #003a42;
+  --primary-teal-light: #004953;
   --logo-navy: #162D4E;
-  --logo-cyan: #3AC8C4;
-  --logo-cyan-dark: #1AB5AC;
-  --accent-teal: #0B4F5E;
+  --logo-cyan: #004953;
+  --logo-cyan-dark: #0D4F5E;
+  --accent-teal: #003a42;
   
   /* Text and Background */
   --text-dark: #1f2937;
@@ -86,11 +86,11 @@ h3 {
 .btn-primary {
   background: var(--logo-teal-gradient);
   @apply text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg transform hover:-translate-y-0.5;
-  background-image: linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%);
+  background-image: linear-gradient(135deg, #0D4F5E 0%, #004953 100%);
 }
 
 .btn-primary:hover {
-  background-image: linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%);
+  background-image: linear-gradient(135deg, #003a42 0%, #0D4F5E 100%);
 }
 
 .btn-secondary {
@@ -119,7 +119,7 @@ h3 {
 }
 
 .card-hover:hover {
-  border-color: rgba(11, 79, 94, 0.4);
+  border-color: rgba(13, 79, 94, 0.4);
 }
 
 /* Professional Inputs */
@@ -150,7 +150,7 @@ h3 {
 
 /* Hero Section */
 .hero-section {
-  background: linear-gradient(135deg, rgba(26, 181, 172, 0.1) 0%, rgba(58, 200, 196, 0.1) 100%);
+  background: linear-gradient(135deg, rgba(13, 79, 94, 0.05) 0%, rgba(0, 73, 83, 0.05) 100%);
   @apply py-20 px-4;
 }
 
@@ -302,7 +302,7 @@ h3 {
 }
 
 .divider-teal {
-  border-top: 2px solid rgba(11, 79, 94, 0.4);
+  border-top: 2px solid rgba(13, 79, 94, 0.4);
   @apply my-8;
 }
 

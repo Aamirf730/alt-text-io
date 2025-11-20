@@ -62,7 +62,6 @@ async function createPayPalPlan(accessToken, productId, planDetails) {
     product_id: productId,
     name: `Alt Text Pro - ${planDetails.name}`,
     description: `${planDetails.credits} credits per month - ${planDetails.name}`,
-    status: 'ACTIVE', // Explicitly set to ACTIVE as per documentation
     billing_cycles: [{
       frequency: {
         interval_unit: 'MONTH',
@@ -70,23 +69,22 @@ async function createPayPalPlan(accessToken, productId, planDetails) {
       },
       tenure_type: 'REGULAR',
       sequence: 1,
+      total_cycles: 0, // 0 = infinite (recurring)
       pricing_scheme: {
         fixed_price: {
           value: planDetails.price.toString(),
           currency_code: 'USD'
         }
-      },
-      total_cycles: 0 // 0 = infinite (recurring)
+      }
     }],
     payment_preferences: {
       auto_bill_outstanding: true,
-      // Removed setup_fee since it's 0 and optional per PayPal docs
+      setup_fee: {
+        value: '0',
+        currency_code: 'USD'
+      },
       setup_fee_failure_action: 'CONTINUE',
       payment_failure_threshold: 3
-    },
-    taxes: {
-      percentage: '0',
-      inclusive: false
     }
   };
 
@@ -102,13 +100,64 @@ async function createPayPalPlan(accessToken, productId, planDetails) {
 
   const result = await response.json();
   
-  if (response.ok && result.id) {
-    console.log(`✅ PayPal Plan created for ${planDetails.name}:`, result.id);
-    return result.id;
-  } else {
+  if (!response.ok) {
     console.error(`❌ Error creating PayPal Plan for ${planDetails.name}:`, result);
     throw new Error(`Failed to create PayPal Plan for ${planDetails.name}`);
   }
+
+  const planId = result.id;
+  console.log(`✅ Plan created: ${planId}`);
+  console.log(`   Status: ${result.status || 'CREATED'}`);
+
+  // IMPORTANT: Activate the plan using the guidance format
+  // Note: PayPal API typically uses 'status' not 'state', but following guidance format
+  const activateResponse = await fetch(`${PAYPAL_BASE_URL}/v1/billing/plans/${planId}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${accessToken}`
+    },
+    body: JSON.stringify([
+      {
+        op: 'replace',
+        path: '/',
+        value: {
+          state: 'ACTIVE'
+        }
+      }
+    ])
+  });
+
+  if (!activateResponse.ok) {
+    const errorText = await activateResponse.text();
+    console.warn(`   ⚠️  Warning: Could not activate plan: ${errorText}`);
+    // Try alternative format (status instead of state)
+    const altActivateResponse = await fetch(`${PAYPAL_BASE_URL}/v1/billing/plans/${planId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`
+      },
+      body: JSON.stringify([
+        {
+          op: 'replace',
+          path: '/status',
+          value: 'ACTIVE'
+        }
+      ])
+    });
+    
+    if (!altActivateResponse.ok) {
+      const altErrorText = await altActivateResponse.text();
+      console.warn(`   ⚠️  Alternative activation also failed: ${altErrorText}`);
+    } else {
+      console.log(`   ✅ Plan activated using alternative format!`);
+    }
+  } else {
+    console.log(`   ✅ Plan activated!`);
+  }
+
+  return planId;
 }
 
 // Main setup function

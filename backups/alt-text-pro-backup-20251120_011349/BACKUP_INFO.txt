@@ -1,0 +1,59 @@
+========================================
+Alt-Text Pro Full Backup Information
+========================================
+
+Backup Date: Thu Nov 20 01:13:49 IST 2025
+Backup Name: alt-text-pro-backup-20251120_011349
+
+=== CONTENTS ===
+1. codebase/codebase.tar.gz - Full codebase archive
+2. plugin/wordpress-plugin.tar.gz - WordPress plugin archive
+3. database/ - Database export information and migrations
+4. MANIFEST.txt - Backup manifest
+5. BACKUP_INFO.txt - This file
+
+=== RESTORATION INSTRUCTIONS ===
+
+1. Extract codebase:
+   cd /path/to/restore
+   tar -xzf codebase/codebase.tar.gz
+
+2. Extract plugin:
+   cd /path/to/wordpress/wp-content/plugins
+   tar -xzf plugin/wordpress-plugin.tar.gz
+
+3. Restore database:
+   - Use Supabase dashboard to restore from backup, OR
+   - Apply migrations from database/supabase-migration/
+   - See database/DATABASE_EXPORT_INFO.txt for details
+
+4. Set up environment variables:
+   - See ENVIRONMENT_VARIABLES.md for required variables
+   - Configure in Netlify dashboard for production
+   - Set up local .env file for development
+
+5. Install dependencies:
+   npm install
+   cd netlify-functions && npm install && cd ..
+   cd frontend && yarn install && cd ..
+
+6. Build frontend:
+   cd frontend && yarn build && cd ..
+
+=== IMPORTANT NOTES ===
+- Environment variables are NOT included (security)
+- node_modules must be reinstalled: npm install
+- Database credentials must be reconfigured
+- PayPal credentials must be set in Netlify dashboard
+- Test restoration on a development environment first
+
+=== PROJECT DETAILS ===
+- Website: https://www.alt-text.pro
+- Supabase Project: qurbdtzrngzfzevgoolp
+- Netlify Site: alt-text-ai
+- Repository: Check git remote for URL
+
+=== BACKUP STATISTICS ===
+Generated: Thu Nov 20 01:13:49 IST 2025
+Backup Location: backups/alt-text-pro-backup-20251120_011349
+

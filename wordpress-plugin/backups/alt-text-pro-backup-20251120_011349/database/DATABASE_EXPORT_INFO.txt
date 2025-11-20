@@ -1,0 +1,37 @@
+========================================
+Database Export Information
+========================================
+
+Supabase Project ID: qurbdtzrngzfzevgoolp
+Export Date: Thu Nov 20 01:13:49 IST 2025
+
+=== TABLES TO EXPORT ===
+1. profiles - User profiles and subscription data
+2. subscription_plans - Available subscription plans
+3. payments - Payment transaction records
+4. usage_logs - Alt-text generation usage logs
+5. api_keys - API keys for WordPress plugin
+
+=== EXPORT METHODS ===
+1. Use Supabase Dashboard:
+   - Go to: https://app.supabase.com/project/qurbdtzrngzfzevgoolp
+   - Navigate to Database > Backups
+   - Create a point-in-time backup
+
+2. Use Supabase CLI:
+   supabase db dump -f database-export.sql
+
+3. Use pg_dump (if you have direct database access):
+   pg_dump -h db.qurbdtzrngzfzevgoolp.supabase.co -U postgres -d postgres > database-export.sql
+
+=== IMPORTANT NOTES ===
+- Database exports contain sensitive user data
+- Keep backups secure and encrypted
+- Do not commit database exports to version control
+- Test restoration on a development environment first
+
+=== MIGRATION FILES ===
+All database migrations are included in:
+- supabase-migration/ directory
+- These can be used to recreate the schema
+

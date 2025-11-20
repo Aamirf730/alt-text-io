@@ -12,20 +12,34 @@ module.exports = {
       colors: {
         // Logo-based Color Palette - Exact Logo Colors
         'logo-teal': {
-          DEFAULT: '#1AB5AC', // Start of teal gradient
-          start: '#1AB5AC',
-          end: '#3AC8C4',
-          50: '#e6f7f6',
-          100: '#b3ebe8',
-          200: '#80dfda',
-          300: '#4dd3cc',
-          400: '#1AB5AC', // Primary teal
-          500: '#2AC0B8',
-          600: '#3AC8C4', // End of teal gradient
-          700: '#0B4F5E', // Dark teal for hover
-          800: '#0a454f',
-          900: '#083a42',
-          950: '#062e35',
+          DEFAULT: '#0D4F5E', // Start of midnight green
+          start: '#0D4F5E',
+          end: '#004953',
+          50: '#e6f2f4',
+          100: '#b3d9de',
+          200: '#80c0c8',
+          300: '#4da7b2',
+          400: '#1a8e9c',
+          500: '#0D4F5E', // Primary midnight green
+          600: '#0a3f4b',
+          700: '#004953', // Darker for hover
+          800: '#003a42',
+          900: '#002b31',
+          950: '#001c20',
+        },
+        teal: {
+          DEFAULT: '#0D4F5E',
+          50: '#e6f2f4',
+          100: '#b3d9de',
+          200: '#80c0c8',
+          300: '#4da7b2',
+          400: '#1a8e9c',
+          500: '#0D4F5E',
+          600: '#0a3f4b',
+          700: '#004953',
+          800: '#003a42',
+          900: '#002b31',
+          950: '#001c20',
         },
         'logo-navy': {
           DEFAULT: '#162D4E', // Start of navy gradient
@@ -79,18 +93,18 @@ module.exports = {
         },
         // Professional Color Palette - Mapped to Logo Colors
         primary: {
-          DEFAULT: '#1AB5AC',
-          50: '#e6f7f6',
-          100: '#b3ebe8',
-          200: '#80dfda',
-          300: '#4dd3cc',
-          400: '#1AB5AC', // Logo teal start
-          500: '#2AC0B8',
-          600: '#3AC8C4', // Logo teal end
-          700: '#0B4F5E', // Dark teal for hover
-          800: '#0a454f',
-          900: '#083a42',
-          950: '#062e35',
+          DEFAULT: '#0D4F5E',
+          50: '#e6f2f4',
+          100: '#b3d9de',
+          200: '#80c0c8',
+          300: '#4da7b2',
+          400: '#1a8e9c',
+          500: '#0D4F5E', // Logo midnight green start
+          600: '#0a3f4b',
+          700: '#004953', // Logo midnight green end
+          800: '#003a42', // Dark midnight green for hover
+          900: '#002b31',
+          950: '#001c20',
         },
         accent: {
           DEFAULT: '#162D4E',
@@ -230,12 +244,12 @@ module.exports = {
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
         'gradient-conic': 'conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))',
-        'gradient-primary': 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)',
-        'gradient-teal': 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)',
+        'gradient-primary': 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)',
+        'gradient-teal': 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)',
         'gradient-navy': 'linear-gradient(135deg, #162D4E 0%, #223A64 100%)',
         'gradient-green': 'linear-gradient(135deg, #006160 0%, #0C7A76 100%)',
         'gradient-blue': 'linear-gradient(135deg, #162D4E 0%, #223A64 100%)',
-        'gradient-purple': 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)',
+        'gradient-purple': 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)',
       },
       backdropBlur: {
         xs: '2px',
