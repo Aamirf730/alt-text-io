@@ -3,9 +3,9 @@
  * Plugin Name: Alt Text Pro
  * Plugin URI: https://www.alt-text.pro
  * Description: Automatically generate professional alt-text for your images using AI. Improve accessibility and SEO with our powerful SaaS integration.
- * Version: 1.3.8
+ * Version: 1.3.9
  * Author: Alt Text Pro
- * Author URI: https://www.alt-text.pro
+ * Author URI: https://www.alt-text.pro/contact
  * License: GPL v2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: alt-text-ai
@@ -20,7 +20,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('ALT_TEXT_AI_VERSION', '1.3.8'); // Updated: Version bump - Fixed NotPrepared warnings
+define('ALT_TEXT_AI_VERSION', '1.3.9'); // Updated: Version bump - Fixed Plugin URI and Author URI conflict
 define('ALT_TEXT_AI_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('ALT_TEXT_AI_PLUGIN_PATH', plugin_dir_path(__FILE__));
 define('ALT_TEXT_AI_PLUGIN_BASENAME', plugin_basename(__FILE__));
