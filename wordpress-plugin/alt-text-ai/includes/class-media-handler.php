@@ -77,27 +77,24 @@ class AltTextAI_Media_Handler {
             // Add admin notice for successful generation
             set_transient('alt_text_ai_success_' . get_current_user_id(), array(
                 'message' => sprintf(
-                    __('Alt-text generated for "%s": %s', 'alt-text-ai'),
-                    get_the_title($attachment_id),
-                    $result['alt_text']
+                    // translators: %1$s: Image title, %2$s: Generated alt-text
+                    esc_html__('Alt-text generated for "%1$s": %2$s', 'alt-text-ai'),
+                    esc_html(get_the_title($attachment_id)),
+                    esc_html($result['alt_text'])
                 ),
                 'credits_remaining' => $result['credits_remaining'] ?? 0
             ), 300);
         } else {
             // Log the error with more details
             $error_msg = $result['message'] ?? 'Unknown error';
-            error_log(sprintf(
-                'Alt Text Pro: Failed to generate alt-text for attachment %d: %s',
-                $attachment_id,
-                $error_msg
-            ));
             
             // Add admin notice for error
             set_transient('alt_text_ai_error_' . get_current_user_id(), array(
                 'message' => sprintf(
-                    __('Failed to generate alt-text for "%s": %s', 'alt-text-ai'),
-                    get_the_title($attachment_id),
-                    $error_msg
+                    // translators: %1$s: Image title, %2$s: Error message
+                    esc_html__('Failed to generate alt-text for "%1$s": %2$s', 'alt-text-ai'),
+                    esc_html(get_the_title($attachment_id)),
+                    esc_html($error_msg)
                 )
             ), 300);
         }
@@ -118,28 +115,28 @@ class AltTextAI_Media_Handler {
         check_ajax_referer('alt_text_ai_nonce', 'nonce');
         
         if (!current_user_can('upload_files')) {
-            wp_die(__('You do not have permission to perform this action.', 'alt-text-ai'));
+            wp_die(esc_html__('You do not have permission to perform this action.', 'alt-text-ai'));
         }
         
-        $attachment_id = intval($_POST['attachment_id']);
-        $context = sanitize_text_field($_POST['context'] ?? '');
+        $attachment_id = isset($_POST['attachment_id']) ? intval($_POST['attachment_id']) : 0;
+        $context = isset($_POST['context']) ? sanitize_text_field(wp_unslash($_POST['context'])) : '';
         $force_overwrite = (bool) $_POST['force_overwrite'] ?? false;
         
         if (!$attachment_id) {
-            wp_send_json_error(__('Invalid attachment ID.', 'alt-text-ai'));
+            wp_send_json_error(esc_html__('Invalid attachment ID.', 'alt-text-ai'));
         }
         
         // Check if it's an image
         $mime_type = get_post_mime_type($attachment_id);
         if (!str_starts_with($mime_type, 'image/')) {
-            wp_send_json_error(__('File is not an image.', 'alt-text-ai'));
+            wp_send_json_error(esc_html__('File is not an image.', 'alt-text-ai'));
         }
         
         // Check if alt-text exists and we shouldn't overwrite
         if (!$force_overwrite) {
             $existing_alt = get_post_meta($attachment_id, '_wp_attachment_image_alt', true);
             if (!empty($existing_alt)) {
-                wp_send_json_error(__('Alt-text already exists. Use force overwrite to replace it.', 'alt-text-ai'));
+                wp_send_json_error(esc_html__('Alt-text already exists. Use force overwrite to replace it.', 'alt-text-ai'));
             }
         }
         
@@ -177,6 +174,7 @@ class AltTextAI_Media_Handler {
         
         $table_name = $wpdb->prefix . 'alt_text_ai_logs';
         
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery
         $wpdb->insert(
             $table_name,
             array(
@@ -200,14 +198,22 @@ class AltTextAI_Media_Handler {
         
         foreach ($posts_using_image as $post) {
             if (!empty($post->post_title)) {
-                $suggestions[] = sprintf(__('Used in: %s', 'alt-text-ai'), $post->post_title);
+                $suggestions[] = sprintf(
+                    // translators: %s: Post title
+                    esc_html__('Used in: %1$s', 'alt-text-ai'),
+                    esc_html($post->post_title)
+                );
             }
         }
         
         // Get image filename as context
         $filename = basename(get_attached_file($attachment_id));
         $filename_without_ext = pathinfo($filename, PATHINFO_FILENAME);
-        $suggestions[] = sprintf(__('Filename: %s', 'alt-text-ai'), $filename_without_ext);
+        $suggestions[] = sprintf(
+            // translators: %s: Filename without extension
+            esc_html__('Filename: %1$s', 'alt-text-ai'),
+            esc_html($filename_without_ext)
+        );
         
         return array_unique($suggestions);
     }
@@ -219,6 +225,7 @@ class AltTextAI_Media_Handler {
         global $wpdb;
         
         // Find posts that reference this image in content
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery
         $posts = $wpdb->get_results($wpdb->prepare(
             "SELECT ID, post_title, post_type 
              FROM {$wpdb->posts} 
@@ -229,6 +236,7 @@ class AltTextAI_Media_Handler {
         ));
         
         // Also check for featured images
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery
         $featured_posts = $wpdb->get_results($wpdb->prepare(
             "SELECT p.ID, p.post_title, p.post_type 
              FROM {$wpdb->posts} p

@@ -6,339 +6,177 @@
 if (!defined('ABSPATH')) {
     exit;
 }
+
+// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Only used for active menu highlighting
+$alt_text_ai_current_page = isset($_GET['page']) ? sanitize_text_field(wp_unslash($_GET['page'])) : '';
 ?>
 
 <div class="wrap alt-text-ai-dashboard">
+    <!-- Header & Navigation -->
     <div class="alt-text-ai-header">
-        <div class="alt-text-ai-header-content">
-            <div class="alt-text-ai-logo">
-                <img src="<?php echo esc_url(ALT_TEXT_AI_PLUGIN_URL . 'assets/images/logo-alt-text-pro.png'); ?>" alt="Alt Text Pro" />
-                <h1><?php _e('Alt Text Pro Dashboard', 'alt-text-ai'); ?></h1>
+        <div class="alt-text-ai-logo">
+            <img src="<?php echo esc_url(ALT_TEXT_AI_PLUGIN_URL . 'assets/images/logo-alt-text-pro.png'); ?>" alt="Alt Text Pro" />
+            <div>
+                <h1><?php esc_html_e('Alt Text Pro', 'alt-text-ai'); ?></h1>
+                <span style="color: var(--text-secondary); font-size: 13px;">v<?php echo esc_html(ALT_TEXT_AI_VERSION); ?></span>
             </div>
-            <div class="alt-text-ai-header-actions">
-                <a href="<?php echo admin_url('admin.php?page=alt-text-ai-settings'); ?>" class="button button-secondary">
-                    <span class="dashicons dashicons-admin-settings"></span>
-                    <?php _e('Settings', 'alt-text-ai'); ?>
-                </a>
-                <a href="<?php echo admin_url('admin.php?page=alt-text-ai-bulk'); ?>" class="button button-primary">
-                    <span class="dashicons dashicons-images-alt2"></span>
-                    <?php _e('Bulk Process', 'alt-text-ai'); ?>
-                </a>
-            </div>
+        </div>
+        <div class="alt-text-ai-nav">
+            <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-ai')); ?>" class="alt-text-ai-nav-item <?php echo esc_attr($alt_text_ai_current_page === 'alt-text-ai' ? 'active' : ''); ?>">
+                <span class="dashicons dashicons-dashboard"></span>
+                <?php esc_html_e('Dashboard', 'alt-text-ai'); ?>
+            </a>
+            <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-ai-bulk')); ?>" class="alt-text-ai-nav-item <?php echo esc_attr($alt_text_ai_current_page === 'alt-text-ai-bulk' ? 'active' : ''); ?>">
+                <span class="dashicons dashicons-images-alt2"></span>
+                <?php esc_html_e('Bulk Process', 'alt-text-ai'); ?>
+            </a>
+            <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-ai-logs')); ?>" class="alt-text-ai-nav-item <?php echo esc_attr($alt_text_ai_current_page === 'alt-text-ai-logs' ? 'active' : ''); ?>">
+                <span class="dashicons dashicons-list-view"></span>
+                <?php esc_html_e('Logs', 'alt-text-ai'); ?>
+            </a>
+            <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-ai-settings')); ?>" class="alt-text-ai-nav-item <?php echo esc_attr($alt_text_ai_current_page === 'alt-text-ai-settings' ? 'active' : ''); ?>">
+                <span class="dashicons dashicons-admin-settings"></span>
+                <?php esc_html_e('Settings', 'alt-text-ai'); ?>
+            </a>
         </div>
     </div>
 
-    <?php if (!empty($settings['api_key'])): ?>
-        <!-- Connection Status -->
-        <div class="alt-text-ai-status-card">
-            <?php if ($connection_status && $connection_status['success']): ?>
-                <div class="status-indicator status-connected">
-                    <span class="dashicons dashicons-yes-alt"></span>
-                    <span><?php _e('Connected to Alt Text Pro', 'alt-text-ai'); ?></span>
-                </div>
-            <?php else: ?>
-                <div class="status-indicator status-error">
-                    <span class="dashicons dashicons-warning"></span>
-                    <span><?php _e('Connection Error', 'alt-text-ai'); ?></span>
-                    <?php if ($connection_status): ?>
-                        <small><?php echo esc_html($connection_status['message']); ?></small>
-                    <?php endif; ?>
-                </div>
-            <?php endif; ?>
-        </div>
-
-        <!-- Statistics Cards -->
-        <div class="alt-text-ai-stats-grid">
-            <!-- Usage Stats -->
-            <?php if ($usage_stats): ?>
-                <div class="stats-card usage-card">
-                    <div class="stats-card-header">
-                        <h3><?php _e('Your Plan', 'alt-text-ai'); ?></h3>
-                        <span class="dashicons dashicons-chart-area"></span>
-                    </div>
-                    <div class="stats-card-content">
-                        <div class="plan-info">
-                            <div class="plan-name"><?php 
-                                // Display plan name - convert plan ID to readable name
-                                $plan_id = $usage_stats['subscription_plan'] ?? 'free';
-                                $plan_names = array(
-                                    'free' => __('Free Plan', 'alt-text-ai'),
-                                    'tier1' => __('Tier 1', 'alt-text-ai'),
-                                    'tier2' => __('Tier 2', 'alt-text-ai'),
-                                    'tier3' => __('Tier 3', 'alt-text-ai'),
-                                    'pay_as_go' => __('Pay as you go', 'alt-text-ai'),
-                                    'small_pack' => __('Small Pack', 'alt-text-ai')
-                                );
-                                echo esc_html($plan_names[$plan_id] ?? ucfirst($plan_id));
-                            ?></div>
-                            <div class="credits-remaining">
-                                <span class="credits-number"><?php echo number_format($usage_stats['credits_remaining']); ?></span>
-                                <span class="credits-label"><?php _e('credits remaining', 'alt-text-ai'); ?></span>
-                            </div>
-                        </div>
-                        <div class="usage-progress">
-                            <?php 
-                            // Get values directly from API response (these are the source of truth)
-                            $credits_remaining = isset($usage_stats['credits_remaining']) ? intval($usage_stats['credits_remaining']) : 0;
-                            $total_credits = isset($usage_stats['total_credits']) ? intval($usage_stats['total_credits']) : 100;
-                            $credits_used_api = isset($usage_stats['credits_used']) ? intval($usage_stats['credits_used']) : null;
-                            
-                            // Calculate credits_used if not provided by API
-                            // Use API value if available, otherwise calculate from remaining
-                            if ($credits_used_api !== null) {
-                                // API provided credits_used - use it directly
-                                $credits_used = $credits_used_api;
-                            } else {
-                                // Calculate from total and remaining
-                                $credits_used = max(0, $total_credits - $credits_remaining);
-                            }
-                            
-                            // Ensure credits_used doesn't exceed total_credits (handle edge cases)
-                            $credits_used = min($credits_used, $total_credits);
-                            
-                            // Ensure credits_remaining is not negative
-                            $credits_remaining = max(0, $credits_remaining);
-                            
-                            // Calculate usage percentage
-                            $usage_percentage = $total_credits > 0 ? ($credits_used / $total_credits) * 100 : 0;
-                            $usage_percentage = min(100, max(0, $usage_percentage)); // Clamp between 0-100
-                            ?>
-                            <div class="progress-bar">
-                                <div class="progress-fill" style="width: <?php echo $usage_percentage; ?>%"></div>
-                            </div>
-                            <div class="progress-text">
-                                <?php printf(__('%d of %d credits used', 'alt-text-ai'), $credits_used, $total_credits); ?>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="stats-card-footer">
-                        <a href="https://www.alt-text.pro/dashboard" target="_blank" class="button button-link">
-                            <?php _e('Manage Plan', 'alt-text-ai'); ?>
-                            <span class="dashicons dashicons-external"></span>
-                        </a>
-                    </div>
-                </div>
-            <?php endif; ?>
-
-            <!-- Local Statistics -->
-            <div class="stats-card local-stats-card">
-                <div class="stats-card-header">
-                    <h3><?php _e('Site Statistics', 'alt-text-ai'); ?></h3>
-                    <span class="dashicons dashicons-analytics"></span>
-                </div>
-                <div class="stats-card-content">
-                    <div class="stat-item">
-                        <div class="stat-number"><?php echo number_format($total_generated ?: 0); ?></div>
-                        <div class="stat-label"><?php _e('Alt-texts generated', 'alt-text-ai'); ?></div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-number"><?php echo number_format($total_credits_used ?: 0); ?></div>
-                        <div class="stat-label"><?php _e('Credits used', 'alt-text-ai'); ?></div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-number"><?php echo number_format($images_without_alt ?: 0); ?></div>
-                        <div class="stat-label"><?php _e('Images need alt-text', 'alt-text-ai'); ?></div>
-                    </div>
-                </div>
-                <?php if ($images_without_alt > 0): ?>
-                    <div class="stats-card-footer">
-                        <a href="<?php echo admin_url('admin.php?page=alt-text-ai-bulk'); ?>" class="button button-primary">
-                            <?php _e('Process Missing Alt-Text', 'alt-text-ai'); ?>
-                        </a>
-                    </div>
-                <?php endif; ?>
-            </div>
-
-            <!-- Quick Actions -->
-            <div class="stats-card actions-card">
-                <div class="stats-card-header">
-                    <h3><?php _e('Quick Actions', 'alt-text-ai'); ?></h3>
-                    <span class="dashicons dashicons-admin-tools"></span>
-                </div>
-                <div class="stats-card-content">
-                    <div class="action-buttons">
-                        <a href="<?php echo admin_url('upload.php'); ?>" class="action-button">
-                            <span class="dashicons dashicons-admin-media"></span>
-                            <span><?php _e('Media Library', 'alt-text-ai'); ?></span>
-                        </a>
-                        <a href="<?php echo admin_url('admin.php?page=alt-text-ai-bulk'); ?>" class="action-button">
-                            <span class="dashicons dashicons-images-alt2"></span>
-                            <span><?php _e('Bulk Process', 'alt-text-ai'); ?></span>
-                        </a>
-                        <a href="<?php echo admin_url('admin.php?page=alt-text-ai-logs'); ?>" class="action-button">
-                            <span class="dashicons dashicons-list-view"></span>
-                            <span><?php _e('View Logs', 'alt-text-ai'); ?></span>
-                        </a>
-                        <button type="button" class="action-button" id="refresh-usage-stats">
-                            <span class="dashicons dashicons-update"></span>
-                            <span><?php _e('Refresh Stats', 'alt-text-ai'); ?></span>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Recent Activity -->
-        <?php if (!empty($recent_generations)): ?>
-            <div class="alt-text-ai-section">
-                <div class="section-header">
-                    <h2><?php _e('Recent Activity', 'alt-text-ai'); ?></h2>
-                    <a href="<?php echo admin_url('admin.php?page=alt-text-ai-logs'); ?>" class="button button-secondary">
-                        <?php _e('View All', 'alt-text-ai'); ?>
+    <?php if (empty($settings['api_key'])): ?>
+        <!-- Setup Card -->
+        <div class="alt-text-ai-card">
+            <div class="card-content" style="text-align: center; padding: 60px 20px;">
+                <span class="dashicons dashicons-admin-network" style="font-size: 48px; width: 48px; height: 48px; color: var(--primary-color); margin-bottom: 20px;"></span>
+                <h2 style="margin-bottom: 10px;"><?php esc_html_e('Connect to Alt Text Pro', 'alt-text-ai'); ?></h2>
+                <p style="max-width: 500px; margin: 0 auto 30px; color: var(--text-secondary); font-size: 16px;">
+                    <?php esc_html_e('Get accurate alt text for your images automatically using AI. Connect your account to get started.', 'alt-text-ai'); ?>
+                </p>
+                
+                <div style="display: flex; gap: 16px; justify-content: center;">
+                    <a href="https://www.alt-text.pro/dashboard" target="_blank" class="button-secondary-custom">
+                        <?php esc_html_e('Get API Key', 'alt-text-ai'); ?>
+                        <span class="dashicons dashicons-external"></span>
+                    </a>
+                    <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-ai-settings')); ?>" class="button-primary-custom">
+                        <?php esc_html_e('Configure Settings', 'alt-text-ai'); ?>
+                        <span class="dashicons dashicons-arrow-right-alt"></span>
                     </a>
                 </div>
-                <div class="recent-activity-list">
-                    <?php foreach ($recent_generations as $generation): ?>
-                        <div class="activity-item">
-                            <div class="activity-icon">
-                                <span class="dashicons dashicons-format-image"></span>
-                            </div>
-                            <div class="activity-content">
-                                <div class="activity-title">
-                                    <?php if ($generation->post_title): ?>
-                                        <strong><?php echo esc_html($generation->post_title); ?></strong>
-                                    <?php else: ?>
-                                        <strong><?php printf(__('Image #%d', 'alt-text-ai'), $generation->attachment_id); ?></strong>
-                                    <?php endif; ?>
-                                </div>
-                                <div class="activity-alt-text">
-                                    "<?php echo esc_html(wp_trim_words($generation->alt_text, 15)); ?>"
-                                </div>
-                                <div class="activity-meta">
-                                    <span class="activity-date">
-                                        <?php echo human_time_diff(strtotime($generation->created_at), current_time('timestamp')); ?> <?php _e('ago', 'alt-text-ai'); ?>
-                                    </span>
-                                    <span class="activity-credits">
-                                        <?php printf(__('%d credit used', 'alt-text-ai'), $generation->credits_used); ?>
-                                    </span>
-                                </div>
-                            </div>
-                            <div class="activity-actions">
-                                <a href="<?php echo admin_url('post.php?post=' . $generation->attachment_id . '&action=edit'); ?>" class="button button-small">
-                                    <?php _e('Edit', 'alt-text-ai'); ?>
-                                </a>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
+            </div>
+        </div>
+    <?php else: ?>
+        
+        <!-- Status & Credits -->
+        <div class="stats-grid">
+            <?php 
+            // Calculate credits logic
+            $alt_text_ai_credits_remaining = isset($usage_stats['credits_remaining']) ? intval($usage_stats['credits_remaining']) : 0;
+            $alt_text_ai_total_credits = isset($usage_stats['total_credits']) ? intval($usage_stats['total_credits']) : 100;
+            $alt_text_ai_credits_used = isset($usage_stats['credits_used']) ? intval($usage_stats['credits_used']) : max(0, $alt_text_ai_total_credits - $alt_text_ai_credits_remaining);
+            $alt_text_ai_usage_percentage = $alt_text_ai_total_credits > 0 ? ($alt_text_ai_credits_used / $alt_text_ai_total_credits) * 100 : 0;
+            $alt_text_ai_usage_percentage = min(100, max(0, $alt_text_ai_usage_percentage));
+            
+            $alt_text_ai_plan_id = $usage_stats['subscription_plan'] ?? 'free';
+            ?>
+            
+            <div class="stat-card">
+                <div class="stat-header">
+                    <span class="stat-title"><?php esc_html_e('Credits', 'alt-text-ai'); ?></span>
+                    <div class="stat-icon"><span class="dashicons dashicons-chart-pie"></span></div>
+                </div>
+                <div class="stat-value"><?php echo esc_html(number_format($alt_text_ai_credits_remaining)); ?></div>
+                <div class="stat-desc"><?php esc_html_e('Credits remaining this month', 'alt-text-ai'); ?></div>
+                
+                <div class="usage-progress-container">
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: <?php echo esc_attr($alt_text_ai_usage_percentage); ?>%"></div>
+                    </div>
+                    <div class="progress-label">
+                        <span><?php echo esc_html(number_format($alt_text_ai_credits_used)); ?> <?php esc_html_e('used', 'alt-text-ai'); ?></span>
+                        <span><?php echo esc_html(number_format($alt_text_ai_total_credits)); ?> <?php esc_html_e('total', 'alt-text-ai'); ?></span>
+                    </div>
                 </div>
             </div>
+
+            <div class="stat-card">
+                <div class="stat-header">
+                    <span class="stat-title"><?php esc_html_e('Generated', 'alt-text-ai'); ?></span>
+                    <div class="stat-icon"><span class="dashicons dashicons-format-image"></span></div>
+                </div>
+                <div class="stat-value"><?php echo esc_html(number_format($total_generated ?: 0)); ?></div>
+                <div class="stat-desc"><?php esc_html_e('Total alt-texts generated', 'alt-text-ai'); ?></div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-header">
+                    <span class="stat-title"><?php esc_html_e('Plan', 'alt-text-ai'); ?></span>
+                    <div class="stat-icon"><span class="dashicons dashicons-awards"></span></div>
+                </div>
+                <div class="stat-value" style="text-transform: capitalize; font-size: 24px;">
+                    <?php echo esc_html(str_replace('_', ' ', $alt_text_ai_plan_id)); ?>
+                </div>
+                <div class="stat-desc">
+                    <a href="https://www.alt-text.pro/dashboard" target="_blank" style="text-decoration: none; color: var(--primary-color);">
+                        <?php esc_html_e('Manage Subscription', 'alt-text-ai'); ?> &rarr;
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="alt-text-ai-card">
+            <div class="card-header">
+                <h3><?php esc_html_e('Quick Actions', 'alt-text-ai'); ?></h3>
+            </div>
+            <div class="card-content">
+                <div class="action-grid">
+                    <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-ai-bulk')); ?>" class="action-btn">
+                        <span class="dashicons dashicons-images-alt2"></span>
+                        <span><?php esc_html_e('Bulk Process', 'alt-text-ai'); ?></span>
+                    </a>
+                    <a href="<?php echo esc_url(admin_url('upload.php')); ?>" class="action-btn">
+                        <span class="dashicons dashicons-admin-media"></span>
+                        <span><?php esc_html_e('Media Library', 'alt-text-ai'); ?></span>
+                    </a>
+                    <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-ai-logs')); ?>" class="action-btn">
+                        <span class="dashicons dashicons-list-view"></span>
+                        <span><?php esc_html_e('View Logs', 'alt-text-ai'); ?></span>
+                    </a>
+                    <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-ai-settings')); ?>" class="action-btn">
+                        <span class="dashicons dashicons-admin-settings"></span>
+                        <span><?php esc_html_e('Settings', 'alt-text-ai'); ?></span>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <?php if ($images_without_alt > 0): ?>
+        <div class="alt-text-ai-card" style="border-left: 4px solid var(--warning-color);">
+            <div class="card-content" style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h3 style="margin: 0 0 8px 0;"><?php esc_html_e('Optimization Opportunity', 'alt-text-ai'); ?></h3>
+                    <p style="margin: 0; color: var(--text-secondary);">
+                        <?php 
+                        echo wp_kses_post(
+                            sprintf(
+                                // translators: %d: Number of images
+                                __('You have <strong>%1$d images</strong> missing alt text.', 'alt-text-ai'),
+                                esc_html($images_without_alt)
+                            )
+                        ); ?>
+                    </p>
+                </div>
+                <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-ai-bulk')); ?>" class="button-primary-custom">
+                    <?php esc_html_e('Fix Now', 'alt-text-ai'); ?>
+                </a>
+            </div>
+        </div>
         <?php endif; ?>
 
-        <!-- Tips and Help -->
-        <div class="alt-text-ai-section">
-            <div class="section-header">
-                <h2><?php _e('Tips & Best Practices', 'alt-text-ai'); ?></h2>
-            </div>
-            <div class="tips-grid">
-                <div class="tip-card">
-                    <div class="tip-icon">
-                        <span class="dashicons dashicons-lightbulb"></span>
-                    </div>
-                    <div class="tip-content">
-                        <h4><?php _e('Provide Context', 'alt-text-ai'); ?></h4>
-                        <p><?php _e('Add context information when generating alt-text to get more accurate and relevant descriptions.', 'alt-text-ai'); ?></p>
-                    </div>
-                </div>
-                <div class="tip-card">
-                    <div class="tip-icon">
-                        <span class="dashicons dashicons-performance"></span>
-                    </div>
-                    <div class="tip-content">
-                        <h4><?php _e('Batch Processing', 'alt-text-ai'); ?></h4>
-                        <p><?php _e('Use bulk processing to efficiently generate alt-text for multiple images at once.', 'alt-text-ai'); ?></p>
-                    </div>
-                </div>
-                <div class="tip-card">
-                    <div class="tip-icon">
-                        <span class="dashicons dashicons-edit"></span>
-                    </div>
-                    <div class="tip-content">
-                        <h4><?php _e('Review and Edit', 'alt-text-ai'); ?></h4>
-                        <p><?php _e('Always review generated alt-text and edit if needed to ensure it fits your content perfectly.', 'alt-text-ai'); ?></p>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-    <?php else: ?>
-        <!-- Setup Required -->
-        <div class="alt-text-ai-setup-required">
-            <div class="setup-card">
-                <div class="setup-icon">
-                    <span class="dashicons dashicons-admin-settings"></span>
-                </div>
-                <div class="setup-content">
-                    <h2><?php _e('Welcome to Alt Text Pro!', 'alt-text-ai'); ?></h2>
-                    <p><?php _e('To get started, you need to configure your API key. This connects your WordPress site to the Alt Text Pro service.', 'alt-text-ai'); ?></p>
-                    
-                    <div class="setup-steps">
-                        <div class="setup-step">
-                            <div class="step-number">1</div>
-                            <div class="step-content">
-                                <h4><?php _e('Get Your API Key', 'alt-text-ai'); ?></h4>
-                                <p><?php _e('Visit the Alt Text Pro dashboard to get your API key.', 'alt-text-ai'); ?></p>
-                                <a href="https://www.alt-text.pro/dashboard" target="_blank" class="button button-secondary">
-                                    <?php _e('Get API Key', 'alt-text-ai'); ?>
-                                    <span class="dashicons dashicons-external"></span>
-                                </a>
-                            </div>
-                        </div>
-                        <div class="setup-step">
-                            <div class="step-number">2</div>
-                            <div class="step-content">
-                                <h4><?php _e('Configure Settings', 'alt-text-ai'); ?></h4>
-                                <p><?php _e('Enter your API key and configure your preferences.', 'alt-text-ai'); ?></p>
-                                <a href="<?php echo admin_url('admin.php?page=alt-text-ai-settings'); ?>" class="button button-primary">
-                                    <?php _e('Configure Settings', 'alt-text-ai'); ?>
-                                </a>
-                            </div>
-                        </div>
-                        <div class="setup-step">
-                            <div class="step-number">3</div>
-                            <div class="step-content">
-                                <h4><?php _e('Start Generating', 'alt-text-ai'); ?></h4>
-                                <p><?php _e('Begin generating alt-text for your images automatically or manually.', 'alt-text-ai'); ?></p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
     <?php endif; ?>
 </div>
 
 <script type="text/javascript">
 jQuery(document).ready(function($) {
-    // Refresh usage stats
-    $('#refresh-usage-stats').on('click', function() {
-        var $button = $(this);
-        var $icon = $button.find('.dashicons');
-        
-        $button.prop('disabled', true);
-        $icon.addClass('rotating');
-        
-        $.ajax({
-            url: altTextAI.ajaxUrl,
-            type: 'POST',
-            data: {
-                action: 'alt_text_ai_get_usage',
-                nonce: altTextAI.nonce
-            },
-            success: function(response) {
-                if (response.success) {
-                    location.reload();
-                } else {
-                    alert(response.data || 'Failed to refresh stats');
-                }
-            },
-            error: function() {
-                alert('Failed to refresh stats');
-            },
-            complete: function() {
-                $button.prop('disabled', false);
-                $icon.removeClass('rotating');
-            }
-        });
-    });
+    // Refresh stats logic if needed
 });
 </script>

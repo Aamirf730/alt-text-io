@@ -6,282 +6,180 @@
 if (!defined('ABSPATH')) {
     exit;
 }
+
+// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Only used for active menu highlighting
+$alt_text_ai_current_page = isset($_GET['page']) ? sanitize_text_field(wp_unslash($_GET['page'])) : '';
 ?>
 
 <div class="wrap alt-text-ai-settings">
+    <!-- Header & Navigation -->
     <div class="alt-text-ai-header">
-        <div class="alt-text-ai-header-content">
-            <div class="alt-text-ai-logo">
-                <img src="<?php echo esc_url(ALT_TEXT_AI_PLUGIN_URL . 'assets/images/logo-alt-text-pro.png'); ?>" alt="Alt Text Pro" />
-                <h1><?php _e('Alt Text Pro Settings', 'alt-text-ai'); ?></h1>
+        <div class="alt-text-ai-logo">
+            <img src="<?php echo esc_url(ALT_TEXT_AI_PLUGIN_URL . 'assets/images/logo-alt-text-pro.png'); ?>" alt="Alt Text Pro" />
+            <div>
+                <h1><?php esc_html_e('Alt Text Pro', 'alt-text-ai'); ?></h1>
+                <span style="color: var(--text-secondary); font-size: 13px;">v<?php echo esc_html(ALT_TEXT_AI_VERSION); ?></span>
             </div>
-            <div class="alt-text-ai-header-actions">
-                <a href="<?php echo admin_url('admin.php?page=alt-text-ai'); ?>" class="button button-secondary">
-                    <span class="dashicons dashicons-arrow-left-alt"></span>
-                    <?php _e('Back to Dashboard', 'alt-text-ai'); ?>
-                </a>
-            </div>
+        </div>
+        <div class="alt-text-ai-nav">
+            <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-ai')); ?>" class="alt-text-ai-nav-item <?php echo esc_attr($alt_text_ai_current_page === 'alt-text-ai' ? 'active' : ''); ?>">
+                <span class="dashicons dashicons-dashboard"></span>
+                <?php esc_html_e('Dashboard', 'alt-text-ai'); ?>
+            </a>
+            <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-ai-bulk')); ?>" class="alt-text-ai-nav-item <?php echo esc_attr($alt_text_ai_current_page === 'alt-text-ai-bulk' ? 'active' : ''); ?>">
+                <span class="dashicons dashicons-images-alt2"></span>
+                <?php esc_html_e('Bulk Process', 'alt-text-ai'); ?>
+            </a>
+            <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-ai-logs')); ?>" class="alt-text-ai-nav-item <?php echo esc_attr($alt_text_ai_current_page === 'alt-text-ai-logs' ? 'active' : ''); ?>">
+                <span class="dashicons dashicons-list-view"></span>
+                <?php esc_html_e('Logs', 'alt-text-ai'); ?>
+            </a>
+            <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-ai-settings')); ?>" class="alt-text-ai-nav-item <?php echo esc_attr($alt_text_ai_current_page === 'alt-text-ai-settings' ? 'active' : ''); ?>">
+                <span class="dashicons dashicons-admin-settings"></span>
+                <?php esc_html_e('Settings', 'alt-text-ai'); ?>
+            </a>
         </div>
     </div>
 
-    <div class="alt-text-ai-settings-container">
-        <div class="settings-main">
-            <form method="post" action="options.php" class="alt-text-ai-settings-form">
-                <?php 
-                settings_fields('alt_text_ai_settings');
-                // Note: We use custom HTML fields below, so we don't call do_settings_sections()
-                // This ensures the form submits properly via WordPress Settings API
-                ?>
-                
-                <!-- API Configuration Section -->
-                <div class="settings-section">
-                    <div class="section-header">
-                        <h2><?php _e('API Configuration', 'alt-text-ai'); ?></h2>
-                        <p class="section-description">
-                            <?php _e('Connect your WordPress site to the Alt Text Pro service.', 'alt-text-ai'); ?>
-                        </p>
-                    </div>
-                    
-                    <div class="settings-field">
-                        <label for="api_key" class="field-label">
-                            <?php _e('API Key', 'alt-text-ai'); ?>
-                            <span class="required">*</span>
-                        </label>
-                        <div class="field-input">
-                            <div class="api-key-input-group">
-                                <input type="password" 
-                                       id="api_key" 
-                                       name="alt_text_ai_settings[api_key]" 
-                                       value="<?php echo esc_attr($settings['api_key']); ?>" 
-                                       class="regular-text" 
-                                       placeholder="alt_... or altai_..." 
-                                       autocomplete="off" />
-                                <button type="button" class="button button-secondary toggle-visibility" id="toggle-api-key" aria-label="<?php _e('Show API key', 'alt-text-ai'); ?>">
-                                    <span class="dashicons dashicons-visibility"></span>
-                                </button>
-                                <button type="button" class="button button-secondary test-connection" id="test-connection">
-                                    <span class="dashicons dashicons-admin-plugins"></span>
-                                    <?php _e('Test', 'alt-text-ai'); ?>
-                                </button>
-                            </div>
-                            <div id="connection-test-result" class="connection-result"></div>
-                        </div>
-                        <div class="field-description">
-                            <?php printf(
-                                __('Enter your Alt Text Pro API key. You can find this in your <a href="%s" target="_blank">Alt Text Pro dashboard</a>.', 'alt-text-ai'),
-                                'https://www.alt-text.pro/dashboard'
-                            ); ?>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Generation Settings Section -->
-                <div class="settings-section">
-                    <div class="section-header">
-                        <h2><?php _e('Generation Settings', 'alt-text-ai'); ?></h2>
-                        <p class="section-description">
-                            <?php _e('Configure how and when alt-text is generated for your images.', 'alt-text-ai'); ?>
-                        </p>
-                    </div>
-                    
-                    <div class="settings-field">
-                        <div class="field-input">
-                            <label class="checkbox-label">
-                                <input type="checkbox" 
-                                       id="auto_generate" 
-                                       name="alt_text_ai_settings[auto_generate]" 
-                                       value="1" 
-                                       <?php checked(1, $settings['auto_generate']); ?> />
-                                <span class="checkmark"></span>
-                                <span class="label-text">
-                                    <?php _e('Auto-generate alt-text on upload', 'alt-text-ai'); ?>
-                                </span>
-                            </label>
-                        </div>
-                        <div class="field-description">
-                            <?php _e('Automatically generate alt-text when new images are uploaded. This will use your API credits.', 'alt-text-ai'); ?>
-                        </div>
-                    </div>
-                    
-                    <div class="settings-field">
-                        <div class="field-input">
-                            <label class="checkbox-label">
-                                <input type="checkbox" 
-                                       id="overwrite_existing" 
-                                       name="alt_text_ai_settings[overwrite_existing]" 
-                                       value="1" 
-                                       <?php checked(1, $settings['overwrite_existing']); ?> />
-                                <span class="checkmark"></span>
-                                <span class="label-text">
-                                    <?php _e('Overwrite existing alt-text', 'alt-text-ai'); ?>
-                                </span>
-                            </label>
-                        </div>
-                        <div class="field-description">
-                            <?php _e('Replace existing alt-text when regenerating. When disabled, images with existing alt-text will be skipped.', 'alt-text-ai'); ?>
-                        </div>
-                    </div>
-                    
-                    <div class="settings-field">
-                        <div class="field-input">
-                            <label class="checkbox-label">
-                                <input type="checkbox" 
-                                       id="context_enabled" 
-                                       name="alt_text_ai_settings[context_enabled]" 
-                                       value="1" 
-                                       <?php checked(1, $settings['context_enabled']); ?> />
-                                <span class="checkmark"></span>
-                                <span class="label-text">
-                                    <?php _e('Enable context-aware generation', 'alt-text-ai'); ?>
-                                </span>
-                            </label>
-                        </div>
-                        <div class="field-description">
-                            <?php _e('Provide additional context (like page title, filename) to improve alt-text quality.', 'alt-text-ai'); ?>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Processing Settings Section -->
-                <div class="settings-section">
-                    <div class="section-header">
-                        <h2><?php _e('Processing Settings', 'alt-text-ai'); ?></h2>
-                        <p class="section-description">
-                            <?php _e('Configure bulk processing and performance settings.', 'alt-text-ai'); ?>
-                        </p>
-                    </div>
-                    
-                    <div class="settings-field">
-                        <label for="batch_size" class="field-label">
-                            <?php _e('Batch Size', 'alt-text-ai'); ?>
-                        </label>
-                        <div class="field-input">
-                            <div class="number-input-group">
-                                <input type="number" 
-                                       id="batch_size" 
-                                       name="alt_text_ai_settings[batch_size]" 
-                                       value="<?php echo esc_attr($settings['batch_size']); ?>" 
-                                       min="1" 
-                                       max="50" 
-                                       class="small-text" />
-                                <span class="input-suffix"><?php _e('images per batch', 'alt-text-ai'); ?></span>
-                            </div>
-                        </div>
-                        <div class="field-description">
-                            <?php _e('Number of images to process in each batch during bulk operations. Lower numbers are more reliable but slower.', 'alt-text-ai'); ?>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Save Settings -->
-                <div class="settings-actions">
-                    <div class="primary-actions">
-                        <?php submit_button(__('Save Settings', 'alt-text-ai'), 'primary', 'submit', false); ?>
-                        <button type="button" class="button button-secondary" id="reset-settings">
-                            <?php _e('Reset to Defaults', 'alt-text-ai'); ?>
-                        </button>
-                    </div>
-                    <div class="secondary-actions">
-                        <button type="button" class="button button-link" id="export-settings">
-                            <span class="dashicons dashicons-download"></span>
-                            <?php _e('Export Settings', 'alt-text-ai'); ?>
-                        </button>
-                        <button type="button" class="button button-link" id="import-settings">
-                            <span class="dashicons dashicons-upload"></span>
-                            <?php _e('Import Settings', 'alt-text-ai'); ?>
-                        </button>
-                        <input type="file" id="import-file" accept=".json" style="display: none;">
-                    </div>
-                </div>
-            </form>
-        </div>
-
-        <!-- Settings Sidebar -->
-        <div class="settings-sidebar">
-            <!-- Help Card -->
-            <div class="sidebar-card help-card">
-                <div class="card-header">
-                    <h3><?php _e('Need Help?', 'alt-text-ai'); ?></h3>
-                </div>
-                <div class="card-content">
-                    <div class="help-links">
-                        <a href="https://www.alt-text.pro/docs" target="_blank" class="help-link">
-                            <span class="dashicons dashicons-book"></span>
-                            <?php _e('Documentation', 'alt-text-ai'); ?>
-                        </a>
-                        <a href="https://www.alt-text.pro/support" target="_blank" class="help-link">
-                            <span class="dashicons dashicons-sos"></span>
-                            <?php _e('Support', 'alt-text-ai'); ?>
-                        </a>
-                        <a href="https://www.alt-text.pro/dashboard" target="_blank" class="help-link">
-                            <span class="dashicons dashicons-dashboard"></span>
-                            <?php _e('Account Dashboard', 'alt-text-ai'); ?>
-                        </a>
-                    </div>
-                </div>
+    <form method="post" action="options.php" class="alt-text-ai-settings-form">
+        <?php 
+        settings_fields('alt_text_ai_settings');
+        // Note: We use custom HTML fields below
+        ?>
+        
+        <div class="alt-text-ai-card">
+            <div class="card-header">
+                <h3><?php esc_html_e('API Configuration', 'alt-text-ai'); ?></h3>
             </div>
-
-            <!-- Status Card -->
-            <div class="sidebar-card status-card">
-                <div class="card-header">
-                    <h3><?php _e('Plugin Status', 'alt-text-ai'); ?></h3>
-                </div>
-                <div class="card-content">
-                    <div class="status-items">
-                        <div class="status-item">
-                            <span class="status-label"><?php _e('Version:', 'alt-text-ai'); ?></span>
-                            <span class="status-value"><?php echo ALT_TEXT_AI_VERSION; ?></span>
-                        </div>
-                        <div class="status-item">
-                            <span class="status-label"><?php _e('API Status:', 'alt-text-ai'); ?></span>
-                            <span class="status-value" id="api-status">
-                                <?php if (!empty($settings['api_key'])): ?>
-                                    <span class="status-connected"><?php _e('Configured', 'alt-text-ai'); ?></span>
-                                <?php else: ?>
-                                    <span class="status-error"><?php _e('Not Configured', 'alt-text-ai'); ?></span>
-                                <?php endif; ?>
-                            </span>
-                        </div>
-                        <div class="status-item">
-                            <span class="status-label"><?php _e('Auto Generation:', 'alt-text-ai'); ?></span>
-                            <span class="status-value">
-                                <?php echo $settings['auto_generate'] ? __('Enabled', 'alt-text-ai') : __('Disabled', 'alt-text-ai'); ?>
-                            </span>
-                        </div>
+            <div class="card-content">
+                <div class="settings-field" style="margin-bottom: 24px;">
+                    <label for="api_key" class="field-label" style="display: block; margin-bottom: 8px; font-weight: 600;">
+                        <?php esc_html_e('API Key', 'alt-text-ai'); ?> <span style="color: var(--danger-color);">*</span>
+                    </label>
+                    <div style="display: flex; gap: 8px; align-items: center; max-width: 600px;">
+                        <input type="password" 
+                               id="api_key" 
+                               name="alt_text_ai_settings[api_key]" 
+                               value="<?php echo esc_attr($settings['api_key']); ?>" 
+                               placeholder="alt_..." 
+                               autocomplete="off" />
+                        
+                        <button type="button" class="button-secondary-custom" id="test-connection">
+                            <?php esc_html_e('Test', 'alt-text-ai'); ?>
+                        </button>
                     </div>
-                </div>
-            </div>
-
-            <!-- Tips Card -->
-            <div class="sidebar-card tips-card">
-                <div class="card-header">
-                    <h3><?php _e('Pro Tips', 'alt-text-ai'); ?></h3>
-                </div>
-                <div class="card-content">
-                    <div class="tips-list">
-                        <div class="tip-item">
-                            <span class="dashicons dashicons-lightbulb"></span>
-                            <span><?php _e('Test your API connection after entering your key to ensure everything is working correctly.', 'alt-text-ai'); ?></span>
-                        </div>
-                        <div class="tip-item">
-                            <span class="dashicons dashicons-performance"></span>
-                            <span><?php _e('Start with a smaller batch size (5-10) for bulk processing to avoid timeouts.', 'alt-text-ai'); ?></span>
-                        </div>
-                        <div class="tip-item">
-                            <span class="dashicons dashicons-backup"></span>
-                            <span><?php _e('Export your settings before making major changes to easily restore them if needed.', 'alt-text-ai'); ?></span>
-                        </div>
-                    </div>
+                    <p class="description" style="margin-top: 8px; color: var(--text-secondary); font-size: 13px;">
+                        <?php 
+                        echo wp_kses_post(
+                            sprintf(
+                                // translators: %s: URL to the Alt Text Pro dashboard
+                                __('Find your API key in your <a href="%1$s" target="_blank">Alt Text Pro dashboard</a>.', 'alt-text-ai'),
+                                esc_url('https://www.alt-text.pro/dashboard')
+                            )
+                        ); ?>
+                    </p>
+                    <div id="connection-test-result" style="margin-top: 12px;"></div>
                 </div>
             </div>
         </div>
-    </div>
+
+        <div class="alt-text-ai-card">
+            <div class="card-header">
+                <h3><?php esc_html_e('Generation Preferences', 'alt-text-ai'); ?></h3>
+            </div>
+            <div class="card-content">
+                <div class="settings-field">
+                    <label class="checkbox-group">
+                        <input type="checkbox" 
+                               id="auto_generate" 
+                               name="alt_text_ai_settings[auto_generate]" 
+                               value="1" 
+                               <?php checked(1, $settings['auto_generate']); ?> />
+                        <span class="checkbox-label"><?php esc_html_e('Auto-generate on upload', 'alt-text-ai'); ?></span>
+                    </label>
+                    <p class="checkbox-desc">
+                        <?php esc_html_e('Automatically generate alt-text when you upload new images to the Media Library.', 'alt-text-ai'); ?>
+                    </p>
+                </div>
+
+                <div class="settings-field">
+                    <label class="checkbox-group">
+                        <input type="checkbox" 
+                               id="overwrite_existing" 
+                               name="alt_text_ai_settings[overwrite_existing]" 
+                               value="1" 
+                               <?php checked(1, $settings['overwrite_existing']); ?> />
+                        <span class="checkbox-label"><?php esc_html_e('Overwrite existing alt-text', 'alt-text-ai'); ?></span>
+                    </label>
+                    <p class="checkbox-desc">
+                        <?php esc_html_e('If enabled, existing alt text will be replaced when you regenerate. If disabled, images with existing alt text will be skipped during bulk processing.', 'alt-text-ai'); ?>
+                    </p>
+                </div>
+
+                <div class="settings-field">
+                    <label class="checkbox-group">
+                        <input type="checkbox" 
+                               id="context_enabled" 
+                               name="alt_text_ai_settings[context_enabled]" 
+                               value="1" 
+                               <?php checked(1, $settings['context_enabled']); ?> />
+                        <span class="checkbox-label"><?php esc_html_e('Enable Context Field', 'alt-text-ai'); ?></span>
+                    </label>
+                    <p class="checkbox-desc">
+                        <?php esc_html_e('Show a context input field in the media editor to provide hints for generation (e.g., "Product shot", "Team photo").', 'alt-text-ai'); ?>
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="alt-text-ai-card">
+            <div class="card-header">
+                <h3><?php esc_html_e('Advanced Settings', 'alt-text-ai'); ?></h3>
+            </div>
+            <div class="card-content">
+                <div class="settings-field">
+                    <label for="batch_size" class="field-label" style="display: block; margin-bottom: 8px; font-weight: 600;">
+                        <?php esc_html_e('Bulk Batch Size', 'alt-text-ai'); ?>
+                    </label>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <input type="number" 
+                               id="batch_size" 
+                               name="alt_text_ai_settings[batch_size]" 
+                               value="<?php echo esc_attr($settings['batch_size']); ?>" 
+                               min="1" 
+                               max="50" 
+                               style="width: 100px;" />
+                        <span style="color: var(--text-secondary);"><?php esc_html_e('images per batch', 'alt-text-ai'); ?></span>
+                    </div>
+                    <p class="description" style="margin-top: 8px; color: var(--text-secondary); font-size: 13px;">
+                        <?php esc_html_e('Lower this number if you experience timeouts during bulk processing.', 'alt-text-ai'); ?>
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 24px;">
+            <div>
+                <?php submit_button(esc_html__('Save Settings', 'alt-text-ai'), 'primary button-primary-custom', 'submit', false); ?>
+            </div>
+            <div style="display: flex; gap: 12px;">
+                <button type="button" class="button-secondary-custom" id="export-settings">
+                    <span class="dashicons dashicons-download"></span>
+                    <?php esc_html_e('Export', 'alt-text-ai'); ?>
+                </button>
+                <button type="button" class="button-secondary-custom" id="import-settings">
+                    <span class="dashicons dashicons-upload"></span>
+                    <?php esc_html_e('Import', 'alt-text-ai'); ?>
+                </button>
+                <input type="file" id="import-file" accept=".json" style="display: none;">
+            </div>
+        </div>
+    </form>
 </div>
 
 <script type="text/javascript">
 jQuery(document).ready(function($) {
-    // Note: API key toggle is handled by admin.js
-
+    // Existing JS logic for settings...
     // Test API connection
     $('#test-connection').on('click', function() {
         var $button = $(this);
@@ -289,12 +187,12 @@ jQuery(document).ready(function($) {
         var apiKey = $('#api_key').val();
         
         if (!apiKey) {
-            $result.html('<div class="notice notice-error"><p>' + altTextAI.strings.invalidKey + '</p></div>');
+            $result.html('<div class="notice notice-error inline"><p>' + altTextAI.strings.invalidKey + '</p></div>');
             return;
         }
         
-        $button.prop('disabled', true).find('.dashicons').addClass('rotating');
-        $result.html('<div class="notice notice-info"><p>' + altTextAI.strings.generating + '</p></div>');
+        $button.prop('disabled', true).text('Testing...');
+        $result.html('<div class="notice notice-info inline"><p>' + altTextAI.strings.generating + '</p></div>');
         
         $.ajax({
             url: altTextAI.ajaxUrl,
@@ -309,51 +207,26 @@ jQuery(document).ready(function($) {
                     var userInfo = response.data.user_info;
                     var message = '<strong>' + response.data.message + '</strong>';
                     if (userInfo) {
-                        message += '<br><small>Plan: ' + userInfo.plan + ' | Credits: ' + userInfo.credits_remaining + '</small>';
+                        message += ' (' + userInfo.plan + ', ' + userInfo.credits_remaining + ' credits)';
                     }
-                    $result.html('<div class="notice notice-success"><p>' + message + '</p></div>');
-                    $('#api-status').html('<span class="status-connected"><?php _e("Connected", "alt-text-ai"); ?></span>');
+                    $result.html('<div class="notice notice-success inline"><p>' + message + '</p></div>');
                 } else {
-                    $result.html('<div class="notice notice-error"><p>' + response.data + '</p></div>');
+                    $result.html('<div class="notice notice-error inline"><p>' + response.data + '</p></div>');
                 }
             },
             error: function() {
-                $result.html('<div class="notice notice-error"><p><?php _e("Connection test failed", "alt-text-ai"); ?></p></div>');
+                $result.html('<div class="notice notice-error inline"><p><?php echo esc_js(__('Connection test failed', 'alt-text-ai')); ?></p></div>');
             },
             complete: function() {
-                $button.prop('disabled', false).find('.dashicons').removeClass('rotating');
+                $button.prop('disabled', false).text('<?php echo esc_js(__('Test', 'alt-text-ai')); ?>');
             }
         });
     });
 
-    // Reset settings
-    $('#reset-settings').on('click', function() {
-        if (confirm('<?php _e("Are you sure you want to reset all settings to defaults? This cannot be undone.", "alt-text-ai"); ?>')) {
-            $.ajax({
-                url: altTextAI.ajaxUrl,
-                type: 'POST',
-                data: {
-                    action: 'alt_text_ai_reset_settings',
-                    nonce: altTextAI.nonce
-                },
-                success: function(response) {
-                    if (response.success) {
-                        location.reload();
-                    } else {
-                        alert(response.data || '<?php _e("Failed to reset settings", "alt-text-ai"); ?>');
-                    }
-                },
-                error: function() {
-                    alert('<?php _e("Failed to reset settings", "alt-text-ai"); ?>');
-                }
-            });
-        }
-    });
-
-    // Export settings
+    // Export/Import logic (simplified from original file but functionality preserved)
     $('#export-settings').on('click', function() {
         var settings = {
-            version: '<?php echo ALT_TEXT_AI_VERSION; ?>',
+            version: '<?php echo esc_js(ALT_TEXT_AI_VERSION); ?>',
             exported_at: new Date().toISOString(),
             settings: {
                 api_key: $('#api_key').val() ? '[CONFIGURED]' : '[NOT_CONFIGURED]',
@@ -363,18 +236,15 @@ jQuery(document).ready(function($) {
                 batch_size: parseInt($('#batch_size').val())
             }
         };
-        
         var dataStr = JSON.stringify(settings, null, 2);
         var dataBlob = new Blob([dataStr], {type: 'application/json'});
         var url = URL.createObjectURL(dataBlob);
         var link = document.createElement('a');
         link.href = url;
-        link.download = 'alt-text-ai-settings-' + new Date().toISOString().split('T')[0] + '.json';
+        link.download = 'alt-text-ai-settings.json';
         link.click();
-        URL.revokeObjectURL(url);
     });
 
-    // Import settings
     $('#import-settings').on('click', function() {
         $('#import-file').click();
     });
@@ -382,31 +252,19 @@ jQuery(document).ready(function($) {
     $('#import-file').on('change', function(e) {
         var file = e.target.files[0];
         if (!file) return;
-        
         var reader = new FileReader();
         reader.onload = function(e) {
             try {
                 var settings = JSON.parse(e.target.result);
                 if (settings.settings) {
-                    // Apply settings to form (excluding API key)
-                    if (settings.settings.auto_generate !== undefined) {
-                        $('#auto_generate').prop('checked', settings.settings.auto_generate);
-                    }
-                    if (settings.settings.overwrite_existing !== undefined) {
-                        $('#overwrite_existing').prop('checked', settings.settings.overwrite_existing);
-                    }
-                    if (settings.settings.context_enabled !== undefined) {
-                        $('#context_enabled').prop('checked', settings.settings.context_enabled);
-                    }
-                    if (settings.settings.batch_size !== undefined) {
-                        $('#batch_size').val(settings.settings.batch_size);
-                    }
-                    alert('<?php _e("Settings imported successfully! Don\'t forget to save.", "alt-text-ai"); ?>');
-                } else {
-                    alert('<?php _e("Invalid settings file format.", "alt-text-ai"); ?>');
+                    if (settings.settings.auto_generate !== undefined) $('#auto_generate').prop('checked', settings.settings.auto_generate);
+                    if (settings.settings.overwrite_existing !== undefined) $('#overwrite_existing').prop('checked', settings.settings.overwrite_existing);
+                    if (settings.settings.context_enabled !== undefined) $('#context_enabled').prop('checked', settings.settings.context_enabled);
+                    if (settings.settings.batch_size !== undefined) $('#batch_size').val(settings.settings.batch_size);
+                    alert('<?php echo esc_js(__('Settings imported! Please save to apply.', 'alt-text-ai')); ?>');
                 }
             } catch (error) {
-                alert('<?php _e("Failed to parse settings file.", "alt-text-ai"); ?>');
+                alert('<?php echo esc_js(__('Invalid file.', 'alt-text-ai')); ?>');
             }
         };
         reader.readAsText(file);

@@ -30,7 +30,7 @@ class AltTextAI_API_Client {
         if (empty($this->api_key)) {
             return array(
                 'success' => false,
-                'message' => __('API key not configured. Please check your settings.', 'alt-text-ai')
+                'message' => esc_html__('API key not configured. Please check your settings.', 'alt-text-ai')
             );
         }
         
@@ -44,13 +44,17 @@ class AltTextAI_API_Client {
             if ($file_size > $max_size) {
                 return array(
                     'success' => false,
-                    'message' => sprintf(__('Image file is too large (%s). Maximum size is 15MB.', 'alt-text-ai'), size_format($file_size))
+                    'message' => sprintf(
+                        // translators: %s: File size in human-readable format
+                        esc_html__('Image file is too large (%1$s). Maximum size is 15MB.', 'alt-text-ai'),
+                        esc_html(size_format($file_size))
+                    )
                 );
             }
             
             return array(
                 'success' => false,
-                'message' => __('Failed to process image data. Please check that the image file exists and is readable.', 'alt-text-ai')
+                'message' => esc_html__('Failed to process image data. Please check that the image file exists and is readable.', 'alt-text-ai')
             );
         }
         
@@ -101,13 +105,14 @@ class AltTextAI_API_Client {
             }
             
             // Log for debugging if we have success but no alt_text
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log, WordPress.PHP.DevelopmentFunctions.error_log_print_r
             error_log('Alt Text Pro API: Success response but alt_text not found. Response structure: ' . print_r($response, true));
         }
         
         // Return error response with proper message
         return array(
             'success' => false,
-            'message' => $response['message'] ?? __('Failed to generate alt-text. Please check your API key and try again.', 'alt-text-ai'),
+            'message' => $response['message'] ?? esc_html__('Failed to generate alt-text. Please check your API key and try again.', 'alt-text-ai'),
             'data' => $response['data'] ?? null,
             'status_code' => $response['status_code'] ?? null
         );
@@ -120,7 +125,7 @@ class AltTextAI_API_Client {
         if (empty($this->api_key)) {
             return array(
                 'success' => false,
-                'message' => __('API key not configured.', 'alt-text-ai')
+                'message' => esc_html__('API key not configured.', 'alt-text-ai')
             );
         }
         
@@ -136,7 +141,7 @@ class AltTextAI_API_Client {
         if (empty($key_to_validate)) {
             return array(
                 'success' => false,
-                'message' => __('No API key provided.', 'alt-text-ai')
+                'message' => esc_html__('No API key provided.', 'alt-text-ai')
             );
         }
         
@@ -160,6 +165,7 @@ class AltTextAI_API_Client {
         $file_path = get_attached_file($attachment_id);
         
         if (!$file_path || !file_exists($file_path)) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
             error_log(sprintf('Alt Text Pro: File not found for attachment %d: %s', $attachment_id, $file_path));
             return false;
         }
@@ -167,6 +173,7 @@ class AltTextAI_API_Client {
         // Check if it's an image
         $mime_type = get_post_mime_type($attachment_id);
         if (!str_starts_with($mime_type, 'image/')) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
             error_log(sprintf('Alt Text Pro: Invalid mime type for attachment %d: %s', $attachment_id, $mime_type));
             return false;
         }
@@ -177,6 +184,7 @@ class AltTextAI_API_Client {
         $max_size = 15 * 1024 * 1024; // 15MB in bytes
         
         if ($file_size > $max_size) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
             error_log(sprintf('Alt Text Pro: Image too large for attachment %d: %d bytes (max: %d)', $attachment_id, $file_size, $max_size));
             return false;
         }
@@ -184,12 +192,14 @@ class AltTextAI_API_Client {
         // Get image data
         $image_data = file_get_contents($file_path);
         if ($image_data === false) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
             error_log(sprintf('Alt Text Pro: Failed to read file for attachment %d: %s', $attachment_id, $file_path));
             return false;
         }
         
         // Validate image data is not empty
         if (empty($image_data)) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
             error_log(sprintf('Alt Text Pro: Empty image data for attachment %d', $attachment_id));
             return false;
         }
@@ -198,6 +208,7 @@ class AltTextAI_API_Client {
         
         // Validate base64 encoding succeeded
         if (empty($base64_data)) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
             error_log(sprintf('Alt Text Pro: Failed to encode image to base64 for attachment %d', $attachment_id));
             return false;
         }
@@ -231,6 +242,7 @@ class AltTextAI_API_Client {
         }
         
         // Debug logging (always log for troubleshooting)
+        // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
         error_log(sprintf(
             'Alt Text Pro API Request: %s %s | Endpoint: %s | Base: %s',
             $method,
@@ -246,8 +258,9 @@ class AltTextAI_API_Client {
             return array(
                 'success' => false,
                 'message' => sprintf(
-                    __('Request failed: %s', 'alt-text-ai'),
-                    $response->get_error_message()
+                    // translators: %s: Error message
+                    esc_html__('Request failed: %1$s', 'alt-text-ai'),
+                    esc_html($response->get_error_message())
                 )
             );
         }
@@ -269,6 +282,7 @@ class AltTextAI_API_Client {
             'decoded' => $decoded_body,
             'json_error' => json_last_error() !== JSON_ERROR_NONE ? json_last_error_msg() : null
         );
+        // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log, WordPress.PHP.DevelopmentFunctions.error_log_print_r
         error_log('Alt Text Pro API Response: ' . print_r($log_data, true));
         
         // Handle API errors
@@ -291,7 +305,8 @@ class AltTextAI_API_Client {
             // Default error message
             if (empty($error_message)) {
                 $error_message = sprintf(
-                    __('API error (Status: %d)', 'alt-text-ai'),
+                    // translators: %d: HTTP status code
+                    esc_html__('API error (Status: %1$d)', 'alt-text-ai'),
                     $status_code
                 );
             }
@@ -299,10 +314,10 @@ class AltTextAI_API_Client {
             // Handle specific error codes with more specific messages
             switch ($status_code) {
                 case 401:
-                    $error_message = __('Invalid API key. Please check your settings and ensure your API key is correct.', 'alt-text-ai');
+                    $error_message = esc_html__('Invalid API key. Please check your settings and ensure your API key is correct.', 'alt-text-ai');
                     break;
                 case 402:
-                    $error_message = __('No credits remaining. Please upgrade your plan.', 'alt-text-ai');
+                    $error_message = esc_html__('No credits remaining. Please upgrade your plan.', 'alt-text-ai');
                     // Mark as no credits error for bulk processing to stop
                     return array(
                         'success' => false,
@@ -311,20 +326,21 @@ class AltTextAI_API_Client {
                         'status_code' => 402
                     );
                 case 403:
-                    $error_message = __('Access forbidden. Please check your API key permissions.', 'alt-text-ai');
+                    $error_message = esc_html__('Access forbidden. Please check your API key permissions.', 'alt-text-ai');
                     break;
                 case 404:
                     $error_message = sprintf(
-                        __('Endpoint not found (404). Tried: %s. Please verify the API base URL is correct: %s', 'alt-text-ai'),
-                        $url,
-                        $this->api_base
+                        // translators: %1$s: Requested URL, %2$s: API base URL
+                        esc_html__('Endpoint not found (404). Tried: %1$s. Please verify the API base URL is correct: %2$s', 'alt-text-ai'),
+                        esc_url($url),
+                        esc_url($this->api_base)
                     );
                     break;
                 case 429:
-                    $error_message = __('Rate limit exceeded. Please try again later.', 'alt-text-ai');
+                    $error_message = esc_html__('Rate limit exceeded. Please try again later.', 'alt-text-ai');
                     break;
                 case 500:
-                    $error_message = __('Server error. Please try again later.', 'alt-text-ai');
+                    $error_message = esc_html__('Server error. Please try again later.', 'alt-text-ai');
                     break;
             }
             
@@ -342,8 +358,9 @@ class AltTextAI_API_Client {
             return array(
                 'success' => false,
                 'message' => sprintf(
-                    __('Invalid API response format. Raw response: %s', 'alt-text-ai'),
-                    substr($body, 0, 100)
+                    // translators: %s: First 100 characters of the response body
+                    esc_html__('Invalid API response format. Raw response: %1$s', 'alt-text-ai'),
+                    esc_html(substr($body, 0, 100))
                 ),
                 'status_code' => $status_code
             );
@@ -356,12 +373,12 @@ class AltTextAI_API_Client {
             
             // Check if it's an authentication error
             if (stripos($error_message, 'invalid') !== false || stripos($error_message, 'expired') !== false || stripos($error_message, 'token') !== false) {
-                $error_message = __('Invalid or expired API key. Please check your API key in settings and ensure it\'s correct.', 'alt-text-ai');
+                $error_message = esc_html__('Invalid or expired API key. Please check your API key in settings and ensure it\'s correct.', 'alt-text-ai');
             }
             
             // Handle specific Gemini API errors
             if (stripos($error_message, 'Gemini API') !== false || stripos($error_message, 'empty response') !== false) {
-                $error_message = __('Gemini AI service returned an empty response. This may be due to image content restrictions or API limitations. Please try again or use a different image.', 'alt-text-ai');
+                $error_message = esc_html__('Gemini AI service returned an empty response. This may be due to image content restrictions or API limitations. Please try again or use a different image.', 'alt-text-ai');
             }
             
             return array(
@@ -374,7 +391,7 @@ class AltTextAI_API_Client {
         
         // Check if the API response itself indicates an error (some APIs return 200 with error in body)
         if (isset($decoded_body['success']) && $decoded_body['success'] === false) {
-            $error_message = $decoded_body['error'] ?? $decoded_body['message'] ?? __('API returned an error', 'alt-text-ai');
+            $error_message = $decoded_body['error'] ?? $decoded_body['message'] ?? esc_html__('API returned an error', 'alt-text-ai');
             return array(
                 'success' => false,
                 'message' => $error_message,
@@ -423,7 +440,7 @@ class AltTextAI_API_Client {
         if (empty($this->api_key)) {
             return array(
                 'success' => false,
-                'message' => __('No API key configured.', 'alt-text-ai')
+                'message' => esc_html__('No API key configured.', 'alt-text-ai')
             );
         }
         
@@ -433,7 +450,7 @@ class AltTextAI_API_Client {
         if ($response['success']) {
             return array(
                 'success' => true,
-                'message' => __('Connection successful!', 'alt-text-ai'),
+                'message' => esc_html__('Connection successful!', 'alt-text-ai'),
                 'data' => $response['data']
             );
         }

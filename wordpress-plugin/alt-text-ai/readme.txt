@@ -1,10 +1,10 @@
 === Alt Text Pro ===
 Contributors: alttextai
-Tags: accessibility, alt-text, seo, ai, images, alt attribute, screen readers, wcag
+Tags: accessibility, alt-text, seo, ai, images
 Requires at least: 5.0
-Tested up to: 6.4
+Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 1.0.7
+Stable tag: 1.3.8
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -142,6 +142,11 @@ Yes, you can cancel your subscription at any time from your Alt Text Pro dashboa
 6. **Mobile Responsive** - Fully responsive design works on all devices
 
 == Changelog ==
+
+= 1.0.8 =
+* UI overhaul with modern design
+* Improved navigation and dashboard layout
+* Enhanced user experience for settings and logs
 
 = 1.0.7 =
 * Version update

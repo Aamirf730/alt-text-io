@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/ui/tabs";
 import { Separator } from "./components/ui/separator";
 import { toast } from "sonner";
 import { Toaster } from "./components/ui/sonner";
-import { Brain, Zap, CheckCircle, Star, ArrowRight, Users, Shield, Rocket, Mail, Chrome, Upload, Eye, EyeOff, Download, Check, X, Search, CreditCard, Calendar, TrendingUp, Key, Copy, Info, AlertTriangle, RefreshCw, Book, FileText, HelpCircle, Settings, Code, DollarSign, Wrench, Globe } from "lucide-react";
+import { Brain, Zap, CheckCircle, Star, ArrowRight, Users, Shield, Rocket, Mail, Chrome, Upload, Eye, EyeOff, Download, Check, X, Search, CreditCard, Calendar, TrendingUp, Key, Copy, Info, AlertTriangle, RefreshCw, Book, FileText, HelpCircle, Settings, Code, DollarSign, Wrench, Globe, LogOut, MessageCircle, Image as ImageIcon, Crown } from "lucide-react";
 import { Switch } from "./components/ui/switch";
 
 // Initialize Supabase client
@@ -51,9 +51,18 @@ const PAYPAL_CLIENT_ID = process.env.REACT_APP_PAYPAL_CLIENT_ID || 'test';
 // PayPal plan ID mapping - production plan IDs from PayPal dashboard
 // You can also override these via environment variables: REACT_APP_PAYPAL_PLAN_TIER1, etc.
 const PAYPAL_PLAN_IDS = {
-  tier1: process.env.REACT_APP_PAYPAL_PLAN_TIER1 || 'P-8R4278588L5455645NEMOH6A',
-  tier2: process.env.REACT_APP_PAYPAL_PLAN_TIER2 || 'P-5XP84993MM234080GNEMOTRQ',
-  tier3: process.env.REACT_APP_PAYPAL_PLAN_TIER3 || 'P-2DC95956TS8763323NEMOWJQ'
+  tier1: {
+    monthly: process.env.REACT_APP_PAYPAL_PLAN_TIER1 || 'P-8R4278588L5455645NEMOH6A',
+    annual: process.env.REACT_APP_PAYPAL_PLAN_TIER1_ANNUAL || 'P-ANNUAL_TIER1_PLACEHOLDER'
+  },
+  tier2: {
+    monthly: process.env.REACT_APP_PAYPAL_PLAN_TIER2 || 'P-5XP84993MM234080GNEMOTRQ',
+    annual: process.env.REACT_APP_PAYPAL_PLAN_TIER2_ANNUAL || 'P-ANNUAL_TIER2_PLACEHOLDER'
+  },
+  tier3: {
+    monthly: process.env.REACT_APP_PAYPAL_PLAN_TIER3 || 'P-2DC95956TS8763323NEMOWJQ',
+    annual: process.env.REACT_APP_PAYPAL_PLAN_TIER3_ANNUAL || 'P-ANNUAL_TIER3_PLACEHOLDER'
+  }
 };
 
 const paypalOptions = {
@@ -568,9 +577,11 @@ const LandingPage = () => {
       }
 
       // Get the PayPal plan ID for the selected plan
-      const paypalPlanId = PAYPAL_PLAN_IDS[selectedPlan.id];
+      const planGroup = PAYPAL_PLAN_IDS[selectedPlan.id];
+      const paypalPlanId = planGroup?.[billingCycle === 'annual' ? 'annual' : 'monthly'];
+      
       if (!paypalPlanId) {
-        throw new Error(`No PayPal plan ID found for ${selectedPlan.id}`);
+        throw new Error(`No PayPal plan ID found for ${selectedPlan.id} (${billingCycle})`);
       }
 
       console.log('Creating PayPal subscription via SDK for plan:', selectedPlan.id);
@@ -802,9 +813,9 @@ const LandingPage = () => {
                   <Button 
                     variant="ghost" 
                     className="text-white font-medium px-6 py-2.5 rounded-full"
-                    style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)'}
+                    style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #003a42 0%, #0D4F5E 100%)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)'}
                     onClick={() => {
                       window.location.href = "/dashboard";
                     }}
@@ -827,9 +838,9 @@ const LandingPage = () => {
                   <Button 
                     variant="ghost" 
                     className="text-white font-medium px-6 py-2.5 rounded-full"
-                    style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)'}
+                    style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #003a42 0%, #0D4F5E 100%)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)'}
                     onClick={() => {
                       setIsLogin(true);
                       setShowAuthForm(true);
@@ -919,7 +930,7 @@ const LandingPage = () => {
                   <Button 
                     variant="ghost" 
                     className="w-full text-white font-medium px-6 py-2.5 rounded-full"
-                    style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}
+                    style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
                     onClick={() => {
                       setIsMobileMenuOpen(false);
                       window.location.href = "/dashboard";
@@ -944,7 +955,7 @@ const LandingPage = () => {
                   <Button 
                     variant="ghost" 
                     className="w-full text-white font-medium px-6 py-2.5 rounded-full"
-                    style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}
+                    style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
                     onClick={() => {
                       setIsMobileMenuOpen(false);
                       setIsLogin(true);
@@ -972,31 +983,31 @@ const LandingPage = () => {
       )}
 
       {/* Hero Section */}
-      <section className="py-16" style={{ background: 'linear-gradient(135deg, rgba(26, 181, 172, 0.1) 0%, rgba(58, 200, 196, 0.1) 100%)' }}>
+      <section className="py-16" style={{ background: 'linear-gradient(135deg, rgba(13, 79, 94, 0.05) 0%, rgba(0, 73, 83, 0.05) 100%)' }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-12 items-start">
             {/* Left Side - Content */}
             <div className="space-y-8">
               <div className="space-y-6">
-                <div className="text-sm font-medium rounded-full px-3 py-1 inline-block" style={{ color: '#1AB5AC', backgroundColor: 'rgba(26, 181, 172, 0.1)' }}>
+                <div className="text-sm font-medium rounded-full px-3 py-1 inline-block" style={{ color: '#0D4F5E', backgroundColor: 'rgba(13, 79, 94, 0.1)' }}>
                   World's Best AI Tool Accessibility
                 </div>
                 
-                <h1 className="text-5xl lg:text-6xl font-bold text-gray-900 leading-tight">
+                <h1 className="text-6xl lg:text-7xl font-extrabold text-gray-900 leading-tight tracking-tight mb-6">
                   AI Alt Text Generator
                 </h1>
                 
-                <p className="text-xl text-gray-600 leading-relaxed max-w-lg">
-                  Automatically generate alt text for images in over 130 languages.
+                <p className="text-xl lg:text-2xl text-gray-600 leading-relaxed max-w-2xl mb-10">
+                  Automatically generate accurate, SEO-optimized alt text for your images in over 130 languages with our advanced AI technology.
                 </p>
                 
                 <div className="flex flex-col sm:flex-row gap-4">
                   <Button 
                     size="lg" 
                     className="text-white px-8 py-4 text-lg font-semibold rounded-lg"
-                    style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)'}
+                    style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #003a42 0%, #0D4F5E 100%)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)'}
                     onClick={() => {
                       setIsLogin(false);
                       setShowAuthForm(true);
@@ -1043,8 +1054,8 @@ const LandingPage = () => {
                 <div 
                   className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer transition-colors mb-4 relative"
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = '#3AC8C4';
-                    e.currentTarget.style.backgroundColor = 'rgba(26, 181, 172, 0.05)';
+                    e.currentTarget.style.borderColor = '#004953';
+                    e.currentTarget.style.backgroundColor = 'rgba(13, 79, 94, 0.05)';
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.borderColor = '#d1d5db';
@@ -1054,8 +1065,8 @@ const LandingPage = () => {
                   onDragOver={(e) => {
                     e.preventDefault();
                     if (!selectedImage) {
-                      e.currentTarget.style.borderColor = '#3AC8C4';
-                      e.currentTarget.style.backgroundColor = 'rgba(26, 181, 172, 0.05)';
+                      e.currentTarget.style.borderColor = '#004953';
+                      e.currentTarget.style.backgroundColor = 'rgba(13, 79, 94, 0.05)';
                     }
                   }}
                   onDragLeave={(e) => {
@@ -1107,8 +1118,8 @@ const LandingPage = () => {
                     </>
                   ) : (
                     <>
-                      <div className="w-12 h-12 rounded-lg flex items-center justify-center mx-auto mb-3" style={{ backgroundColor: 'rgba(26, 181, 172, 0.1)' }}>
-                        <Upload className="h-6 w-6" style={{ color: '#1AB5AC' }} />
+                      <div className="w-12 h-12 rounded-lg flex items-center justify-center mx-auto mb-3" style={{ backgroundColor: 'rgba(13, 79, 94, 0.1)' }}>
+                        <Upload className="h-6 w-6" style={{ color: '#0D4F5E' }} />
                       </div>
                       <p className="text-sm text-gray-600 mb-1">Click to upload or drag and drop</p>
                       <p className="text-xs text-gray-500">SVG, PNG, JPG or GIF (max. 800x400px)</p>
@@ -1140,9 +1151,9 @@ const LandingPage = () => {
                   onClick={generateDemoAltText}
                   disabled={!selectedImage || isGenerating}
                   className="w-full disabled:bg-gray-400 text-white py-3 rounded-lg font-medium mb-4"
-                  style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}
-                  onMouseEnter={(e) => !e.currentTarget.disabled && (e.currentTarget.style.background = 'linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%)')}
-                  onMouseLeave={(e) => !e.currentTarget.disabled && (e.currentTarget.style.background = 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)')}
+                  style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
+                  onMouseEnter={(e) => !e.currentTarget.disabled && (e.currentTarget.style.background = 'linear-gradient(135deg, #003a42 0%, #0D4F5E 100%)')}
+                  onMouseLeave={(e) => !e.currentTarget.disabled && (e.currentTarget.style.background = 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)')}
                 >
                   {isGenerating ? 'Generating...' : 'Generate Alt Text'}
                 </Button>
@@ -1183,14 +1194,14 @@ const LandingPage = () => {
       </section>
 
       {/* How It Works - New Visual Design */}
-      <section className="py-20" style={{ background: 'linear-gradient(to bottom, rgba(26, 181, 172, 0.05), white)' }}>
+      <section className="py-20" style={{ background: 'linear-gradient(to bottom, rgba(13, 79, 94, 0.05), white)' }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-20">
-            <p className="text-sm font-medium mb-2" style={{ color: '#0B4F5E' }}>How It Works .</p>
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">
+            <p className="text-sm font-medium mb-2" style={{ color: '#003a42' }}>How It Works .</p>
+            <h2 className="text-4xl lg:text-5xl font-bold text-gray-900 mb-6 tracking-tight">
               Let AI Write Your Alt Text
               <br />
-              Automatically.
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#0D4F5E] to-[#004953]">Automatically.</span>
             </h2>
           </div>
 
@@ -1229,16 +1240,16 @@ const LandingPage = () => {
               {/* Step 1 - Upload Image: Image Left, Text Right */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start relative">
                 <div className="lg:order-1 relative z-10 flex justify-center lg:justify-end">
-                  <div className="rounded-2xl p-8 border-2 border-dashed relative w-full max-w-sm" style={{ backgroundColor: 'rgba(26, 181, 172, 0.05)', borderColor: 'rgba(26, 181, 172, 0.3)' }}>
-                    <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4" style={{ backgroundColor: 'rgba(26, 181, 172, 0.1)' }}>
-                      <Upload className="h-8 w-8" style={{ color: '#1AB5AC' }} />
+                  <div className="rounded-2xl p-8 border-2 border-dashed relative w-full max-w-sm" style={{ backgroundColor: 'rgba(13, 79, 94, 0.05)', borderColor: 'rgba(13, 79, 94, 0.3)' }}>
+                    <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4" style={{ backgroundColor: 'rgba(13, 79, 94, 0.1)' }}>
+                      <Upload className="h-8 w-8" style={{ color: '#0D4F5E' }} />
                     </div>
-                    <p className="text-gray-600 text-sm mb-1">Drag your file(s) or <span className="underline" style={{ color: '#1AB5AC' }}>browse</span></p>
+                    <p className="text-gray-600 text-sm mb-1">Drag your file(s) or <span className="underline" style={{ color: '#0D4F5E' }}>browse</span></p>
                     <p className="text-xs text-gray-500 mb-4">Max 10 MB files are allowed</p>
                     
                     {/* Blue file badge */}
                     <div className="absolute -top-3 right-6">
-                      <div className="text-white px-3 py-1 rounded-full text-xs font-medium flex items-center" style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}>
+                      <div className="text-white px-3 py-1 rounded-full text-xs font-medium flex items-center" style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}>
                         📎 theprojekts-image.jpg
                       </div>
                     </div>
@@ -1277,60 +1288,60 @@ const LandingPage = () => {
                 
                 <div className="lg:order-2 flex justify-center lg:justify-start">
                   {/* Complex AI Circuit Diagram */}
-                  <div className="relative w-full max-w-sm h-60 rounded-2xl p-4" style={{ background: 'linear-gradient(135deg, rgba(26, 181, 172, 0.1) 0%, rgba(58, 200, 196, 0.15) 100%)' }}>
+                  <div className="relative w-full max-w-sm h-60 rounded-2xl p-4" style={{ background: 'linear-gradient(135deg, rgba(13, 79, 94, 0.1) 0%, rgba(0, 73, 83, 0.15) 100%)' }}>
                     {/* Central AI Chip */}
                     <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="w-24 h-16 bg-white rounded-lg border-2 flex items-center justify-center shadow-sm" style={{ borderColor: 'rgba(26, 181, 172, 0.4)' }}>
-                        <span className="text-xl font-bold" style={{ color: '#0B4F5E' }}>AI</span>
+                      <div className="w-24 h-16 bg-white rounded-lg border-2 flex items-center justify-center shadow-sm" style={{ borderColor: 'rgba(13, 79, 94, 0.4)' }}>
+                        <span className="text-xl font-bold" style={{ color: '#003a42' }}>AI</span>
                       </div>
                     </div>
                     
                     {/* Circuit board elements */}
                     {/* Top connections */}
-                    <div className="absolute top-4 left-8 w-3 h-3 rounded-full" style={{ backgroundColor: '#3AC8C4' }}></div>
-                    <div className="absolute top-4 left-20 w-3 h-3 rounded-full" style={{ backgroundColor: '#3AC8C4' }}></div>
-                    <div className="absolute top-4 right-20 w-3 h-3 rounded-full" style={{ backgroundColor: '#3AC8C4' }}></div>
-                    <div className="absolute top-4 right-8 w-3 h-3 rounded-full" style={{ backgroundColor: '#3AC8C4' }}></div>
+                    <div className="absolute top-4 left-8 w-3 h-3 rounded-full" style={{ backgroundColor: '#004953' }}></div>
+                    <div className="absolute top-4 left-20 w-3 h-3 rounded-full" style={{ backgroundColor: '#004953' }}></div>
+                    <div className="absolute top-4 right-20 w-3 h-3 rounded-full" style={{ backgroundColor: '#004953' }}></div>
+                    <div className="absolute top-4 right-8 w-3 h-3 rounded-full" style={{ backgroundColor: '#004953' }}></div>
                     
                     {/* Side connections */}
-                    <div className="absolute left-4 top-16 w-3 h-3 rounded-full" style={{ backgroundColor: '#3AC8C4' }}></div>
-                    <div className="absolute left-4 bottom-16 w-3 h-3 rounded-full" style={{ backgroundColor: '#3AC8C4' }}></div>
-                    <div className="absolute right-4 top-16 w-3 h-3 rounded-full" style={{ backgroundColor: '#3AC8C4' }}></div>
-                    <div className="absolute right-4 bottom-16 w-3 h-3 rounded-full" style={{ backgroundColor: '#3AC8C4' }}></div>
+                    <div className="absolute left-4 top-16 w-3 h-3 rounded-full" style={{ backgroundColor: '#004953' }}></div>
+                    <div className="absolute left-4 bottom-16 w-3 h-3 rounded-full" style={{ backgroundColor: '#004953' }}></div>
+                    <div className="absolute right-4 top-16 w-3 h-3 rounded-full" style={{ backgroundColor: '#004953' }}></div>
+                    <div className="absolute right-4 bottom-16 w-3 h-3 rounded-full" style={{ backgroundColor: '#004953' }}></div>
                     
                     {/* Bottom connections */}
-                    <div className="absolute bottom-4 left-8 w-3 h-3 rounded-full" style={{ backgroundColor: '#3AC8C4' }}></div>
-                    <div className="absolute bottom-4 left-20 w-3 h-3 rounded-full" style={{ backgroundColor: '#3AC8C4' }}></div>
-                    <div className="absolute bottom-4 right-20 w-3 h-3 rounded-full" style={{ backgroundColor: '#3AC8C4' }}></div>
-                    <div className="absolute bottom-4 right-8 w-3 h-3 rounded-full" style={{ backgroundColor: '#3AC8C4' }}></div>
+                    <div className="absolute bottom-4 left-8 w-3 h-3 rounded-full" style={{ backgroundColor: '#004953' }}></div>
+                    <div className="absolute bottom-4 left-20 w-3 h-3 rounded-full" style={{ backgroundColor: '#004953' }}></div>
+                    <div className="absolute bottom-4 right-20 w-3 h-3 rounded-full" style={{ backgroundColor: '#004953' }}></div>
+                    <div className="absolute bottom-4 right-8 w-3 h-3 rounded-full" style={{ backgroundColor: '#004953' }}></div>
                     
                     {/* Circuit lines */}
-                    <div className="absolute top-6 left-11 w-20 h-px" style={{ backgroundColor: '#1AB5AC' }}></div>
-                    <div className="absolute top-6 right-11 w-20 h-px" style={{ backgroundColor: '#1AB5AC' }}></div>
-                    <div className="absolute bottom-6 left-11 w-20 h-px" style={{ backgroundColor: '#1AB5AC' }}></div>
-                    <div className="absolute bottom-6 right-11 w-20 h-px" style={{ backgroundColor: '#1AB5AC' }}></div>
+                    <div className="absolute top-6 left-11 w-20 h-px" style={{ backgroundColor: '#0D4F5E' }}></div>
+                    <div className="absolute top-6 right-11 w-20 h-px" style={{ backgroundColor: '#0D4F5E' }}></div>
+                    <div className="absolute bottom-6 left-11 w-20 h-px" style={{ backgroundColor: '#0D4F5E' }}></div>
+                    <div className="absolute bottom-6 right-11 w-20 h-px" style={{ backgroundColor: '#0D4F5E' }}></div>
                     
                     {/* Vertical lines */}
-                    <div className="absolute left-6 top-8 w-px h-12" style={{ backgroundColor: '#1AB5AC' }}></div>
-                    <div className="absolute right-6 top-8 w-px h-12" style={{ backgroundColor: '#1AB5AC' }}></div>
-                    <div className="absolute left-6 bottom-8 w-px h-12" style={{ backgroundColor: '#1AB5AC' }}></div>
-                    <div className="absolute right-6 bottom-8 w-px h-12" style={{ backgroundColor: '#1AB5AC' }}></div>
+                    <div className="absolute left-6 top-8 w-px h-12" style={{ backgroundColor: '#0D4F5E' }}></div>
+                    <div className="absolute right-6 top-8 w-px h-12" style={{ backgroundColor: '#0D4F5E' }}></div>
+                    <div className="absolute left-6 bottom-8 w-px h-12" style={{ backgroundColor: '#0D4F5E' }}></div>
+                    <div className="absolute right-6 bottom-8 w-px h-12" style={{ backgroundColor: '#0D4F5E' }}></div>
                     
                     {/* Corner elements */}
-                    <div className="absolute top-6 left-6 w-2 h-2 rounded-full" style={{ backgroundColor: '#1AB5AC' }}></div>
-                    <div className="absolute top-6 right-6 w-2 h-2 rounded-full" style={{ backgroundColor: '#1AB5AC' }}></div>
-                    <div className="absolute bottom-6 left-6 w-2 h-2 rounded-full" style={{ backgroundColor: '#1AB5AC' }}></div>
-                    <div className="absolute bottom-6 right-6 w-2 h-2 rounded-full" style={{ backgroundColor: '#1AB5AC' }}></div>
+                    <div className="absolute top-6 left-6 w-2 h-2 rounded-full" style={{ backgroundColor: '#0D4F5E' }}></div>
+                    <div className="absolute top-6 right-6 w-2 h-2 rounded-full" style={{ backgroundColor: '#0D4F5E' }}></div>
+                    <div className="absolute bottom-6 left-6 w-2 h-2 rounded-full" style={{ backgroundColor: '#0D4F5E' }}></div>
+                    <div className="absolute bottom-6 right-6 w-2 h-2 rounded-full" style={{ backgroundColor: '#0D4F5E' }}></div>
                     
                     {/* Small icons around the chip */}
                     <div className="absolute top-2 left-16">
-                      <div className="w-6 h-6 rounded flex items-center justify-center" style={{ backgroundColor: 'rgba(26, 181, 172, 0.2)' }}>
-                        <span className="text-xs" style={{ color: '#0B4F5E' }}>G</span>
+                      <div className="w-6 h-6 rounded flex items-center justify-center" style={{ backgroundColor: 'rgba(13, 79, 94, 0.2)' }}>
+                        <span className="text-xs" style={{ color: '#003a42' }}>G</span>
                       </div>
                     </div>
                     <div className="absolute bottom-2 right-16">
-                      <div className="w-6 h-6 rounded flex items-center justify-center" style={{ backgroundColor: 'rgba(26, 181, 172, 0.2)' }}>
-                        <span className="text-xs" style={{ color: '#0B4F5E' }}>AWS</span>
+                      <div className="w-6 h-6 rounded flex items-center justify-center" style={{ backgroundColor: 'rgba(13, 79, 94, 0.2)' }}>
+                        <span className="text-xs" style={{ color: '#003a42' }}>AWS</span>
                       </div>
                     </div>
                   </div>
@@ -1341,8 +1352,8 @@ const LandingPage = () => {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start relative">
                 <div className="lg:order-1 flex justify-center lg:justify-end">
                   {/* Image with mountain scene */}
-                  <div className="bg-white rounded-xl border-2 p-4 w-full max-w-sm" style={{ borderColor: 'rgba(26, 181, 172, 0.3)' }}>
-                    <div className="w-full h-32 rounded-lg flex items-end justify-center mb-3 relative overflow-hidden" style={{ background: 'linear-gradient(to bottom, rgba(26, 181, 172, 0.3), rgba(26, 181, 172, 0.15), rgba(34, 197, 94, 0.15))' }}>
+                  <div className="bg-white rounded-xl border-2 p-4 w-full max-w-sm" style={{ borderColor: 'rgba(13, 79, 94, 0.3)' }}>
+                    <div className="w-full h-32 rounded-lg flex items-end justify-center mb-3 relative overflow-hidden" style={{ background: 'linear-gradient(to bottom, rgba(13, 79, 94, 0.3), rgba(0, 73, 83, 0.15), rgba(34, 197, 94, 0.15))' }}>
                       {/* Simple mountain silhouette */}
                       <div className="absolute bottom-0 left-0 w-full h-16 bg-green-200"></div>
                       <div className="absolute bottom-8 left-8 w-20 h-12 bg-gray-400 transform -skew-x-12"></div>
@@ -1357,23 +1368,23 @@ const LandingPage = () => {
                     
                     {/* Three options with proper spacing */}
                     <div className="grid grid-cols-3 gap-3">
-                      <div className="rounded-lg p-3 text-center border" style={{ backgroundColor: 'rgba(26, 181, 172, 0.05)', borderColor: 'rgba(26, 181, 172, 0.3)' }}>
-                        <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center mx-auto mb-2 border" style={{ borderColor: 'rgba(26, 181, 172, 0.4)' }}>
-                          <Eye className="h-4 w-4" style={{ color: '#0B4F5E' }} />
+                      <div className="rounded-lg p-3 text-center border" style={{ backgroundColor: 'rgba(13, 79, 94, 0.05)', borderColor: 'rgba(13, 79, 94, 0.3)' }}>
+                        <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center mx-auto mb-2 border" style={{ borderColor: 'rgba(13, 79, 94, 0.4)' }}>
+                          <Eye className="h-4 w-4" style={{ color: '#003a42' }} />
                         </div>
                         <p className="text-xs font-medium text-gray-700">Screen readers</p>
                       </div>
                       
-                      <div className="rounded-lg p-3 text-center border" style={{ backgroundColor: 'rgba(26, 181, 172, 0.05)', borderColor: 'rgba(26, 181, 172, 0.3)' }}>
-                        <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center mx-auto mb-2 border" style={{ borderColor: 'rgba(26, 181, 172, 0.4)' }}>
-                          <Search className="h-4 w-4" style={{ color: '#0B4F5E' }} />
+                      <div className="rounded-lg p-3 text-center border" style={{ backgroundColor: 'rgba(13, 79, 94, 0.05)', borderColor: 'rgba(13, 79, 94, 0.3)' }}>
+                        <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center mx-auto mb-2 border" style={{ borderColor: 'rgba(13, 79, 94, 0.4)' }}>
+                          <Search className="h-4 w-4" style={{ color: '#003a42' }} />
                         </div>
                         <p className="text-xs font-medium text-gray-700">Search engines</p>
                       </div>
                       
-                      <div className="rounded-lg p-3 text-center border" style={{ backgroundColor: 'rgba(26, 181, 172, 0.05)', borderColor: 'rgba(26, 181, 172, 0.3)' }}>
-                        <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center mx-auto mb-2 border" style={{ borderColor: 'rgba(26, 181, 172, 0.4)' }}>
-                          <X className="h-4 w-4" style={{ color: '#0B4F5E' }} />
+                      <div className="rounded-lg p-3 text-center border" style={{ backgroundColor: 'rgba(13, 79, 94, 0.05)', borderColor: 'rgba(13, 79, 94, 0.3)' }}>
+                        <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center mx-auto mb-2 border" style={{ borderColor: 'rgba(13, 79, 94, 0.4)' }}>
+                          <X className="h-4 w-4" style={{ color: '#003a42' }} />
                         </div>
                         <p className="text-xs font-medium text-gray-700">Broken images</p>
                       </div>
@@ -1443,8 +1454,8 @@ const LandingPage = () => {
                 </div>
 
                 <div className="flex items-start space-x-4">
-                  <div className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(26, 181, 172, 0.1)' }}>
-                    <Zap className="h-6 w-6" style={{ color: '#0B4F5E' }} />
+                  <div className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(13, 79, 94, 0.1)' }}>
+                    <Zap className="h-6 w-6" style={{ color: '#003a42' }} />
                   </div>
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-2">Batch Processing & Automation</h3>
@@ -1575,11 +1586,11 @@ const LandingPage = () => {
                 onClick={() => setBillingCycle(billingCycle === 'monthly' ? 'annual' : 'monthly')}
                 className={`relative inline-flex h-8 w-16 items-center rounded-full transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
                   billingCycle === 'annual' 
-                    ? 'bg-teal-600 focus:ring-teal-500' 
+                    ? 'bg-teal-600 focus:ring-teal-400' 
                     : 'bg-gray-300 focus:ring-gray-400'
                 }`}
                 style={billingCycle === 'annual' 
-                  ? { background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }
+                  ? { background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }
                   : {}
                 }
                 role="switch"
@@ -1605,11 +1616,11 @@ const LandingPage = () => {
           <div className="grid md:grid-cols-4 gap-6 max-w-7xl mx-auto">
             {/* Free Plan */}
             <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-100 transition-colors"
-                 onMouseEnter={(e) => e.currentTarget.style.borderColor = 'rgba(26, 181, 172, 0.3)'}
+                 onMouseEnter={(e) => e.currentTarget.style.borderColor = 'rgba(13, 79, 94, 0.3)'}
                  onMouseLeave={(e) => e.currentTarget.style.borderColor = '#f3f4f6'}>
               <div className="text-center">
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">Free</h3>
-                <div className="text-3xl font-bold mb-6" style={{ color: '#0B4F5E' }}>
+                <div className="text-3xl font-bold mb-6" style={{ color: '#003a42' }}>
                   $0
                   <span className="text-xs text-gray-500 font-normal ml-1">
                     {billingCycle === 'monthly' ? 'per Month' : 'per Year'}
@@ -1642,11 +1653,11 @@ const LandingPage = () => {
 
             {/* Tier 1 */}
             <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-100 transition-colors"
-                 onMouseEnter={(e) => e.currentTarget.style.borderColor = 'rgba(26, 181, 172, 0.3)'}
+                 onMouseEnter={(e) => e.currentTarget.style.borderColor = 'rgba(13, 79, 94, 0.3)'}
                  onMouseLeave={(e) => e.currentTarget.style.borderColor = '#f3f4f6'}>
               <div className="text-center">
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">Tier 1</h3>
-                <div className="text-3xl font-bold mb-6" style={{ color: '#0B4F5E' }}>
+                <div className="text-3xl font-bold mb-6" style={{ color: '#003a42' }}>
                   ${billingCycle === 'monthly' ? '12' : '129.60'}
                   <span className="text-xl text-gray-600 font-normal ml-1">USD</span>
                   <span className="text-xs text-gray-500 font-normal ml-1">
@@ -1679,9 +1690,9 @@ const LandingPage = () => {
                 <Button 
                   onClick={() => handlePlanSelection('tier1', 'Tier 1', billingCycle === 'monthly' ? '$12' : '$129.60')}
                   className="w-full text-white"
-                  style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%)'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)'}
+                  style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #003a42 0%, #0D4F5E 100%)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)'}
                 >
                   Choose Plan
                 </Button>
@@ -1689,13 +1700,13 @@ const LandingPage = () => {
             </div>
 
             {/* Tier 2 - Most Popular */}
-            <div className="bg-white rounded-2xl shadow-lg p-8 border-2 relative transform scale-105" style={{ borderColor: '#1AB5AC' }}>
+            <div className="bg-white rounded-2xl shadow-lg p-8 border-2 relative transform scale-105" style={{ borderColor: '#0D4F5E' }}>
               <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
-                <span className="text-white px-4 py-1 rounded-full text-sm font-medium" style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}>Most Popular</span>
+                <span className="text-white px-4 py-1 rounded-full text-sm font-medium" style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}>Most Popular</span>
               </div>
               <div className="text-center">
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">Tier 2</h3>
-                <div className="text-3xl font-bold mb-6" style={{ color: '#0B4F5E' }}>
+                <div className="text-3xl font-bold mb-6" style={{ color: '#003a42' }}>
                   ${billingCycle === 'monthly' ? '20' : '216'}
                   <span className="text-xl text-gray-600 font-normal ml-1">USD</span>
                   <span className="text-xs text-gray-500 font-normal ml-1">
@@ -1732,9 +1743,9 @@ const LandingPage = () => {
                 <Button 
                   onClick={() => handlePlanSelection('tier2', 'Tier 2', billingCycle === 'monthly' ? '$20' : '$216')}
                   className="w-full text-white"
-                  style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%)'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)'}
+                  style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #003a42 0%, #0D4F5E 100%)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)'}
                 >
                   Choose Plan
                 </Button>
@@ -1743,11 +1754,11 @@ const LandingPage = () => {
 
             {/* Tier 3 */}
             <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-100 transition-colors"
-                 onMouseEnter={(e) => e.currentTarget.style.borderColor = 'rgba(26, 181, 172, 0.3)'}
+                 onMouseEnter={(e) => e.currentTarget.style.borderColor = 'rgba(13, 79, 94, 0.3)'}
                  onMouseLeave={(e) => e.currentTarget.style.borderColor = '#f3f4f6'}>
               <div className="text-center">
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">Tier 3</h3>
-                <div className="text-3xl font-bold mb-6" style={{ color: '#0B4F5E' }}>
+                <div className="text-3xl font-bold mb-6" style={{ color: '#003a42' }}>
                   ${billingCycle === 'monthly' ? '40' : '432'}
                   <span className="text-xl text-gray-600 font-normal ml-1">USD</span>
                   <span className="text-xs text-gray-500 font-normal ml-1">
@@ -1784,9 +1795,9 @@ const LandingPage = () => {
                 <Button 
                   onClick={() => handlePlanSelection('tier3', 'Tier 3', billingCycle === 'monthly' ? '$40' : '$432')}
                   className="w-full text-white"
-                  style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%)'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)'}
+                  style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #003a42 0%, #0D4F5E 100%)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)'}
                 >
                   Choose Plan
                 </Button>
@@ -1798,7 +1809,7 @@ const LandingPage = () => {
             <p className="text-gray-600">
               All plans include our advanced AI alt-text generation and multi-language support.
               <br />
-              Need a custom plan? <Link to="/contact" className="font-medium transition-colors" style={{ color: '#1AB5AC' }} onMouseEnter={(e) => e.currentTarget.style.color = '#0B4F5E'} onMouseLeave={(e) => e.currentTarget.style.color = '#1AB5AC'}>Contact us</Link>
+              Need a custom plan? <Link to="/contact" className="font-medium transition-colors" style={{ color: '#0D4F5E' }} onMouseEnter={(e) => e.currentTarget.style.color = '#003a42'} onMouseLeave={(e) => e.currentTarget.style.color = '#0D4F5E'}>Contact us</Link>
             </p>
           </div>
         </div>
@@ -1814,7 +1825,7 @@ const LandingPage = () => {
           <div className="grid md:grid-cols-3 gap-8">
             {/* Example 1 */}
             <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-              <div className="aspect-w-4 aspect-h-3" style={{ background: 'linear-gradient(135deg, rgba(26, 181, 172, 0.15) 0%, rgba(58, 200, 196, 0.15) 100%)' }}>
+              <div className="aspect-w-4 aspect-h-3" style={{ background: 'linear-gradient(135deg, rgba(13, 79, 94, 0.15) 0%, rgba(0, 73, 83, 0.15) 100%)' }}>
                 <div className="flex items-center justify-center text-gray-600">
                   Business Team Meeting
                 </div>
@@ -1835,7 +1846,7 @@ const LandingPage = () => {
 
             {/* Example 2 */}
             <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-              <div className="aspect-w-4 aspect-h-3 bg-gradient-to-br from-green-100 to-yellow-100">
+              <div className="aspect-w-4 aspect-h-3 bg-gradient-to-br from-teal-100 to-cyan-100">
                 <div className="flex items-center justify-center text-gray-600">
                   Fresh Vegetables
                 </div>
@@ -1855,7 +1866,7 @@ const LandingPage = () => {
 
             {/* Example 3 */}
             <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-              <div className="aspect-w-4 aspect-h-3" style={{ background: 'linear-gradient(135deg, rgba(26, 181, 172, 0.15) 0%, rgba(58, 200, 196, 0.15) 100%)' }}>
+              <div className="aspect-w-4 aspect-h-3" style={{ background: 'linear-gradient(135deg, rgba(13, 79, 94, 0.15) 0%, rgba(0, 73, 83, 0.15) 100%)' }}>
                 <div className="flex items-center justify-center text-gray-600">
                   Mountain Landscape
                 </div>
@@ -1877,7 +1888,7 @@ const LandingPage = () => {
       </section>
 
       {/* Call to Action */}
-      <section className="py-20" style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}>
+      <section className="py-20" style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}>
         <div className="max-w-4xl mx-auto text-center px-4 sm:px-6 lg:px-8">
           <h2 className="text-4xl font-bold text-white mb-6">
             Start your free trial today
@@ -1889,7 +1900,7 @@ const LandingPage = () => {
           <Button 
             size="lg" 
             className="bg-white hover:bg-gray-50 font-semibold px-8 py-4 text-lg rounded-lg transition-colors"
-            style={{ color: '#0B4F5E' }}
+            style={{ color: '#003a42' }}
             onClick={() => {
               setIsLogin(false);
               setShowAuthForm(true);
@@ -1901,7 +1912,7 @@ const LandingPage = () => {
       </section>
 
       {/* Footer */}
-      <footer className="bg-white border-t border-gray-200 py-12">
+      <footer className="text-white py-12" style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col items-center text-center space-y-6">
             {/* Logo & Company Info */}
@@ -1911,22 +1922,22 @@ const LandingPage = () => {
                 alt="Alt Text Pro Logo" 
                 className="h-10 w-10 object-contain"
               />
-              <span className="text-2xl font-bold text-gray-900">Alt Text Pro</span>
-                </div>
+              <span className="text-2xl font-bold text-white">Alt Text Pro</span>
+            </div>
             
-            <p className="text-gray-600 text-sm max-w-md">
+            <p className="text-gray-200 text-sm max-w-md">
                 Automatically generate alt text for images in over 130 languages.
               </p>
 
             {/* Links */}
-            <div className="flex flex-wrap justify-center gap-6 text-sm text-gray-600">
-              <Link to="/contact" className="hover:text-gray-900 transition-colors">Contact</Link>
-              <Link to="/terms" className="hover:text-gray-900 transition-colors">Terms & Conditions</Link>
-              <Link to="/privacy" className="hover:text-gray-900 transition-colors">Privacy Policy</Link>
+            <div className="flex flex-wrap justify-center gap-6 text-sm text-gray-200">
+              <Link to="/contact" className="hover:text-white transition-colors">Contact</Link>
+              <Link to="/terms" className="hover:text-white transition-colors">Terms & Conditions</Link>
+              <Link to="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link>
             </div>
 
             {/* Copyright */}
-            <p className="text-gray-500 text-sm pt-4 border-t border-gray-200 w-full">
+            <p className="text-gray-300 text-sm pt-4 border-t border-white/20 w-full">
               © 2024 Alt Text Pro. All rights reserved.
             </p>
           </div>
@@ -1997,29 +2008,29 @@ const LandingPage = () => {
               variant="outline"
               className="w-full h-12 text-base font-semibold border-2 transition-colors"
               style={{ 
-                borderColor: '#0B4F5E',
-                color: '#0B4F5E',
+                borderColor: '#003a42',
+                color: '#003a42',
                 backgroundColor: 'transparent'
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgba(26, 181, 172, 0.1)';
-                e.currentTarget.style.color = '#0B4F5E';
-                e.currentTarget.style.borderColor = '#1AB5AC';
+                e.currentTarget.style.backgroundColor = 'rgba(13, 79, 94, 0.1)';
+                e.currentTarget.style.color = '#003a42';
+                e.currentTarget.style.borderColor = '#0D4F5E';
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.backgroundColor = 'transparent';
-                e.currentTarget.style.color = '#0B4F5E';
-                e.currentTarget.style.borderColor = '#0B4F5E';
+                e.currentTarget.style.color = '#003a42';
+                e.currentTarget.style.borderColor = '#003a42';
               }}
             >
               {isGoogleLoading ? (
                 <>
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 mr-2" style={{ borderColor: '#0B4F5E' }}></div>
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 mr-2" style={{ borderColor: '#003a42' }}></div>
                   Connecting...
                 </>
               ) : (
                 <>
-                  <Chrome className="mr-2 h-5 w-5" style={{ color: '#0B4F5E' }} />
+                  <Chrome className="mr-2 h-5 w-5" style={{ color: '#003a42' }} />
                   Continue with Google
                 </>
               )}
@@ -2030,9 +2041,9 @@ const LandingPage = () => {
                 type="button"
                 onClick={() => setIsLogin(!isLogin)}
                 className="text-sm font-medium transition-colors"
-                style={{ color: '#1AB5AC' }}
-                onMouseEnter={(e) => e.currentTarget.style.color = '#0B4F5E'}
-                onMouseLeave={(e) => e.currentTarget.style.color = '#1AB5AC'}
+                style={{ color: '#0D4F5E' }}
+                onMouseEnter={(e) => e.currentTarget.style.color = '#003a42'}
+                onMouseLeave={(e) => e.currentTarget.style.color = '#0D4F5E'}
               >
                 {isLogin 
                   ? "Don't have an account? Sign up" 
@@ -2068,7 +2079,7 @@ const LandingPage = () => {
               <p className="text-gray-600 mb-4">
                 You selected: {selectedPlan.name}
               </p>
-              <div className="text-3xl font-bold mb-4" style={{ color: '#0B4F5E' }}>
+              <div className="text-3xl font-bold mb-4" style={{ color: '#003a42' }}>
                 {selectedPlan.price}
                 {selectedPlan.id !== 'free' && selectedPlan.id !== 'pay_as_go' && (
                   <span className="text-lg text-gray-500">/month</span>
@@ -2088,9 +2099,9 @@ const LandingPage = () => {
                     window.location.href = "/dashboard";
                   }}
                   className="w-full text-white"
-                  style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%)'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)'}
+                  style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #003a42 0%, #0D4F5E 100%)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)'}
                 >
                   Go to Dashboard
                 </Button>
@@ -2171,9 +2182,9 @@ const LandingPage = () => {
                   {/* For subscriptions, use PayPal SDK subscription button */}
                   {(selectedPlan.id === 'tier1' || selectedPlan.id === 'tier2' || selectedPlan.id === 'tier3') ? (
                     <PayPalSubscriptionButton 
-                      planId={selectedPlan.id}
-                      planName={selectedPlan.name}
-                      paypalPlanId={PAYPAL_PLAN_IDS[selectedPlan.id]}
+                      planId={billingCycle === 'annual' ? `${selectedPlan.id}_annual` : selectedPlan.id}
+                      planName={`${selectedPlan.name}${billingCycle === 'annual' ? ' (Annual)' : ''}`}
+                      paypalPlanId={PAYPAL_PLAN_IDS[selectedPlan.id]?.[billingCycle === 'annual' ? 'annual' : 'monthly']}
                       onSuccess={() => {
                         toast.success(`Successfully subscribed to ${selectedPlan.name}!`);
                         setShowPaymentModal(false);
@@ -2317,7 +2328,10 @@ const Dashboard = () => {
       }
 
       // Get the PayPal plan ID for the selected upgrade plan
-      const paypalPlanId = PAYPAL_PLAN_IDS[selectedUpgradePlan.id];
+      // Default to monthly for upgrades as dashboard doesn't have billing cycle toggle yet
+      const planGroup = PAYPAL_PLAN_IDS[selectedUpgradePlan.id];
+      const paypalPlanId = planGroup?.monthly;
+      
       if (!paypalPlanId) {
         throw new Error(`No PayPal plan ID found for ${selectedUpgradePlan.id}`);
       }
@@ -2799,499 +2813,275 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 pb-20">
       {/* Navigation */}
-      <nav className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
+      <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
             <Link to="/" className="flex items-center space-x-3">
               <img 
                 src="/logo-alt-text-pro.png" 
                 alt="Alt Text Pro Logo" 
-                className="h-10 w-10 object-contain"
+                className="h-8 w-8 object-contain"
               />
-              <span className="text-2xl font-bold text-gray-900">Alt Text Pro</span>
+              <span className="text-xl font-bold text-gray-900">Alt Text Pro</span>
             </Link>
             <div className="flex items-center space-x-4">
-              <span className="text-gray-600">Welcome, {user?.email}</span>
+              <div className="hidden md:block text-sm text-gray-500">
+                Logged in as <span className="font-medium text-gray-900">{user?.email}</span>
+              </div>
               <Button
-                variant="outline"
+                variant="ghost"
+                size="sm"
+                className="text-gray-600 hover:text-gray-900"
                 onClick={async () => {
                   try {
                     const { error } = await supabase.auth.signOut();
-                    if (error) {
-                      toast.error("Logout failed. Please try again.");
-                    } else {
+                    if (!error) {
                       toast.success("Logged out successfully");
                       window.location.href = "/";
                     }
                   } catch (error) {
-                    toast.error("Logout failed. Please try again.");
+                    toast.error("Logout failed");
                   }
                 }}
               >
-                Logout
+                <LogOut className="h-4 w-4 mr-2" />
+                Sign Out
               </Button>
             </div>
           </div>
         </div>
       </nav>
 
-      <div className="max-w-7xl mx-auto px-6 py-8">
-        <div className="mb-8">
-            <div className="flex items-center justify-between mb-2">
-              <h1 className="text-3xl font-bold text-gray-800">Dashboard</h1>
-              <div className="flex items-center gap-3">
-                <span className="text-sm text-gray-500">v1.0.7</span>
-                <a
-                  href="/wordpress-plugin/alt-text-pro-plugin.zip"
-                  download="alt-text-pro-plugin.zip"
-                  className="inline-flex items-center px-4 py-2 text-sm font-medium transition-colors rounded-lg"
-                  style={{ 
-                    background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)',
-                    color: 'white'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)';
-                  }}
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  Download Plugin
-                </a>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header Section */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+            <p className="text-gray-500 mt-1">Manage your account, credits, and API keys</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">Plugin v1.3.8</span>
+            <a
+              href="/wordpress-plugin/alt-text-pro-plugin.zip"
+              download="alt-text-pro-plugin.zip"
+              className="inline-flex items-center px-4 py-2 text-sm font-medium text-white transition-all rounded-lg shadow-sm hover:shadow hover:-translate-y-0.5"
+              style={{ 
+                background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)'
+              }}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Download Plugin
+            </a>
+          </div>
+        </div>
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          {/* Credits Card */}
+          <Card className="border-none shadow-sm hover:shadow-md transition-shadow">
+            <CardContent className="p-6">
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Available Credits</p>
+                  <h3 className="text-3xl font-bold text-gray-900 mt-1">{usageStats?.credits_remaining || 0}</h3>
+                </div>
+                <div className="p-2 bg-teal-50 rounded-lg">
+                  <Zap className="h-6 w-6 text-teal-600" />
+                </div>
               </div>
-            </div>
-          <p className="text-gray-600">Manage your Alt Text Pro subscription and test the service</p>
+              <div className="w-full bg-gray-100 rounded-full h-2 mb-2">
+                <div 
+                  className="bg-teal-500 h-2 rounded-full transition-all duration-500"
+                  style={{ width: `${Math.min(((usageStats?.credits_remaining || 0) / 100) * 100, 100)}%` }}
+                ></div>
+              </div>
+              <div className="flex justify-between items-center text-xs text-gray-500">
+                <span>{usageStats?.plan === 'free' ? '100 total' : 'Monthly quota'}</span>
+                <button 
+                  onClick={() => handleUpgradePlan('pay_as_go', 'Pay as you go', '$5')}
+                  className="text-teal-600 font-medium hover:text-teal-700"
+                >
+                  Top up +
+                </button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Generated Card */}
+          <Card className="border-none shadow-sm hover:shadow-md transition-shadow">
+            <CardContent className="p-6">
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Total Generated</p>
+                  <h3 className="text-3xl font-bold text-gray-900 mt-1">{usageStats?.total_processed || 0}</h3>
+                </div>
+                <div className="p-2 bg-blue-50 rounded-lg">
+                  <ImageIcon className="h-6 w-6 text-blue-600" />
+                </div>
+              </div>
+              <p className="text-sm text-gray-500">
+                Images processed successfully
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Plan Card */}
+          <Card className="border-none shadow-sm hover:shadow-md transition-shadow">
+            <CardContent className="p-6">
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Current Plan</p>
+                  <h3 className="text-3xl font-bold text-gray-900 mt-1 capitalize">{usageStats?.plan || 'Free'}</h3>
+                </div>
+                <div className="p-2 bg-purple-50 rounded-lg">
+                  <Crown className="h-6 w-6 text-purple-600" />
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowUpgradeModal(true)}
+                className="text-sm text-purple-600 font-medium hover:text-purple-700 flex items-center"
+              >
+                Manage Subscription <ArrowRight className="h-4 w-4 ml-1" />
+              </button>
+            </CardContent>
+          </Card>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-8">
-          {/* Usage Stats */}
-          <div className="lg:col-span-1">
-            <Card className="mb-6">
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <Zap className="h-5 w-5 mr-2 text-purple-600" />
-                    Usage Statistics
+          {/* Main Content Area - Left 2/3 */}
+          <div className="lg:col-span-2 space-y-8">
+            
+            {/* Test Alt Text Section */}
+            <Card className="border-none shadow-sm">
+              <CardHeader className="border-b border-gray-100 pb-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg font-semibold text-gray-900">Quick Test</CardTitle>
+                    <p className="text-sm text-gray-500">Generate alt-text for an image instantly</p>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      if (user?.token) {
-                        setIsLoading(true);
-                        loadDashboard();
-                        toast.info("Refreshing credits...");
+                  <div className="p-2 bg-gray-50 rounded-full">
+                    <Brain className="h-5 w-5 text-gray-400" />
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="p-6">
+                {!testImage ? (
+                  <div
+                    className="border-2 border-dashed border-gray-200 rounded-xl p-8 text-center cursor-pointer hover:border-teal-400 hover:bg-teal-50/50 transition-all duration-200"
+                    onClick={() => document.getElementById('image-upload-input')?.click()}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.currentTarget.classList.add('border-teal-500', 'bg-teal-50');
+                    }}
+                    onDragLeave={(e) => {
+                      e.preventDefault();
+                      e.currentTarget.classList.remove('border-teal-500', 'bg-teal-50');
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.currentTarget.classList.remove('border-teal-500', 'bg-teal-50');
+                      const file = e.dataTransfer.files[0];
+                      if (file && file.type.startsWith('image/')) {
+                        const reader = new FileReader();
+                        reader.onload = (event) => {
+                          setTestImage(event.target.result);
+                          setTestResult(null);
+                          setGeneratedAltText("");
+                        };
+                        reader.readAsDataURL(file);
+                      } else {
+                        toast.error("Please upload an image file");
                       }
                     }}
-                    className="text-gray-500 hover:text-gray-700"
-                    title="Refresh credits"
                   >
-                    <RefreshCw className="h-4 w-4" />
-                  </Button>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm text-gray-600">Current Plan</span>
-                    <Badge className="bg-purple-100 text-purple-700">
-                      {usageStats?.plan || 'Free Trial'}
-                    </Badge>
-                  </div>
-                </div>
-                
-                <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm text-gray-600">Credits Remaining</span>
-                    <span className="font-semibold text-gray-800">
-                      {usageStats?.credits_remaining || 0}
-                    </span>
-                  </div>
-                  <Progress value={(usageStats?.credits_remaining / 100) * 100} className="h-2" />
-                </div>
-                
-                <div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Total Processed</span>
-                    <span className="font-semibold text-gray-800">
-                      {usageStats?.total_processed || 0}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Buy Credits Option - Always Visible */}
-                <div className="border rounded-lg p-4" style={{ background: 'linear-gradient(to right, rgba(26, 181, 172, 0.05), rgba(58, 200, 196, 0.05))', borderColor: 'rgba(26, 181, 172, 0.3)' }}>
-                  <div className="flex items-center mb-2">
-                    <CreditCard className="h-4 w-4 mr-2" style={{ color: '#0B4F5E' }} />
-                    <span className="text-sm font-medium" style={{ color: '#0B4F5E' }}>Buy More Credits</span>
-                  </div>
-                  <p className="text-xs mb-3" style={{ color: '#0B4F5E' }}>
-                    Need more credits? Choose a credit pack below.
-                  </p>
-                  <div className="space-y-2">
-                    <Button 
-                      onClick={() => handleUpgradePlan('small_pack', 'Small Pack', '$3')}
-                      size="sm" 
-                      variant="outline"
-                      className="w-full"
-                    >
-                      <CreditCard className="h-4 w-4 mr-2" />
-                      100 Credits - $3
-                    </Button>
-                    <Button 
-                      onClick={() => handleUpgradePlan('pay_as_go', 'Pay as you go', '$5')}
-                      size="sm" 
-                      className="w-full text-white"
-                  style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%)'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)'}
-                    >
-                      <CreditCard className="h-4 w-4 mr-2" />
-                      500 Credits - $5
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Development Mode Notice */}
-                {window.location.hostname === 'localhost' && (
-                  <div className="border rounded-lg p-4" style={{ backgroundColor: 'rgba(26, 181, 172, 0.05)', borderColor: 'rgba(26, 181, 172, 0.3)' }}>
-                    <div className="flex items-center mb-2">
-                      <Brain className="h-4 w-4 mr-2" style={{ color: '#0B4F5E' }} />
-                      <span className="text-sm font-medium" style={{ color: '#0B4F5E' }}>Development Mode</span>
+                    <input
+                      id="image-upload-input"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      className="hidden"
+                    />
+                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Upload className="h-8 w-8 text-gray-400" />
                     </div>
-                    <p className="text-xs" style={{ color: '#0B4F5E' }}>
-                      Payment system is in development. Deploy to Netlify to enable payments.
+                    <h4 className="text-gray-900 font-medium mb-1">Click to upload or drag and drop</h4>
+                    <p className="text-sm text-gray-500">
+                      PNG, JPG, GIF up to 10MB
                     </p>
                   </div>
-                )}
-
-                {/* Upgrade Section */}
-                {usageStats?.credits_remaining <= 10 && (
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                    <div className="flex items-center mb-2">
-                      <TrendingUp className="h-4 w-4 text-yellow-600 mr-2" />
-                      <span className="text-sm font-medium text-yellow-800">
-                        {usageStats?.credits_remaining <= 0 ? 'No Credits Left!' : 'Running Low on Credits'}
-                      </span>
-                    </div>
-                    <p className="text-xs text-yellow-700 mb-3">
-                      {usageStats?.credits_remaining <= 0 
-                        ? 'Upgrade your plan to continue generating alt-text.'
-                        : 'Consider upgrading to avoid interruption.'
-                      }
-                    </p>
-                    <div className="space-y-2">
-                      <Button 
-                        onClick={() => handleUpgradePlan('tier1', 'Tier 1', '$12')}
-                        size="sm" 
-                        className="w-full text-white"
-                  style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%)'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)'}
-                      >
-                        Upgrade to Tier 1 - $12/month
-                      </Button>
-                      <Button 
-                        onClick={() => handleUpgradePlan('pay_as_go', 'Pay as you go', '$5')}
-                        size="sm" 
-                        variant="outline" 
-                        className="w-full"
-                      >
-                        Buy 500 Credits - $5
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Subscription Info */}
-                {subscriptionData?.subscription && (
-                  <div className="border rounded-lg p-4" style={{ backgroundColor: 'rgba(26, 181, 172, 0.05)', borderColor: 'rgba(26, 181, 172, 0.3)' }}>
-                    <div className="flex items-center mb-2">
-                      <Calendar className="h-4 w-4 mr-2" style={{ color: '#0B4F5E' }} />
-                      <span className="text-sm font-medium" style={{ color: '#0B4F5E' }}>Subscription</span>
-                    </div>
-                    <div className="space-y-1 text-xs" style={{ color: '#0B4F5E' }}>
-                      <p>Plan: {subscriptionData.subscription.plan}</p>
-                      <p>Status: {subscriptionData.subscription.status}</p>
-                      {subscriptionData.subscription.next_billing_date && (
-                        <p>Next billing: {new Date(subscriptionData.subscription.next_billing_date).toLocaleDateString()}</p>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* API Key Section for WordPress Plugin */}
-            <Card className="mb-6">
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Key className="h-5 w-5 mr-2" style={{ color: '#0B4F5E' }} />
-                  WordPress Plugin Integration
-                </CardTitle>
-                <p className="text-gray-600 text-sm">Use this API key to connect your WordPress plugin</p>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Your API Key
-                  </label>
-                  <div className="flex items-center space-x-2">
-                    <div className="flex-1 relative">
-                      <input
-                        type={showApiKey ? "text" : "password"}
-                        value={isLoadingApiKey ? "Loading..." : (apiKey || "Not available")}
-                        readOnly
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-sm font-mono"
-                        disabled={isLoadingApiKey}
-                      />
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowApiKey(!showApiKey)}
-                      className="px-3"
-                      disabled={isLoadingApiKey || !apiKey}
-                    >
-                      {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        if (apiKey) {
-                          navigator.clipboard.writeText(apiKey);
-                          toast.success("API key copied to clipboard!");
-                        } else {
-                          toast.error("API key not available. Please refresh the page.");
-                        }
-                      }}
-                      className="px-3"
-                      disabled={isLoadingApiKey || !apiKey}
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        loadApiKey();
-                      }}
-                      className="px-3"
-                      disabled={isLoadingApiKey}
-                      title="Refresh API Key"
-                    >
-                      <RefreshCw className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <div className="flex items-center justify-between mt-2">
-                    <p className="text-xs text-gray-500">
-                      Keep it secure!
-                    </p>
-                    {!apiKey && !isLoadingApiKey && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={loadApiKey}
-                        className="text-xs"
-                      >
-                        Generate API Key
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
-                <div className="border rounded-lg p-4" style={{ backgroundColor: 'rgba(26, 181, 172, 0.05)', borderColor: 'rgba(26, 181, 172, 0.3)' }}>
-                  <div className="flex items-start space-x-3">
-                    <div className="flex-shrink-0">
-                      <Info className="h-5 w-5 mt-0.5" style={{ color: '#0B4F5E' }} />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-medium mb-1" style={{ color: '#0B4F5E' }}>
-                        WordPress Plugin Setup
-                      </h4>
-                      <ol className="text-xs space-y-1 list-decimal list-inside" style={{ color: '#0B4F5E' }}>
-                        <li>Download the Alt Text Pro WordPress plugin</li>
-                        <li>Install and activate it on your WordPress site</li>
-                        <li>Go to Alt Text Pro → Settings in your WordPress admin</li>
-                        <li>Paste this API key in the settings</li>
-                        <li>Test the connection and start generating alt-text!</li>
-                      </ol>
-                      <div className="mt-3 flex items-center gap-2">
-                        <span className="text-xs text-gray-500">v1.0.7</span>
-                        <a
-                          href="/wordpress-plugin/alt-text-pro-plugin.zip"
-                          download="alt-text-pro-plugin.zip"
-                          className="inline-flex items-center text-xs font-medium transition-colors"
-                          style={{ color: '#1AB5AC' }}
-                          onMouseEnter={(e) => e.currentTarget.style.color = '#0B4F5E'}
-                          onMouseLeave={(e) => e.currentTarget.style.color = '#1AB5AC'}
-                        >
-                          <Download className="h-3 w-3 mr-1" />
-                          Download WordPress Plugin
-                        </a>
+                ) : (
+                  <div className="space-y-6">
+                    <div className="flex gap-6">
+                      <div className="w-1/3">
+                        <div className="relative rounded-lg overflow-hidden border border-gray-200 group">
+                          <img
+                            src={testImage}
+                            alt="Test upload"
+                            className="w-full h-48 object-cover"
+                          />
+                          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <button
+                              onClick={() => {
+                                setTestImage(null);
+                                setTestResult(null);
+                                setGeneratedAltText("");
+                                const input = document.getElementById('image-upload-input');
+                                if (input) input.value = '';
+                              }}
+                              className="bg-white text-red-600 px-3 py-1.5 rounded-md text-sm font-medium shadow-lg"
+                            >
+                              Remove Image
+                            </button>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                  <div className="flex items-start space-x-3">
-                    <div className="flex-shrink-0">
-                      <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5" />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-medium text-amber-900 mb-1">
-                        Important Security Note
-                      </h4>
-                      <p className="text-xs text-amber-800">
-                        Keep your API key secure and never share it publicly. This key provides access to your Alt Text Pro account and credits.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Test Service */}
-          <div className="lg:col-span-2 space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Test Alt-Text Generation</CardTitle>
-                <p className="text-gray-600">Upload an image to test our AI-powered alt-text generation</p>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div>
-                  {!testImage ? (
-                    <div
-                      className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center cursor-pointer hover:border-purple-400 hover:bg-purple-50 transition-colors"
-                      onClick={() => document.getElementById('image-upload-input')?.click()}
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                        e.currentTarget.classList.add('border-purple-500', 'bg-purple-50');
-                      }}
-                      onDragLeave={(e) => {
-                        e.preventDefault();
-                        e.currentTarget.classList.remove('border-purple-500', 'bg-purple-50');
-                      }}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        e.currentTarget.classList.remove('border-purple-500', 'bg-purple-50');
-                        const file = e.dataTransfer.files[0];
-                        if (file && file.type.startsWith('image/')) {
-                          const reader = new FileReader();
-                          reader.onload = (event) => {
-                            setTestImage(event.target.result);
-                            setTestResult(null);
-                            setGeneratedAltText("");
-                          };
-                          reader.readAsDataURL(file);
-                        } else {
-                          toast.error("Please upload an image file");
-                        }
-                      }}
-                    >
-                      <input
-                        id="image-upload-input"
-                        type="file"
-                        accept="image/*"
-                        onChange={handleImageUpload}
-                        className="hidden"
-                      />
-                      <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                      <p className="text-gray-600 font-medium mb-2">
-                        Click to upload or drag and drop
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        PNG, JPG, GIF up to 10MB
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      <div className="relative border-2 border-gray-300 rounded-lg p-4">
-                        <img
-                          src={testImage}
-                          alt="Test upload"
-                          className="max-w-full max-h-96 mx-auto rounded-lg object-contain"
-                        />
-                        <button
-                          onClick={() => {
-                            setTestImage(null);
-                            setTestResult(null);
-                            setGeneratedAltText("");
-                            const input = document.getElementById('image-upload-input');
-                            if (input) input.value = '';
-                          }}
-                          className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-2 shadow-lg"
-                          title="Remove image"
-                        >
-                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      </div>
-                      
-                      <input
-                        id="image-upload-input"
-                        type="file"
-                        accept="image/*"
-                        onChange={handleImageUpload}
-                        className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100 mb-4"
-                      />
-                      
-                      <Button
-                        onClick={generateTestAltText}
-                        disabled={isGenerating || (usageStats?.credits_remaining || 0) <= 0}
-                        className="w-full bg-purple-600 hover:bg-purple-700"
-                      >
-                        {isGenerating ? (
-                          <>
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                            Generating Alt-Text...
-                          </>
+                      <div className="flex-1 flex flex-col justify-center">
+                        {generatedAltText ? (
+                          <div className="bg-green-50 border border-green-100 rounded-lg p-4">
+                            <div className="flex justify-between items-start mb-2">
+                              <span className="text-xs font-semibold text-green-700 uppercase tracking-wider">Generated Result</span>
+                              <button
+                                onClick={() => {
+                                  navigator.clipboard.writeText(generatedAltText);
+                                  toast.success("Copied!");
+                                }}
+                                className="text-green-600 hover:text-green-700 text-xs flex items-center"
+                              >
+                                <Copy className="h-3 w-3 mr-1" /> Copy
+                              </button>
+                            </div>
+                            <p className="text-gray-800 font-medium leading-relaxed">
+                              "{generatedAltText}"
+                            </p>
+                          </div>
                         ) : (
-                          <>
-                            <Brain className="h-4 w-4 mr-2" />
-                            Generate Alt-Text ({usageStats?.credits_remaining || 0} credits left)
-                          </>
+                          <div>
+                             <p className="text-sm text-gray-500 mb-4">
+                               Ready to generate description for this image. This will use 1 credit.
+                             </p>
+                             <Button
+                              onClick={generateTestAltText}
+                              disabled={isGenerating || (usageStats?.credits_remaining || 0) <= 0}
+                              className="bg-teal-600 hover:bg-teal-700 text-white w-full sm:w-auto"
+                              style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
+                            >
+                              {isGenerating ? (
+                                <>
+                                  <RefreshCw className="animate-spin h-4 w-4 mr-2" />
+                                  Generating...
+                                </>
+                              ) : (
+                                <>
+                                  <Brain className="h-4 w-4 mr-2" />
+                                  Generate Alt Text
+                                </>
+                              )}
+                            </Button>
+                          </div>
                         )}
-                      </Button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Generated Alt Text Result - Show directly under image */}
-                {testImage && (
-                  <div className="space-y-3 border-t pt-6">
-                    <label className="block text-sm font-medium text-gray-700">Generated Alt Text:</label>
-                    <div className="relative bg-gray-50 rounded-lg p-4 border min-h-[80px] flex items-center">
-                      {generatedAltText ? (
-                        <>
-                          <p className="text-sm text-gray-800 pr-10 flex-1">
-                            "{generatedAltText}"
-                          </p>
-                          <button
-                            onClick={() => {
-                              navigator.clipboard.writeText(generatedAltText);
-                              toast.success("Alt text copied to clipboard!");
-                            }}
-                            className="absolute top-3 right-3 p-2 hover:bg-gray-200 rounded transition-colors"
-                            title="Copy to clipboard"
-                          >
-                            <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                            </svg>
-                          </button>
-                        </>
-                      ) : (
-                        <p className="text-sm text-gray-500">
-                          {isGenerating ? "Generating alt-text..." : "Alt text will appear here after generation..."}
-                        </p>
-                      )}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -3299,78 +3089,154 @@ const Dashboard = () => {
             </Card>
 
             {/* History Section */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Eye className="h-5 w-5 mr-2 text-purple-600" />
-                  Generation History
-                </CardTitle>
-                <p className="text-gray-600 text-sm">View all your previously generated alt-texts</p>
+            <Card className="border-none shadow-sm">
+              <CardHeader className="border-b border-gray-100 pb-4">
+                <CardTitle className="text-lg font-semibold text-gray-900">Recent Activity</CardTitle>
               </CardHeader>
-              <CardContent>
-                {isLoadingHistory ? (
-                  <div className="text-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto mb-2"></div>
-                    <p className="text-gray-500 text-sm">Loading history...</p>
-                  </div>
-                ) : history.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    <Eye className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                    <p>No generation history yet.</p>
-                    <p className="text-sm mt-2">Generate alt-text to see it here.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {history.map((item) => (
-                      <div
-                        key={item.id}
-                        className="border border-gray-200 rounded-lg p-4 hover:border-purple-300 hover:shadow-sm transition-all"
-                      >
-                        <div className="flex gap-4">
-                          {/* Image Thumbnail - Placeholder since images aren't stored */}
-                          <div className="flex-shrink-0">
-                            <div className="w-20 h-20 bg-gradient-to-br from-purple-100 to-purple-200 rounded-lg border border-purple-300 flex items-center justify-center">
-                              <Eye className="h-8 w-8 text-purple-500" />
-                            </div>
+              <CardContent className="p-0">
+                <div className="overflow-hidden">
+                  {isLoadingHistory ? (
+                    <div className="p-8 text-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600 mx-auto mb-2"></div>
+                      <p className="text-gray-500 text-sm">Loading history...</p>
+                    </div>
+                  ) : history.length === 0 ? (
+                    <div className="p-12 text-center bg-gray-50/50">
+                      <ImageIcon className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                      <p className="text-gray-900 font-medium">No history yet</p>
+                      <p className="text-gray-500 text-sm mt-1">Generated alt-text will appear here</p>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-gray-100">
+                      {history.map((item) => (
+                        <div key={item.id} className="p-4 hover:bg-gray-50 transition-colors flex gap-4 items-start">
+                          <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                            <span className="text-blue-600 font-bold text-xs">IMG</span>
                           </div>
-                          
-                          {/* Alt Text Content */}
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex-1">
-                                <p className="text-sm text-gray-800 font-medium mb-1">
-                                  "{item.alt_text_generated || 'No alt-text available'}"
-                                </p>
-                                {item.image_context && (
-                                  <p className="text-xs text-gray-500 mb-2">
-                                    Context: {item.image_context}
-                                  </p>
-                                )}
-                                <p className="text-xs text-gray-400">
-                                  {new Date(item.created_at).toLocaleString()}
-                                </p>
-                              </div>
-                              <button
-                                onClick={() => {
-                                  navigator.clipboard.writeText(item.alt_text_generated);
-                                  toast.success("Alt text copied to clipboard!");
-                                }}
-                                className="flex-shrink-0 p-2 hover:bg-gray-100 rounded transition-colors"
-                                title="Copy to clipboard"
-                              >
-                                <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                </svg>
-                              </button>
+                            <p className="text-sm text-gray-900 font-medium mb-1">
+                              "{item.alt_text_generated || 'No alt-text'}"
+                            </p>
+                            <div className="flex items-center text-xs text-gray-500">
+                              <span className="flex items-center mr-4">
+                                <Calendar className="h-3 w-3 mr-1" />
+                                {new Date(item.created_at).toLocaleDateString()}
+                              </span>
+                              {item.image_context && (
+                                <span className="bg-gray-100 px-2 py-0.5 rounded text-gray-600">
+                                  {item.image_context}
+                                </span>
+                              )}
                             </div>
                           </div>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(item.alt_text_generated);
+                              toast.success("Copied!");
+                            }}
+                            className="p-2 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-all"
+                            title="Copy alt text"
+                          >
+                            <Copy className="h-4 w-4" />
+                          </button>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                      ))}
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
+          </div>
+
+          {/* Sidebar - Right 1/3 */}
+          <div className="lg:col-span-1 space-y-6">
+            {/* API Key Card */}
+            <Card className="border-none shadow-sm bg-gray-900 text-white overflow-hidden relative">
+              <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-white/10 rounded-full blur-2xl"></div>
+              <CardContent className="p-6 relative z-10">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold flex items-center">
+                    <Key className="h-4 w-4 mr-2 text-teal-400" />
+                    API Key
+                  </h3>
+                  <span className="text-xs bg-teal-500/20 text-teal-300 px-2 py-1 rounded font-medium">Active</span>
+                </div>
+                <p className="text-gray-400 text-sm mb-4">
+                  Use this key to connect the WordPress plugin to your account.
+                </p>
+                
+                <div className="bg-black/30 rounded-lg p-3 flex items-center justify-between mb-4 border border-white/10">
+                  <code className="text-sm font-mono text-teal-300 truncate mr-2">
+                    {isLoadingApiKey ? "Loading..." : (showApiKey ? apiKey : "alt_••••••••••••••••")}
+                  </code>
+                  <div className="flex gap-1">
+                    <button 
+                      onClick={() => setShowApiKey(!showApiKey)}
+                      className="p-1.5 hover:bg-white/10 rounded text-gray-400 hover:text-white transition-colors"
+                    >
+                      {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                    <button 
+                      onClick={() => {
+                        if (apiKey) {
+                          navigator.clipboard.writeText(apiKey);
+                          toast.success("Copied API Key");
+                        }
+                      }}
+                      className="p-1.5 hover:bg-white/10 rounded text-gray-400 hover:text-white transition-colors"
+                    >
+                      <Copy className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="flex gap-2">
+                   {!apiKey && !isLoadingApiKey && (
+                    <Button
+                      size="sm"
+                      onClick={loadApiKey}
+                      className="w-full bg-teal-600 hover:bg-teal-700 text-white border-none"
+                    >
+                      Generate Key
+                    </Button>
+                   )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Help / Support Card */}
+            <Card className="border-none shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base font-semibold">Need Help?</CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 pt-0">
+                 <div className="space-y-2">
+                   <a href="/docs" className="block p-3 rounded-lg hover:bg-gray-50 transition-colors flex items-center text-sm text-gray-600 hover:text-gray-900">
+                     <Book className="h-4 w-4 mr-3 text-teal-500" />
+                     Read Documentation
+                   </a>
+                   <a href="/contact" className="block p-3 rounded-lg hover:bg-gray-50 transition-colors flex items-center text-sm text-gray-600 hover:text-gray-900">
+                     <MessageCircle className="h-4 w-4 mr-3 text-teal-500" />
+                     Contact Support
+                   </a>
+                 </div>
+              </CardContent>
+            </Card>
+            
+            {/* Setup Guide */}
+            <div className="bg-blue-50 rounded-xl p-6 border border-blue-100">
+              <h4 className="font-semibold text-blue-900 mb-2 flex items-center">
+                <Settings className="h-4 w-4 mr-2" />
+                Quick Setup
+              </h4>
+              <ol className="list-decimal list-inside text-sm text-blue-800 space-y-2 ml-1">
+                <li>Download and install the plugin</li>
+                <li>Copy your API Key from above</li>
+                <li>Paste into plugin settings</li>
+                <li>Start generating alt-text!</li>
+              </ol>
+            </div>
+
           </div>
         </div>
       </div>
@@ -3386,7 +3252,7 @@ const Dashboard = () => {
               <p className="text-gray-600 mb-4">
                 Selected: {selectedUpgradePlan.name}
               </p>
-              <div className="text-3xl font-bold mb-4" style={{ color: '#0B4F5E' }}>
+              <div className="text-3xl font-bold mb-4" style={{ color: '#003a42' }}>
                 {selectedUpgradePlan.price}
                 {selectedUpgradePlan.id !== 'pay_as_go' && (
                   <span className="text-lg text-gray-500">/month</span>
@@ -3713,9 +3579,9 @@ const DocsPage = () => {
                     <Button 
                       variant="ghost" 
                       className="text-white font-medium px-6 py-2.5 rounded-full"
-                      style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%)'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)'}
+                      style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #003a42 0%, #0D4F5E 100%)'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)'}
                       onClick={() => {
                         window.location.href = "/dashboard";
                       }}
@@ -3738,9 +3604,9 @@ const DocsPage = () => {
                     <Button 
                       variant="ghost" 
                       className="text-white font-medium px-6 py-2.5 rounded-full"
-                      style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%)'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)'}
+                      style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #003a42 0%, #0D4F5E 100%)'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)'}
                       onClick={() => {
                         window.location.href = "/";
                       }}
@@ -3768,7 +3634,7 @@ const DocsPage = () => {
           {/* Table of Contents - Sidebar */}
           <aside className="lg:w-64 flex-shrink-0">
             <div className="sticky top-24 bg-white rounded-2xl shadow-lg p-6 border border-gray-100">
-              <h2 className="text-lg font-bold mb-4" style={{ color: '#0B4F5E' }}>
+              <h2 className="text-lg font-bold mb-4" style={{ color: '#003a42' }}>
                 <Book className="h-5 w-5 inline-block mr-2" />
                 Documentation
               </h2>
@@ -3784,7 +3650,7 @@ const DocsPage = () => {
                           ? 'bg-teal-50 text-teal-700'
                           : 'text-gray-700 hover:bg-gray-50'
                       }`}
-                      style={activeSection === section.id ? { color: '#0B4F5E', backgroundColor: 'rgba(26, 181, 172, 0.1)' } : {}}
+                      style={activeSection === section.id ? { color: '#003a42', backgroundColor: 'rgba(13, 79, 94, 0.1)' } : {}}
                     >
                       <Icon className="h-4 w-4 mr-2" />
                       {section.title}
@@ -3800,7 +3666,7 @@ const DocsPage = () => {
             <div className="bg-white rounded-2xl shadow-lg p-8 md:p-12">
               {/* Getting Started Section */}
               <section id="getting-started" className="mb-16">
-                <h1 className="text-4xl font-bold mb-4" style={{ color: '#0B4F5E' }}>
+                <h1 className="text-4xl font-bold mb-4" style={{ color: '#003a42' }}>
                   Getting Started with Alt Text Pro
                 </h1>
                 <p className="text-xl text-gray-600 mb-8">
@@ -3808,44 +3674,44 @@ const DocsPage = () => {
                 </p>
 
                 <div className="prose max-w-none">
-                  <h2 className="text-2xl font-bold mt-8 mb-4" style={{ color: '#0B4F5E' }}>What is Alt Text Pro?</h2>
+                  <h2 className="text-2xl font-bold mt-8 mb-4" style={{ color: '#003a42' }}>What is Alt Text Pro?</h2>
                   <p className="text-gray-700 mb-4">
                     <strong>Alt Text Pro</strong> is a powerful SaaS platform that automatically generates high-quality alt-text for your images using advanced AI technology. Whether you're using our WordPress plugin or our API, Alt Text Pro helps improve your website's accessibility, SEO, and user experience with professionally written alt-text descriptions.
                   </p>
 
-                  <h2 className="text-2xl font-bold mt-8 mb-4" style={{ color: '#0B4F5E' }}>Why Use Alt Text Pro?</h2>
+                  <h2 className="text-2xl font-bold mt-8 mb-4" style={{ color: '#003a42' }}>Why Use Alt Text Pro?</h2>
                   <div className="grid md:grid-cols-2 gap-6 my-6">
                     <Card className="p-6">
                       <div className="flex items-center mb-3">
-                        <Shield className="h-6 w-6 mr-3" style={{ color: '#1AB5AC' }} />
+                        <Shield className="h-6 w-6 mr-3" style={{ color: '#0D4F5E' }} />
                         <h3 className="text-lg font-semibold">Accessibility Compliance</h3>
                       </div>
                       <p className="text-gray-600">Meet WCAG guidelines and make your website accessible to screen readers and assistive technologies.</p>
                     </Card>
                     <Card className="p-6">
                       <div className="flex items-center mb-3">
-                        <Search className="h-6 w-6 mr-3" style={{ color: '#1AB5AC' }} />
+                        <Search className="h-6 w-6 mr-3" style={{ color: '#0D4F5E' }} />
                         <h3 className="text-lg font-semibold">SEO Optimization</h3>
                       </div>
                       <p className="text-gray-600">Improve search engine rankings with better image descriptions that help search engines understand your content.</p>
                     </Card>
                     <Card className="p-6">
                       <div className="flex items-center mb-3">
-                        <Zap className="h-6 w-6 mr-3" style={{ color: '#1AB5AC' }} />
+                        <Zap className="h-6 w-6 mr-3" style={{ color: '#0D4F5E' }} />
                         <h3 className="text-lg font-semibold">Save Time</h3>
                       </div>
                       <p className="text-gray-600">Process hundreds of images in minutes instead of hours of manual work.</p>
                     </Card>
                     <Card className="p-6">
                       <div className="flex items-center mb-3">
-                        <Brain className="h-6 w-6 mr-3" style={{ color: '#1AB5AC' }} />
+                        <Brain className="h-6 w-6 mr-3" style={{ color: '#0D4F5E' }} />
                         <h3 className="text-lg font-semibold">AI-Powered Quality</h3>
                       </div>
                       <p className="text-gray-600">Leverage Google Gemini AI to generate accurate, context-aware descriptions.</p>
                     </Card>
                   </div>
 
-                  <h2 className="text-2xl font-bold mt-8 mb-4" style={{ color: '#0B4F5E' }}>Quick Start Guide</h2>
+                  <h2 className="text-2xl font-bold mt-8 mb-4" style={{ color: '#003a42' }}>Quick Start Guide</h2>
                   <div className="bg-teal-50 border-l-4 border-teal-500 p-6 rounded-lg my-6">
                     <ol className="list-decimal list-inside space-y-3 text-gray-700">
                       <li><strong>Sign up for free</strong> at <a href="https://www.alt-text.pro" className="text-teal-600 hover:underline">alt-text.pro</a> and get 100 free credits</li>
@@ -3858,23 +3724,23 @@ const DocsPage = () => {
 
               {/* Installation Section - will continue in next part due to length */}
               <section id="installation" className="mb-16 pt-8 border-t border-gray-200">
-                <h2 className="text-3xl font-bold mb-6" style={{ color: '#0B4F5E' }}>
+                <h2 className="text-3xl font-bold mb-6" style={{ color: '#003a42' }}>
                   <Settings className="h-8 w-8 inline-block mr-3" />
                   Installation & Setup
                 </h2>
                 <div className="prose max-w-none">
-                  <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#0B4F5E' }}>Step 1: Create Your Account</h3>
+                  <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#003a42' }}>Step 1: Create Your Account</h3>
                   <p className="text-gray-700 mb-4">
                     Visit <a href="https://www.alt-text.pro" className="text-teal-600 hover:underline">www.alt-text.pro</a> and sign up for a free account. You'll receive 100 credits to get started - no credit card required.
                   </p>
-                  <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#0B4F5E' }}>Step 2: Get Your API Key</h3>
+                  <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#003a42' }}>Step 2: Get Your API Key</h3>
                   <ol className="list-decimal list-inside space-y-2 text-gray-700 mb-4">
                     <li>Log in to your dashboard at <a href="https://www.alt-text.pro/dashboard" className="text-teal-600 hover:underline">alt-text.pro/dashboard</a></li>
                     <li>Your API key is displayed on the dashboard</li>
                     <li>Click the copy button to copy your API key</li>
                     <li>Keep your API key secure - treat it like a password</li>
                   </ol>
-                  <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#0B4F5E' }}>Step 3: Install WordPress Plugin</h3>
+                  <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#003a42' }}>Step 3: Install WordPress Plugin</h3>
                   <div className="bg-gray-50 p-6 rounded-lg my-4">
                     <h4 className="font-semibold mb-3">Method 1: Download from Dashboard (Recommended)</h4>
                     <ol className="list-decimal list-inside space-y-2 text-gray-700">
@@ -3893,7 +3759,7 @@ const DocsPage = () => {
                       <li>Go to <strong>Plugins</strong> in WordPress admin and activate <strong>Alt Text Pro</strong></li>
                     </ol>
                   </div>
-                  <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#0B4F5E' }}>Step 4: Configure the Plugin</h3>
+                  <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#003a42' }}>Step 4: Configure the Plugin</h3>
                   <ol className="list-decimal list-inside space-y-2 text-gray-700 mb-4">
                     <li>In WordPress admin, go to <strong>Alt Text Pro → Settings</strong></li>
                     <li>Paste your API key in the <strong>API Key</strong> field</li>
@@ -3916,38 +3782,38 @@ const DocsPage = () => {
 
               {/* Features Section */}
               <section id="features" className="mb-16 pt-8 border-t border-gray-200">
-                <h2 className="text-3xl font-bold mb-6" style={{ color: '#0B4F5E' }}>
+                <h2 className="text-3xl font-bold mb-6" style={{ color: '#003a42' }}>
                   <Zap className="h-8 w-8 inline-block mr-3" />
                   Features
                 </h2>
                 <div className="grid md:grid-cols-2 gap-6">
                   <Card className="p-6">
-                    <Brain className="h-8 w-8 mb-4" style={{ color: '#1AB5AC' }} />
+                    <Brain className="h-8 w-8 mb-4" style={{ color: '#0D4F5E' }} />
                     <h3 className="text-xl font-bold mb-3">AI-Powered Generation</h3>
                     <p className="text-gray-600">Uses Google Gemini AI to create accurate, descriptive alt-text that understands image content and context.</p>
                   </Card>
                   <Card className="p-6">
-                    <Upload className="h-8 w-8 mb-4" style={{ color: '#1AB5AC' }} />
+                    <Upload className="h-8 w-8 mb-4" style={{ color: '#0D4F5E' }} />
                     <h3 className="text-xl font-bold mb-3">Automatic Processing</h3>
                     <p className="text-gray-600">Generate alt-text automatically when uploading images to WordPress. Set it and forget it!</p>
                   </Card>
                   <Card className="p-6">
-                    <RefreshCw className="h-8 w-8 mb-4" style={{ color: '#1AB5AC' }} />
+                    <RefreshCw className="h-8 w-8 mb-4" style={{ color: '#0D4F5E' }} />
                     <h3 className="text-xl font-bold mb-3">Bulk Processing</h3>
                     <p className="text-gray-600">Process hundreds of existing images at once. Perfect for retrofitting alt-text to existing websites.</p>
                   </Card>
                   <Card className="p-6">
-                    <Eye className="h-8 w-8 mb-4" style={{ color: '#1AB5AC' }} />
+                    <Eye className="h-8 w-8 mb-4" style={{ color: '#0D4F5E' }} />
                     <h3 className="text-xl font-bold mb-3">Context-Aware</h3>
                     <p className="text-gray-600">Provides better descriptions using page context and metadata for more relevant alt-text.</p>
                   </Card>
                   <Card className="p-6">
-                    <TrendingUp className="h-8 w-8 mb-4" style={{ color: '#1AB5AC' }} />
+                    <TrendingUp className="h-8 w-8 mb-4" style={{ color: '#0D4F5E' }} />
                     <h3 className="text-xl font-bold mb-3">Usage Tracking</h3>
                     <p className="text-gray-600">Monitor your API usage, credit consumption, and generation history with detailed logs.</p>
                   </Card>
                   <Card className="p-6">
-                    <Globe className="h-8 w-8 mb-4" style={{ color: '#1AB5AC' }} />
+                    <Globe className="h-8 w-8 mb-4" style={{ color: '#0D4F5E' }} />
                     <h3 className="text-xl font-bold mb-3">Multi-Language Support</h3>
                     <p className="text-gray-600">Generate alt-text in over 130 languages to reach a global audience.</p>
                   </Card>
@@ -3956,12 +3822,12 @@ const DocsPage = () => {
 
               {/* WordPress Plugin Section */}
               <section id="wordpress-plugin" className="mb-16 pt-8 border-t border-gray-200">
-                <h2 className="text-3xl font-bold mb-6" style={{ color: '#0B4F5E' }}>
+                <h2 className="text-3xl font-bold mb-6" style={{ color: '#003a42' }}>
                   <Chrome className="h-8 w-8 inline-block mr-3" />
                   WordPress Plugin Guide
                 </h2>
                 <div className="prose max-w-none">
-                  <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#0B4F5E' }}>Dashboard Overview</h3>
+                  <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#003a42' }}>Dashboard Overview</h3>
                   <p className="text-gray-700 mb-4">The Alt Text Pro dashboard provides a comprehensive overview of your account and usage:</p>
                   <ul className="list-disc list-inside space-y-2 text-gray-700 mb-4">
                     <li><strong>Credits Remaining:</strong> See how many credits you have left</li>
@@ -3970,7 +3836,7 @@ const DocsPage = () => {
                     <li><strong>Recent Activity:</strong> View your latest alt-text generations</li>
                     <li><strong>Quick Actions:</strong> Access bulk processing and settings quickly</li>
                   </ul>
-                  <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#0B4F5E' }}>Settings Configuration</h3>
+                  <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#003a42' }}>Settings Configuration</h3>
                   <p className="text-gray-700 mb-4">Configure the plugin to work exactly how you need it:</p>
                   <div className="bg-gray-50 p-6 rounded-lg my-4">
                     <h4 className="font-semibold mb-3">Available Settings:</h4>
@@ -3982,7 +3848,7 @@ const DocsPage = () => {
                       <li><strong>Batch Size:</strong> Number of images to process per batch (1-50)</li>
                     </ul>
                   </div>
-                  <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#0B4F5E' }}>Bulk Processing Workflow</h3>
+                  <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#003a42' }}>Bulk Processing Workflow</h3>
                   <ol className="list-decimal list-inside space-y-2 text-gray-700 mb-4">
                     <li>Go to <strong>Alt Text Pro → Bulk Process</strong></li>
                     <li>Choose your processing option:
@@ -3996,7 +3862,7 @@ const DocsPage = () => {
                     <li>Click <strong>Start Processing</strong> and monitor progress</li>
                     <li>Review generated alt-text and edit as needed</li>
                   </ol>
-                  <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#0B4F5E' }}>Best Practices</h3>
+                  <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#003a42' }}>Best Practices</h3>
                   <div className="bg-teal-50 border-l-4 border-teal-500 p-6 rounded-lg my-4">
                     <ul className="space-y-2 text-gray-700">
                       <li>✓ Review generated alt-text for accuracy, especially for complex images</li>
@@ -4011,17 +3877,17 @@ const DocsPage = () => {
 
               {/* API Documentation Section */}
               <section id="api" className="mb-16 pt-8 border-t border-gray-200">
-                <h2 className="text-3xl font-bold mb-6" style={{ color: '#0B4F5E' }}>
+                <h2 className="text-3xl font-bold mb-6" style={{ color: '#003a42' }}>
                   <Code className="h-8 w-8 inline-block mr-3" />
                   API Documentation
                 </h2>
                 <div className="prose max-w-none">
-                  <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#0B4F5E' }}>Authentication</h3>
+                  <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#003a42' }}>Authentication</h3>
                   <p className="text-gray-700 mb-4">All API requests require authentication using your API key. Include it in the <code className="bg-gray-200 px-2 py-1 rounded">Authorization</code> header:</p>
                   <div className="bg-gray-900 text-gray-100 p-4 rounded-lg my-4 overflow-x-auto">
                     <pre className="text-sm">Authorization: Bearer YOUR_API_KEY</pre>
                   </div>
-                  <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#0B4F5E' }}>Generate Alt-Text Endpoint</h3>
+                  <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#003a42' }}>Generate Alt-Text Endpoint</h3>
                   <div className="bg-gray-50 p-6 rounded-lg my-4">
                     <p className="font-mono text-sm mb-2"><strong>POST</strong> <code className="text-teal-600">/.netlify/functions/generate-alt-text</code></p>
                     <p className="text-gray-700 mb-4">Generates alt-text for an image using AI.</p>
@@ -4038,7 +3904,7 @@ const DocsPage = () => {
                       <pre className="text-sm">{`{\n  "error": "Insufficient credits",\n  "details": "You have 0 credits remaining"\n}`}</pre>
                     </div>
                   </div>
-                  <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#0B4F5E' }}>Code Examples</h3>
+                  <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#003a42' }}>Code Examples</h3>
                   <div className="my-6">
                     <h4 className="font-semibold mb-2">JavaScript (Fetch API)</h4>
                     <div className="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto">
@@ -4051,7 +3917,7 @@ const DocsPage = () => {
                       <pre className="text-sm">{`curl -X POST https://www.alt-text.pro/.netlify/functions/generate-alt-text \\\n  -H "Content-Type: application/json" \\\n  -H "Authorization: Bearer YOUR_API_KEY" \\\n  -d '{\n    "image_base64": "base64_encoded_image",\n    "context": "Landscape photo"\n  }'`}</pre>
                     </div>
                   </div>
-                  <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#0B4F5E' }}>Error Codes</h3>
+                  <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#003a42' }}>Error Codes</h3>
                   <div className="bg-gray-50 p-6 rounded-lg my-4">
                     <table className="w-full text-sm">
                       <thead>
@@ -4074,16 +3940,16 @@ const DocsPage = () => {
 
               {/* Pricing Section */}
               <section id="pricing" className="mb-16 pt-8 border-t border-gray-200">
-                <h2 className="text-3xl font-bold mb-6" style={{ color: '#0B4F5E' }}>
+                <h2 className="text-3xl font-bold mb-6" style={{ color: '#003a42' }}>
                   <DollarSign className="h-8 w-8 inline-block mr-3" />
                   Pricing & Credits
                 </h2>
                 <div className="prose max-w-none">
-                  <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#0B4F5E' }}>Pricing Plans</h3>
+                  <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#003a42' }}>Pricing Plans</h3>
                   <div className="grid md:grid-cols-3 gap-6 my-6">
                     <Card className="p-6 border-2">
                       <h4 className="text-xl font-bold mb-2">Free</h4>
-                      <div className="text-3xl font-bold mb-4" style={{ color: '#0B4F5E' }}>$0</div>
+                      <div className="text-3xl font-bold mb-4" style={{ color: '#003a42' }}>$0</div>
                       <ul className="space-y-2 text-gray-700 mb-4">
                         <li className="flex items-center"><Check className="h-4 w-4 mr-2 text-green-500" /> 100 Credits</li>
                         <li className="flex items-center"><Check className="h-4 w-4 mr-2 text-green-500" /> Basic Support</li>
@@ -4091,9 +3957,9 @@ const DocsPage = () => {
                       </ul>
                     </Card>
                     <Card className="p-6 border-2 border-teal-500">
-                      <Badge className="mb-2" style={{ backgroundColor: '#1AB5AC', color: 'white' }}>Popular</Badge>
+                      <Badge className="mb-2" style={{ backgroundColor: '#0D4F5E', color: 'white' }}>Popular</Badge>
                       <h4 className="text-xl font-bold mb-2">Tier 1</h4>
-                      <div className="text-3xl font-bold mb-4" style={{ color: '#0B4F5E' }}>$12<span className="text-sm text-gray-500">/mo</span></div>
+                      <div className="text-3xl font-bold mb-4" style={{ color: '#003a42' }}>$12<span className="text-sm text-gray-500">/mo</span></div>
                       <ul className="space-y-2 text-gray-700 mb-4">
                         <li className="flex items-center"><Check className="h-4 w-4 mr-2 text-green-500" /> 1,000 Credits/month</li>
                         <li className="flex items-center"><Check className="h-4 w-4 mr-2 text-green-500" /> Priority Support</li>
@@ -4102,7 +3968,7 @@ const DocsPage = () => {
                     </Card>
                     <Card className="p-6 border-2">
                       <h4 className="text-xl font-bold mb-2">Tier 2</h4>
-                      <div className="text-3xl font-bold mb-4" style={{ color: '#0B4F5E' }}>$20<span className="text-sm text-gray-500">/mo</span></div>
+                      <div className="text-3xl font-bold mb-4" style={{ color: '#003a42' }}>$20<span className="text-sm text-gray-500">/mo</span></div>
                       <ul className="space-y-2 text-gray-700 mb-4">
                         <li className="flex items-center"><Check className="h-4 w-4 mr-2 text-green-500" /> 2,500 Credits/month</li>
                         <li className="flex items-center"><Check className="h-4 w-4 mr-2 text-green-500" /> Premium Support</li>
@@ -4110,7 +3976,7 @@ const DocsPage = () => {
                       </ul>
                     </Card>
                   </div>
-                  <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#0B4F5E' }}>Credit System</h3>
+                  <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#003a42' }}>Credit System</h3>
                   <p className="text-gray-700 mb-4">Each alt-text generation consumes <strong>1 credit</strong>. Credits are used when:</p>
                   <ul className="list-disc list-inside space-y-2 text-gray-700 mb-4">
                     <li>Generating alt-text for a new image</li>
@@ -4120,7 +3986,7 @@ const DocsPage = () => {
                   <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-lg my-4">
                     <p className="text-blue-800"><strong>Note:</strong> Failed generations (due to errors) do not consume credits.</p>
                   </div>
-                  <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#0B4F5E' }}>Upgrading Your Plan</h3>
+                  <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#003a42' }}>Upgrading Your Plan</h3>
                   <ol className="list-decimal list-inside space-y-2 text-gray-700 mb-4">
                     <li>Go to your dashboard at <a href="https://www.alt-text.pro/dashboard" className="text-teal-600 hover:underline">alt-text.pro/dashboard</a></li>
                     <li>Click "Upgrade Plan" or visit the Pricing section</li>
@@ -4133,12 +3999,12 @@ const DocsPage = () => {
 
               {/* Troubleshooting Section */}
               <section id="troubleshooting" className="mb-16 pt-8 border-t border-gray-200">
-                <h2 className="text-3xl font-bold mb-6" style={{ color: '#0B4F5E' }}>
+                <h2 className="text-3xl font-bold mb-6" style={{ color: '#003a42' }}>
                   <Wrench className="h-8 w-8 inline-block mr-3" />
                   Troubleshooting
                 </h2>
                 <div className="prose max-w-none">
-                  <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#0B4F5E' }}>Common Issues</h3>
+                  <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#003a42' }}>Common Issues</h3>
                   <div className="space-y-6">
                     <Card className="p-6">
                       <h4 className="font-bold text-lg mb-2">"Error loading API key" or Connection Failed</h4>
@@ -4190,7 +4056,7 @@ const DocsPage = () => {
                       </ul>
                     </Card>
                   </div>
-                  <h3 className="text-2xl font-bold mt-8 mb-4" style={{ color: '#0B4F5E' }}>Getting Help</h3>
+                  <h3 className="text-2xl font-bold mt-8 mb-4" style={{ color: '#003a42' }}>Getting Help</h3>
                   <p className="text-gray-700 mb-4">If you're still experiencing issues, we're here to help:</p>
                   <ul className="list-disc list-inside space-y-2 text-gray-700 mb-4">
                     <li>Email us at <a href="mailto:support@alt-text.pro" className="text-teal-600 hover:underline">support@alt-text.pro</a></li>
@@ -4202,7 +4068,7 @@ const DocsPage = () => {
 
               {/* FAQ Section */}
               <section id="faq" className="mb-16 pt-8 border-t border-gray-200">
-                <h2 className="text-3xl font-bold mb-6" style={{ color: '#0B4F5E' }}>
+                <h2 className="text-3xl font-bold mb-6" style={{ color: '#003a42' }}>
                   <HelpCircle className="h-8 w-8 inline-block mr-3" />
                   Frequently Asked Questions
                 </h2>
@@ -4359,9 +4225,9 @@ const ContactPage = () => {
                   <Button 
                     variant="ghost" 
                     className="text-white font-medium px-6 py-2.5 rounded-full"
-                    style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)'}
+                    style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #003a42 0%, #0D4F5E 100%)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)'}
                     onClick={() => {
                       window.location.href = "/dashboard";
                     }}
@@ -4384,9 +4250,9 @@ const ContactPage = () => {
                   <Button 
                     variant="ghost" 
                     className="text-white font-medium px-6 py-2.5 rounded-full"
-                    style={{ background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)' }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)'}
+                    style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #003a42 0%, #0D4F5E 100%)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)'}
                     onClick={() => {
                       window.location.href = "/";
                     }}
@@ -4414,7 +4280,7 @@ const ContactPage = () => {
         <div className="bg-white rounded-2xl shadow-xl p-8 md:p-12">
           {/* Header */}
           <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold mb-4" style={{ color: '#0B4F5E' }}>
+            <h1 className="text-4xl font-bold mb-4" style={{ color: '#003a42' }}>
               Get in Touch
             </h1>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
@@ -4503,18 +4369,18 @@ const ContactPage = () => {
                 style={{
                   background: isSubmitting 
                     ? '#9ca3af' 
-                    : 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)',
+                    : 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)',
                   color: 'white',
                   minWidth: '200px'
                 }}
                 onMouseEnter={(e) => {
                   if (!isSubmitting) {
-                    e.currentTarget.style.background = 'linear-gradient(135deg, #0B4F5E 0%, #1AB5AC 100%)';
+                    e.currentTarget.style.background = 'linear-gradient(135deg, #003a42 0%, #0D4F5E 100%)';
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (!isSubmitting) {
-                    e.currentTarget.style.background = 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)';
+                    e.currentTarget.style.background = 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)';
                   }
                 }}
               >
@@ -4537,12 +4403,12 @@ const ContactPage = () => {
           <div className="mt-12 pt-8 border-t border-gray-200">
             <div className="grid md:grid-cols-2 gap-8">
               <div>
-                <h3 className="text-lg font-semibold mb-4" style={{ color: '#0B4F5E' }}>
+                <h3 className="text-lg font-semibold mb-4" style={{ color: '#003a42' }}>
                   Contact Information
                 </h3>
                 <div className="space-y-3 text-gray-600">
                   <div className="flex items-center">
-                    <Mail className="h-5 w-5 mr-3" style={{ color: '#1AB5AC' }} />
+                    <Mail className="h-5 w-5 mr-3" style={{ color: '#0D4F5E' }} />
                     <a href="mailto:support@alt-text.pro" className="hover:text-teal-600 transition-colors">
                       support@alt-text.pro
                     </a>
@@ -4550,7 +4416,7 @@ const ContactPage = () => {
                 </div>
               </div>
               <div>
-                <h3 className="text-lg font-semibold mb-4" style={{ color: '#0B4F5E' }}>
+                <h3 className="text-lg font-semibold mb-4" style={{ color: '#003a42' }}>
                   Response Time
                 </h3>
                 <p className="text-gray-600">
@@ -4948,7 +4814,7 @@ const AdminDashboard = () => {
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4" 
-               style={{ borderColor: '#1AB5AC' }}></div>
+               style={{ borderColor: '#0D4F5E' }}></div>
           <p className="text-gray-600">Loading admin dashboard...</p>
         </div>
       </div>
@@ -5127,7 +4993,7 @@ const AdminDashboard = () => {
                                 ? "bg-green-100 text-green-700"
                                 : userData.subscription_status === "cancelled"
                                 ? "bg-red-100 text-red-700"
-                                : "bg-yellow-100 text-yellow-700"
+                                : "bg-teal-100 text-teal-700"
                             }
                           >
                             {userData.subscription_status || "active"}
@@ -5894,7 +5760,7 @@ const EmailConfirmation = () => {
           {isLoading ? (
             <>
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4" 
-                   style={{ borderColor: '#1AB5AC' }}></div>
+                   style={{ borderColor: '#0D4F5E' }}></div>
               <h1 className="text-2xl font-bold text-gray-900 mb-2">Confirming your email...</h1>
               <p className="text-gray-600">Please wait while we verify your account.</p>
             </>
@@ -5909,7 +5775,7 @@ const EmailConfirmation = () => {
                 onClick={() => navigate('/')}
                 className="w-full"
                 style={{ 
-                  background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)',
+                  background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)',
                   color: 'white'
                 }}
               >
@@ -5919,9 +5785,9 @@ const EmailConfirmation = () => {
           ) : isConfirmed ? (
             <>
               <div className="mb-4">
-                <CheckCircle className="h-16 w-16 mx-auto" style={{ color: '#1AB5AC' }} />
+                <CheckCircle className="h-16 w-16 mx-auto" style={{ color: '#0D4F5E' }} />
               </div>
-              <h1 className="text-3xl font-bold mb-4" style={{ color: '#0B4F5E' }}>
+              <h1 className="text-3xl font-bold mb-4" style={{ color: '#003a42' }}>
                 Thanks for confirming your email!
               </h1>
               <p className="text-gray-600 mb-6">
@@ -5932,7 +5798,7 @@ const EmailConfirmation = () => {
                   onClick={() => navigate('/dashboard')}
                   className="w-full"
                   style={{ 
-                    background: 'linear-gradient(135deg, #1AB5AC 0%, #3AC8C4 100%)',
+                    background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)',
                     color: 'white'
                   }}
                 >
@@ -5943,8 +5809,8 @@ const EmailConfirmation = () => {
                   variant="outline"
                   className="w-full"
                   style={{ 
-                    borderColor: '#0B4F5E',
-                    color: '#0B4F5E'
+                    borderColor: '#003a42',
+                    color: '#003a42'
                   }}
                 >
                   Back to Homepage

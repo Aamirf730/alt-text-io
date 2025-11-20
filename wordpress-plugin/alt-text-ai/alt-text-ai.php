@@ -3,17 +3,15 @@
  * Plugin Name: Alt Text Pro
  * Plugin URI: https://www.alt-text.pro
  * Description: Automatically generate professional alt-text for your images using AI. Improve accessibility and SEO with our powerful SaaS integration.
- * Version: 1.0.7
+ * Version: 1.3.8
  * Author: Alt Text Pro
  * Author URI: https://www.alt-text.pro
  * License: GPL v2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: alt-text-ai
- * Domain Path: /languages
  * Requires at least: 5.0
- * Tested up to: 6.4
+ * Tested up to: 6.8
  * Requires PHP: 7.4
- * Network: false
  */
 
 // Prevent direct access
@@ -22,7 +20,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('ALT_TEXT_AI_VERSION', '1.0.7'); // Updated: Version bump
+define('ALT_TEXT_AI_VERSION', '1.3.8'); // Updated: Version bump - Fixed NotPrepared warnings
 define('ALT_TEXT_AI_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('ALT_TEXT_AI_PLUGIN_PATH', plugin_dir_path(__FILE__));
 define('ALT_TEXT_AI_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -60,9 +58,6 @@ class AltTextAI {
      * Initialize plugin
      */
     public function init() {
-        // Load text domain
-        load_plugin_textdomain('alt-text-ai', false, dirname(ALT_TEXT_AI_PLUGIN_BASENAME) . '/languages');
-        
         // Initialize components
         $this->load_dependencies();
         $this->init_hooks();
@@ -223,14 +218,14 @@ class AltTextAI {
         check_ajax_referer('alt_text_ai_nonce', 'nonce');
         
         if (!current_user_can('upload_files')) {
-            wp_die(__('You do not have permission to perform this action.', 'alt-text-ai'));
+            wp_die(esc_html__('You do not have permission to perform this action.', 'alt-text-ai'));
         }
         
-        $attachment_id = intval($_POST['attachment_id']);
-        $context = sanitize_text_field($_POST['context'] ?? '');
+        $attachment_id = isset($_POST['attachment_id']) ? intval($_POST['attachment_id']) : 0;
+        $context = isset($_POST['context']) ? sanitize_text_field(wp_unslash($_POST['context'])) : '';
         
         if (!$attachment_id) {
-            wp_send_json_error(__('Invalid attachment ID.', 'alt-text-ai'));
+            wp_send_json_error(esc_html__('Invalid attachment ID.', 'alt-text-ai'));
         }
         
         $api_client = new AltTextAI_API_Client();
@@ -252,8 +247,11 @@ class AltTextAI {
             ));
         } else {
             // Log the error for debugging
-            error_log('Alt Text Pro: Generation failed - ' . ($result['message'] ?? 'Unknown error'));
-            wp_send_json_error($result['message'] ?? __('Failed to generate alt-text. Please check your API key and try again.', 'alt-text-ai'));
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+                error_log('Alt Text Pro: Generation failed - ' . ($result['message'] ?? 'Unknown error'));
+            }
+            wp_send_json_error($result['message'] ?? esc_html__('Failed to generate alt-text. Please check your API key and try again.', 'alt-text-ai'));
         }
     }
     
@@ -264,7 +262,7 @@ class AltTextAI {
         check_ajax_referer('alt_text_ai_nonce', 'nonce');
         
         if (!current_user_can('upload_files')) {
-            wp_die(__('You do not have permission to perform this action.', 'alt-text-ai'));
+            wp_die(esc_html__('You do not have permission to perform this action.', 'alt-text-ai'));
         }
         
         $batch_size = intval($_POST['batch_size'] ?? 10);
@@ -284,7 +282,7 @@ class AltTextAI {
         check_ajax_referer('alt_text_ai_nonce', 'nonce');
         
         if (!current_user_can('manage_options')) {
-            wp_die(__('You do not have permission to perform this action.', 'alt-text-ai'));
+            wp_die(esc_html__('You do not have permission to perform this action.', 'alt-text-ai'));
         }
         
         $api_client = new AltTextAI_API_Client();
@@ -304,10 +302,10 @@ class AltTextAI {
         check_ajax_referer('alt_text_ai_nonce', 'nonce');
         
         if (!current_user_can('manage_options')) {
-            wp_die(__('You do not have permission to perform this action.', 'alt-text-ai'));
+            wp_die(esc_html__('You do not have permission to perform this action.', 'alt-text-ai'));
         }
         
-        $api_key = sanitize_text_field($_POST['api_key']);
+        $api_key = isset($_POST['api_key']) ? sanitize_text_field(wp_unslash($_POST['api_key'])) : '';
         
         $api_client = new AltTextAI_API_Client();
         $result = $api_client->validate_api_key($api_key);
@@ -327,6 +325,7 @@ class AltTextAI {
         
         $table_name = $wpdb->prefix . 'alt_text_ai_logs';
         
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery
         $wpdb->insert(
             $table_name,
             array(

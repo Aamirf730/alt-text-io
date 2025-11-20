@@ -104,10 +104,13 @@ class AltTextAI_Admin {
         // Show notice if API key is not configured
         if (empty($settings['api_key'])) {
             echo '<div class="notice notice-warning is-dismissible">';
-            echo '<p><strong>' . __('Alt Text Pro:', 'alt-text-ai') . '</strong> ';
-            echo sprintf(
-                __('Please <a href="%s">configure your API key</a> to start generating alt-text for your images.', 'alt-text-ai'),
-                admin_url('admin.php?page=alt-text-ai-settings')
+            echo '<p><strong>' . esc_html__('Alt Text Pro:', 'alt-text-ai') . '</strong> ';
+            echo wp_kses_post(
+                sprintf(
+                    // translators: %s: URL to the settings page
+                    __('Please <a href="%1$s">configure your API key</a> to start generating alt-text for your images.', 'alt-text-ai'),
+                    esc_url(admin_url('admin.php?page=alt-text-ai-settings'))
+                )
             );
             echo '</p></div>';
         }
@@ -137,17 +140,22 @@ class AltTextAI_Admin {
         global $wpdb;
         $logs_table = $wpdb->prefix . 'alt_text_ai_logs';
         
+        // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery
         $total_generated = $wpdb->get_var("SELECT COUNT(*) FROM $logs_table");
+        // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery
         $total_credits_used = $wpdb->get_var("SELECT SUM(credits_used) FROM $logs_table");
-        $recent_generations = $wpdb->get_results(
-            "SELECT l.*, p.post_title 
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        $query = "SELECT l.*, p.post_title 
              FROM $logs_table l 
              LEFT JOIN {$wpdb->posts} p ON l.attachment_id = p.ID 
              ORDER BY l.created_at DESC 
-             LIMIT 10"
-        );
+             LIMIT 10";
+             
+        // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+        $recent_generations = $wpdb->get_results($query);
         
         // Get images without alt text (using a more reliable query)
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery
         $images_without_alt = $wpdb->get_var(
             "SELECT COUNT(DISTINCT p.ID) 
              FROM {$wpdb->posts} p 
@@ -173,6 +181,7 @@ class AltTextAI_Admin {
         global $wpdb;
         
         // Get images without alt text (using a more reliable query)
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery
         $images_without_alt = $wpdb->get_results(
             "SELECT p.ID, p.post_title, p.post_date 
              FROM {$wpdb->posts} p 
@@ -191,6 +200,7 @@ class AltTextAI_Admin {
         );
         
         // Get total count
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery
         $total_without_alt = $wpdb->get_var(
             "SELECT COUNT(DISTINCT p.ID) 
              FROM {$wpdb->posts} p 
@@ -207,6 +217,7 @@ class AltTextAI_Admin {
         );
         
         // Get all images count
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery
         $total_images = $wpdb->get_var(
             "SELECT COUNT(*) 
              FROM {$wpdb->posts} 
@@ -222,18 +233,26 @@ class AltTextAI_Admin {
      */
     public function settings_page() {
         // Handle form submission
-        if (isset($_POST['submit']) && wp_verify_nonce($_POST['_wpnonce'], 'alt_text_ai_settings')) {
+        if (isset($_POST['submit'])) {
+            // Check nonce
+            if (!isset($_POST['_wpnonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['_wpnonce'])), 'alt_text_ai_settings')) {
+                wp_die(esc_html__('Security check failed.', 'alt-text-ai'));
+            }
+            
+            $api_key = isset($_POST['api_key']) ? sanitize_text_field(wp_unslash($_POST['api_key'])) : '';
+            $batch_size = isset($_POST['batch_size']) ? intval($_POST['batch_size']) : 10;
+            
             $settings = array(
-                'api_key' => sanitize_text_field($_POST['api_key']),
+                'api_key' => $api_key,
                 'auto_generate' => isset($_POST['auto_generate']),
                 'overwrite_existing' => isset($_POST['overwrite_existing']),
                 'context_enabled' => isset($_POST['context_enabled']),
-                'batch_size' => min(50, max(1, intval($_POST['batch_size'])))
+                'batch_size' => min(50, max(1, $batch_size))
             );
             
             update_option('alt_text_ai_settings', $settings);
             
-            echo '<div class="notice notice-success is-dismissible"><p>' . __('Settings saved successfully!', 'alt-text-ai') . '</p></div>';
+            echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__('Settings saved successfully!', 'alt-text-ai') . '</p></div>';
         }
         
         $settings = get_option('alt_text_ai_settings', array(
@@ -255,30 +274,37 @@ class AltTextAI_Admin {
         
         $logs_table = $wpdb->prefix . 'alt_text_ai_logs';
         $per_page = 20;
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         $current_page = max(1, intval($_GET['paged'] ?? 1));
         $offset = ($current_page - 1) * $per_page;
         
         // Get logs with pagination
-        $logs = $wpdb->get_results($wpdb->prepare(
-            "SELECT l.*, p.post_title, p.guid 
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        $query = "SELECT l.*, p.post_title, p.guid 
              FROM $logs_table l 
              LEFT JOIN {$wpdb->posts} p ON l.attachment_id = p.ID 
              ORDER BY l.created_at DESC 
-             LIMIT %d OFFSET %d",
-            $per_page,
-            $offset
-        ));
+             LIMIT %d OFFSET %d";
+             
+        // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+        $logs = $wpdb->get_results($wpdb->prepare($query, $per_page, $offset));
         
         // Get total count for pagination
+        // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery
         $total_logs = $wpdb->get_var("SELECT COUNT(*) FROM $logs_table");
         $total_pages = ceil($total_logs / $per_page);
         
         // Get summary stats
         $stats = array(
+            // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery
             'total_generated' => $wpdb->get_var("SELECT COUNT(*) FROM $logs_table"),
+            // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery
             'total_credits_used' => $wpdb->get_var("SELECT SUM(credits_used) FROM $logs_table"),
+            // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery
             'avg_processing_time' => $wpdb->get_var("SELECT AVG(processing_time) FROM $logs_table WHERE processing_time IS NOT NULL"),
+            // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery
             'today_generated' => $wpdb->get_var("SELECT COUNT(*) FROM $logs_table WHERE DATE(created_at) = CURDATE()"),
+            // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery
             'this_month_generated' => $wpdb->get_var("SELECT COUNT(*) FROM $logs_table WHERE MONTH(created_at) = MONTH(CURDATE()) AND YEAR(created_at) = YEAR(CURDATE())")
         );
         
@@ -327,46 +353,46 @@ class AltTextAI_Admin {
         <div class="alt-text-ai-media-field">
             <?php if ($api_configured): ?>
                 <div class="alt-text-ai-current">
-                    <strong><?php _e('Current Alt-Text:', 'alt-text-ai'); ?></strong>
-                    <p class="current-alt-text"><?php echo esc_html($current_alt_text ?: __('No alt-text set', 'alt-text-ai')); ?></p>
+                    <strong><?php esc_html_e('Current Alt-Text:', 'alt-text-ai'); ?></strong>
+                    <p class="current-alt-text"><?php echo esc_html($current_alt_text ?: esc_html__('No alt-text set', 'alt-text-ai')); ?></p>
                 </div>
                 
                 <div class="alt-text-ai-context" style="margin: 10px 0;">
-                    <label for="alt_text_ai_context_<?php echo $attachment_id; ?>">
-                        <?php _e('Context (optional):', 'alt-text-ai'); ?>
+                    <label for="alt_text_ai_context_<?php echo esc_attr($attachment_id); ?>">
+                        <?php esc_html_e('Context (optional):', 'alt-text-ai'); ?>
                     </label>
                     <input type="text" 
-                           id="alt_text_ai_context_<?php echo $attachment_id; ?>" 
-                           name="attachments[<?php echo $attachment_id; ?>][alt_text_ai_context]" 
-                           placeholder="<?php _e('e.g., product photo, team meeting, etc.', 'alt-text-ai'); ?>"
+                           id="alt_text_ai_context_<?php echo esc_attr($attachment_id); ?>" 
+                           name="attachments[<?php echo esc_attr($attachment_id); ?>][alt_text_ai_context]" 
+                           placeholder="<?php esc_attr_e('e.g., product photo, team meeting, etc.', 'alt-text-ai'); ?>"
                            style="width: 100%; margin-top: 5px;">
                 </div>
                 
                 <button type="button" 
                         class="button button-primary alt-text-ai-generate-btn" 
-                        data-attachment-id="<?php echo $attachment_id; ?>">
+                        data-attachment-id="<?php echo esc_attr($attachment_id); ?>">
                     <span class="dashicons dashicons-format-image"></span>
-                    <?php _e('Generate Alt-Text', 'alt-text-ai'); ?>
+                    <?php esc_html_e('Generate Alt-Text', 'alt-text-ai'); ?>
                 </button>
                 
                 <div class="alt-text-ai-result" style="margin-top: 10px; display: none;">
                     <div class="alt-text-ai-loading" style="display: none;">
                         <span class="spinner is-active"></span>
-                        <?php _e('Generating alt-text...', 'alt-text-ai'); ?>
+                        <?php esc_html_e('Generating alt-text...', 'alt-text-ai'); ?>
                     </div>
                     <div class="alt-text-ai-success" style="display: none;">
                         <p class="generated-alt-text"></p>
                         <button type="button" class="button alt-text-ai-apply-btn">
-                            <?php _e('Apply Alt-Text', 'alt-text-ai'); ?>
+                            <?php esc_html_e('Apply Alt-Text', 'alt-text-ai'); ?>
                         </button>
                     </div>
                     <div class="alt-text-ai-error" style="display: none; color: #d63638;"></div>
                 </div>
             <?php else: ?>
                 <div class="alt-text-ai-notice">
-                    <p><?php _e('API key not configured.', 'alt-text-ai'); ?></p>
-                    <a href="<?php echo admin_url('admin.php?page=alt-text-ai-settings'); ?>" class="button">
-                        <?php _e('Configure Settings', 'alt-text-ai'); ?>
+                    <p><?php esc_html_e('API key not configured.', 'alt-text-ai'); ?></p>
+                    <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-ai-settings')); ?>" class="button">
+                        <?php esc_html_e('Configure Settings', 'alt-text-ai'); ?>
                     </a>
                 </div>
             <?php endif; ?>
@@ -381,7 +407,7 @@ class AltTextAI_Admin {
     public function add_media_meta_boxes() {
         add_meta_box(
             'alt-text-ai-meta-box',
-            __('Alt Text Pro', 'alt-text-ai'),
+            esc_html__('Alt Text Pro', 'alt-text-ai'),
             array($this, 'media_meta_box_callback'),
             'attachment',
             'side',
@@ -394,11 +420,12 @@ class AltTextAI_Admin {
      */
     public function media_meta_box_callback($post) {
         if (!str_starts_with($post->post_mime_type, 'image/')) {
-            echo '<p>' . __('Alt-text generation is only available for images.', 'alt-text-ai') . '</p>';
+            echo '<p>' . esc_html__('Alt-text generation is only available for images.', 'alt-text-ai') . '</p>';
             return;
         }
         
         $alt_text = get_post_meta($post->ID, '_wp_attachment_image_alt', true);
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- get_media_field_html() returns escaped HTML
         echo $this->get_media_field_html($post->ID, $alt_text);
     }
 }

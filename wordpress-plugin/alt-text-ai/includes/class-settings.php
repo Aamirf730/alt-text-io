@@ -125,7 +125,7 @@ class AltTextAI_Settings {
                 add_settings_error(
                     'alt_text_ai_settings',
                     'invalid_api_key_format',
-                    __('Invalid API key format. API keys should start with "alt_" or "altai_".', 'alt-text-ai'),
+                    esc_html__('Invalid API key format. API keys should start with "alt_" or "altai_".', 'alt-text-ai'),
                     'error'
                 );
                 // Don't save invalid API key - keep existing one
@@ -161,7 +161,7 @@ class AltTextAI_Settings {
      * Settings section callback
      */
     public function settings_section_callback() {
-        echo '<p>' . __('Configure your Alt Text Pro settings below. You can get your API key from your Alt Text Pro dashboard.', 'alt-text-ai') . '</p>';
+        echo '<p>' . esc_html__('Configure your Alt Text Pro settings below. You can get your API key from your Alt Text Pro dashboard.', 'alt-text-ai') . '</p>';
     }
     
     /**
@@ -177,15 +177,18 @@ class AltTextAI_Settings {
         echo '<span class="dashicons dashicons-visibility"></span>';
         echo '</button>';
         echo '<button type="button" class="button button-secondary" id="test-api-connection" style="margin-left: 10px;">';
-        echo '<span class="dashicons dashicons-admin-plugins"></span> ' . __('Test Connection', 'alt-text-ai');
+        echo '<span class="dashicons dashicons-admin-plugins"></span> ' . esc_html__('Test Connection', 'alt-text-ai');
         echo '</button>';
         echo '<div id="api-test-result" style="margin-top: 10px;"></div>';
         echo '</div>';
         
         echo '<p class="description">';
-        echo sprintf(
-            __('Enter your Alt Text Pro API key. You can find this in your <a href="%s" target="_blank">Alt Text Pro dashboard</a>.', 'alt-text-ai'),
-            'https://www.alt-text.pro/dashboard'
+        echo wp_kses_post(
+            sprintf(
+                // translators: %s: URL to the Alt Text Pro dashboard
+                esc_html__('Enter your Alt Text Pro API key. You can find this in your <a href="%1$s" target="_blank">Alt Text Pro dashboard</a>.', 'alt-text-ai'),
+                esc_url('https://www.alt-text.pro/dashboard')
+            )
         );
         echo '</p>';
     }
@@ -199,11 +202,11 @@ class AltTextAI_Settings {
         
         echo '<label>';
         echo '<input type="checkbox" id="auto_generate" name="alt_text_ai_settings[auto_generate]" value="1" ' . checked(1, $auto_generate, false) . ' />';
-        echo ' ' . __('Automatically generate alt-text when images are uploaded', 'alt-text-ai');
+        echo ' ' . esc_html__('Automatically generate alt-text when images are uploaded', 'alt-text-ai');
         echo '</label>';
         
         echo '<p class="description">';
-        echo __('When enabled, alt-text will be automatically generated for new image uploads. This uses your API credits.', 'alt-text-ai');
+        echo esc_html__('When enabled, alt-text will be automatically generated for new image uploads. This uses your API credits.', 'alt-text-ai');
         echo '</p>';
     }
     
@@ -216,11 +219,11 @@ class AltTextAI_Settings {
         
         echo '<label>';
         echo '<input type="checkbox" id="overwrite_existing" name="alt_text_ai_settings[overwrite_existing]" value="1" ' . checked(1, $overwrite_existing, false) . ' />';
-        echo ' ' . __('Overwrite existing alt-text when regenerating', 'alt-text-ai');
+        echo ' ' . esc_html__('Overwrite existing alt-text when regenerating', 'alt-text-ai');
         echo '</label>';
         
         echo '<p class="description">';
-        echo __('When enabled, existing alt-text will be replaced when generating new alt-text. When disabled, images with existing alt-text will be skipped.', 'alt-text-ai');
+        echo esc_html__('When enabled, existing alt-text will be replaced when generating new alt-text. When disabled, images with existing alt-text will be skipped.', 'alt-text-ai');
         echo '</p>';
     }
     
@@ -233,11 +236,11 @@ class AltTextAI_Settings {
         
         echo '<label>';
         echo '<input type="checkbox" id="context_enabled" name="alt_text_ai_settings[context_enabled]" value="1" ' . checked(1, $context_enabled, false) . ' />';
-        echo ' ' . __('Enable context-aware alt-text generation', 'alt-text-ai');
+        echo ' ' . esc_html__('Enable context-aware alt-text generation', 'alt-text-ai');
         echo '</label>';
         
         echo '<p class="description">';
-        echo __('When enabled, the plugin will try to provide context information (like page title, filename) to improve alt-text quality.', 'alt-text-ai');
+        echo esc_html__('When enabled, the plugin will try to provide context information (like page title, filename) to improve alt-text quality.', 'alt-text-ai');
         echo '</p>';
     }
     
@@ -249,10 +252,10 @@ class AltTextAI_Settings {
         $batch_size = $settings['batch_size'];
         
         echo '<input type="number" id="batch_size" name="alt_text_ai_settings[batch_size]" value="' . esc_attr($batch_size) . '" min="1" max="50" class="small-text" />';
-        echo ' ' . __('images per batch', 'alt-text-ai');
+        echo ' ' . esc_html__('images per batch', 'alt-text-ai');
         
         echo '<p class="description">';
-        echo __('Number of images to process in each batch during bulk operations. Lower numbers are more reliable but slower.', 'alt-text-ai');
+        echo esc_html__('Number of images to process in each batch during bulk operations. Lower numbers are more reliable but slower.', 'alt-text-ai');
         echo '</p>';
     }
     
@@ -263,18 +266,18 @@ class AltTextAI_Settings {
         check_ajax_referer('alt_text_ai_nonce', 'nonce');
         
         if (!current_user_can('manage_options')) {
-            wp_die(__('You do not have permission to perform this action.', 'alt-text-ai'));
+            wp_die(esc_html__('You do not have permission to perform this action.', 'alt-text-ai'));
         }
         
-        $api_key = sanitize_text_field($_POST['api_key']);
+        $api_key = isset($_POST['api_key']) ? sanitize_text_field(wp_unslash($_POST['api_key'])) : '';
         
         if (empty($api_key)) {
-            wp_send_json_error(__('Please enter an API key first.', 'alt-text-ai'));
+            wp_send_json_error(esc_html__('Please enter an API key first.', 'alt-text-ai'));
         }
         
         // Validate API key format
         if (!AltTextAI_API_Client::validate_api_key_format($api_key)) {
-            wp_send_json_error(__('Invalid API key format. API keys should start with "alt_" or "altai_".', 'alt-text-ai'));
+            wp_send_json_error(esc_html__('Invalid API key format. API keys should start with "alt_" or "altai_".', 'alt-text-ai'));
         }
         
         $api_client = new AltTextAI_API_Client();
@@ -284,7 +287,7 @@ class AltTextAI_Settings {
             $user_data = $result['data'];
             
             wp_send_json_success(array(
-                'message' => __('Connection successful!', 'alt-text-ai'),
+                'message' => esc_html__('Connection successful!', 'alt-text-ai'),
                 'user_info' => array(
                     'email' => $user_data['user']['email'] ?? '',
                     'plan' => $user_data['user']['plan'] ?? '',
@@ -303,13 +306,13 @@ class AltTextAI_Settings {
         check_ajax_referer('alt_text_ai_nonce', 'nonce');
         
         if (!current_user_can('manage_options')) {
-            wp_die(__('You do not have permission to perform this action.', 'alt-text-ai'));
+            wp_die(esc_html__('You do not have permission to perform this action.', 'alt-text-ai'));
         }
         
         // Reset to default settings
         update_option('alt_text_ai_settings', $this->get_default_settings());
         
-        wp_send_json_success(__('Settings have been reset to defaults.', 'alt-text-ai'));
+        wp_send_json_success(esc_html__('Settings have been reset to defaults.', 'alt-text-ai'));
     }
     
     /**

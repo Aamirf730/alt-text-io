@@ -29,13 +29,13 @@ class AltTextAI_Bulk_Processor {
         check_ajax_referer('alt_text_ai_nonce', 'nonce');
         
         if (!current_user_can('upload_files')) {
-            wp_die(__('You do not have permission to perform this action.', 'alt-text-ai'));
+            wp_die(esc_html__('You do not have permission to perform this action.', 'alt-text-ai'));
         }
         
         $batch_size = min(50, max(1, intval($_POST['batch_size'] ?? 10)));
-        $overwrite_existing = (bool) ($_POST['overwrite_existing'] ?? false);
-        $process_type = sanitize_text_field($_POST['process_type'] ?? 'missing'); // 'missing', 'all', or 'selected'
-        $selected_images = array_map('intval', $_POST['selected_images'] ?? array());
+        $overwrite_existing = isset($_POST['overwrite_existing']) ? (bool) sanitize_text_field(wp_unslash($_POST['overwrite_existing'])) : false;
+        $process_type = isset($_POST['process_type']) ? sanitize_text_field(wp_unslash($_POST['process_type'])) : 'missing'; // 'missing', 'all', or 'selected'
+        $selected_images = isset($_POST['selected_images']) ? array_map('intval', (array) $_POST['selected_images']) : array();
         
         // Get images to process based on process type
         if ($process_type === 'selected' && !empty($selected_images)) {
@@ -88,7 +88,7 @@ class AltTextAI_Bulk_Processor {
         }
         
         if (empty($images_to_process)) {
-            wp_send_json_error(__('No images found to process. All selected images already have alt-text.', 'alt-text-ai'));
+            wp_send_json_error(esc_html__('No images found to process. All selected images already have alt-text.', 'alt-text-ai'));
         }
         
         // Check credits before starting bulk processing
@@ -96,13 +96,13 @@ class AltTextAI_Bulk_Processor {
         $usage_stats = $api_client->get_usage_stats();
         
         if (!$usage_stats['success']) {
-            wp_send_json_error(__('Failed to check credits. Please verify your API key.', 'alt-text-ai'));
+            wp_send_json_error(esc_html__('Failed to check credits. Please verify your API key.', 'alt-text-ai'));
         }
         
         $credits_remaining = isset($usage_stats['data']['credits_remaining']) ? intval($usage_stats['data']['credits_remaining']) : 0;
         
         if ($credits_remaining <= 0) {
-            wp_send_json_error(__('No credits remaining. Please upgrade your plan before starting bulk processing.', 'alt-text-ai'));
+            wp_send_json_error(esc_html__('No credits remaining. Please upgrade your plan before starting bulk processing.', 'alt-text-ai'));
         }
         
         // Warn if credits are less than images to process
@@ -132,16 +132,16 @@ class AltTextAI_Bulk_Processor {
         check_ajax_referer('alt_text_ai_nonce', 'nonce');
         
         if (!current_user_can('upload_files')) {
-            wp_die(__('You do not have permission to perform this action.', 'alt-text-ai'));
+            wp_die(esc_html__('You do not have permission to perform this action.', 'alt-text-ai'));
         }
         
-        $process_id = sanitize_text_field($_POST['process_id']);
+        $process_id = isset($_POST['process_id']) ? sanitize_text_field(wp_unslash($_POST['process_id'])) : '';
         $status = $this->get_bulk_process_status($process_id);
         
         if ($status) {
             wp_send_json_success($status);
         } else {
-            wp_send_json_error(__('Process not found.', 'alt-text-ai'));
+            wp_send_json_error(esc_html__('Process not found.', 'alt-text-ai'));
         }
     }
     
@@ -152,14 +152,14 @@ class AltTextAI_Bulk_Processor {
         check_ajax_referer('alt_text_ai_nonce', 'nonce');
         
         if (!current_user_can('upload_files')) {
-            wp_die(__('You do not have permission to perform this action.', 'alt-text-ai'));
+            wp_die(esc_html__('You do not have permission to perform this action.', 'alt-text-ai'));
         }
         
-        $process_id = sanitize_text_field($_POST['process_id'] ?? '');
-        $batch_offset = intval($_POST['batch_offset'] ?? 0);
+        $process_id = isset($_POST['process_id']) ? sanitize_text_field(wp_unslash($_POST['process_id'])) : '';
+        $batch_offset = isset($_POST['batch_offset']) ? intval($_POST['batch_offset']) : 0;
         
         if (empty($process_id)) {
-            wp_send_json_error(__('Process ID is required.', 'alt-text-ai'));
+            wp_send_json_error(esc_html__('Process ID is required.', 'alt-text-ai'));
         }
         
         // Process the batch
@@ -171,7 +171,7 @@ class AltTextAI_Bulk_Processor {
         if ($status) {
             wp_send_json_success($status);
         } else {
-            wp_send_json_error(__('Process not found.', 'alt-text-ai'));
+            wp_send_json_error(esc_html__('Process not found.', 'alt-text-ai'));
         }
     }
     
@@ -182,13 +182,13 @@ class AltTextAI_Bulk_Processor {
         check_ajax_referer('alt_text_ai_nonce', 'nonce');
         
         if (!current_user_can('upload_files')) {
-            wp_die(__('You do not have permission to perform this action.', 'alt-text-ai'));
+            wp_die(esc_html__('You do not have permission to perform this action.', 'alt-text-ai'));
         }
         
-        $process_id = sanitize_text_field($_POST['process_id']);
+        $process_id = isset($_POST['process_id']) ? sanitize_text_field(wp_unslash($_POST['process_id'])) : '';
         $this->cancel_bulk_process($process_id);
         
-        wp_send_json_success(__('Bulk process cancelled.', 'alt-text-ai'));
+        wp_send_json_success(esc_html__('Bulk process cancelled.', 'alt-text-ai'));
     }
     
     /**
@@ -253,13 +253,16 @@ class AltTextAI_Bulk_Processor {
             // Check if credits ran out (402 error)
             if (isset($result['no_credits']) && $result['no_credits'] === true) {
                 // Credits exhausted - stop processing immediately
-                $error_message = $result['message'] ?? __('No credits remaining. Processing stopped.', 'alt-text-ai');
-                error_log(sprintf(
-                    'Alt Text Pro Bulk: Credits exhausted. Stopping processing at image %d. Processed: %d, Successful: %d',
-                    $image_id,
-                    $processed,
-                    $successful
-                ));
+                $error_message = $result['message'] ?? esc_html__('No credits remaining. Processing stopped.', 'alt-text-ai');
+                if (defined('WP_DEBUG') && WP_DEBUG) {
+                    // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+                    error_log(sprintf(
+                        'Alt Text Pro Bulk: Credits exhausted. Stopping processing at image %d. Processed: %d, Successful: %d',
+                        $image_id,
+                        $processed,
+                        $successful
+                    ));
+                }
                 $errors[] = array(
                     'image_id' => $image_id,
                     'error' => $error_message
@@ -269,7 +272,8 @@ class AltTextAI_Bulk_Processor {
                 // Mark process as stopped due to credits - MUST be set before updating progress
                 $process_data['status'] = 'stopped_no_credits';
                 $process_data['stopped_reason'] = sprintf(
-                    __('Credits exhausted after processing %d images. %d images successfully processed. Please upgrade your plan or wait for next month\'s credit refill.', 'alt-text-ai'),
+                    // translators: %1$d: Number of processed images, %2$d: Number of successfully processed images
+                    esc_html__('Credits exhausted after processing %1$d images. %2$d images successfully processed. Please upgrade your plan or wait for next month\'s credit refill.', 'alt-text-ai'),
                     $processed,
                     $successful
                 );
@@ -315,19 +319,25 @@ class AltTextAI_Bulk_Processor {
                 $successful++; // Only count as successful when alt-text is actually generated
                 $new_successful_ids[] = $image_id; // Track this image as successfully processed in this batch
                 
-                error_log(sprintf(
-                    'Alt Text Pro Bulk: Successfully processed image %d. Batch successful: %d, Total successful IDs in batch: %d',
-                    $image_id,
-                    $successful,
-                    count($new_successful_ids)
-                ));
+                if (defined('WP_DEBUG') && WP_DEBUG) {
+                    // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+                    error_log(sprintf(
+                        'Alt Text Pro Bulk: Successfully processed image %d. Batch successful: %d, Total successful IDs in batch: %d',
+                        $image_id,
+                        $successful,
+                        count($new_successful_ids)
+                    ));
+                }
             } else {
                 $error_message = $result['message'] ?? 'Unknown error';
-                error_log(sprintf(
-                    'Alt Text Pro Bulk: Failed to generate alt-text for image %d: %s',
-                    $image_id,
-                    $error_message
-                ));
+                if (defined('WP_DEBUG') && WP_DEBUG) {
+                    // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+                    error_log(sprintf(
+                        'Alt Text Pro Bulk: Failed to generate alt-text for image %d: %s',
+                        $image_id,
+                        $error_message
+                    ));
+                }
                 $errors[] = array(
                     'image_id' => $image_id,
                     'error' => $error_message
@@ -347,15 +357,18 @@ class AltTextAI_Bulk_Processor {
         $total_successful = count($all_successful_ids); // Count unique successful images
         
         // Debug logging to track successful count
-        error_log(sprintf(
-            'Alt Text Pro Bulk: Batch complete. Batch offset: %d, Processed in batch: %d, Successful in batch: %d, Previous successful IDs: %d, New successful IDs: %d, Total successful: %d',
-            $batch_offset,
-            $processed,
-            $successful,
-            count($successful_image_ids),
-            count($new_successful_ids),
-            $total_successful
-        ));
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+            error_log(sprintf(
+                'Alt Text Pro Bulk: Batch complete. Batch offset: %d, Processed in batch: %d, Successful in batch: %d, Previous successful IDs: %d, New successful IDs: %d, Total successful: %d',
+                $batch_offset,
+                $processed,
+                $successful,
+                count($successful_image_ids),
+                count($new_successful_ids),
+                $total_successful
+            ));
+        }
         
         // Merge errors with existing errors from previous batches
         $existing_errors = isset($process_data['errors']) ? $process_data['errors'] : array();
@@ -408,9 +421,9 @@ class AltTextAI_Bulk_Processor {
             
             set_transient('alt_text_ai_bulk_' . $process_id, $process_data, DAY_IN_SECONDS * 2);
         } else {
-            // Mark process as completed
-            $this->complete_bulk_process($process_id);
-            $process_data['needs_next_batch'] = false;
+                // Mark process as completed
+                $this->complete_bulk_process($process_id);
+                $process_data['needs_next_batch'] = false;
         }
         
         // Save updated process data
@@ -426,31 +439,42 @@ class AltTextAI_Bulk_Processor {
         
         if ($include_existing) {
             // Include all images regardless of alt text
-            $query = "SELECT p.ID 
-                      FROM {$wpdb->posts} p 
-                      WHERE p.post_type = 'attachment' 
-                      AND p.post_mime_type LIKE 'image/%'
-                      ORDER BY p.post_date DESC
-                      LIMIT 1000";
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- Query is prepared immediately after assignment
+            $query = $wpdb->prepare(
+                "SELECT p.ID 
+                 FROM {$wpdb->posts} p 
+                 WHERE p.post_type = 'attachment' 
+                 AND p.post_mime_type LIKE %s
+                 ORDER BY p.post_date DESC
+                 LIMIT %d",
+                'image/%',
+                1000
+            );
         } else {
             // Only get images without alt text (using a more reliable query)
             // Use LEFT JOIN for better performance and to ensure we only get images without alt-text
-            $query = "SELECT p.ID 
-                      FROM {$wpdb->posts} p 
-                      LEFT JOIN {$wpdb->postmeta} pm ON (
-                          p.ID = pm.post_id 
-                          AND pm.meta_key = '_wp_attachment_image_alt'
-                          AND pm.meta_value IS NOT NULL 
-                          AND pm.meta_value != ''
-                          AND TRIM(pm.meta_value) != ''
-                      )
-                      WHERE p.post_type = 'attachment' 
-                      AND p.post_mime_type LIKE 'image/%'
-                      AND pm.post_id IS NULL
-                      ORDER BY p.post_date DESC
-                      LIMIT 1000";
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- Query is prepared immediately after assignment
+            $query = $wpdb->prepare(
+                "SELECT p.ID 
+                 FROM {$wpdb->posts} p 
+                 LEFT JOIN {$wpdb->postmeta} pm ON (
+                     p.ID = pm.post_id 
+                     AND pm.meta_key = '_wp_attachment_image_alt'
+                     AND pm.meta_value IS NOT NULL 
+                     AND pm.meta_value != ''
+                     AND TRIM(pm.meta_value) != ''
+                 )
+                 WHERE p.post_type = 'attachment' 
+                 AND p.post_mime_type LIKE %s
+                 AND pm.post_id IS NULL
+                 ORDER BY p.post_date DESC
+                 LIMIT %d",
+                'image/%',
+                1000
+            );
         }
         
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
         return $wpdb->get_col($query);
     }
     
@@ -464,34 +488,53 @@ class AltTextAI_Bulk_Processor {
             return array();
         }
         
-        $placeholders = implode(',', array_fill(0, count($image_ids), '%d'));
+        // Sanitize image IDs
+        $image_ids = array_map('intval', $image_ids);
+        $image_ids = array_filter($image_ids);
         
-        if ($include_existing) {
+        if (empty($image_ids)) {
+            return array();
+        }
+        
+        // Build IN clause with sanitized IDs using proper placeholders
+        $ids_escaped = array_map('intval', $image_ids);
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- IDs are sanitized with intval
+        $ids_placeholders = implode(',', array_fill(0, count($ids_escaped), '%d'));
+        $prepared_values = array_merge($ids_escaped, array('image/%'));
+        
+            if ($include_existing) {
             // Include all selected images regardless of alt text
-            $query = "SELECT p.ID 
-                      FROM {$wpdb->posts} p 
-                      WHERE p.ID IN ($placeholders) 
-                      AND p.post_type = 'attachment' 
-                      AND p.post_mime_type LIKE 'image/%'";
+            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            $sql = "SELECT p.ID 
+                 FROM {$wpdb->posts} p 
+                 WHERE p.ID IN ($ids_placeholders) 
+                 AND p.post_type = 'attachment' 
+                 AND p.post_mime_type LIKE %s";
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+            $query = $wpdb->prepare($sql, ...$prepared_values);
         } else {
             // Only get selected images without alt text
             // Use LEFT JOIN for better performance and to ensure we only get images without alt-text
-            $query = "SELECT p.ID 
-                      FROM {$wpdb->posts} p 
-                      LEFT JOIN {$wpdb->postmeta} pm ON (
-                          p.ID = pm.post_id 
-                          AND pm.meta_key = '_wp_attachment_image_alt'
-                          AND pm.meta_value IS NOT NULL 
-                          AND pm.meta_value != ''
-                          AND TRIM(pm.meta_value) != ''
-                      )
-                      WHERE p.ID IN ($placeholders) 
-                      AND p.post_type = 'attachment' 
-                      AND p.post_mime_type LIKE 'image/%'
-                      AND pm.post_id IS NULL";
+            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            $sql = "SELECT p.ID 
+                 FROM {$wpdb->posts} p 
+                 LEFT JOIN {$wpdb->postmeta} pm ON (
+                     p.ID = pm.post_id 
+                     AND pm.meta_key = '_wp_attachment_image_alt'
+                     AND pm.meta_value IS NOT NULL 
+                     AND pm.meta_value != ''
+                     AND TRIM(pm.meta_value) != ''
+                 )
+                 WHERE p.ID IN ($ids_placeholders) 
+                 AND p.post_type = 'attachment' 
+                 AND p.post_mime_type LIKE %s
+                 AND pm.post_id IS NULL";
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+            $query = $wpdb->prepare($sql, ...$prepared_values);
         }
         
-        return $wpdb->get_col($wpdb->prepare($query, ...$image_ids));
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        return $wpdb->get_col($query);
     }
     
     /**
@@ -576,7 +619,7 @@ class AltTextAI_Bulk_Processor {
         
         // Add stopped_reason if process was stopped due to credits
         if (isset($process_data['status']) && $process_data['status'] === 'stopped_no_credits') {
-            $status_data['stopped_reason'] = $process_data['stopped_reason'] ?? __('Credits exhausted. Please upgrade your plan or wait for next month\'s credit refill.', 'alt-text-ai');
+            $status_data['stopped_reason'] = $process_data['stopped_reason'] ?? esc_html__('Credits exhausted. Please upgrade your plan or wait for next month\'s credit refill.', 'alt-text-ai');
         }
         
         return $status_data;
@@ -614,7 +657,10 @@ class AltTextAI_Bulk_Processor {
         if ($process_data) {
             // Check if email was already sent to prevent duplicates
             if (isset($process_data['email_sent']) && $process_data['email_sent'] === true) {
+                if (defined('WP_DEBUG') && WP_DEBUG) {
+                // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
                 error_log('Alt Text Pro Bulk: Email already sent for process ' . $process_id . ', skipping duplicate.');
+            }
                 return;
             }
             
@@ -663,23 +709,25 @@ class AltTextAI_Bulk_Processor {
             $is_stopped = isset($process_data['status']) && $process_data['status'] === 'stopped_no_credits';
             
             if ($is_stopped) {
-                $subject = __('Alt Text Pro: Bulk Processing Stopped - No Credits', 'alt-text-ai');
+                $subject = esc_html__('Alt Text Pro: Bulk Processing Stopped - No Credits', 'alt-text-ai');
                 $message = sprintf(
-                    __("Your bulk alt-text generation process has stopped due to insufficient credits.\n\nResults:\n- Total images: %d\n- Processed: %d\n- Successfully processed: %d\n- Errors: %d\n\nReason: %s\n\nPlease upgrade your plan to continue processing remaining images.\n\nYou can view the detailed results in your WordPress admin dashboard.", 'alt-text-ai'),
+                    // translators: %1$d: Total images, %2$d: Processed images, %3$d: Successfully processed images, %4$d: Error count, %5$s: Stopped reason
+                    esc_html__("Your bulk alt-text generation process has stopped due to insufficient credits.\n\nResults:\n- Total images: %1\$d\n- Processed: %2\$d\n- Successfully processed: %3\$d\n- Errors: %4\$d\n\nReason: %5\$s\n\nPlease upgrade your plan to continue processing remaining images.\n\nYou can view the detailed results in your WordPress admin dashboard.", 'alt-text-ai'),
                     $process_data['total_images'],
                     $process_data['processed'] ?? 0,
                     $process_data['successful'] ?? 0,
                     count($process_data['errors'] ?? array()),
-                    $stopped_reason ?: __('No credits remaining', 'alt-text-ai')
+                    $stopped_reason ?: esc_html__('No credits remaining', 'alt-text-ai')
                 );
             } else {
-                $subject = __('Alt Text Pro: Bulk Processing Complete', 'alt-text-ai');
-            $message = sprintf(
-                __("Your bulk alt-text generation process has completed.\n\nResults:\n- Total images: %d\n- Successfully processed: %d\n- Errors: %d\n\nYou can view the detailed results in your WordPress admin dashboard.", 'alt-text-ai'),
-                $process_data['total_images'],
+                $subject = esc_html__('Alt Text Pro: Bulk Processing Complete', 'alt-text-ai');
+                $message = sprintf(
+                    // translators: %1$d: Total images, %2$d: Successfully processed images, %3$d: Error count
+                    esc_html__("Your bulk alt-text generation process has completed.\n\nResults:\n- Total images: %1\$d\n- Successfully processed: %2\$d\n- Errors: %3\$d\n\nYou can view the detailed results in your WordPress admin dashboard.", 'alt-text-ai'),
+                    $process_data['total_images'],
                     $process_data['successful'] ?? 0,
                     count($process_data['errors'] ?? array())
-            );
+                );
             }
             
             wp_mail($user->user_email, $subject, $message);
@@ -694,11 +742,23 @@ class AltTextAI_Bulk_Processor {
         $estimated_seconds = $image_count * 3;
         
         if ($estimated_seconds < 60) {
-            return sprintf(__('%d seconds', 'alt-text-ai'), $estimated_seconds);
+            return sprintf(
+                // translators: %d: Number of seconds
+                esc_html__('%1$d seconds', 'alt-text-ai'),
+                $estimated_seconds
+            );
         } elseif ($estimated_seconds < 3600) {
-            return sprintf(__('%d minutes', 'alt-text-ai'), ceil($estimated_seconds / 60));
+            return sprintf(
+                // translators: %d: Number of minutes
+                esc_html__('%1$d minutes', 'alt-text-ai'),
+                ceil($estimated_seconds / 60)
+            );
         } else {
-            return sprintf(__('%d hours', 'alt-text-ai'), ceil($estimated_seconds / 3600));
+            return sprintf(
+                // translators: %d: Number of hours
+                esc_html__('%1$d hours', 'alt-text-ai'),
+                ceil($estimated_seconds / 3600)
+            );
         }
     }
     
@@ -710,12 +770,16 @@ class AltTextAI_Bulk_Processor {
         
         // Don't log if alt_text is empty
         if (empty($alt_text)) {
-            error_log('Alt Text Pro Bulk: Skipping log entry - alt_text is empty for attachment ' . $attachment_id);
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+                error_log('Alt Text Pro Bulk: Skipping log entry - alt_text is empty for attachment ' . $attachment_id);
+            }
             return;
         }
         
         $table_name = $wpdb->prefix . 'alt_text_ai_logs';
         
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery
         $wpdb->insert(
             $table_name,
             array(
@@ -728,7 +792,10 @@ class AltTextAI_Bulk_Processor {
         );
         
         if ($wpdb->last_error) {
-            error_log('Alt Text Pro Bulk: Database error logging generation: ' . $wpdb->last_error);
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+                error_log('Alt Text Pro Bulk: Database error logging generation: ' . $wpdb->last_error);
+            }
         }
     }
     
