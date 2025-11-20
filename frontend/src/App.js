@@ -5263,7 +5263,7 @@ const TermsPage = () => {
                   <li><strong>Tier 1:</strong> $12/month - 1,000 credits per month</li>
                   <li><strong>Tier 2:</strong> $20/month - 2,500 credits per month</li>
                   <li><strong>Tier 3:</strong> $40/month - 5,000 credits per month</li>
-                  <li><strong>Pay as you go:</strong> $5 one-time - 500 credits (no expiration)</li>
+                  <li><strong>Pay as you go:</strong> $5 one-time - 300 credits (no expiration)</li>
                   <li><strong>Small Pack:</strong> $3 one-time - 100 credits (no expiration)</li>
                 </ul>
               </div>
