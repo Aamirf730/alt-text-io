@@ -20,6 +20,7 @@ import { Switch } from "./components/ui/switch";
 import { supabase as supabaseClient } from './lib/supabase';
 import { PAYPAL_CLIENT_ID as PAYPAL_CLIENT_ID_FROM_CONFIG, PAYPAL_PLAN_IDS, paypalOptions, paypalSubscriptionOptions } from './lib/paypal';
 import ContactPageExtracted from './pages/ContactPage';
+import AboutPageExtracted from './pages/AboutPage';
 
 // PHASE 0 REFACTORING: Configuration moved to lib files
 // The following code has been extracted to lib/supabase.js and lib/paypal.js
@@ -5925,7 +5926,7 @@ function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/contact" element={<ContactPageExtracted />} />
-          <Route path="/about" element={<AboutPage />} />
+          <Route path="/about" element={<AboutPageExtracted />} />
           <Route path="/docs" element={<DocsPage />} />
           <Route path="/email-confirmed" element={<EmailConfirmation />} />
           <Route path="/payment-success" element={<PaymentSuccess />} />
