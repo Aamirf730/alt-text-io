@@ -15,6 +15,12 @@ import { Toaster } from "./components/ui/sonner";
 import { Brain, Zap, CheckCircle, Star, ArrowRight, Users, Shield, Rocket, Mail, Chrome, Upload, Eye, EyeOff, Download, Check, X, Search, CreditCard, Calendar, TrendingUp, Key, Copy, Info, AlertTriangle, RefreshCw, Book, FileText, HelpCircle, Settings, Code, DollarSign, Wrench, Globe, LogOut, MessageCircle, Image as ImageIcon, Crown } from "lucide-react";
 import { Switch } from "./components/ui/switch";
 
+// PHASE 0 REFACTORING: Extracted modules
+// These configuration files and components have been extracted for better organization
+import { supabase as supabaseClient } from './lib/supabase';
+import { PAYPAL_CLIENT_ID as PAYPAL_CLIENT_ID_FROM_CONFIG, PAYPAL_PLAN_IDS, paypalOptions, paypalSubscriptionOptions } from './lib/paypal';
+import ContactPageExtracted from './pages/ContactPage';
+
 // Initialize Supabase client
 const supabaseUrl = process.env.REACT_APP_SUPABASE_URL || 'https://placeholder.supabase.co';
 const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY || 'placeholder-key';
@@ -116,9 +122,9 @@ const LandingPage = () => {
         setUser(null);
       }
     };
-    
+
     checkAuth();
-    
+
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) {
@@ -130,7 +136,7 @@ const LandingPage = () => {
         setUser(null);
       }
     });
-    
+
     return () => {
       subscription.unsubscribe();
     };
@@ -167,7 +173,7 @@ const LandingPage = () => {
       alt: "Business team collaborating around conference table in modern office with laptop and documents"
     },
     {
-      url: "/api/placeholder/300/200", 
+      url: "/api/placeholder/300/200",
       alt: "Fresh organic vegetables and fruits colorful display at farmers market"
     },
     {
@@ -188,28 +194,28 @@ const LandingPage = () => {
       toast.error("Please select an image first");
       return;
     }
-    
+
     setIsGenerating(true);
-    
+
     try {
       // Convert blob URL to base64
       const response = await fetch(selectedImage);
       const blob = await response.blob();
-      
+
       const reader = new FileReader();
       reader.onloadend = async () => {
         const base64Data = reader.result.split(',')[1];
-        
+
         // Check for Supabase session for authentication
         const { data: { session } } = await supabase.auth.getSession();
-        
+
         if (!session?.access_token) {
           toast.error("Please sign up or sign in to generate alt text");
           setIsGenerating(false);
           setShowAuthForm(true);
           return;
         }
-        
+
         // Determine API endpoint - use local development or production
         // For localhost, use Netlify Dev server (port 9999)
         let apiBase;
@@ -220,22 +226,22 @@ const LandingPage = () => {
           // Production - use relative path
           apiBase = '/.netlify/functions';
         }
-        
+
         const endpoint = `${apiBase}/generate-alt-text`;
-        
+
         // Prepare headers with Supabase auth token
         const headers = {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`
         };
-        
+
         console.log('🔍 Generating alt-text from homepage:', {
           endpoint,
           hasImage: !!base64Data,
           imageSize: base64Data?.length,
           hasToken: !!session.access_token
         });
-        
+
         // Call the real API
         try {
           const apiResponse = await fetch(endpoint, {
@@ -246,7 +252,7 @@ const LandingPage = () => {
               context: "Landing page demo"
             })
           });
-          
+
           // Check if response is OK before parsing JSON
           let data;
           try {
@@ -261,10 +267,10 @@ const LandingPage = () => {
             setIsGenerating(false);
             return;
           }
-          
+
           if (apiResponse.ok) {
             setGeneratedAltText(data.alt_text || data.altText);
-            
+
             // Refresh profile to get updated credits (for display if user stays on page)
             // Note: This is for homepage - credits will be correct when user goes to dashboard
             try {
@@ -275,7 +281,7 @@ const LandingPage = () => {
                   .select('credits_remaining')
                   .eq('id', authUser.id)
                   .single();
-                
+
                 if (profile) {
                   console.log('📊 Updated credits after generation:', profile.credits_remaining);
                 }
@@ -283,7 +289,7 @@ const LandingPage = () => {
             } catch (err) {
               console.error('Error refreshing credits:', err);
             }
-            
+
             toast.success("Alt text generated successfully!");
           } else {
             if (apiResponse.status === 401) {
@@ -303,17 +309,17 @@ const LandingPage = () => {
             toast.error("Failed to connect to the server. Please check your connection.");
           }
         }
-        
+
         setIsGenerating(false);
       };
-      
+
       reader.onerror = () => {
         toast.error("Failed to process image");
         setIsGenerating(false);
       };
-      
+
       reader.readAsDataURL(blob);
-      
+
     } catch (error) {
       console.error("Error generating alt text:", error);
       toast.error("Failed to generate alt text. Please try again.");
@@ -332,7 +338,7 @@ const LandingPage = () => {
     setIsLoading(true);
     try {
       let result;
-      
+
       if (isLogin) {
         result = await supabase.auth.signInWithPassword({ email, password });
       } else {
@@ -347,7 +353,7 @@ const LandingPage = () => {
             }
           }
         });
-        
+
         // Debug signup result
         console.log('🔧 Signup Result:', {
           user: result.data?.user?.id,
@@ -371,28 +377,28 @@ const LandingPage = () => {
         // Check if email confirmation is required
         const requiresEmailConfirmation = !result.data.session;
         const emailConfirmed = result.data.user.email_confirmed_at !== null;
-        
+
         console.log('🔧 User Status:', {
           requiresEmailConfirmation,
           emailConfirmed,
           email: result.data.user.email
         });
-        
+
         // For signups, always show email confirmation message
         if (!isLogin) {
           // Always show email confirmation message for signups
           toast.success("Welcome! Please confirm your email account.", { duration: 8000 });
-          
+
           // Log for debugging
           console.log('📧 Email confirmation required for:', email);
           console.log('📧 Supabase URL:', supabaseUrl);
           console.log('📧 Email confirmed status:', emailConfirmed);
-          
+
           // Show warning if Supabase not configured
           if (supabaseUrl === 'https://placeholder.supabase.co') {
             toast.error("⚠️ Supabase is not configured! Please set REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_ANON_KEY", { duration: 10000 });
           }
-          
+
           // Only redirect to dashboard if email is already confirmed AND there's a session
           if (emailConfirmed && result.data.session) {
             // Ensure profile exists with credits
@@ -402,7 +408,7 @@ const LandingPage = () => {
                 .select('credits_remaining, id')
                 .eq('id', result.data.user.id)
                 .single();
-              
+
               // If profile doesn't exist, create it with default credits
               if (profileError || !profile) {
                 console.log('Profile not found, creating profile with default credits');
@@ -415,7 +421,7 @@ const LandingPage = () => {
                     credits_remaining: 100,
                     total_processed: 0
                   });
-                
+
                 if (insertError) {
                   console.error('Error creating profile:', insertError);
                   // Continue anyway, the trigger might create it
@@ -435,7 +441,7 @@ const LandingPage = () => {
               console.error('Error ensuring profile exists:', profileCreateError);
               // Continue anyway
             }
-            
+
             // Update user state before redirect
             if (result.data.session?.user) {
               setUser({
@@ -443,7 +449,7 @@ const LandingPage = () => {
                 id: result.data.session.user.id
               });
             }
-            
+
             setTimeout(() => {
               window.location.href = "/dashboard";
             }, 2000);
@@ -458,7 +464,7 @@ const LandingPage = () => {
                 .select('credits_remaining, id')
                 .eq('id', result.data.user.id)
                 .single();
-              
+
               // If profile doesn't exist, create it with default credits
               if (profileError || !profile) {
                 console.log('Profile not found, creating profile with default credits');
@@ -471,7 +477,7 @@ const LandingPage = () => {
                     credits_remaining: 100,
                     total_processed: 0
                   });
-                
+
                 if (insertError) {
                   console.error('Error creating profile:', insertError);
                   // Continue anyway, the trigger might create it
@@ -492,7 +498,7 @@ const LandingPage = () => {
               // Continue anyway
             }
           }
-          
+
           // Update user state before redirect
           if (result.data.session?.user) {
             setUser({
@@ -500,7 +506,7 @@ const LandingPage = () => {
               id: result.data.session.user.id
             });
           }
-          
+
           toast.success("Welcome back!");
           setTimeout(() => {
             window.location.href = "/dashboard";
@@ -518,11 +524,11 @@ const LandingPage = () => {
   // Handle Google OAuth
   const handleGoogleAuth = async () => {
     setIsGoogleLoading(true);
-    
+
     try {
       // Dynamic redirect URL based on environment
       const redirectUrl = window.location.origin + '/dashboard';
-      
+
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -562,7 +568,7 @@ const LandingPage = () => {
       setSelectedPlan({ id: planId, name: planName, price: planPrice });
       return;
     }
-    
+
     // User is logged in, show payment modal
     setSelectedPlan({ id: planId, name: planName, price: planPrice });
     setShowPaymentModal(true);
@@ -579,7 +585,7 @@ const LandingPage = () => {
       // Get the PayPal plan ID for the selected plan
       const planGroup = PAYPAL_PLAN_IDS[selectedPlan.id];
       const paypalPlanId = planGroup?.[billingCycle === 'annual' ? 'annual' : 'monthly'];
-      
+
       if (!paypalPlanId) {
         throw new Error(`No PayPal plan ID found for ${selectedPlan.id} (${billingCycle})`);
       }
@@ -601,7 +607,7 @@ const LandingPage = () => {
       const subscriptionId = await actions.subscription.create({
         plan_id: paypalPlanId
       });
-      
+
       console.log('✅ Subscription created via SDK:', subscriptionId);
       return subscriptionId;
     } catch (error) {
@@ -644,7 +650,7 @@ const LandingPage = () => {
       });
 
       const result = await response.json();
-      
+
       if (!response.ok) {
         throw new Error(result.error || 'Payment creation failed');
       }
@@ -691,7 +697,7 @@ const LandingPage = () => {
       });
 
       const result = await response.json();
-      
+
       if (!response.ok) {
         throw new Error(result.error || 'Subscription completion failed');
       }
@@ -699,7 +705,7 @@ const LandingPage = () => {
       toast.success(`Successfully subscribed to ${selectedPlan.name}!`);
       setShowPaymentModal(false);
       setSelectedPlan(null);
-      
+
       // Refresh user data or redirect to dashboard
       setTimeout(() => {
         window.location.href = "/dashboard";
@@ -746,7 +752,7 @@ const LandingPage = () => {
       });
 
       const result = await response.json();
-      
+
       if (!response.ok) {
         throw new Error(result.error || 'Payment completion failed');
       }
@@ -754,7 +760,7 @@ const LandingPage = () => {
       toast.success(`Successfully purchased ${selectedPlan.name}!`);
       setShowPaymentModal(false);
       setSelectedPlan(null);
-      
+
       // Refresh user data or redirect to dashboard
       setTimeout(() => {
         window.location.href = "/dashboard";
@@ -787,98 +793,98 @@ const LandingPage = () => {
             boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05)'
           }}>
             <div className="flex items-center justify-between h-12">
-            {/* Logo */}
-            <div className="flex items-center">
-              <div className="flex items-center space-x-3">
-                <img 
-                  src="/logo-alt-text-pro.png" 
-                  alt="Alt Text Pro Logo" 
-                  className="h-10 w-10 object-contain"
-                />
-                <span className="text-2xl font-bold text-gray-900">Alt Text Pro</span>
+              {/* Logo */}
+              <div className="flex items-center">
+                <div className="flex items-center space-x-3">
+                  <img
+                    src="/logo-alt-text-pro.png"
+                    alt="Alt Text Pro Logo"
+                    className="h-10 w-10 object-contain"
+                  />
+                  <span className="text-2xl font-bold text-gray-900">Alt Text Pro</span>
+                </div>
               </div>
-            </div>
 
-            {/* Centered Navigation Links */}
-            <div className="hidden lg:flex items-center space-x-12">
-              <a href="#pricing" className="text-gray-700 hover:text-gray-900 font-medium transition-colors">Pricing</a>
-              <Link to="/contact" className="text-gray-700 hover:text-gray-900 font-medium transition-colors">Contact</Link>
-              <Link to="/docs" className="text-gray-700 hover:text-gray-900 font-medium transition-colors">Docs</Link>
-            </div>
+              {/* Centered Navigation Links */}
+              <div className="hidden lg:flex items-center space-x-12">
+                <a href="#pricing" className="text-gray-700 hover:text-gray-900 font-medium transition-colors">Pricing</a>
+                <Link to="/contact" className="text-gray-700 hover:text-gray-900 font-medium transition-colors">Contact</Link>
+                <Link to="/docs" className="text-gray-700 hover:text-gray-900 font-medium transition-colors">Docs</Link>
+              </div>
 
-            {/* Right Side Buttons */}
-            <div className="hidden lg:flex items-center space-x-3">
-              {user ? (
-                <>
-                  <Button 
-                    variant="ghost" 
-                    className="text-white font-medium px-6 py-2.5 rounded-full"
-                    style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #003a42 0%, #0D4F5E 100%)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)'}
-                    onClick={() => {
-                      window.location.href = "/dashboard";
-                    }}
-                  >
-                    Dashboard
-                  </Button>
-                  <Button 
-                    className="bg-black hover:bg-gray-800 text-white px-6 py-2.5 rounded-full font-medium"
-                    onClick={async () => {
-                      await supabase.auth.signOut();
-                      setUser(null);
-                      toast.success("Signed out successfully");
-                    }}
-                  >
-                    Sign Out
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Button 
-                    variant="ghost" 
-                    className="text-white font-medium px-6 py-2.5 rounded-full"
-                    style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #003a42 0%, #0D4F5E 100%)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)'}
-                    onClick={() => {
-                      setIsLogin(true);
-                      setShowAuthForm(true);
-                    }}
-                  >
-                    Sign In
-                  </Button>
-                  <Button 
-                    className="bg-black hover:bg-gray-800 text-white px-6 py-2.5 rounded-full font-medium"
-                    onClick={() => {
-                      setIsLogin(false);
-                      setShowAuthForm(true);
-                    }}
-                  >
-                    Free Trial
-                  </Button>
-                </>
-              )}
-            </div>
-
-            {/* Mobile menu button */}
-            <div className="lg:hidden">
-              <button 
-                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
-                aria-label="Toggle mobile menu"
-              >
-                {isMobileMenuOpen ? (
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
+              {/* Right Side Buttons */}
+              <div className="hidden lg:flex items-center space-x-3">
+                {user ? (
+                  <>
+                    <Button
+                      variant="ghost"
+                      className="text-white font-medium px-6 py-2.5 rounded-full"
+                      style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #003a42 0%, #0D4F5E 100%)'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)'}
+                      onClick={() => {
+                        window.location.href = "/dashboard";
+                      }}
+                    >
+                      Dashboard
+                    </Button>
+                    <Button
+                      className="bg-black hover:bg-gray-800 text-white px-6 py-2.5 rounded-full font-medium"
+                      onClick={async () => {
+                        await supabase.auth.signOut();
+                        setUser(null);
+                        toast.success("Signed out successfully");
+                      }}
+                    >
+                      Sign Out
+                    </Button>
+                  </>
                 ) : (
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
+                  <>
+                    <Button
+                      variant="ghost"
+                      className="text-white font-medium px-6 py-2.5 rounded-full"
+                      style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #003a42 0%, #0D4F5E 100%)'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)'}
+                      onClick={() => {
+                        setIsLogin(true);
+                        setShowAuthForm(true);
+                      }}
+                    >
+                      Sign In
+                    </Button>
+                    <Button
+                      className="bg-black hover:bg-gray-800 text-white px-6 py-2.5 rounded-full font-medium"
+                      onClick={() => {
+                        setIsLogin(false);
+                        setShowAuthForm(true);
+                      }}
+                    >
+                      Free Trial
+                    </Button>
+                  </>
                 )}
-              </button>
-            </div>
+              </div>
+
+              {/* Mobile menu button */}
+              <div className="lg:hidden">
+                <button
+                  onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                  className="p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+                  aria-label="Toggle mobile menu"
+                >
+                  {isMobileMenuOpen ? (
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  ) : (
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                    </svg>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -888,97 +894,97 @@ const LandingPage = () => {
       {isMobileMenuOpen && (
         <>
           {/* Backdrop */}
-          <div 
+          <div
             className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-40 top-20"
             onClick={() => setIsMobileMenuOpen(false)}
           ></div>
           {/* Menu */}
           <div className="lg:hidden fixed inset-x-0 top-20 z-50 bg-white border-b border-gray-200 shadow-lg mobile-menu-container">
-          <div className="px-4 py-6 space-y-4">
-            {/* Navigation Links */}
-            <div className="space-y-3">
-              <a 
-                href="#pricing" 
-                className="block text-gray-700 hover:text-gray-900 font-medium transition-colors py-2"
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
-                Pricing
-              </a>
-              <Link 
-                to="/contact" 
-                className="block text-gray-700 hover:text-gray-900 font-medium transition-colors py-2"
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
-                Contact
-              </Link>
-              <Link 
-                to="/docs" 
-                className="block text-gray-700 hover:text-gray-900 font-medium transition-colors py-2"
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
-                Docs
-              </Link>
-            </div>
+            <div className="px-4 py-6 space-y-4">
+              {/* Navigation Links */}
+              <div className="space-y-3">
+                <a
+                  href="#pricing"
+                  className="block text-gray-700 hover:text-gray-900 font-medium transition-colors py-2"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  Pricing
+                </a>
+                <Link
+                  to="/contact"
+                  className="block text-gray-700 hover:text-gray-900 font-medium transition-colors py-2"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  Contact
+                </Link>
+                <Link
+                  to="/docs"
+                  className="block text-gray-700 hover:text-gray-900 font-medium transition-colors py-2"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  Docs
+                </Link>
+              </div>
 
-            {/* Divider */}
-            <div className="border-t border-gray-200 my-4"></div>
+              {/* Divider */}
+              <div className="border-t border-gray-200 my-4"></div>
 
-            {/* Auth Buttons */}
-            <div className="space-y-3">
-              {user ? (
-                <>
-                  <Button 
-                    variant="ghost" 
-                    className="w-full text-white font-medium px-6 py-2.5 rounded-full"
-                    style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
-                    onClick={() => {
-                      setIsMobileMenuOpen(false);
-                      window.location.href = "/dashboard";
-                    }}
-                  >
-                    Dashboard
-                  </Button>
-                  <Button 
-                    className="w-full bg-black hover:bg-gray-800 text-white px-6 py-2.5 rounded-full font-medium"
-                    onClick={async () => {
-                      setIsMobileMenuOpen(false);
-                      await supabase.auth.signOut();
-                      setUser(null);
-                      toast.success("Signed out successfully");
-                    }}
-                  >
-                    Sign Out
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Button 
-                    variant="ghost" 
-                    className="w-full text-white font-medium px-6 py-2.5 rounded-full"
-                    style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
-                    onClick={() => {
-                      setIsMobileMenuOpen(false);
-                      setIsLogin(true);
-                      setShowAuthForm(true);
-                    }}
-                  >
-                    Sign In
-                  </Button>
-                  <Button 
-                    className="w-full bg-black hover:bg-gray-800 text-white px-6 py-2.5 rounded-full font-medium"
-                    onClick={() => {
-                      setIsMobileMenuOpen(false);
-                      setIsLogin(false);
-                      setShowAuthForm(true);
-                    }}
-                  >
-                    Free Trial
-                  </Button>
-                </>
-              )}
+              {/* Auth Buttons */}
+              <div className="space-y-3">
+                {user ? (
+                  <>
+                    <Button
+                      variant="ghost"
+                      className="w-full text-white font-medium px-6 py-2.5 rounded-full"
+                      style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
+                      onClick={() => {
+                        setIsMobileMenuOpen(false);
+                        window.location.href = "/dashboard";
+                      }}
+                    >
+                      Dashboard
+                    </Button>
+                    <Button
+                      className="w-full bg-black hover:bg-gray-800 text-white px-6 py-2.5 rounded-full font-medium"
+                      onClick={async () => {
+                        setIsMobileMenuOpen(false);
+                        await supabase.auth.signOut();
+                        setUser(null);
+                        toast.success("Signed out successfully");
+                      }}
+                    >
+                      Sign Out
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      variant="ghost"
+                      className="w-full text-white font-medium px-6 py-2.5 rounded-full"
+                      style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
+                      onClick={() => {
+                        setIsMobileMenuOpen(false);
+                        setIsLogin(true);
+                        setShowAuthForm(true);
+                      }}
+                    >
+                      Sign In
+                    </Button>
+                    <Button
+                      className="w-full bg-black hover:bg-gray-800 text-white px-6 py-2.5 rounded-full font-medium"
+                      onClick={() => {
+                        setIsMobileMenuOpen(false);
+                        setIsLogin(false);
+                        setShowAuthForm(true);
+                      }}
+                    >
+                      Free Trial
+                    </Button>
+                  </>
+                )}
+              </div>
             </div>
           </div>
-        </div>
         </>
       )}
 
@@ -992,18 +998,18 @@ const LandingPage = () => {
                 <div className="text-sm font-medium rounded-full px-3 py-1 inline-block" style={{ color: '#0D4F5E', backgroundColor: 'rgba(13, 79, 94, 0.1)' }}>
                   World's Best AI Tool Accessibility
                 </div>
-                
+
                 <h1 className="text-6xl lg:text-7xl font-extrabold text-gray-900 leading-tight tracking-tight mb-6">
                   AI Alt Text Generator
                 </h1>
-                
+
                 <p className="text-xl lg:text-2xl text-gray-600 leading-relaxed max-w-2xl mb-10">
                   Automatically generate accurate, SEO-optimized alt text for your images in over 130 languages with our advanced AI technology.
                 </p>
-                
+
                 <div className="flex flex-col sm:flex-row gap-4">
-                  <Button 
-                    size="lg" 
+                  <Button
+                    size="lg"
                     className="text-white px-8 py-4 text-lg font-semibold rounded-lg"
                     style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
                     onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #003a42 0%, #0D4F5E 100%)'}
@@ -1015,15 +1021,15 @@ const LandingPage = () => {
                   >
                     Start Free Trial
                   </Button>
-                  <Button 
-                    size="lg" 
+                  <Button
+                    size="lg"
                     variant="outline"
                     className="border-gray-300 text-gray-700 hover:bg-gray-50 px-8 py-4 text-lg font-semibold rounded-lg"
                   >
                     Get Plugin
                   </Button>
                 </div>
-                
+
                 <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
                   <div className="flex items-center space-x-1">
                     <CheckCircle className="h-4 w-4 text-green-500" />
@@ -1044,14 +1050,14 @@ const LandingPage = () => {
                 </div>
               </div>
             </div>
-            
+
             {/* Right Side - Media Upload Card */}
             <div className="lg:pl-8">
               <div className="bg-white rounded-2xl shadow-xl p-6 max-w-md mx-auto">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Media Upload</h3>
-                
+
                 {/* Upload Area */}
-                <div 
+                <div
                   className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer transition-colors mb-4 relative"
                   onMouseEnter={(e) => {
                     e.currentTarget.style.borderColor = '#004953';
@@ -1126,7 +1132,7 @@ const LandingPage = () => {
                     </>
                   )}
                 </div>
-                
+
                 <input
                   id="image-upload"
                   type="file"
@@ -1145,9 +1151,9 @@ const LandingPage = () => {
                     }
                   }}
                 />
-                
+
                 {/* Generate Button */}
-                <Button 
+                <Button
                   onClick={generateDemoAltText}
                   disabled={!selectedImage || isGenerating}
                   className="w-full disabled:bg-gray-400 text-white py-3 rounded-lg font-medium mb-4"
@@ -1157,7 +1163,7 @@ const LandingPage = () => {
                 >
                   {isGenerating ? 'Generating...' : 'Generate Alt Text'}
                 </Button>
-                
+
                 {/* Generated Alt Text Result */}
                 <div className="space-y-3">
                   <label className="block text-sm font-medium text-gray-700">Generated Alt Text:</label>
@@ -1208,9 +1214,9 @@ const LandingPage = () => {
           <div className="relative max-w-6xl mx-auto">
             {/* ===== LOCKED SECTION: Dotted connector images - DO NOT MODIFY POSITIONING ===== */}
             {/* These images are precisely positioned to connect the steps. Any changes should be made as a group. */}
-            <img 
-              src="/dots1.png" 
-              alt="" 
+            <img
+              src="/dots1.png"
+              alt=""
               className="hidden lg:block absolute pointer-events-none"
               style={{
                 top: '12%',
@@ -1221,9 +1227,9 @@ const LandingPage = () => {
                 objectFit: 'contain'
               }}
             />
-            <img 
-              src="/dots2.png" 
-              alt="" 
+            <img
+              src="/dots2.png"
+              alt=""
               className="hidden lg:block absolute pointer-events-none"
               style={{
                 top: '47%',
@@ -1235,7 +1241,7 @@ const LandingPage = () => {
               }}
             />
             {/* ===== END LOCKED SECTION ===== */}
-            
+
             <div className="space-y-20">
               {/* Step 1 - Upload Image: Image Left, Text Right */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start relative">
@@ -1246,7 +1252,7 @@ const LandingPage = () => {
                     </div>
                     <p className="text-gray-600 text-sm mb-1">Drag your file(s) or <span className="underline" style={{ color: '#0D4F5E' }}>browse</span></p>
                     <p className="text-xs text-gray-500 mb-4">Max 10 MB files are allowed</p>
-                    
+
                     {/* Blue file badge */}
                     <div className="absolute -top-3 right-6">
                       <div className="text-white px-3 py-1 rounded-full text-xs font-medium flex items-center" style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}>
@@ -1255,10 +1261,10 @@ const LandingPage = () => {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="lg:order-2 relative z-10 max-w-sm">
                   {/* Large background number */}
-                  <div className="absolute -top-2 -left-10 font-bold text-gray-300 opacity-70 select-none pointer-events-none z-0" style={{fontSize: '6rem', lineHeight: '1'}}>
+                  <div className="absolute -top-2 -left-10 font-bold text-gray-300 opacity-70 select-none pointer-events-none z-0" style={{ fontSize: '6rem', lineHeight: '1' }}>
                     1
                   </div>
                   <h3 className="text-xl font-bold text-gray-900 mb-3 relative z-10">Upload Image 📁</h3>
@@ -1275,7 +1281,7 @@ const LandingPage = () => {
                 <div className="lg:order-1 relative flex justify-center lg:justify-end">
                   <div className="max-w-sm relative pr-8">
                     {/* Large background number */}
-                    <div className="absolute -top-2 -left-10 font-bold text-gray-300 opacity-70 select-none pointer-events-none z-0" style={{fontSize: '6rem', lineHeight: '1'}}>
+                    <div className="absolute -top-2 -left-10 font-bold text-gray-300 opacity-70 select-none pointer-events-none z-0" style={{ fontSize: '6rem', lineHeight: '1' }}>
                       2
                     </div>
                     <h3 className="text-xl font-bold text-gray-900 mb-3 relative z-10">AI Analysis ⚡</h3>
@@ -1285,7 +1291,7 @@ const LandingPage = () => {
                     </p>
                   </div>
                 </div>
-                
+
                 <div className="lg:order-2 flex justify-center lg:justify-start">
                   {/* Complex AI Circuit Diagram */}
                   <div className="relative w-full max-w-sm h-60 rounded-2xl p-4" style={{ background: 'linear-gradient(135deg, rgba(13, 79, 94, 0.1) 0%, rgba(0, 73, 83, 0.15) 100%)' }}>
@@ -1295,44 +1301,44 @@ const LandingPage = () => {
                         <span className="text-xl font-bold" style={{ color: '#003a42' }}>AI</span>
                       </div>
                     </div>
-                    
+
                     {/* Circuit board elements */}
                     {/* Top connections */}
                     <div className="absolute top-4 left-8 w-3 h-3 rounded-full" style={{ backgroundColor: '#004953' }}></div>
                     <div className="absolute top-4 left-20 w-3 h-3 rounded-full" style={{ backgroundColor: '#004953' }}></div>
                     <div className="absolute top-4 right-20 w-3 h-3 rounded-full" style={{ backgroundColor: '#004953' }}></div>
                     <div className="absolute top-4 right-8 w-3 h-3 rounded-full" style={{ backgroundColor: '#004953' }}></div>
-                    
+
                     {/* Side connections */}
                     <div className="absolute left-4 top-16 w-3 h-3 rounded-full" style={{ backgroundColor: '#004953' }}></div>
                     <div className="absolute left-4 bottom-16 w-3 h-3 rounded-full" style={{ backgroundColor: '#004953' }}></div>
                     <div className="absolute right-4 top-16 w-3 h-3 rounded-full" style={{ backgroundColor: '#004953' }}></div>
                     <div className="absolute right-4 bottom-16 w-3 h-3 rounded-full" style={{ backgroundColor: '#004953' }}></div>
-                    
+
                     {/* Bottom connections */}
                     <div className="absolute bottom-4 left-8 w-3 h-3 rounded-full" style={{ backgroundColor: '#004953' }}></div>
                     <div className="absolute bottom-4 left-20 w-3 h-3 rounded-full" style={{ backgroundColor: '#004953' }}></div>
                     <div className="absolute bottom-4 right-20 w-3 h-3 rounded-full" style={{ backgroundColor: '#004953' }}></div>
                     <div className="absolute bottom-4 right-8 w-3 h-3 rounded-full" style={{ backgroundColor: '#004953' }}></div>
-                    
+
                     {/* Circuit lines */}
                     <div className="absolute top-6 left-11 w-20 h-px" style={{ backgroundColor: '#0D4F5E' }}></div>
                     <div className="absolute top-6 right-11 w-20 h-px" style={{ backgroundColor: '#0D4F5E' }}></div>
                     <div className="absolute bottom-6 left-11 w-20 h-px" style={{ backgroundColor: '#0D4F5E' }}></div>
                     <div className="absolute bottom-6 right-11 w-20 h-px" style={{ backgroundColor: '#0D4F5E' }}></div>
-                    
+
                     {/* Vertical lines */}
                     <div className="absolute left-6 top-8 w-px h-12" style={{ backgroundColor: '#0D4F5E' }}></div>
                     <div className="absolute right-6 top-8 w-px h-12" style={{ backgroundColor: '#0D4F5E' }}></div>
                     <div className="absolute left-6 bottom-8 w-px h-12" style={{ backgroundColor: '#0D4F5E' }}></div>
                     <div className="absolute right-6 bottom-8 w-px h-12" style={{ backgroundColor: '#0D4F5E' }}></div>
-                    
+
                     {/* Corner elements */}
                     <div className="absolute top-6 left-6 w-2 h-2 rounded-full" style={{ backgroundColor: '#0D4F5E' }}></div>
                     <div className="absolute top-6 right-6 w-2 h-2 rounded-full" style={{ backgroundColor: '#0D4F5E' }}></div>
                     <div className="absolute bottom-6 left-6 w-2 h-2 rounded-full" style={{ backgroundColor: '#0D4F5E' }}></div>
                     <div className="absolute bottom-6 right-6 w-2 h-2 rounded-full" style={{ backgroundColor: '#0D4F5E' }}></div>
-                    
+
                     {/* Small icons around the chip */}
                     <div className="absolute top-2 left-16">
                       <div className="w-6 h-6 rounded flex items-center justify-center" style={{ backgroundColor: 'rgba(13, 79, 94, 0.2)' }}>
@@ -1359,13 +1365,13 @@ const LandingPage = () => {
                       <div className="absolute bottom-8 left-8 w-20 h-12 bg-gray-400 transform -skew-x-12"></div>
                       <div className="absolute bottom-8 right-8 w-16 h-8 bg-gray-300 transform skew-x-12"></div>
                     </div>
-                    
+
                     {/* Alt text tooltip */}
                     <div className="bg-black text-white px-3 py-2 rounded text-xs relative mb-4">
                       &lt;img ...alt = "alternative text" /&gt;
                       <div className="absolute -top-1 left-6 w-2 h-2 bg-black transform rotate-45"></div>
                     </div>
-                    
+
                     {/* Three options with proper spacing */}
                     <div className="grid grid-cols-3 gap-3">
                       <div className="rounded-lg p-3 text-center border" style={{ backgroundColor: 'rgba(13, 79, 94, 0.05)', borderColor: 'rgba(13, 79, 94, 0.3)' }}>
@@ -1374,14 +1380,14 @@ const LandingPage = () => {
                         </div>
                         <p className="text-xs font-medium text-gray-700">Screen readers</p>
                       </div>
-                      
+
                       <div className="rounded-lg p-3 text-center border" style={{ backgroundColor: 'rgba(13, 79, 94, 0.05)', borderColor: 'rgba(13, 79, 94, 0.3)' }}>
                         <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center mx-auto mb-2 border" style={{ borderColor: 'rgba(13, 79, 94, 0.4)' }}>
                           <Search className="h-4 w-4" style={{ color: '#003a42' }} />
                         </div>
                         <p className="text-xs font-medium text-gray-700">Search engines</p>
                       </div>
-                      
+
                       <div className="rounded-lg p-3 text-center border" style={{ backgroundColor: 'rgba(13, 79, 94, 0.05)', borderColor: 'rgba(13, 79, 94, 0.3)' }}>
                         <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center mx-auto mb-2 border" style={{ borderColor: 'rgba(13, 79, 94, 0.4)' }}>
                           <X className="h-4 w-4" style={{ color: '#003a42' }} />
@@ -1391,10 +1397,10 @@ const LandingPage = () => {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="lg:order-2 relative max-w-sm">
                   {/* Large background number */}
-                  <div className="absolute -top-2 -left-10 font-bold text-gray-300 opacity-70 select-none pointer-events-none z-0" style={{fontSize: '6rem', lineHeight: '1'}}>
+                  <div className="absolute -top-2 -left-10 font-bold text-gray-300 opacity-70 select-none pointer-events-none z-0" style={{ fontSize: '6rem', lineHeight: '1' }}>
                     3
                   </div>
                   <h3 className="text-xl font-bold text-gray-900 mb-3 relative z-10">Get Alt Text 📋</h3>
@@ -1425,7 +1431,7 @@ const LandingPage = () => {
                 improving your website's SEO performance. Save time and create better
                 content with our intelligent alt text generation.
               </p>
-              
+
               <div className="space-y-6">
                 <div className="flex items-start space-x-4">
                   <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -1472,8 +1478,8 @@ const LandingPage = () => {
             <div className="relative">
               <div className="bg-gray-100 rounded-2xl p-8">
                 <div className="aspect-w-4 aspect-h-3 rounded-lg mb-6 overflow-hidden">
-                  <img 
-                    src="/red-fox.png" 
+                  <img
+                    src="/red-fox.png"
                     alt="Red fox standing on sandy beach during golden hour sunset with ocean waves in background"
                     className="w-full h-full object-cover rounded-lg"
                   />
@@ -1506,7 +1512,7 @@ const LandingPage = () => {
                 </div>
                 <h3 className="text-2xl font-bold text-green-700">Do's</h3>
               </div>
-              
+
               <ul className="space-y-4">
                 <li className="flex items-start space-x-3">
                   <Check className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
@@ -1539,7 +1545,7 @@ const LandingPage = () => {
                 </div>
                 <h3 className="text-2xl font-bold text-red-700">Don'ts</h3>
               </div>
-              
+
               <ul className="space-y-4">
                 <li className="flex items-start space-x-3">
                   <X className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
@@ -1575,7 +1581,7 @@ const LandingPage = () => {
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold text-gray-900 mb-4">Simple, Transparent Pricing</h2>
             <p className="text-xl text-gray-600 mb-4">Choose the plan that fits your needs</p>
-            
+
             {/* Billing Cycle Toggle */}
             <div className="flex items-center justify-center gap-4 mt-6">
               <span className={`text-sm font-medium transition-colors min-w-[60px] text-right ${billingCycle === 'monthly' ? 'text-gray-900' : 'text-gray-500'}`}>
@@ -1584,12 +1590,11 @@ const LandingPage = () => {
               <button
                 type="button"
                 onClick={() => setBillingCycle(billingCycle === 'monthly' ? 'annual' : 'monthly')}
-                className={`relative inline-flex h-8 w-16 items-center rounded-full transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-                  billingCycle === 'annual' 
-                    ? 'bg-teal-600 focus:ring-teal-400' 
-                    : 'bg-gray-300 focus:ring-gray-400'
-                }`}
-                style={billingCycle === 'annual' 
+                className={`relative inline-flex h-8 w-16 items-center rounded-full transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 ${billingCycle === 'annual'
+                  ? 'bg-teal-600 focus:ring-teal-400'
+                  : 'bg-gray-300 focus:ring-gray-400'
+                  }`}
+                style={billingCycle === 'annual'
                   ? { background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }
                   : {}
                 }
@@ -1597,17 +1602,15 @@ const LandingPage = () => {
                 aria-checked={billingCycle === 'annual'}
               >
                 <span
-                  className={`inline-block h-6 w-6 transform rounded-full bg-white shadow-lg transition-transform duration-300 ${
-                    billingCycle === 'annual' ? 'translate-x-9' : 'translate-x-1'
-                  }`}
+                  className={`inline-block h-6 w-6 transform rounded-full bg-white shadow-lg transition-transform duration-300 ${billingCycle === 'annual' ? 'translate-x-9' : 'translate-x-1'
+                    }`}
                 />
               </button>
               <span className={`text-sm font-medium transition-colors min-w-[50px] text-left ${billingCycle === 'annual' ? 'text-gray-900' : 'text-gray-500'}`}>
                 Annual
               </span>
-              <span className={`text-xs text-green-600 font-semibold bg-green-50 px-2 py-1 rounded transition-opacity duration-300 min-w-[70px] text-center ${
-                billingCycle === 'annual' ? 'opacity-100' : 'opacity-0'
-              }`}>
+              <span className={`text-xs text-green-600 font-semibold bg-green-50 px-2 py-1 rounded transition-opacity duration-300 min-w-[70px] text-center ${billingCycle === 'annual' ? 'opacity-100' : 'opacity-0'
+                }`}>
                 Save 10%
               </span>
             </div>
@@ -1616,8 +1619,8 @@ const LandingPage = () => {
           <div className="grid md:grid-cols-4 gap-6 max-w-7xl mx-auto">
             {/* Free Plan */}
             <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-100 transition-colors"
-                 onMouseEnter={(e) => e.currentTarget.style.borderColor = 'rgba(13, 79, 94, 0.3)'}
-                 onMouseLeave={(e) => e.currentTarget.style.borderColor = '#f3f4f6'}>
+              onMouseEnter={(e) => e.currentTarget.style.borderColor = 'rgba(13, 79, 94, 0.3)'}
+              onMouseLeave={(e) => e.currentTarget.style.borderColor = '#f3f4f6'}>
               <div className="text-center">
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">Free</h3>
                 <div className="text-3xl font-bold mb-6" style={{ color: '#003a42' }}>
@@ -1626,7 +1629,7 @@ const LandingPage = () => {
                     {billingCycle === 'monthly' ? 'per Month' : 'per Year'}
                   </span>
                 </div>
-                
+
                 <div className="space-y-3 mb-8">
                   <div className="flex items-center">
                     <Check className="h-5 w-5 text-green-500 mr-3" />
@@ -1641,8 +1644,8 @@ const LandingPage = () => {
                     <span className="text-gray-700">API access</span>
                   </div>
                 </div>
-                
-                <Button 
+
+                <Button
                   onClick={() => handlePlanSelection('free', 'Free', '$0')}
                   className="w-full bg-gray-100 text-gray-700 hover:bg-gray-200"
                 >
@@ -1653,8 +1656,8 @@ const LandingPage = () => {
 
             {/* Tier 1 */}
             <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-100 transition-colors"
-                 onMouseEnter={(e) => e.currentTarget.style.borderColor = 'rgba(13, 79, 94, 0.3)'}
-                 onMouseLeave={(e) => e.currentTarget.style.borderColor = '#f3f4f6'}>
+              onMouseEnter={(e) => e.currentTarget.style.borderColor = 'rgba(13, 79, 94, 0.3)'}
+              onMouseLeave={(e) => e.currentTarget.style.borderColor = '#f3f4f6'}>
               <div className="text-center">
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">Tier 1</h3>
                 <div className="text-3xl font-bold mb-6" style={{ color: '#003a42' }}>
@@ -1667,7 +1670,7 @@ const LandingPage = () => {
                 {billingCycle === 'annual' && (
                   <p className="text-xs text-gray-500 mb-2">$10.80/month billed annually</p>
                 )}
-                
+
                 <div className="space-y-3 mb-8">
                   <div className="flex items-center">
                     <Check className="h-5 w-5 text-green-500 mr-3" />
@@ -1686,8 +1689,8 @@ const LandingPage = () => {
                     <span className="text-gray-700">Bulk processing</span>
                   </div>
                 </div>
-                
-                <Button 
+
+                <Button
                   onClick={() => handlePlanSelection('tier1', 'Tier 1', billingCycle === 'monthly' ? '$12' : '$129.60')}
                   className="w-full text-white"
                   style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
@@ -1716,7 +1719,7 @@ const LandingPage = () => {
                 {billingCycle === 'annual' && (
                   <p className="text-xs text-gray-500 mb-2">$18/month billed annually</p>
                 )}
-                
+
                 <div className="space-y-3 mb-8">
                   <div className="flex items-center">
                     <Check className="h-5 w-5 text-green-500 mr-3" />
@@ -1739,8 +1742,8 @@ const LandingPage = () => {
                     <span className="text-gray-700">Bulk processing</span>
                   </div>
                 </div>
-                
-                <Button 
+
+                <Button
                   onClick={() => handlePlanSelection('tier2', 'Tier 2', billingCycle === 'monthly' ? '$20' : '$216')}
                   className="w-full text-white"
                   style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
@@ -1754,8 +1757,8 @@ const LandingPage = () => {
 
             {/* Tier 3 */}
             <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-100 transition-colors"
-                 onMouseEnter={(e) => e.currentTarget.style.borderColor = 'rgba(13, 79, 94, 0.3)'}
-                 onMouseLeave={(e) => e.currentTarget.style.borderColor = '#f3f4f6'}>
+              onMouseEnter={(e) => e.currentTarget.style.borderColor = 'rgba(13, 79, 94, 0.3)'}
+              onMouseLeave={(e) => e.currentTarget.style.borderColor = '#f3f4f6'}>
               <div className="text-center">
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">Tier 3</h3>
                 <div className="text-3xl font-bold mb-6" style={{ color: '#003a42' }}>
@@ -1768,7 +1771,7 @@ const LandingPage = () => {
                 {billingCycle === 'annual' && (
                   <p className="text-xs text-gray-500 mb-2">$36/month billed annually</p>
                 )}
-                
+
                 <div className="space-y-3 mb-8">
                   <div className="flex items-center">
                     <Check className="h-5 w-5 text-green-500 mr-3" />
@@ -1791,8 +1794,8 @@ const LandingPage = () => {
                     <span className="text-gray-700">Bulk Processing</span>
                   </div>
                 </div>
-                
-                <Button 
+
+                <Button
                   onClick={() => handlePlanSelection('tier3', 'Tier 3', billingCycle === 'monthly' ? '$40' : '$432')}
                   className="w-full text-white"
                   style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
@@ -1832,7 +1835,7 @@ const LandingPage = () => {
               </div>
               <div className="p-6">
                 <p className="text-gray-700 text-sm leading-relaxed italic mb-4">
-                  "Business team collaborating around conference table in modern office 
+                  "Business team collaborating around conference table in modern office
                   with laptops and documents"
                 </p>
                 <div className="flex items-center justify-between">
@@ -1896,9 +1899,9 @@ const LandingPage = () => {
           <p className="text-xl mb-8" style={{ color: 'rgba(255, 255, 255, 0.95)' }}>
             First 100 images alt text. No credit card required.
           </p>
-          
-          <Button 
-            size="lg" 
+
+          <Button
+            size="lg"
             className="bg-white hover:bg-gray-50 font-semibold px-8 py-4 text-lg rounded-lg transition-colors"
             style={{ color: '#003a42' }}
             onClick={() => {
@@ -1917,17 +1920,17 @@ const LandingPage = () => {
           <div className="flex flex-col items-center text-center space-y-6">
             {/* Logo & Company Info */}
             <div className="flex items-center space-x-2">
-              <img 
-                src="/logo-alt-text-pro.png" 
-                alt="Alt Text Pro Logo" 
+              <img
+                src="/logo-alt-text-pro.png"
+                alt="Alt Text Pro Logo"
                 className="h-10 w-10 object-contain"
               />
               <span className="text-2xl font-bold text-white">Alt Text Pro</span>
             </div>
-            
+
             <p className="text-gray-200 text-sm max-w-md">
-                Automatically generate alt text for images in over 130 languages.
-              </p>
+              Automatically generate alt text for images in over 130 languages.
+            </p>
 
             {/* Links */}
             <div className="flex flex-wrap justify-center gap-6 text-sm text-gray-200">
@@ -1956,7 +1959,7 @@ const LandingPage = () => {
                 {isLogin ? "Welcome back! Sign in to your account" : "Sign up for your free trial"}
               </p>
             </div>
-            
+
             <form onSubmit={handleEmailAuth} className="space-y-4">
               <div>
                 <Input
@@ -2007,7 +2010,7 @@ const LandingPage = () => {
               disabled={isGoogleLoading}
               variant="outline"
               className="w-full h-12 text-base font-semibold border-2 transition-colors"
-              style={{ 
+              style={{
                 borderColor: '#003a42',
                 color: '#003a42',
                 backgroundColor: 'transparent'
@@ -2045,8 +2048,8 @@ const LandingPage = () => {
                 onMouseEnter={(e) => e.currentTarget.style.color = '#003a42'}
                 onMouseLeave={(e) => e.currentTarget.style.color = '#0D4F5E'}
               >
-                {isLogin 
-                  ? "Don't have an account? Sign up" 
+                {isLogin
+                  ? "Don't have an account? Sign up"
                   : "Already have an account? Sign in"}
               </button>
               <div>
@@ -2090,9 +2093,9 @@ const LandingPage = () => {
             {selectedPlan.id === 'free' ? (
               <div className="text-center">
                 <p className="text-gray-600 mb-4">
-                  You already have access to the free plan! 
+                  You already have access to the free plan!
                 </p>
-                <Button 
+                <Button
                   onClick={() => {
                     setShowPaymentModal(false);
                     setSelectedPlan(null);
@@ -2181,7 +2184,7 @@ const LandingPage = () => {
                 <div className="mb-6">
                   {/* For subscriptions, use PayPal SDK subscription button */}
                   {(selectedPlan.id === 'tier1' || selectedPlan.id === 'tier2' || selectedPlan.id === 'tier3') ? (
-                    <PayPalSubscriptionButton 
+                    <PayPalSubscriptionButton
                       planId={billingCycle === 'annual' ? `${selectedPlan.id}_annual` : selectedPlan.id}
                       planName={`${selectedPlan.name}${billingCycle === 'annual' ? ' (Annual)' : ''}`}
                       paypalPlanId={PAYPAL_PLAN_IDS[selectedPlan.id]?.[billingCycle === 'annual' ? 'annual' : 'monthly']}
@@ -2199,30 +2202,30 @@ const LandingPage = () => {
                       }}
                     />
                   ) : (
-                  <PayPalScriptProvider options={paypalOptions}>
-                    <PayPalButtons
-                      createOrder={createPayPalOrder}
-                      onApprove={onPayPalApprove}
-                      onError={onPayPalError}
-                      onCancel={onPayPalCancel}
-                      style={{
-                        layout: "vertical",
-                        color: "blue",
-                        shape: "rect",
-                        label: "paypal"
-                      }}
-                    />
-                  </PayPalScriptProvider>
+                    <PayPalScriptProvider options={paypalOptions}>
+                      <PayPalButtons
+                        createOrder={createPayPalOrder}
+                        onApprove={onPayPalApprove}
+                        onError={onPayPalError}
+                        onCancel={onPayPalCancel}
+                        style={{
+                          layout: "vertical",
+                          color: "blue",
+                          shape: "rect",
+                          label: "paypal"
+                        }}
+                      />
+                    </PayPalScriptProvider>
                   )}
                 </div>
 
                 <div className="flex space-x-3">
-                  <Button 
+                  <Button
                     onClick={() => {
                       setShowPaymentModal(false);
                       setSelectedPlan(null);
                     }}
-                    variant="outline" 
+                    variant="outline"
                     className="flex-1"
                   >
                     Cancel
@@ -2331,7 +2334,7 @@ const Dashboard = () => {
       // Default to monthly for upgrades as dashboard doesn't have billing cycle toggle yet
       const planGroup = PAYPAL_PLAN_IDS[selectedUpgradePlan.id];
       const paypalPlanId = planGroup?.monthly;
-      
+
       if (!paypalPlanId) {
         throw new Error(`No PayPal plan ID found for ${selectedUpgradePlan.id}`);
       }
@@ -2377,7 +2380,7 @@ const Dashboard = () => {
       });
 
       const result = await response.json();
-      
+
       if (!response.ok) {
         throw new Error(result.error || 'Payment creation failed');
       }
@@ -2426,7 +2429,7 @@ const Dashboard = () => {
       });
 
       const result = await response.json();
-      
+
       if (!response.ok) {
         throw new Error(result.error || 'Subscription completion failed');
       }
@@ -2434,7 +2437,7 @@ const Dashboard = () => {
       toast.success(`Successfully upgraded to ${selectedUpgradePlan.name}!`);
       setShowUpgradeModal(false);
       setSelectedUpgradePlan(null);
-      
+
       // Reload dashboard data
       await loadDashboard();
 
@@ -2478,7 +2481,7 @@ const Dashboard = () => {
       });
 
       const result = await response.json();
-      
+
       if (!response.ok) {
         throw new Error(result.error || 'Payment completion failed');
       }
@@ -2486,7 +2489,7 @@ const Dashboard = () => {
       toast.success(`Successfully purchased ${selectedUpgradePlan.name}!`);
       setShowUpgradeModal(false);
       setSelectedUpgradePlan(null);
-      
+
       // Reload dashboard data
       await loadDashboard();
 
@@ -2506,7 +2509,7 @@ const Dashboard = () => {
   // Load API key for WordPress plugin
   const loadApiKey = async () => {
     if (!user?.id) return;
-    
+
     setIsLoadingApiKey(true);
     try {
       // First, try to get existing API key from Supabase
@@ -2562,19 +2565,19 @@ const Dashboard = () => {
   const loadDashboard = async () => {
     try {
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      
+
       if (sessionError || !session) {
         toast.error("Please sign in to access the dashboard");
         window.location.href = "/";
         return;
       }
-      
-      setUser({ 
-        email: session.user.email, 
+
+      setUser({
+        email: session.user.email,
         id: session.user.id,
         token: session.access_token
       });
-      
+
       // Fetch real usage data from API (same endpoint the plugin uses for consistency)
       let apiBase;
       if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
@@ -2614,7 +2617,7 @@ const Dashboard = () => {
           .select('credits_remaining, total_processed, subscription_plan, subscription_status, next_billing_date')
           .eq('id', session.user.id)
           .single();
-        
+
         if (profileError || !profile) {
           console.error('Error loading profile:', profileError);
           // Final fallback to default if both methods fail
@@ -2631,12 +2634,12 @@ const Dashboard = () => {
           });
         }
       }
-      
+
       // Load subscription data from API (non-blocking)
       loadSubscriptionData(session.access_token).catch(err => {
         console.warn('Could not load subscription data:', err.message);
       });
-      
+
       setIsLoading(false);
     } catch (error) {
       console.error("Failed to load dashboard:", error);
@@ -2647,7 +2650,7 @@ const Dashboard = () => {
 
   const loadHistory = async () => {
     if (!user?.id) return;
-    
+
     setIsLoadingHistory(true);
     try {
       const { data, error } = await supabase
@@ -2656,7 +2659,7 @@ const Dashboard = () => {
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(20);
-      
+
       if (error) {
         console.error('Error loading history:', error);
       } else {
@@ -2705,7 +2708,7 @@ const Dashboard = () => {
     try {
       // Extract base64 from data URL
       const base64Data = testImage.split(',')[1];
-      
+
       // Determine API endpoint - use local development or production
       // For localhost, use production API (Netlify Dev server not required)
       let apiBase;
@@ -2716,16 +2719,16 @@ const Dashboard = () => {
         // Production - use relative path
         apiBase = '/.netlify/functions';
       }
-      
+
       const endpoint = `${apiBase}/generate-alt-text`;
-      
+
       console.log('🔍 Generating alt-text:', {
         endpoint,
         hasImage: !!base64Data,
         imageSize: base64Data?.length,
         hasToken: !!user.token
       });
-      
+
       // Call the real API
       const apiResponse = await fetch(endpoint, {
         method: 'POST',
@@ -2738,7 +2741,7 @@ const Dashboard = () => {
           context: 'Dashboard test'
         })
       });
-      
+
       // Check if response is OK before parsing JSON
       let data;
       try {
@@ -2752,7 +2755,7 @@ const Dashboard = () => {
         toast.error("Invalid response from server. Please try again.");
         return;
       }
-      
+
       if (apiResponse.ok) {
         // Update with real data from API response
         const result = {
@@ -2760,22 +2763,22 @@ const Dashboard = () => {
           credits_used: 1,
           credits_remaining: data.credits_remaining
         };
-        
+
         setTestResult(result);
-        
+
         // Update usage stats with real credits from API
         setUsageStats(prev => ({
           ...prev,
           credits_remaining: data.credits_remaining,
           total_processed: data.total_processed || (prev?.total_processed || 0) + 1
         }));
-        
+
         // Update generated alt-text state for display
         setGeneratedAltText(result.alt_text);
-        
+
         // Reload history to show new generation
         loadHistory();
-        
+
         toast.success("Alt-text generated successfully!");
       } else {
         console.error('API Error Response:', {
@@ -2783,7 +2786,7 @@ const Dashboard = () => {
           statusText: apiResponse.statusText,
           data: data
         });
-        
+
         if (apiResponse.status === 401) {
           toast.error("Session expired. Please sign in again.");
           window.location.href = "/";
@@ -2819,9 +2822,9 @@ const Dashboard = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <Link to="/" className="flex items-center space-x-3">
-              <img 
-                src="/logo-alt-text-pro.png" 
-                alt="Alt Text Pro Logo" 
+              <img
+                src="/logo-alt-text-pro.png"
+                alt="Alt Text Pro Logo"
                 className="h-8 w-8 object-contain"
               />
               <span className="text-xl font-bold text-gray-900">Alt Text Pro</span>
@@ -2867,7 +2870,7 @@ const Dashboard = () => {
               href="/wordpress-plugin/alt-text-pro-plugin-1.4.1.zip"
               download="alt-text-pro-plugin-1.4.1.zip"
               className="inline-flex items-center px-4 py-2 text-sm font-medium text-white transition-all rounded-lg shadow-sm hover:shadow hover:-translate-y-0.5"
-              style={{ 
+              style={{
                 background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)'
               }}
             >
@@ -2892,14 +2895,14 @@ const Dashboard = () => {
                 </div>
               </div>
               <div className="w-full bg-gray-100 rounded-full h-2 mb-2">
-                <div 
+                <div
                   className="bg-teal-500 h-2 rounded-full transition-all duration-500"
                   style={{ width: `${Math.min(((usageStats?.credits_remaining || 0) / 100) * 100, 100)}%` }}
                 ></div>
               </div>
               <div className="flex justify-between items-center text-xs text-gray-500">
                 <span>{usageStats?.plan === 'free' ? '100 total' : 'Monthly quota'}</span>
-                <button 
+                <button
                   onClick={() => handleUpgradePlan('pay_as_go', 'Pay as you go', '$5')}
                   className="text-teal-600 font-medium hover:text-teal-700"
                 >
@@ -2939,7 +2942,7 @@ const Dashboard = () => {
                   <Crown className="h-6 w-6 text-purple-600" />
                 </div>
               </div>
-              <button 
+              <button
                 onClick={() => setShowUpgradeModal(true)}
                 className="text-sm text-purple-600 font-medium hover:text-purple-700 flex items-center"
               >
@@ -2952,7 +2955,7 @@ const Dashboard = () => {
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Main Content Area - Left 2/3 */}
           <div className="lg:col-span-2 space-y-8">
-            
+
             {/* Test Alt Text Section */}
             <Card className="border-none shadow-sm">
               <CardHeader className="border-b border-gray-100 pb-4">
@@ -3058,10 +3061,10 @@ const Dashboard = () => {
                           </div>
                         ) : (
                           <div>
-                             <p className="text-sm text-gray-500 mb-4">
-                               Ready to generate description for this image. This will use 1 credit.
-                             </p>
-                             <Button
+                            <p className="text-sm text-gray-500 mb-4">
+                              Ready to generate description for this image. This will use 1 credit.
+                            </p>
+                            <Button
                               onClick={generateTestAltText}
                               disabled={isGenerating || (usageStats?.credits_remaining || 0) <= 0}
                               className="bg-teal-600 hover:bg-teal-700 text-white w-full sm:w-auto"
@@ -3164,19 +3167,19 @@ const Dashboard = () => {
                 <p className="text-gray-400 text-sm mb-4">
                   Use this key to connect the WordPress plugin to your account.
                 </p>
-                
+
                 <div className="bg-black/30 rounded-lg p-3 flex items-center justify-between mb-4 border border-white/10">
                   <code className="text-sm font-mono text-teal-300 truncate mr-2">
                     {isLoadingApiKey ? "Loading..." : (showApiKey ? apiKey : "alt_••••••••••••••••")}
                   </code>
                   <div className="flex gap-1">
-                    <button 
+                    <button
                       onClick={() => setShowApiKey(!showApiKey)}
                       className="p-1.5 hover:bg-white/10 rounded text-gray-400 hover:text-white transition-colors"
                     >
                       {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
-                    <button 
+                    <button
                       onClick={() => {
                         if (apiKey) {
                           navigator.clipboard.writeText(apiKey);
@@ -3189,9 +3192,9 @@ const Dashboard = () => {
                     </button>
                   </div>
                 </div>
-                
+
                 <div className="flex gap-2">
-                   {!apiKey && !isLoadingApiKey && (
+                  {!apiKey && !isLoadingApiKey && (
                     <Button
                       size="sm"
                       onClick={loadApiKey}
@@ -3199,7 +3202,7 @@ const Dashboard = () => {
                     >
                       Generate Key
                     </Button>
-                   )}
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -3210,19 +3213,19 @@ const Dashboard = () => {
                 <CardTitle className="text-base font-semibold">Need Help?</CardTitle>
               </CardHeader>
               <CardContent className="p-4 pt-0">
-                 <div className="space-y-2">
-                   <a href="/docs" className="block p-3 rounded-lg hover:bg-gray-50 transition-colors flex items-center text-sm text-gray-600 hover:text-gray-900">
-                     <Book className="h-4 w-4 mr-3 text-teal-500" />
-                     Read Documentation
-                   </a>
-                   <a href="/contact" className="block p-3 rounded-lg hover:bg-gray-50 transition-colors flex items-center text-sm text-gray-600 hover:text-gray-900">
-                     <MessageCircle className="h-4 w-4 mr-3 text-teal-500" />
-                     Contact Support
-                   </a>
-                 </div>
+                <div className="space-y-2">
+                  <a href="/docs" className="block p-3 rounded-lg hover:bg-gray-50 transition-colors flex items-center text-sm text-gray-600 hover:text-gray-900">
+                    <Book className="h-4 w-4 mr-3 text-teal-500" />
+                    Read Documentation
+                  </a>
+                  <a href="/contact" className="block p-3 rounded-lg hover:bg-gray-50 transition-colors flex items-center text-sm text-gray-600 hover:text-gray-900">
+                    <MessageCircle className="h-4 w-4 mr-3 text-teal-500" />
+                    Contact Support
+                  </a>
+                </div>
               </CardContent>
             </Card>
-            
+
             {/* Setup Guide */}
             <div className="bg-blue-50 rounded-xl p-6 border border-blue-100">
               <h4 className="font-semibold text-blue-900 mb-2 flex items-center">
@@ -3362,9 +3365,9 @@ const Dashboard = () => {
                       });
 
                       const result = await response.json();
-                      
+
                       console.log('Payment creation response:', result);
-                      
+
                       if (!response.ok) {
                         console.error('Payment creation failed:', result);
                         throw new Error(result.error || result.details || 'Payment creation failed');
@@ -3380,7 +3383,7 @@ const Dashboard = () => {
                         console.log('Subscription ID:', result.subscriptionId);
                         console.log('Payment ID:', result.paymentId);
                         console.log('Is Subscription:', result.isSubscription);
-                        
+
                         // Parse and log URL details
                         try {
                           const urlObj = new URL(approvalUrl);
@@ -3389,7 +3392,7 @@ const Dashboard = () => {
                           console.log('  - Host:', urlObj.host);
                           console.log('  - Pathname:', urlObj.pathname);
                           console.log('  - Search params:', Object.fromEntries(urlObj.searchParams));
-                          
+
                           const baToken = urlObj.searchParams.get('ba_token');
                           if (baToken) {
                             console.log('  - ba_token present:', true);
@@ -3401,7 +3404,7 @@ const Dashboard = () => {
                         } catch (urlError) {
                           console.error('Error parsing approval URL:', urlError);
                         }
-                        
+
                         // Validate it's a subscription URL
                         if (!approvalUrl.includes('/billing/subscriptions') || !approvalUrl.includes('ba_token')) {
                           console.error('❌ Invalid subscription URL:', approvalUrl);
@@ -3410,7 +3413,7 @@ const Dashboard = () => {
                           toast.error('PayPal returned incorrect payment type. Please contact support.');
                           return;
                         }
-                        
+
                         // Log redirect details
                         console.log('═══════════════════════════════════════════════════════════');
                         console.log('🚀 REDIRECTING TO PAYPAL (Dashboard)');
@@ -3420,7 +3423,7 @@ const Dashboard = () => {
                         console.log('User Agent:', navigator.userAgent);
                         console.log('Current URL:', window.location.href);
                         console.log('═══════════════════════════════════════════════════════════');
-                        
+
                         // Store approval URL details in sessionStorage for debugging
                         try {
                           sessionStorage.setItem('paypal_approval_url', approvalUrl);
@@ -3430,7 +3433,7 @@ const Dashboard = () => {
                         } catch (e) {
                           console.warn('Could not store approval URL in sessionStorage:', e);
                         }
-                        
+
                         // Redirect to PayPal approval page
                         window.location.href = approvalUrl;
                       } else {
@@ -3449,36 +3452,36 @@ const Dashboard = () => {
                   Subscribe with PayPal
                 </Button>
               ) : (
-              <PayPalScriptProvider options={paypalOptions}>
-                <PayPalButtons
-                  createOrder={createUpgradePayPalOrder}
-                  onApprove={onUpgradePayPalApprove}
-                  onError={(error) => {
-                    console.error('PayPal error:', error);
-                    toast.error('Payment failed. Please try again.');
-                  }}
-                  onCancel={(data) => {
-                    console.log('PayPal payment cancelled:', data);
-                    toast.info('Payment cancelled');
-                  }}
-                  style={{
-                    layout: "vertical",
-                    color: "blue",
-                    shape: "rect",
-                    label: "paypal"
-                  }}
-                />
-              </PayPalScriptProvider>
+                <PayPalScriptProvider options={paypalOptions}>
+                  <PayPalButtons
+                    createOrder={createUpgradePayPalOrder}
+                    onApprove={onUpgradePayPalApprove}
+                    onError={(error) => {
+                      console.error('PayPal error:', error);
+                      toast.error('Payment failed. Please try again.');
+                    }}
+                    onCancel={(data) => {
+                      console.log('PayPal payment cancelled:', data);
+                      toast.info('Payment cancelled');
+                    }}
+                    style={{
+                      layout: "vertical",
+                      color: "blue",
+                      shape: "rect",
+                      label: "paypal"
+                    }}
+                  />
+                </PayPalScriptProvider>
               )}
             </div>
 
             <div className="flex space-x-3">
-              <Button 
+              <Button
                 onClick={() => {
                   setShowUpgradeModal(false);
                   setSelectedUpgradePlan(null);
                 }}
-                variant="outline" 
+                variant="outline"
                 className="flex-1"
               >
                 Cancel
@@ -3560,9 +3563,9 @@ const DocsPage = () => {
             <div className="flex items-center justify-between h-12">
               <div className="flex items-center">
                 <Link to="/" className="flex items-center space-x-3">
-                  <img 
-                    src="/logo-alt-text-pro.png" 
-                    alt="Alt Text Pro Logo" 
+                  <img
+                    src="/logo-alt-text-pro.png"
+                    alt="Alt Text Pro Logo"
                     className="h-10 w-10 object-contain"
                   />
                   <span className="text-2xl font-bold text-gray-900">Alt Text Pro</span>
@@ -3576,8 +3579,8 @@ const DocsPage = () => {
               <div className="hidden lg:flex items-center space-x-3">
                 {user ? (
                   <>
-                    <Button 
-                      variant="ghost" 
+                    <Button
+                      variant="ghost"
                       className="text-white font-medium px-6 py-2.5 rounded-full"
                       style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
                       onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #003a42 0%, #0D4F5E 100%)'}
@@ -3588,7 +3591,7 @@ const DocsPage = () => {
                     >
                       Dashboard
                     </Button>
-                    <Button 
+                    <Button
                       className="bg-black hover:bg-gray-800 text-white px-6 py-2.5 rounded-full font-medium"
                       onClick={async () => {
                         await supabase.auth.signOut();
@@ -3601,8 +3604,8 @@ const DocsPage = () => {
                   </>
                 ) : (
                   <>
-                    <Button 
-                      variant="ghost" 
+                    <Button
+                      variant="ghost"
                       className="text-white font-medium px-6 py-2.5 rounded-full"
                       style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
                       onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #003a42 0%, #0D4F5E 100%)'}
@@ -3613,7 +3616,7 @@ const DocsPage = () => {
                     >
                       Sign In
                     </Button>
-                    <Button 
+                    <Button
                       className="bg-black hover:bg-gray-800 text-white px-6 py-2.5 rounded-full font-medium"
                       onClick={() => {
                         window.location.href = "/";
@@ -3645,11 +3648,10 @@ const DocsPage = () => {
                     <button
                       key={section.id}
                       onClick={() => scrollToSection(section.id)}
-                      className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center ${
-                        activeSection === section.id
-                          ? 'bg-teal-50 text-teal-700'
-                          : 'text-gray-700 hover:bg-gray-50'
-                      }`}
+                      className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center ${activeSection === section.id
+                        ? 'bg-teal-50 text-teal-700'
+                        : 'text-gray-700 hover:bg-gray-50'
+                        }`}
                       style={activeSection === section.id ? { color: '#003a42', backgroundColor: 'rgba(13, 79, 94, 0.1)' } : {}}
                     >
                       <Icon className="h-4 w-4 mr-2" />
@@ -4125,9 +4127,9 @@ const ContactPage = () => {
         setUser(null);
       }
     };
-    
+
     checkAuth();
-    
+
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) {
@@ -4199,77 +4201,77 @@ const ContactPage = () => {
             boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05)'
           }}>
             <div className="flex items-center justify-between h-12">
-            {/* Logo */}
-            <div className="flex items-center">
-              <div className="flex items-center space-x-3">
-                <img 
-                  src="/logo-alt-text-pro.png" 
-                  alt="Alt Text Pro Logo" 
-                  className="h-10 w-10 object-contain"
-                />
-                <span className="text-2xl font-bold text-gray-900">Alt Text Pro</span>
+              {/* Logo */}
+              <div className="flex items-center">
+                <div className="flex items-center space-x-3">
+                  <img
+                    src="/logo-alt-text-pro.png"
+                    alt="Alt Text Pro Logo"
+                    className="h-10 w-10 object-contain"
+                  />
+                  <span className="text-2xl font-bold text-gray-900">Alt Text Pro</span>
+                </div>
               </div>
-            </div>
 
-            {/* Centered Navigation Links */}
-            <div className="hidden lg:flex items-center space-x-12">
-              <a href="/#pricing" className="text-gray-700 hover:text-gray-900 font-medium transition-colors">Pricing</a>
-              <Link to="/contact" className="text-gray-700 hover:text-gray-900 font-medium transition-colors">Contact</Link>
-              <Link to="/docs" className="text-gray-700 hover:text-gray-900 font-medium transition-colors">Docs</Link>
-            </div>
+              {/* Centered Navigation Links */}
+              <div className="hidden lg:flex items-center space-x-12">
+                <a href="/#pricing" className="text-gray-700 hover:text-gray-900 font-medium transition-colors">Pricing</a>
+                <Link to="/contact" className="text-gray-700 hover:text-gray-900 font-medium transition-colors">Contact</Link>
+                <Link to="/docs" className="text-gray-700 hover:text-gray-900 font-medium transition-colors">Docs</Link>
+              </div>
 
-            {/* Right Side Buttons */}
-            <div className="hidden lg:flex items-center space-x-3">
-              {user ? (
-                <>
-                  <Button 
-                    variant="ghost" 
-                    className="text-white font-medium px-6 py-2.5 rounded-full"
-                    style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #003a42 0%, #0D4F5E 100%)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)'}
-                    onClick={() => {
-                      window.location.href = "/dashboard";
-                    }}
-                  >
-                    Dashboard
-                  </Button>
-                  <Button 
-                    className="bg-black hover:bg-gray-800 text-white px-6 py-2.5 rounded-full font-medium"
-                    onClick={async () => {
-                      await supabase.auth.signOut();
-                      setUser(null);
-                      toast.success("Signed out successfully");
-                    }}
-                  >
-                    Sign Out
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Button 
-                    variant="ghost" 
-                    className="text-white font-medium px-6 py-2.5 rounded-full"
-                    style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #003a42 0%, #0D4F5E 100%)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)'}
-                    onClick={() => {
-                      window.location.href = "/";
-                    }}
-                  >
-                    Sign In
-                  </Button>
-                  <Button 
-                    className="bg-black hover:bg-gray-800 text-white px-6 py-2.5 rounded-full font-medium"
-                    onClick={() => {
-                      window.location.href = "/";
-                    }}
-                  >
-                    Free Trial
-                  </Button>
-                </>
-              )}
-            </div>
+              {/* Right Side Buttons */}
+              <div className="hidden lg:flex items-center space-x-3">
+                {user ? (
+                  <>
+                    <Button
+                      variant="ghost"
+                      className="text-white font-medium px-6 py-2.5 rounded-full"
+                      style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #003a42 0%, #0D4F5E 100%)'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)'}
+                      onClick={() => {
+                        window.location.href = "/dashboard";
+                      }}
+                    >
+                      Dashboard
+                    </Button>
+                    <Button
+                      className="bg-black hover:bg-gray-800 text-white px-6 py-2.5 rounded-full font-medium"
+                      onClick={async () => {
+                        await supabase.auth.signOut();
+                        setUser(null);
+                        toast.success("Signed out successfully");
+                      }}
+                    >
+                      Sign Out
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      variant="ghost"
+                      className="text-white font-medium px-6 py-2.5 rounded-full"
+                      style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #003a42 0%, #0D4F5E 100%)'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)'}
+                      onClick={() => {
+                        window.location.href = "/";
+                      }}
+                    >
+                      Sign In
+                    </Button>
+                    <Button
+                      className="bg-black hover:bg-gray-800 text-white px-6 py-2.5 rounded-full font-medium"
+                      onClick={() => {
+                        window.location.href = "/";
+                      }}
+                    >
+                      Free Trial
+                    </Button>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -4367,8 +4369,8 @@ const ContactPage = () => {
                 size="lg"
                 className="px-8 py-3 text-lg font-semibold"
                 style={{
-                  background: isSubmitting 
-                    ? '#9ca3af' 
+                  background: isSubmitting
+                    ? '#9ca3af'
                     : 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)',
                   color: 'white',
                   minWidth: '200px'
@@ -4479,13 +4481,13 @@ const PayPalSubscriptionButton = ({ planId, planName, paypalPlanId, onSuccess, o
         layout: 'vertical',
         label: 'subscribe'
       },
-      createSubscription: function(data, actions) {
+      createSubscription: function (data, actions) {
         console.log('Creating PayPal subscription for plan:', paypalPlanId);
         return actions.subscription.create({
           plan_id: paypalPlanId
         });
       },
-      onApprove: async function(data, actions) {
+      onApprove: async function (data, actions) {
         try {
           setIsLoading(true);
           console.log('PayPal subscription approved:', data);
@@ -4519,7 +4521,7 @@ const PayPalSubscriptionButton = ({ planId, planName, paypalPlanId, onSuccess, o
           });
 
           const result = await response.json();
-          
+
           if (!response.ok) {
             throw new Error(result.error || 'Subscription completion failed');
           }
@@ -4533,12 +4535,12 @@ const PayPalSubscriptionButton = ({ planId, planName, paypalPlanId, onSuccess, o
           setIsLoading(false);
         }
       },
-      onError: function(err) {
+      onError: function (err) {
         console.error('PayPal button error:', err);
         setIsLoading(false);
         onError?.({ message: err.message || 'PayPal subscription failed. Please try again.' });
       },
-      onCancel: function(data) {
+      onCancel: function (data) {
         console.log('PayPal subscription cancelled:', data);
         setIsLoading(false);
         toast.info('Subscription cancelled');
@@ -4567,19 +4569,19 @@ const PayPalSubscriptionButton = ({ planId, planName, paypalPlanId, onSuccess, o
 const PaymentSuccess = () => {
   const [status, setStatus] = useState('processing');
   const navigate = useNavigate();
-  
+
   // Use URLSearchParams to get query parameters (following guidance pattern)
   const searchParams = new URLSearchParams(window.location.search);
   const hashParams = new URLSearchParams(window.location.hash.substring(1));
 
   useEffect(() => {
-    const subscriptionId = searchParams.get('subscription_id') || 
-                          searchParams.get('subscriptionId') ||
-                          hashParams.get('subscription_id') ||
-                          hashParams.get('subscriptionId') ||
-                          searchParams.get('token') ||
-                          hashParams.get('token');
-    
+    const subscriptionId = searchParams.get('subscription_id') ||
+      searchParams.get('subscriptionId') ||
+      hashParams.get('subscription_id') ||
+      hashParams.get('subscriptionId') ||
+      searchParams.get('token') ||
+      hashParams.get('token');
+
     if (subscriptionId) {
       // Determine API base URL
       let apiBase;
@@ -4588,39 +4590,39 @@ const PaymentSuccess = () => {
       } else {
         apiBase = '/.netlify/functions';
       }
-      
+
       // Activate subscription (following guidance pattern)
       fetch(`${apiBase}/activate-subscription`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ subscriptionId })
       })
-      .then(res => res.json())
-      .then(data => {
-        if (data.status === 'ACTIVE') {
-          setStatus('success');
-          // Redirect to dashboard or update user state
-          setTimeout(() => {
-            navigate('/dashboard');
-          }, 2000);
-        } else if (data.status === 'APPROVAL_PENDING' || data.status === 'APPROVED') {
-          setStatus('pending');
-          // Still redirect - webhook will activate
-          setTimeout(() => {
-            navigate('/dashboard');
-          }, 2000);
-        } else {
-          setStatus('pending');
-          // Unknown status - redirect anyway
-          setTimeout(() => {
-            navigate('/dashboard');
-          }, 2000);
-        }
-      })
-      .catch(error => {
-        console.error('Subscription activation error:', error);
-        setStatus('error');
-      });
+        .then(res => res.json())
+        .then(data => {
+          if (data.status === 'ACTIVE') {
+            setStatus('success');
+            // Redirect to dashboard or update user state
+            setTimeout(() => {
+              navigate('/dashboard');
+            }, 2000);
+          } else if (data.status === 'APPROVAL_PENDING' || data.status === 'APPROVED') {
+            setStatus('pending');
+            // Still redirect - webhook will activate
+            setTimeout(() => {
+              navigate('/dashboard');
+            }, 2000);
+          } else {
+            setStatus('pending');
+            // Unknown status - redirect anyway
+            setTimeout(() => {
+              navigate('/dashboard');
+            }, 2000);
+          }
+        })
+        .catch(error => {
+          console.error('Subscription activation error:', error);
+          setStatus('error');
+        });
     } else {
       // No subscription ID found - might be one-time payment or error
       console.warn('No subscription ID found in URL parameters');
@@ -4636,8 +4638,8 @@ const PaymentSuccess = () => {
           <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
           <h1 className="text-3xl font-bold text-gray-800 mb-2">✓ Subscription Activated!</h1>
           <p className="text-gray-600 mb-6">Welcome to Alt Text Pro! Your subscription is now active.</p>
-          <Button 
-            onClick={() => navigate('/dashboard')} 
+          <Button
+            onClick={() => navigate('/dashboard')}
             className="bg-teal-600 hover:bg-teal-700 text-white px-6 py-2 rounded-lg"
           >
             Go to Dashboard
@@ -4677,8 +4679,8 @@ const PaymentSuccess = () => {
           <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-gray-800 mb-2">Something went wrong</h2>
           <p className="text-gray-600 mb-6">Please contact support if this issue persists.</p>
-          <Button 
-            onClick={() => navigate('/dashboard')} 
+          <Button
+            onClick={() => navigate('/dashboard')}
             className="bg-teal-600 hover:bg-teal-700 text-white px-6 py-2 rounded-lg"
           >
             Go to Dashboard
@@ -4707,19 +4709,19 @@ const AdminDashboard = () => {
     const checkAuthAndLoadData = async () => {
       try {
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        
+
         if (sessionError || !session) {
           toast.error("Please sign in to access the admin dashboard");
           navigate("/");
           return;
         }
-        
-        setUser({ 
-          email: session.user.email, 
+
+        setUser({
+          email: session.user.email,
           id: session.user.id,
           token: session.access_token
         });
-        
+
         await loadUsers(session.access_token);
       } catch (error) {
         console.error("Error checking auth:", error);
@@ -4783,7 +4785,7 @@ const AdminDashboard = () => {
   };
 
   const filteredUsers = users.filter(user => {
-    const matchesSearch = 
+    const matchesSearch =
       user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.id?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesPlan = filterPlan === "all" || user.subscription_plan === filterPlan;
@@ -4813,8 +4815,8 @@ const AdminDashboard = () => {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4" 
-               style={{ borderColor: '#0D4F5E' }}></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4"
+            style={{ borderColor: '#0D4F5E' }}></div>
           <p className="text-gray-600">Loading admin dashboard...</p>
         </div>
       </div>
@@ -4987,13 +4989,13 @@ const AdminDashboard = () => {
                           </Badge>
                         </td>
                         <td className="py-3 px-4">
-                          <Badge 
+                          <Badge
                             className={
-                              userData.subscription_status === "active" 
+                              userData.subscription_status === "active"
                                 ? "bg-green-100 text-green-700"
                                 : userData.subscription_status === "cancelled"
-                                ? "bg-red-100 text-red-700"
-                                : "bg-teal-100 text-teal-700"
+                                  ? "bg-red-100 text-red-700"
+                                  : "bg-teal-100 text-teal-700"
                             }
                           >
                             {userData.subscription_status || "active"}
@@ -5078,9 +5080,9 @@ const AdminDashboard = () => {
                 <div>
                   <label className="text-sm font-medium text-gray-700">Subscription Status</label>
                   <p className="text-gray-900">
-                    <Badge 
+                    <Badge
                       className={
-                        selectedUser.subscription_status === "active" 
+                        selectedUser.subscription_status === "active"
                           ? "bg-green-100 text-green-700"
                           : "bg-red-100 text-red-700"
                       }
@@ -5187,9 +5189,9 @@ const TermsPage = () => {
             <div className="flex items-center justify-between h-12">
               <div className="flex items-center">
                 <Link to="/" className="flex items-center space-x-3">
-                  <img 
-                    src="/logo-alt-text-pro.png" 
-                    alt="Alt Text Pro Logo" 
+                  <img
+                    src="/logo-alt-text-pro.png"
+                    alt="Alt Text Pro Logo"
                     className="h-10 w-10 object-contain"
                   />
                   <span className="text-2xl font-bold text-gray-900">Alt Text Pro</span>
@@ -5427,9 +5429,9 @@ const PrivacyPage = () => {
             <div className="flex items-center justify-between h-12">
               <div className="flex items-center">
                 <Link to="/" className="flex items-center space-x-3">
-                  <img 
-                    src="/logo-alt-text-pro.png" 
-                    alt="Alt Text Pro Logo" 
+                  <img
+                    src="/logo-alt-text-pro.png"
+                    alt="Alt Text Pro Logo"
                     className="h-10 w-10 object-contain"
                   />
                   <span className="text-2xl font-bold text-gray-900">Alt Text Pro</span>
@@ -5700,7 +5702,7 @@ const EmailConfirmation = () => {
         // Check both hash and query parameters (Supabase can use either)
         const hashParams = new URLSearchParams(window.location.hash.substring(1));
         const queryParams = new URLSearchParams(window.location.search);
-        
+
         const accessToken = hashParams.get('access_token') || queryParams.get('access_token');
         const refreshToken = hashParams.get('refresh_token') || queryParams.get('refresh_token');
         const type = hashParams.get('type') || queryParams.get('type');
@@ -5750,17 +5752,17 @@ const EmailConfirmation = () => {
         <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
           {/* Logo */}
           <div className="flex justify-center mb-6">
-            <img 
-              src="/logo-alt-text-pro.png" 
-              alt="Alt Text Pro Logo" 
+            <img
+              src="/logo-alt-text-pro.png"
+              alt="Alt Text Pro Logo"
               className="h-16 w-16 object-contain"
             />
           </div>
 
           {isLoading ? (
             <>
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4" 
-                   style={{ borderColor: '#0D4F5E' }}></div>
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4"
+                style={{ borderColor: '#0D4F5E' }}></div>
               <h1 className="text-2xl font-bold text-gray-900 mb-2">Confirming your email...</h1>
               <p className="text-gray-600">Please wait while we verify your account.</p>
             </>
@@ -5774,7 +5776,7 @@ const EmailConfirmation = () => {
               <Button
                 onClick={() => navigate('/')}
                 className="w-full"
-                style={{ 
+                style={{
                   background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)',
                   color: 'white'
                 }}
@@ -5797,7 +5799,7 @@ const EmailConfirmation = () => {
                 <Button
                   onClick={() => navigate('/dashboard')}
                   className="w-full"
-                  style={{ 
+                  style={{
                     background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)',
                     color: 'white'
                   }}
@@ -5808,7 +5810,7 @@ const EmailConfirmation = () => {
                   onClick={() => navigate('/')}
                   variant="outline"
                   className="w-full"
-                  style={{ 
+                  style={{
                     borderColor: '#003a42',
                     color: '#003a42'
                   }}
@@ -5838,9 +5840,9 @@ const AboutPage = () => {
             <div className="flex items-center justify-between h-12">
               <div className="flex items-center">
                 <Link to="/" className="flex items-center space-x-3">
-                  <img 
-                    src="/logo-alt-text-pro.png" 
-                    alt="Alt Text Pro Logo" 
+                  <img
+                    src="/logo-alt-text-pro.png"
+                    alt="Alt Text Pro Logo"
                     className="h-10 w-10 object-contain"
                   />
                   <span className="text-2xl font-bold text-gray-900">Alt Text Pro</span>
@@ -5860,7 +5862,7 @@ const AboutPage = () => {
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="bg-white rounded-2xl shadow-xl p-8 md:p-12">
           <h1 className="text-4xl font-bold text-gray-900 mb-8">About Us</h1>
-          
+
           <div className="prose prose-lg max-w-none space-y-8">
             <section>
               <p className="text-xl text-gray-600 leading-relaxed">
@@ -5915,7 +5917,7 @@ function App() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/admin" element={<AdminDashboard />} />
-          <Route path="/contact" element={<ContactPage />} />
+          <Route path="/contact" element={<ContactPageExtracted />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/docs" element={<DocsPage />} />
           <Route path="/email-confirmed" element={<EmailConfirmation />} />
