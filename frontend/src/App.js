@@ -21,18 +21,27 @@ import { supabase as supabaseClient } from './lib/supabase';
 import { PAYPAL_CLIENT_ID as PAYPAL_CLIENT_ID_FROM_CONFIG, PAYPAL_PLAN_IDS, paypalOptions, paypalSubscriptionOptions } from './lib/paypal';
 import ContactPageExtracted from './pages/ContactPage';
 
-// Initialize Supabase client
+// PHASE 0 REFACTORING: Configuration moved to lib files
+// The following code has been extracted to lib/supabase.js and lib/paypal.js
+// Keeping it commented for reference during migration
+
+// Initialize Supabase client - NOW IMPORTED FROM lib/supabase.js
+const supabase = supabaseClient; // Use the imported client
+
+// PayPal configuration - NOW IMPORTED FROM lib/paypal.js
+const PAYPAL_CLIENT_ID = PAYPAL_CLIENT_ID_FROM_CONFIG; // Use the imported config
+
+/*
+// OLD CODE - Now in lib/supabase.js
 const supabaseUrl = process.env.REACT_APP_SUPABASE_URL || 'https://placeholder.supabase.co';
 const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY || 'placeholder-key';
 
-// Debug Supabase configuration
 console.log('🔧 Supabase Configuration:');
 console.log('  - URL:', supabaseUrl);
 console.log('  - Anon Key:', supabaseAnonKey ? (supabaseAnonKey.substring(0, 20) + '...') : 'NOT SET');
 console.log('  - Env URL:', process.env.REACT_APP_SUPABASE_URL || 'NOT SET');
 console.log('  - Env Key:', process.env.REACT_APP_SUPABASE_ANON_KEY ? 'SET' : 'NOT SET');
 
-// Check if using placeholder values
 if (supabaseUrl === 'https://placeholder.supabase.co' || supabaseAnonKey === 'placeholder-key') {
   console.warn('⚠️ WARNING: Supabase is using placeholder values! Please set REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_ANON_KEY environment variables.');
 }
@@ -48,14 +57,12 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       : 'https://www.alt-text.pro'
   }
 });
+*/
 
-// PayPal configuration
+/*
+// OLD CODE - Now in lib/paypal.js
 const PAYPAL_CLIENT_ID = process.env.REACT_APP_PAYPAL_CLIENT_ID || 'test';
-// PayPal SDK automatically detects sandbox vs production based on client ID
-// Sandbox client IDs are different from production ones
 
-// PayPal plan ID mapping - production plan IDs from PayPal dashboard
-// You can also override these via environment variables: REACT_APP_PAYPAL_PLAN_TIER1, etc.
 const PAYPAL_PLAN_IDS = {
   tier1: {
     monthly: process.env.REACT_APP_PAYPAL_PLAN_TIER1 || 'P-8R4278588L5455645NEMOH6A',
@@ -79,13 +86,13 @@ const paypalOptions = {
   "disable-funding": "paylater,card"
 };
 
-// PayPal subscription options (for subscription plans)
 const paypalSubscriptionOptions = {
   "client-id": PAYPAL_CLIENT_ID,
   currency: "USD",
   vault: true,
   intent: "subscription"
 };
+*/
 
 // Landing Page Component
 const LandingPage = () => {
