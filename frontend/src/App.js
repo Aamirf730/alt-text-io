@@ -22,6 +22,7 @@ import { PAYPAL_CLIENT_ID as PAYPAL_CLIENT_ID_FROM_CONFIG, PAYPAL_PLAN_IDS, payp
 import ContactPageExtracted from './pages/ContactPage';
 import AboutPageExtracted from './pages/AboutPage';
 import TermsPageExtracted from './pages/TermsPage';
+import PrivacyPageExtracted from './pages/PrivacyPage';
 
 // PHASE 0 REFACTORING: Configuration moved to lib files
 // The following code has been extracted to lib/supabase.js and lib/paypal.js
@@ -5932,7 +5933,7 @@ function App() {
           <Route path="/email-confirmed" element={<EmailConfirmation />} />
           <Route path="/payment-success" element={<PaymentSuccess />} />
           <Route path="/terms" element={<TermsPageExtracted />} />
-          <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/privacy" element={<PrivacyPageExtracted />} />
           <Route path="/payment-cancelled" element={
             <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-cyan-50 to-teal-50">
               <div className="text-center max-w-md mx-auto p-6">
