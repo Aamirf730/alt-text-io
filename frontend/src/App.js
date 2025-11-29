@@ -23,6 +23,7 @@ import ContactPageExtracted from './pages/ContactPage';
 import AboutPageExtracted from './pages/AboutPage';
 import TermsPageExtracted from './pages/TermsPage';
 import PrivacyPageExtracted from './pages/PrivacyPage';
+import DocsPageExtracted from './pages/DocsPage';
 
 // PHASE 0 REFACTORING: Configuration moved to lib files
 // The following code has been extracted to lib/supabase.js and lib/paypal.js
@@ -5929,7 +5930,7 @@ function App() {
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/contact" element={<ContactPageExtracted />} />
           <Route path="/about" element={<AboutPageExtracted />} />
-          <Route path="/docs" element={<DocsPage />} />
+          <Route path="/docs" element={<DocsPageExtracted />} />
           <Route path="/email-confirmed" element={<EmailConfirmation />} />
           <Route path="/payment-success" element={<PaymentSuccess />} />
           <Route path="/terms" element={<TermsPageExtracted />} />
