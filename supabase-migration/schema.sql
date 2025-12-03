@@ -8,7 +8,7 @@ CREATE TABLE public.profiles (
   id UUID REFERENCES auth.users(id) PRIMARY KEY,
   email TEXT UNIQUE NOT NULL,
   subscription_plan TEXT DEFAULT 'free' CHECK (subscription_plan IN ('free', 'tier1', 'tier2', 'pay_as_go')),
-  credits_remaining INTEGER DEFAULT 100,
+  credits_remaining INTEGER DEFAULT 50,
   total_processed INTEGER DEFAULT 0,
   subscription_status TEXT DEFAULT 'active' CHECK (subscription_status IN ('active', 'cancelled', 'expired', 'pending')),
   subscription_id TEXT, -- PayPal subscription ID
@@ -56,8 +56,8 @@ CREATE TABLE public.subscription_plans (
 
 -- Insert default subscription plans
 INSERT INTO public.subscription_plans (id, name, price, credits, billing_cycle, features) VALUES
-('free', 'Free', 0, 100, 'monthly', 
- '["100 Credits", "Basic support", "API access"]'),
+('free', 'Free', 0, 50, 'monthly', 
+ '["50 Credits", "Basic support", "API access"]'),
 ('tier1', 'Tier 1', 12.00, 1000, 'monthly', 
  '["1,000 Credits", "Priority support", "API access", "Bulk processing"]'),
 ('tier2', 'Tier 2', 20.00, 2500, 'monthly', 
@@ -102,7 +102,7 @@ CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
   INSERT INTO public.profiles (id, email, subscription_plan, credits_remaining)
-  VALUES (NEW.id, NEW.email, 'free', 100);
+  VALUES (NEW.id, NEW.email, 'free', 50);
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

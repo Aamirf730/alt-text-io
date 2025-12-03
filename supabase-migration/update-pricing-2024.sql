@@ -18,8 +18,8 @@ DELETE FROM subscription_plans WHERE id NOT IN ('free');
 -- Insert updated and new plans
 INSERT INTO public.subscription_plans (id, name, price, annual_price, credits, billing_cycle, features, is_popular, per_credit_cost) VALUES
 -- Free plan (unchanged)
-('free', 'Free', 0, 0, 100, 'monthly', 
- '["100 Credits each month", "Basic support", "WordPress plugin access"]'::jsonb, 
+('free', 'Free', 0, 0, 50, 'monthly', 
+ '["50 Credits each month", "Basic support", "WordPress plugin access"]'::jsonb, 
  false, 0),
 
 -- Tier 1: Updated pricing
