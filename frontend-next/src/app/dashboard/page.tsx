@@ -4,8 +4,17 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from '@/lib/supabase';
-import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
-import { PAYPAL_PLAN_IDS, paypalOptions, paypalSubscriptionOptions } from '@/lib/paypal';
+// Polar.sh product IDs from environment variables
+const POLAR_PRODUCTS = {
+    tier1_monthly: process.env.NEXT_PUBLIC_POLAR_TIER1_MONTHLY || '',
+    tier1_annual: process.env.NEXT_PUBLIC_POLAR_TIER1_ANNUAL || '',
+    tier2_monthly: process.env.NEXT_PUBLIC_POLAR_TIER2_MONTHLY || '',
+    tier2_annual: process.env.NEXT_PUBLIC_POLAR_TIER2_ANNUAL || '',
+    tier3_monthly: process.env.NEXT_PUBLIC_POLAR_TIER3_MONTHLY || '',
+    tier3_annual: process.env.NEXT_PUBLIC_POLAR_TIER3_ANNUAL || '',
+    small_pack: process.env.NEXT_PUBLIC_POLAR_SMALL_PACK || '',
+    credit_pack: process.env.NEXT_PUBLIC_POLAR_CREDIT_PACK || '',
+};
 import { toast } from "sonner";
 import {
     Brain, Zap, CheckCircle, Star, ArrowRight, Users, Shield, Rocket,
@@ -59,15 +68,22 @@ export default function Dashboard() {
     // Load subscription data from API
     const loadSubscriptionData = async (token: string) => {
         try {
-            let apiBase;
+            // Skip API call on localhost - use fallback data for development
             if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-                // Use localhost Netlify Dev functions (port 9999)
-                apiBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:9999/.netlify/functions';
-            } else {
-                apiBase = '/.netlify/functions';
+                console.log('Using fallback subscription data for localhost');
+                setSubscriptionData({
+                    subscription: {
+                        plan: 'free',
+                        status: 'active',
+                        subscription_id: null,
+                        next_billing_date: null
+                    }
+                });
+                return;
             }
 
-            const response = await fetch(`${apiBase}/get-subscription`, {
+            // Production: call Netlify function
+            const response = await fetch(`/.netlify/functions/get-subscription`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`
@@ -79,7 +95,6 @@ export default function Dashboard() {
                 setSubscriptionData(data);
             } else {
                 console.warn('Subscription API not available, using fallback data');
-                // Fallback subscription data for development
                 setSubscriptionData({
                     subscription: {
                         plan: 'free',
@@ -91,7 +106,6 @@ export default function Dashboard() {
             }
         } catch (error: any) {
             console.warn('Subscription API not available, using fallback data:', error.message);
-            // Fallback subscription data for development
             setSubscriptionData({
                 subscription: {
                     plan: 'free',
@@ -109,164 +123,42 @@ export default function Dashboard() {
         setShowUpgradeModal(true);
     };
 
-    // Handle PayPal subscription creation for upgrades (using SDK)
-    const createUpgradePayPalSubscription = async (data: any, actions: any) => {
-        try {
-            if (!user?.token) {
-                throw new Error('No valid session');
-            }
-
-            // Get the PayPal plan ID for the selected upgrade plan
-            // Default to monthly for upgrades as dashboard doesn't have billing cycle toggle yet
-            const planGroup = PAYPAL_PLAN_IDS[selectedUpgradePlan.id];
-            const paypalPlanId = planGroup?.monthly;
-
-            if (!paypalPlanId) {
-                throw new Error(`No PayPal plan ID found for ${selectedUpgradePlan.id}`);
-            }
-
-            console.log('Creating PayPal subscription via SDK for upgrade plan:', selectedUpgradePlan.id);
-            console.log('PayPal Plan ID:', paypalPlanId);
-
-            // Use PayPal SDK's createSubscription method
-            return actions.subscription.create({
-                plan_id: paypalPlanId
-            });
-        } catch (error) {
-            console.error('PayPal subscription creation error:', error);
-            toast.error('Failed to create subscription. Please try again.');
-            throw error;
+    // Redirect to Polar.sh checkout
+    const redirectToCheckout = (productId: string) => {
+        if (!productId) {
+            toast.error('Product not configured. Please contact support.');
+            return;
         }
+
+        let checkoutUrl = `/api/checkout?products=${productId}`;
+
+        // Add customer email if user is logged in
+        if (user?.email) {
+            checkoutUrl += `&customerEmail=${encodeURIComponent(user.email)}`;
+        }
+
+        window.location.href = checkoutUrl;
     };
 
-    // Handle PayPal payment creation for upgrades (one-time payments)
-    const createUpgradePayPalOrder = async (data: any, actions: any) => {
-        try {
-            if (!selectedUpgradePlan) {
-                throw new Error('No plan selected');
-            }
-
-            // Create order directly using PayPal SDK
-            return actions.order.create({
-                purchase_units: [{
-                    description: `${selectedUpgradePlan.name} - 300 Credits`,
-                    amount: {
-                        currency_code: 'USD',
-                        value: '5.00'
-                    }
-                }],
-                application_context: {
-                    brand_name: 'Alt Text Pro',
-                    shipping_preference: 'NO_SHIPPING'
-                }
-            });
-        } catch (error: any) {
-            console.error('PayPal order creation error:', error);
-            toast.error('Failed to create payment. Please try again.');
-            throw error;
+    // Get the correct Polar product ID based on plan
+    const getPolarProductId = (planId: string): string => {
+        // For dashboard upgrades, default to monthly plans
+        if (planId === 'tier1') {
+            return POLAR_PRODUCTS.tier1_monthly;
         }
-    };
-
-    // Handle PayPal subscription approval for upgrades (using SDK)
-    const onUpgradePayPalSubscriptionApprove = async (data: any, actions: any) => {
-        try {
-            if (!user?.token) {
-                throw new Error('No valid session');
-            }
-
-            console.log('PayPal subscription approved for upgrade:', data);
-            console.log('Subscription ID:', data.subscriptionID);
-
-            let apiBase;
-            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-                // Use localhost Netlify Dev functions (port 9999)
-                apiBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:9999/.netlify/functions';
-            } else {
-                apiBase = '/.netlify/functions';
-            }
-
-            // Complete the subscription on our backend
-            const response = await fetch(`${apiBase}/complete-payment`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${user.token}`
-                },
-                body: JSON.stringify({
-                    subscriptionId: data.subscriptionID,
-                    planId: selectedUpgradePlan.id
-                })
-            });
-
-            const result = await response.json();
-
-            if (!response.ok) {
-                throw new Error(result.error || 'Subscription completion failed');
-            }
-
-            toast.success(`Successfully upgraded to ${selectedUpgradePlan.name}!`);
-            setShowUpgradeModal(false);
-            setSelectedUpgradePlan(null);
-
-            // Reload dashboard data
-            await loadDashboard();
-
-        } catch (error) {
-            console.error('PayPal subscription approval error:', error);
-            toast.error('Subscription failed. Please try again.');
+        if (planId === 'tier2') {
+            return POLAR_PRODUCTS.tier2_monthly;
         }
-    };
-
-    // Handle PayPal payment approval for upgrades (one-time payments)
-    const onUpgradePayPalApprove = async (data: any, actions: any) => {
-        try {
-            if (!user?.token) {
-                throw new Error('No valid session');
-            }
-
-            let apiBase;
-            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-                // Use localhost Netlify Dev functions (port 9999)
-                apiBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:9999/.netlify/functions';
-            } else {
-                apiBase = '/.netlify/functions';
-            }
-
-            // For one-time payments, capture the order first using PayPalButtons actions
-            if (actions && actions.order) {
-                const captureResult = await actions.order.capture();
-                console.log('PayPal order captured:', captureResult);
-            }
-
-            const response = await fetch(`${apiBase}/complete-payment`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${user.token}`
-                },
-                body: JSON.stringify({
-                    paymentId: data.orderID,
-                    planId: selectedUpgradePlan.id
-                })
-            });
-
-            const result = await response.json();
-
-            if (!response.ok) {
-                throw new Error(result.error || 'Payment completion failed');
-            }
-
-            toast.success(`Successfully purchased ${selectedUpgradePlan.name}!`);
-            setShowUpgradeModal(false);
-            setSelectedUpgradePlan(null);
-
-            // Reload dashboard data
-            await loadDashboard();
-
-        } catch (error) {
-            console.error('PayPal approval error:', error);
-            toast.error('Payment failed. Please try again.');
+        if (planId === 'tier3') {
+            return POLAR_PRODUCTS.tier3_monthly;
         }
+        if (planId === 'small_pack') {
+            return POLAR_PRODUCTS.small_pack;
+        }
+        if (planId === 'credit_pack' || planId === 'pay_as_go') {
+            return POLAR_PRODUCTS.credit_pack;
+        }
+        return '';
     };
 
     // Load history when user or stats change
@@ -348,40 +240,9 @@ export default function Dashboard() {
                 token: session.access_token
             });
 
-            // Fetch real usage data from API (same endpoint the plugin uses for consistency)
-            let apiBase;
+            // On localhost, skip Netlify function and use direct Supabase query
             if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-                // Use localhost Netlify Dev functions (port 9999)
-                apiBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:9999/.netlify/functions';
-            } else {
-                apiBase = '/.netlify/functions';
-            }
-
-            try {
-                const usageResponse = await fetch(`${apiBase}/get-usage`, {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${session.access_token}`
-                    }
-                });
-
-                if (usageResponse.ok) {
-                    const usageData = await usageResponse.json();
-                    if (usageData.success && usageData.data) {
-                        setUsageStats({
-                            credits_remaining: usageData.data.credits_remaining || 0,
-                            total_processed: usageData.data.total_generated || 0,
-                            plan: usageData.data.subscription_plan || 'free'
-                        });
-                    } else {
-                        throw new Error('Invalid API response format');
-                    }
-                } else {
-                    throw new Error(`API returned status ${usageResponse.status}`);
-                }
-            } catch (error) {
-                console.error('Error loading usage data from API:', error);
-                // Fallback: try direct Supabase query as backup
+                console.log('Using direct Supabase query for localhost');
                 const { data: profile, error: profileError } = await supabase
                     .from('profiles')
                     .select('credits_remaining, total_processed, subscription_plan, subscription_status, next_billing_date')
@@ -390,18 +251,65 @@ export default function Dashboard() {
 
                 if (profileError || !profile) {
                     console.error('Error loading profile:', profileError);
-                    // Final fallback to default if both methods fail
                     setUsageStats({
                         credits_remaining: 50,
                         total_processed: 0,
-                        plan: 'Free Trial'
+                        plan: 'free'
                     });
                 } else {
                     setUsageStats({
                         credits_remaining: profile.credits_remaining || 50,
                         total_processed: profile.total_processed || 0,
-                        plan: profile.subscription_plan || 'Free Trial'
+                        plan: profile.subscription_plan || 'free'
                     });
+                }
+            } else {
+                // Production: try Netlify function first, fallback to Supabase
+                try {
+                    const usageResponse = await fetch(`/.netlify/functions/get-usage`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${session.access_token}`
+                        }
+                    });
+
+                    if (usageResponse.ok) {
+                        const usageData = await usageResponse.json();
+                        if (usageData.success && usageData.data) {
+                            setUsageStats({
+                                credits_remaining: usageData.data.credits_remaining || 0,
+                                total_processed: usageData.data.total_generated || 0,
+                                plan: usageData.data.subscription_plan || 'free'
+                            });
+                        } else {
+                            throw new Error('Invalid API response format');
+                        }
+                    } else {
+                        throw new Error(`API returned status ${usageResponse.status}`);
+                    }
+                } catch (error) {
+                    console.error('Error loading usage data from API:', error);
+                    // Fallback: try direct Supabase query as backup
+                    const { data: profile, error: profileError } = await supabase
+                        .from('profiles')
+                        .select('credits_remaining, total_processed, subscription_plan, subscription_status, next_billing_date')
+                        .eq('id', session.user.id)
+                        .single();
+
+                    if (profileError || !profile) {
+                        console.error('Error loading profile:', profileError);
+                        setUsageStats({
+                            credits_remaining: 50,
+                            total_processed: 0,
+                            plan: 'free'
+                        });
+                    } else {
+                        setUsageStats({
+                            credits_remaining: profile.credits_remaining || 50,
+                            total_processed: profile.total_processed || 0,
+                            plan: profile.subscription_plan || 'free'
+                        });
+                    }
                 }
             }
 
@@ -635,10 +543,10 @@ export default function Dashboard() {
                         <p className="text-gray-500 mt-1">Manage your account, credits, and API keys</p>
                     </div>
                     <div className="flex items-center gap-3">
-                        <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">Plugin v1.4.21</span>
+                        <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">Plugin v1.4.58</span>
                         <a
-                            href="/wordpress-plugin/alt-text-pro-plugin-1.4.21.zip"
-                            download="alt-text-pro-plugin-1.4.21.zip"
+                            href="/wordpress-plugin/alt-text-pro-plugin-1.4.58.zip"
+                            download="alt-text-pro-plugin-1.4.58.zip"
                             className="inline-flex items-center px-4 py-2 text-sm font-medium text-white transition-all rounded-lg shadow-sm hover:shadow hover:-translate-y-0.5"
                             style={{
                                 background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)'
@@ -1064,18 +972,20 @@ export default function Dashboard() {
                                         </div>
                                     </div>
 
-                                    <PayPalScriptProvider options={selectedUpgradePlan.id === 'pay_as_go' ? paypalOptions : paypalSubscriptionOptions}>
-                                        <PayPalButtons
-                                            style={{ layout: "vertical", shape: "rect", label: selectedUpgradePlan.id === 'pay_as_go' ? "pay" : "subscribe" }}
-                                            createOrder={selectedUpgradePlan.id === 'pay_as_go' ? createUpgradePayPalOrder : undefined}
-                                            createSubscription={selectedUpgradePlan.id !== 'pay_as_go' ? createUpgradePayPalSubscription : undefined}
-                                            onApprove={selectedUpgradePlan.id === 'pay_as_go' ? onUpgradePayPalApprove : onUpgradePayPalSubscriptionApprove}
-                                            onError={(err) => {
-                                                console.error("PayPal Error:", err);
-                                                toast.error("Payment failed. Please try again.");
-                                            }}
-                                        />
-                                    </PayPalScriptProvider>
+                                    {/* Polar.sh Checkout Button */}
+                                    <Button
+                                        onClick={() => {
+                                            const productId = getPolarProductId(selectedUpgradePlan.id);
+                                            redirectToCheckout(productId);
+                                        }}
+                                        className="w-full h-12 text-white font-semibold"
+                                        style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
+                                    >
+                                        Continue to Checkout
+                                    </Button>
+                                    <p className="text-xs text-gray-500 text-center mt-2">
+                                        You will be redirected to our secure payment processor
+                                    </p>
 
                                     <button
                                         onClick={() => setSelectedUpgradePlan(null)}
@@ -1085,7 +995,7 @@ export default function Dashboard() {
                                     </button>
                                 </div>
                             ) : (
-                                <div className="grid md:grid-cols-3 gap-8">
+                                <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
                                     {/* Tier 1 */}
                                     <div className="border border-gray-200 rounded-2xl p-6 hover:border-teal-500 hover:shadow-lg transition-all cursor-pointer relative group">
                                         <div className="absolute top-0 right-0 bg-teal-500 text-white text-xs font-bold px-3 py-1 rounded-bl-lg rounded-tr-lg">
@@ -1093,7 +1003,7 @@ export default function Dashboard() {
                                         </div>
                                         <h3 className="text-lg font-bold text-gray-900">Starter</h3>
                                         <div className="mt-4 mb-6">
-                                            <span className="text-4xl font-bold text-gray-900">$12</span>
+                                            <span className="text-4xl font-bold text-gray-900">$10</span>
                                             <span className="text-gray-500">/month</span>
                                         </div>
                                         <ul className="space-y-3 mb-8">
@@ -1112,7 +1022,7 @@ export default function Dashboard() {
                                         </ul>
                                         <Button
                                             className="w-full"
-                                            onClick={() => handleUpgradePlan('tier1', 'Starter Plan', '$12')}
+                                            onClick={() => handleUpgradePlan('tier1', 'Starter Plan', '$10')}
                                             style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
                                         >
                                             Choose Starter
@@ -1129,7 +1039,7 @@ export default function Dashboard() {
                                         <ul className="space-y-3 mb-8">
                                             <li className="flex items-center text-sm text-gray-600">
                                                 <Check className="h-4 w-4 text-purple-500 mr-2" />
-                                                2,400 credits/month
+                                                2,300 credits/month
                                             </li>
                                             <li className="flex items-center text-sm text-gray-600">
                                                 <Check className="h-4 w-4 text-purple-500 mr-2" />
@@ -1148,17 +1058,17 @@ export default function Dashboard() {
                                         </Button>
                                     </div>
 
-                                    {/* Pay As You Go */}
+                                    {/* Pay As You Go - $3 Pack */}
                                     <div className="border border-gray-200 rounded-2xl p-6 hover:border-amber-500 hover:shadow-lg transition-all cursor-pointer bg-gradient-to-br from-amber-50 to-orange-50">
-                                        <h3 className="text-lg font-bold text-gray-900">Pay As You Go</h3>
+                                        <h3 className="text-lg font-bold text-gray-900">Small Pack</h3>
                                         <div className="mt-4 mb-6">
-                                            <span className="text-4xl font-bold text-gray-900">$5</span>
+                                            <span className="text-4xl font-bold text-gray-900">$3</span>
                                             <span className="text-gray-500">/pack</span>
                                         </div>
                                         <ul className="space-y-3 mb-8">
                                             <li className="flex items-center text-sm text-gray-600">
                                                 <Check className="h-4 w-4 text-amber-500 mr-2" />
-                                                300 credits
+                                                350 credits
                                             </li>
                                             <li className="flex items-center text-sm text-gray-600">
                                                 <Check className="h-4 w-4 text-amber-500 mr-2" />
@@ -1166,15 +1076,45 @@ export default function Dashboard() {
                                             </li>
                                             <li className="flex items-center text-sm text-gray-600">
                                                 <Check className="h-4 w-4 text-amber-500 mr-2" />
-                                                Adds to existing credits
+                                                Adds to existing
                                             </li>
                                         </ul>
                                         <Button
                                             className="w-full text-white"
                                             style={{ background: 'linear-gradient(135deg, #d97706 0%, #b45309 100%)' }}
-                                            onClick={() => handleUpgradePlan('pay_as_go', 'Credit Pack', '$5')}
+                                            onClick={() => handleUpgradePlan('small_pack', 'Small Pack', '$3')}
                                         >
-                                            Buy Credits
+                                            Buy 350 Credits
+                                        </Button>
+                                    </div>
+
+                                    {/* Pay As You Go - $5 Pack */}
+                                    <div className="border border-gray-200 rounded-2xl p-6 hover:border-green-500 hover:shadow-lg transition-all cursor-pointer bg-gradient-to-br from-green-50 to-emerald-50">
+                                        <h3 className="text-lg font-bold text-gray-900">Credit Pack</h3>
+                                        <div className="mt-4 mb-6">
+                                            <span className="text-4xl font-bold text-gray-900">$5</span>
+                                            <span className="text-gray-500">/pack</span>
+                                        </div>
+                                        <ul className="space-y-3 mb-8">
+                                            <li className="flex items-center text-sm text-gray-600">
+                                                <Check className="h-4 w-4 text-green-500 mr-2" />
+                                                550 credits
+                                            </li>
+                                            <li className="flex items-center text-sm text-gray-600">
+                                                <Check className="h-4 w-4 text-green-500 mr-2" />
+                                                Never expires
+                                            </li>
+                                            <li className="flex items-center text-sm text-gray-600">
+                                                <Check className="h-4 w-4 text-green-500 mr-2" />
+                                                Best value
+                                            </li>
+                                        </ul>
+                                        <Button
+                                            className="w-full text-white"
+                                            style={{ background: 'linear-gradient(135deg, #059669 0%, #047857 100%)' }}
+                                            onClick={() => handleUpgradePlan('credit_pack', 'Credit Pack', '$5')}
+                                        >
+                                            Buy 550 Credits
                                         </Button>
                                     </div>
                                 </div>
