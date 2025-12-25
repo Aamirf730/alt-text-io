@@ -20,7 +20,7 @@ rm -f alt-text-pro-plugin.zip alt-text-ai-plugin.zip alt-text-ai.zip
 # Create ZIP file (disable macOS resource forks)
 echo -e "${BLUE}Creating plugin ZIP file...${NC}"
 export COPYFILE_DISABLE=1
-zip -r alt-text-pro-plugin.zip alt-text-ai \
+zip -r alt-text-pro-plugin.zip alt-text-pro \
   -x "*.DS_Store" \
   -x "*.md" \
   -x "__MACOSX*" \

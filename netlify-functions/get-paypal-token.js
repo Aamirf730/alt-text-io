@@ -1,6 +1,15 @@
 // Netlify Function to get PayPal access token
 // Simple endpoint that returns the access token
 
+const {
+  getCorsHeaders,
+  handlePreflight,
+  getClientIp,
+  checkRateLimit,
+  rateLimitExceededResponse,
+  methodNotAllowedResponse,
+} = require('./utils/cors');
+
 const PAYPAL_CLIENT_ID = process.env.PAYPAL_CLIENT_ID;
 const PAYPAL_CLIENT_SECRET = process.env.PAYPAL_CLIENT_SECRET;
 const PAYPAL_BASE_URL = process.env.PAYPAL_ENVIRONMENT === 'sandbox' 
@@ -37,18 +46,22 @@ async function getPayPalAccessToken() {
 }
 
 exports.handler = async (event, context) => {
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Allow-Methods': 'GET, OPTIONS',
-  };
+  // Get secure CORS headers (origin-validated)
+  const headers = getCorsHeaders(event.headers, ['GET', 'OPTIONS']);
 
-  if (event.httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 200,
-      headers,
-      body: '',
-    };
+  // Handle preflight OPTIONS request
+  const preflightResponse = handlePreflight(event);
+  if (preflightResponse) return preflightResponse;
+
+  // Rate limiting
+  const clientIp = getClientIp(event);
+  const rateLimit = checkRateLimit(clientIp, 30);
+  if (!rateLimit.allowed) {
+    return rateLimitExceededResponse(headers, rateLimit);
+  }
+
+  if (event.httpMethod !== 'GET') {
+    return methodNotAllowedResponse(headers);
   }
 
   try {

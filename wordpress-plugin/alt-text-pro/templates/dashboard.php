@@ -174,9 +174,3 @@ $alt_text_pro_current_page = isset($_GET['page']) ? sanitize_text_field(wp_unsla
 
     <?php endif; ?>
 </div>
-
-<script type="text/javascript">
-jQuery(document).ready(function($) {
-    // Refresh stats logic if needed
-});
-</script>

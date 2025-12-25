@@ -130,7 +130,7 @@ export default function DocsPage() {
                                                 <Brain className="h-6 w-6 mr-3" style={{ color: '#0D4F5E' }} />
                                                 <h3 className="text-lg font-semibold">AI-Powered Quality</h3>
                                             </div>
-                                            <p className="text-gray-600">Leverage Google Gemini AI to generate accurate, context-aware descriptions.</p>
+                                            <p className="text-gray-600">Leverage advanced AI to generate accurate, context-aware descriptions.</p>
                                         </Card>
                                     </div>
 
@@ -176,9 +176,9 @@ export default function DocsPage() {
                                     <div className="bg-gray-50 p-6 rounded-lg my-4">
                                         <h4 className="font-semibold mb-3">Method 2: Manual Installation</h4>
                                         <ol className="list-decimal list-inside space-y-2 text-gray-700">
-                                            <li>Download the plugin from <a href="https://www.alt-text.pro/wordpress-plugin/alt-text-pro-plugin-1.4.21.zip" className="text-teal-600 hover:underline">alt-text.pro/wordpress-plugin/alt-text-pro-plugin-1.4.21.zip</a></li>
+                                            <li>Download the plugin from <a href="https://www.alt-text.pro/wordpress-plugin/alt-text-pro-plugin-1.4.24.zip" className="text-teal-600 hover:underline">alt-text.pro/wordpress-plugin/alt-text-pro-plugin-1.4.24.zip</a></li>
                                             <li>Extract the zip file</li>
-                                            <li>Upload the <code className="bg-gray-200 px-2 py-1 rounded">alt-text-ai</code> folder to <code className="bg-gray-200 px-2 py-1 rounded">/wp-content/plugins/</code></li>
+                                            <li>Upload the <code className="bg-gray-200 px-2 py-1 rounded">alt-text-pro</code> folder to <code className="bg-gray-200 px-2 py-1 rounded">/wp-content/plugins/</code></li>
                                             <li>Go to <strong>Plugins</strong> in WordPress admin and activate <strong>Alt Text Pro</strong></li>
                                         </ol>
                                     </div>
@@ -213,7 +213,7 @@ export default function DocsPage() {
                                     <Card className="p-6">
                                         <Brain className="h-8 w-8 mb-4" style={{ color: '#0D4F5E' }} />
                                         <h3 className="text-xl font-bold mb-3">AI-Powered Generation</h3>
-                                        <p className="text-gray-600">Uses Google Gemini AI to create accurate, descriptive alt-text that understands image content and context.</p>
+                                        <p className="text-gray-600">Uses advanced AI to create accurate, descriptive alt-text that understands image content and context.</p>
                                     </Card>
                                     <Card className="p-6">
                                         <Upload className="h-8 w-8 mb-4" style={{ color: '#0D4F5E' }} />
@@ -497,7 +497,7 @@ export default function DocsPage() {
                                 </h2>
                                 <div className="space-y-6">
                                     <Card className="p-6"><h3 className="font-bold text-lg mb-2">Do I need an Alt Text Pro account?</h3><p className="text-gray-700">Yes, you need a free Alt Text Pro account to use the plugin or API. Sign up at <a href="https://www.alt-text.pro" className="text-teal-600 hover:underline">alt-text.pro</a> and get 50 free credits to start.</p></Card>
-                                    <Card className="p-6"><h3 className="font-bold text-lg mb-2">How accurate is the AI-generated alt-text?</h3><p className="text-gray-700">Our AI uses Google Gemini and provides highly accurate descriptions. However, we always recommend reviewing and editing the generated text to ensure it fits your specific context perfectly.</p></Card>
+                                    <Card className="p-6"><h3 className="font-bold text-lg mb-2">How accurate is the AI-generated alt-text?</h3><p className="text-gray-700">Our service uses advanced AI models and provides highly accurate descriptions. However, we always recommend reviewing and editing the generated text to ensure it fits your specific context perfectly.</p></Card>
                                     <Card className="p-6"><h3 className="font-bold text-lg mb-2">Can I edit the generated alt-text?</h3><p className="text-gray-700">Absolutely! The plugin generates alt-text as a starting point. You can always edit, refine, or completely rewrite the descriptions in WordPress media library.</p></Card>
                                     <Card className="p-6"><h3 className="font-bold text-lg mb-2">What happens if I run out of credits?</h3><p className="text-gray-700">If you run out of credits, the plugin will stop generating new alt-text. You can purchase more credits or upgrade your plan from your dashboard.</p></Card>
                                     <Card className="p-6"><h3 className="font-bold text-lg mb-2">Does this work with existing images?</h3><p className="text-gray-700">Yes! The plugin includes a powerful bulk processing feature that can generate alt-text for all your existing images that don't have alt-text yet.</p></Card>

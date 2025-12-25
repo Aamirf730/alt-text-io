@@ -2,6 +2,14 @@
 // File: netlify-functions/admin-get-users.js
 
 const { createClient } = require('@supabase/supabase-js');
+const {
+  getCorsHeaders,
+  handlePreflight,
+  getClientIp,
+  checkRateLimit,
+  rateLimitExceededResponse,
+  methodNotAllowedResponse,
+} = require('./utils/cors');
 
 // Initialize Supabase client with service role key for admin access
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -9,43 +17,29 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 // Superuser emails (comma-separated list from environment variable)
-// Current superuser: help@wpgeared.com
-// Set SUPERUSER_EMAILS environment variable in Netlify: help@wpgeared.com
 const SUPERUSER_EMAILS = (process.env.SUPERUSER_EMAILS || '').split(',').map(email => email.trim()).filter(Boolean);
 
+// Stricter rate limit for admin endpoints (30 requests per minute)
+const ADMIN_RATE_LIMIT = 30;
+
 exports.handler = async (event, context) => {
-  // Log function invocation
-  console.log('=== ADMIN-GET-USERS FUNCTION CALLED ===');
-  console.log('Timestamp:', new Date().toISOString());
-  console.log('HTTP Method:', event.httpMethod);
-  console.log('Path:', event.path);
-  console.log('Request ID:', context.requestId || 'N/A');
-  
-  // Enable CORS
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Methods': 'GET, OPTIONS',
-    'Content-Type': 'application/json',
-  };
+  // Get secure CORS headers (origin-validated)
+  const headers = getCorsHeaders(event.headers, ['GET', 'OPTIONS']);
 
   // Handle preflight OPTIONS request
-  if (event.httpMethod === 'OPTIONS') {
-    console.log('OPTIONS preflight request - returning 200');
-    return {
-      statusCode: 200,
-      headers,
-      body: '',
-    };
+  const preflightResponse = handlePreflight(event);
+  if (preflightResponse) return preflightResponse;
+
+  // Rate limiting for admin endpoint (stricter)
+  const clientIp = getClientIp(event);
+  const rateLimit = checkRateLimit(`admin:${clientIp}`, ADMIN_RATE_LIMIT);
+  if (!rateLimit.allowed) {
+    console.warn('Rate limit exceeded for admin endpoint:', clientIp);
+    return rateLimitExceededResponse(headers, rateLimit);
   }
 
   if (event.httpMethod !== 'GET') {
-    console.error('Invalid HTTP method:', event.httpMethod);
-    return {
-      statusCode: 405,
-      headers,
-      body: JSON.stringify({ error: 'Method not allowed' }),
-    };
+    return methodNotAllowedResponse(headers);
   }
 
   try {
@@ -55,13 +49,13 @@ exports.handler = async (event, context) => {
     console.log('SUPABASE_SERVICE_ROLE_KEY:', supabaseServiceKey ? 'SET (hidden)' : 'NOT SET');
     console.log('SUPERUSER_EMAILS:', SUPERUSER_EMAILS.length > 0 ? SUPERUSER_EMAILS.join(', ') : 'NOT SET');
     console.log('SUPERUSER_EMAILS (raw):', process.env.SUPERUSER_EMAILS || 'NOT SET');
-    
+
     if (!supabaseUrl || !supabaseServiceKey) {
       console.error('CRITICAL: Supabase configuration missing!');
       return {
         statusCode: 500,
         headers,
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           error: 'Server configuration error',
           details: 'Supabase credentials not configured'
         }),
@@ -72,7 +66,7 @@ exports.handler = async (event, context) => {
     console.log('=== AUTHENTICATION CHECK ===');
     const authHeader = event.headers.authorization || event.headers.Authorization;
     console.log('Authorization header present:', !!authHeader);
-    
+
     if (!authHeader) {
       console.error('ERROR: No authorization header');
       return {
@@ -84,17 +78,17 @@ exports.handler = async (event, context) => {
 
     const token = authHeader.replace('Bearer ', '').trim();
     console.log('Token preview:', token ? (token.substring(0, 20) + '...') : 'NO TOKEN');
-    
+
     // Validate JWT token and get user
     console.log('Validating JWT token with Supabase...');
     let user = null;
     let authError = null;
-    
+
     try {
       const { data: { user: authUser }, error: getUserError } = await supabase.auth.getUser(token);
       user = authUser;
       authError = getUserError;
-      
+
       if (authError) {
         console.error('Supabase getUser error:', authError);
         console.error('Error message:', authError.message);
@@ -112,13 +106,13 @@ exports.handler = async (event, context) => {
       console.error('Exception stack:', err.stack);
       authError = err;
     }
-    
+
     if (authError || !user) {
       console.error('Authentication failed');
       return {
         statusCode: 401,
         headers,
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           error: 'Invalid or expired token',
           details: authError?.message || 'User not found'
         }),
@@ -130,13 +124,13 @@ exports.handler = async (event, context) => {
     console.log('User email:', user.email);
     console.log('Superuser emails list:', SUPERUSER_EMAILS);
     console.log('Is superuser?', SUPERUSER_EMAILS.includes(user.email));
-    
+
     if (!SUPERUSER_EMAILS.includes(user.email)) {
       console.error('Access denied - user is not a superuser');
       return {
         statusCode: 403,
         headers,
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           error: 'Access denied. Superuser privileges required.',
           details: `User email ${user.email} is not in the superuser list.`
         }),
@@ -149,16 +143,16 @@ exports.handler = async (event, context) => {
     console.log('=== FETCHING PROFILES ===');
     let profiles = [];
     let profilesError = null;
-    
+
     try {
       const { data: profilesData, error: profilesErr } = await supabase
-      .from('profiles')
-      .select('*')
-      .order('created_at', { ascending: false });
-      
+        .from('profiles')
+        .select('*')
+        .order('created_at', { ascending: false });
+
       profiles = profilesData || [];
       profilesError = profilesErr;
-      
+
       if (profilesError) {
         console.error('Error fetching profiles:', profilesError);
         console.error('Error code:', profilesError.code);
@@ -178,7 +172,7 @@ exports.handler = async (event, context) => {
       return {
         statusCode: 500,
         headers,
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           error: 'Failed to fetch user profiles',
           details: profilesError.message || JSON.stringify(profilesError)
         }),
@@ -189,18 +183,18 @@ exports.handler = async (event, context) => {
     console.log('=== FETCHING PAYMENTS ===');
     let payments = [];
     let paymentsError = null;
-    
+
     try {
       const { data: paymentsData, error: paymentsErr } = await supabase
-      .from('payments')
-      .select('*')
-      .order('created_at', { ascending: false });
+        .from('payments')
+        .select('*')
+        .order('created_at', { ascending: false });
 
       payments = paymentsData || [];
       paymentsError = paymentsErr;
-      
-    if (paymentsError) {
-      console.error('Error fetching payments:', paymentsError);
+
+      if (paymentsError) {
+        console.error('Error fetching payments:', paymentsError);
       } else {
         console.log('Payments fetched successfully');
         console.log('Number of payments:', payments.length);
@@ -210,28 +204,27 @@ exports.handler = async (event, context) => {
       paymentsError = err;
     }
 
-    // Get usage statistics for all users
-    console.log('=== FETCHING USAGE LOGS ===');
-    let usageLogs = [];
+    // Get usage statistics for all users from the aggregated view
+    console.log('=== FETCHING USAGE STATS ===');
+    let usageStats = [];
     let usageError = null;
-    
+
     try {
       const { data: usageData, error: usageErr } = await supabase
-      .from('usage_logs')
-      .select('user_id, credits_used, created_at')
-      .order('created_at', { ascending: false });
+        .from('user_usage_stats')
+        .select('*');
 
-      usageLogs = usageData || [];
+      usageStats = usageData || [];
       usageError = usageErr;
-      
-    if (usageError) {
-      console.error('Error fetching usage logs:', usageError);
+
+      if (usageError) {
+        console.error('Error fetching usage stats:', usageError);
       } else {
-        console.log('Usage logs fetched successfully');
-        console.log('Number of usage logs:', usageLogs.length);
+        console.log('Usage stats fetched successfully');
+        console.log('Number of user usage records:', usageStats.length);
       }
     } catch (err) {
-      console.error('Exception fetching usage logs:', err);
+      console.error('Exception fetching usage stats:', err);
       usageError = err;
     }
 
@@ -245,12 +238,12 @@ exports.handler = async (event, context) => {
         .reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
 
       // Get usage stats for this user
-      const userUsageLogs = usageLogs?.filter(u => u.user_id === profile.id) || [];
-      const totalUsageCount = userUsageLogs.length;
-      const totalCreditsUsed = userUsageLogs.reduce((sum, u) => sum + (u.credits_used || 0), 0);
+      const userUsage = usageStats?.find(u => u.user_id === profile.id) || {};
+      const totalUsageCount = parseInt(userUsage.total_usage_count || 0);
+      const totalCreditsUsed = parseInt(userUsage.total_credits_used || 0);
 
       // Get latest payment
-      const latestPayment = userPayments.length > 0 
+      const latestPayment = userPayments.length > 0
         ? userPayments.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0]
         : null;
 
@@ -271,19 +264,19 @@ exports.handler = async (event, context) => {
 
     console.log('=== PREPARING RESPONSE ===');
     console.log('Enriched profiles count:', enrichedProfiles.length);
-    
+
     const response = {
-        success: true,
-        data: {
-          users: enrichedProfiles,
-          total_users: enrichedProfiles.length,
-          stats: {
-            total_revenue: enrichedProfiles.reduce((sum, p) => sum + (p.total_paid || 0), 0),
-            active_users: enrichedProfiles.filter(p => p.subscription_status === 'active').length,
-            total_credits_used: enrichedProfiles.reduce((sum, p) => sum + (p.total_credits_used || 0), 0),
-            total_credits_remaining: enrichedProfiles.reduce((sum, p) => sum + (p.credits_remaining || 0), 0),
-          }
+      success: true,
+      data: {
+        users: enrichedProfiles,
+        total_users: enrichedProfiles.length,
+        stats: {
+          total_revenue: enrichedProfiles.reduce((sum, p) => sum + (p.total_paid || 0), 0),
+          active_users: enrichedProfiles.filter(p => p.subscription_status === 'active').length,
+          total_credits_used: enrichedProfiles.reduce((sum, p) => sum + (p.total_credits_used || 0), 0),
+          total_credits_remaining: enrichedProfiles.reduce((sum, p) => sum + (p.credits_remaining || 0), 0),
         }
+      }
     };
 
     console.log('Response prepared successfully');
@@ -302,11 +295,11 @@ exports.handler = async (event, context) => {
     console.error('Error stack:', error.stack);
     console.error('Error name:', error.name);
     console.error('Full error object:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
-    
+
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ 
+      body: JSON.stringify({
         error: 'Internal server error',
         details: error.message || error.toString(),
         stack: process.env.NODE_ENV === 'development' ? error.stack : undefined

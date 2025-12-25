@@ -101,6 +101,7 @@ const PayPalSubscriptionButton: React.FC<PayPalSubscriptionButtonProps> = ({
                             'Authorization': `Bearer ${session.access_token}`
                         },
                         body: JSON.stringify({
+                            paymentId: data.subscriptionID, // send for backend compatibility
                             subscriptionId: data.subscriptionID,
                             planId: planId
                         })

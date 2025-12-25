@@ -41,7 +41,7 @@ const LandingPage = () => {
     setIsLoading(true);
     try {
       let result;
-      
+
       if (isLogin) {
         // Login existing user
         result = await supabase.auth.signInWithPassword({
@@ -174,8 +174,8 @@ const LandingPage = () => {
               <a href="#pricing" className="text-slate-600 hover:text-slate-800 transition-colors">Pricing</a>
               <a href="#how-it-works" className="text-slate-600 hover:text-slate-800 transition-colors">How it Works</a>
               <Link to="/dashboard" className="text-violet-600 hover:text-violet-700 font-medium">Dashboard</Link>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => setShowAuthForm(true)}
                 className="ml-4"
               >
@@ -190,7 +190,7 @@ const LandingPage = () => {
       <section className="max-w-7xl mx-auto px-6 py-20">
         <div className="text-center max-w-4xl mx-auto">
           <Badge className="mb-6 bg-violet-100 text-violet-700 hover:bg-violet-200">
-            ✨ Powered by Gemini 2.0 Flash + Supabase Auth
+            ✨ Powered by Advanced AI + Supabase Auth
           </Badge>
           <h1 className="text-6xl font-bold text-slate-800 mb-6 leading-tight">
             Generate Perfect
@@ -200,7 +200,7 @@ const LandingPage = () => {
           <p className="text-xl text-slate-600 mb-8 leading-relaxed">
             Boost your WordPress SEO with AI-generated, accessible alt-text. Sign in with email or Google to get started with 30 free credits.
           </p>
-          
+
           {!showAuthForm ? (
             <div className="space-y-4">
               <div className="flex gap-4 justify-center">
@@ -373,7 +373,7 @@ const LandingPage = () => {
               </CardHeader>
               <CardContent className="text-center">
                 <p className="text-slate-600">
-                  Advanced Gemini 2.0 Flash AI analyzes your images and generates contextually accurate, SEO-optimized alt-text in seconds.
+                  Advanced AI technology analyzes your images and generates contextually accurate, SEO-optimized alt-text in seconds.
                 </p>
               </CardContent>
             </Card>
@@ -478,7 +478,7 @@ const LandingPage = () => {
                     </Badge>
                   </div>
                 )}
-                
+
                 <CardHeader className="text-center pb-4">
                   <div className={`bg-gradient-to-r ${plan.color} w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-4`}>
                     <span className="text-white font-bold text-lg">{plan.name[0]}</span>
@@ -490,7 +490,7 @@ const LandingPage = () => {
                   </div>
                   <p className="text-emerald-600 font-semibold">{plan.credits} alt-texts</p>
                 </CardHeader>
-                
+
                 <CardContent>
                   <ul className="space-y-3 mb-6">
                     {plan.features.map((feature, featureIndex) => (
@@ -500,8 +500,8 @@ const LandingPage = () => {
                       </li>
                     ))}
                   </ul>
-                  
-                  <Button 
+
+                  <Button
                     className={`w-full bg-gradient-to-r ${plan.color} hover:opacity-90 text-white`}
                     onClick={() => {
                       if (plan.id === 'free_trial') {
@@ -529,7 +529,7 @@ const LandingPage = () => {
           <p className="text-xl text-violet-100 mb-8">
             Join thousands of WordPress users who trust Alt-Text AI for better accessibility and SEO rankings.
           </p>
-          
+
           <div className="flex items-center justify-center space-x-8 mb-8">
             <div className="flex items-center text-violet-100">
               <Users className="h-5 w-5 mr-2" />
@@ -540,18 +540,18 @@ const LandingPage = () => {
               <span>Secure Google & Email Auth</span>
             </div>
           </div>
-          
+
           <div className="flex gap-4 justify-center">
-            <Button 
-              size="lg" 
+            <Button
+              size="lg"
               className="bg-white text-violet-600 hover:bg-violet-50 font-semibold px-8 py-3 text-lg"
               onClick={() => setShowAuthForm(true)}
             >
               Start Your Free Trial
               <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
-            <Button 
-              size="lg" 
+            <Button
+              size="lg"
               variant="outline"
               className="border-white text-white hover:bg-white hover:text-violet-600 font-semibold px-8 py-3 text-lg"
               onClick={handleGoogleAuth}
@@ -588,7 +588,7 @@ const LandingPage = () => {
                 AI-powered alt-text generation for better accessibility and SEO.
               </p>
             </div>
-            
+
             <div>
               <h4 className="font-semibold text-white mb-4">Product</h4>
               <ul className="space-y-2">
@@ -598,7 +598,7 @@ const LandingPage = () => {
                 <li><a href="#" className="hover:text-white transition-colors">WordPress Plugin</a></li>
               </ul>
             </div>
-            
+
             <div>
               <h4 className="font-semibold text-white mb-4">Support</h4>
               <ul className="space-y-2">
@@ -608,7 +608,7 @@ const LandingPage = () => {
                 <li><a href="#" className="hover:text-white transition-colors">Contact</a></li>
               </ul>
             </div>
-            
+
             <div>
               <h4 className="font-semibold text-white mb-4">Company</h4>
               <ul className="space-y-2">
@@ -619,10 +619,10 @@ const LandingPage = () => {
               </ul>
             </div>
           </div>
-          
+
           <div className="border-t border-slate-700 mt-8 pt-8 text-center">
             <p className="text-slate-400">
-              © 2025 Alt-Text AI. All rights reserved. Powered by Gemini 2.0 Flash & Supabase Auth.
+              © 2025 Alt-Text AI. All rights reserved. Powered by Advanced AI & Supabase Auth.
             </p>
           </div>
         </div>
@@ -642,7 +642,7 @@ const Dashboard = () => {
 
   useEffect(() => {
     loadDashboard();
-    
+
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN') {
@@ -660,7 +660,7 @@ const Dashboard = () => {
     try {
       // Get current user from Supabase
       const { data: { user }, error } = await supabase.auth.getUser();
-      
+
       if (error || !user) {
         console.log('No user found, redirecting to home');
         window.location.href = "/";
@@ -671,7 +671,7 @@ const Dashboard = () => {
 
       // Get the session for the access token
       const { data: { session } } = await supabase.auth.getSession();
-      
+
       if (session) {
         // Get usage stats from Netlify function
         const response = await fetch(`${API_BASE}/get-usage`, {
@@ -716,7 +716,7 @@ const Dashboard = () => {
     setIsGenerating(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      
+
       if (!session) {
         toast.error("Please sign in again");
         return;
@@ -845,7 +845,7 @@ const Dashboard = () => {
                     </Badge>
                   </div>
                 </div>
-                
+
                 <div>
                   <div className="flex justify-between items-center mb-2">
                     <span className="text-sm text-slate-600">Credits Remaining</span>
@@ -855,7 +855,7 @@ const Dashboard = () => {
                   </div>
                   <Progress value={(usageStats?.credits_remaining / 30) * 100} className="h-2" />
                 </div>
-                
+
                 <div>
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-slate-600">Total Processed</span>
@@ -889,7 +889,7 @@ const Dashboard = () => {
                     {user?.email}
                   </div>
                 </div>
-                
+
                 <div>
                   <label className="text-sm text-slate-600 mb-2 block">Authentication Method</label>
                   <div className="flex items-center space-x-2 bg-slate-100 p-3 rounded-lg">
@@ -899,14 +899,14 @@ const Dashboard = () => {
                     </span>
                   </div>
                 </div>
-                
+
                 <div>
                   <label className="text-sm text-slate-600 mb-2 block">Account Created</label>
                   <div className="bg-slate-100 p-3 rounded-lg text-sm">
                     {new Date(user?.created_at).toLocaleDateString()}
                   </div>
                 </div>
-                
+
                 <div className="space-y-2">
                   <h4 className="font-medium text-slate-800">WordPress Plugin Setup:</h4>
                   <ol className="text-sm text-slate-600 space-y-1 list-decimal list-inside">
@@ -934,7 +934,7 @@ const Dashboard = () => {
                     <TabsTrigger value="upload">Upload Image</TabsTrigger>
                     <TabsTrigger value="result" disabled={!testResult}>Generated Result</TabsTrigger>
                   </TabsList>
-                  
+
                   <TabsContent value="upload" className="space-y-6">
                     <div>
                       <input
@@ -943,7 +943,7 @@ const Dashboard = () => {
                         onChange={handleImageUpload}
                         className="mb-4 block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-violet-50 file:text-violet-700 hover:file:bg-violet-100"
                       />
-                      
+
                       {testImage && (
                         <div className="space-y-4">
                           <div className="border-2 border-dashed border-slate-300 rounded-lg p-4">
@@ -953,7 +953,7 @@ const Dashboard = () => {
                               className="max-w-full max-h-64 mx-auto rounded-lg"
                             />
                           </div>
-                          
+
                           <Button
                             onClick={generateTestAltText}
                             disabled={isGenerating || usageStats?.credits_remaining <= 0}
@@ -975,7 +975,7 @@ const Dashboard = () => {
                       )}
                     </div>
                   </TabsContent>
-                  
+
                   <TabsContent value="result" className="space-y-6">
                     {testResult && (
                       <div className="space-y-4">
@@ -985,7 +985,7 @@ const Dashboard = () => {
                             "{testResult.alt_text}"
                           </p>
                         </div>
-                        
+
                         <div className="grid grid-cols-2 gap-4">
                           <div className="bg-slate-50 rounded-lg p-4">
                             <div className="text-sm text-slate-600">Credits Used</div>
@@ -996,7 +996,7 @@ const Dashboard = () => {
                             <div className="text-2xl font-bold text-slate-800">{testResult.credits_remaining}</div>
                           </div>
                         </div>
-                        
+
                         <Button
                           variant="outline"
                           onClick={() => {

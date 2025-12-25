@@ -2,16 +2,27 @@
 // File: netlify/functions/test-endpoints.js
 
 const { validateApiKey, getCreditStoreStats } = require('./utils/api-key-validator');
+const {
+  getCorsHeaders,
+  handlePreflight,
+  getClientIp,
+  checkRateLimit,
+  rateLimitExceededResponse,
+} = require('./utils/cors');
 
 exports.handler = async (event, context) => {
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  };
+  // Get secure CORS headers (origin-validated)
+  const headers = getCorsHeaders(event.headers, ['GET', 'POST', 'OPTIONS']);
 
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 200, headers, body: '' };
+  // Handle preflight
+  const preflightResponse = handlePreflight(event);
+  if (preflightResponse) return preflightResponse;
+
+  // Rate limiting for test endpoints (10 per minute)
+  const clientIp = getClientIp(event);
+  const rateLimit = checkRateLimit(`test:${clientIp}`, 10);
+  if (!rateLimit.allowed) {
+    return rateLimitExceededResponse(headers, rateLimit);
   }
 
   try {

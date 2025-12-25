@@ -1,9 +1,17 @@
 /**
  * Netlify Function to Reset Test User
  * Can be invoked via HTTP or Netlify CLI
+ * ADMIN ONLY - requires superuser authentication
  */
 
 const { createClient } = require('@supabase/supabase-js');
+const {
+  getCorsHeaders,
+  handlePreflight,
+  getClientIp,
+  checkRateLimit,
+  rateLimitExceededResponse,
+} = require('./utils/cors');
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -11,16 +19,18 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 exports.handler = async (event, context) => {
-  // Enable CORS
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Content-Type': 'application/json',
-  };
+  // Get secure CORS headers (origin-validated)
+  const headers = getCorsHeaders(event.headers, ['GET', 'POST', 'OPTIONS']);
 
   // Handle preflight
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 200, headers, body: '' };
+  const preflightResponse = handlePreflight(event);
+  if (preflightResponse) return preflightResponse;
+
+  // Strict rate limiting for admin test functions (5 per minute)
+  const clientIp = getClientIp(event);
+  const rateLimit = checkRateLimit(`admin-test:${clientIp}`, 5);
+  if (!rateLimit.allowed) {
+    return rateLimitExceededResponse(headers, rateLimit);
   }
 
   const testEmail = 'aamirf730@gmail.com';

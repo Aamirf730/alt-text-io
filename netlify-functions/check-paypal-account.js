@@ -1,6 +1,15 @@
 // Netlify Function to check PayPal account information
 // This will show the PayPal account email and identity details
 
+const {
+  getCorsHeaders,
+  handlePreflight,
+  getClientIp,
+  checkRateLimit,
+  rateLimitExceededResponse,
+  methodNotAllowedResponse,
+} = require('./utils/cors');
+
 const PAYPAL_CLIENT_ID = process.env.PAYPAL_CLIENT_ID;
 const PAYPAL_CLIENT_SECRET = process.env.PAYPAL_CLIENT_SECRET;
 const PAYPAL_BASE_URL = process.env.PAYPAL_ENVIRONMENT === 'sandbox' 
@@ -94,18 +103,22 @@ async function getMerchantAccountInfo(accessToken) {
 }
 
 exports.handler = async (event, context) => {
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Allow-Methods': 'GET, OPTIONS',
-  };
+  // Get secure CORS headers (origin-validated)
+  const headers = getCorsHeaders(event.headers, ['GET', 'OPTIONS']);
 
-  if (event.httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 200,
-      headers,
-      body: '',
-    };
+  // Handle preflight OPTIONS request
+  const preflightResponse = handlePreflight(event);
+  if (preflightResponse) return preflightResponse;
+
+  // Rate limiting (admin check endpoint - stricter)
+  const clientIp = getClientIp(event);
+  const rateLimit = checkRateLimit(`admin:${clientIp}`, 30);
+  if (!rateLimit.allowed) {
+    return rateLimitExceededResponse(headers, rateLimit);
+  }
+
+  if (event.httpMethod !== 'GET') {
+    return methodNotAllowedResponse(headers);
   }
 
   try {

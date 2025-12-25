@@ -21,9 +21,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
-import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
-import { PAYPAL_PLAN_IDS, paypalOptions } from '@/lib/paypal';
-import PayPalSubscriptionButton from '@/components/PayPalSubscriptionButton';
+// Polar.sh product IDs from environment variables
+const POLAR_PRODUCTS = {
+  tier1_monthly: process.env.NEXT_PUBLIC_POLAR_TIER1_MONTHLY || '',
+  tier1_annual: process.env.NEXT_PUBLIC_POLAR_TIER1_ANNUAL || '',
+  tier2_monthly: process.env.NEXT_PUBLIC_POLAR_TIER2_MONTHLY || '',
+  tier2_annual: process.env.NEXT_PUBLIC_POLAR_TIER2_ANNUAL || '',
+  tier3_monthly: process.env.NEXT_PUBLIC_POLAR_TIER3_MONTHLY || '',
+  tier3_annual: process.env.NEXT_PUBLIC_POLAR_TIER3_ANNUAL || '',
+  small_pack: process.env.NEXT_PUBLIC_POLAR_SMALL_PACK || '',
+  credit_pack: process.env.NEXT_PUBLIC_POLAR_CREDIT_PACK || '',
+};
 
 export default function LandingPage() {
   const [email, setEmail] = useState("");
@@ -271,99 +279,41 @@ export default function LandingPage() {
     setShowPaymentModal(true);
   };
 
-  // Handle PayPal subscription creation (for subscriptions using SDK)
-  const createPayPalSubscription = async (data: any, actions: any) => {
-    // Logic handled in PayPalSubscriptionButton component
-    return;
-  };
-
-  // Handle PayPal payment creation (for one-time payments)
-  const createPayPalOrder = async (data: any, actions: any) => {
-    try {
-      if (!selectedPlan) {
-        throw new Error('No plan selected');
-      }
-
-      // Create order directly using PayPal SDK
-      return actions.order.create({
-        purchase_units: [{
-          description: `${selectedPlan.name} - 300 Credits`,
-          amount: {
-            currency_code: 'USD',
-            value: '5.00'
-          }
-        }],
-        application_context: {
-          brand_name: 'Alt Text Pro',
-          shipping_preference: 'NO_SHIPPING'
-        }
-      });
-    } catch (error) {
-      console.error('PayPal order creation error:', error);
-      toast.error('Failed to create payment. Please try again.');
-      throw error;
+  // Redirect to Polar.sh checkout
+  const redirectToCheckout = (productId: string, userEmail?: string) => {
+    if (!productId) {
+      toast.error('Product not configured. Please contact support.');
+      return;
     }
-  };
 
-  // Handle PayPal payment approval (for one-time payments)
-  const onPayPalApprove = async (data: any, actions: any) => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        throw new Error('No valid session');
-      }
+    let checkoutUrl = `/api/checkout?products=${productId}`;
 
-      let apiBase;
-      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-        apiBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:9999/.netlify/functions';
-      } else {
-        apiBase = '/.netlify/functions';
-      }
-
-      // Send order to backend for capture and completion
-      const response = await fetch(`${apiBase}/complete-payment`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify({
-          paymentId: data.orderID,
-          planId: selectedPlan.id
-        })
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Payment completion failed');
-      }
-
-      toast.success(`Successfully purchased ${selectedPlan.name}!`);
-      setShowPaymentModal(false);
-      setSelectedPlan(null);
-
-      // Refresh user data or redirect to dashboard
-      setTimeout(() => {
-        window.location.href = "/dashboard";
-      }, 1500);
-
-    } catch (error) {
-      console.error('PayPal approval error:', error);
-      toast.error('Payment failed. Please try again.');
+    // Add customer email if user is logged in
+    if (userEmail) {
+      checkoutUrl += `&customerEmail=${encodeURIComponent(userEmail)}`;
     }
+
+    window.location.href = checkoutUrl;
   };
 
-  // Handle PayPal payment error
-  const onPayPalError = (error: any) => {
-    console.error('PayPal error:', error);
-    toast.error('Payment failed. Please try again.');
-  };
-
-  // Handle PayPal payment cancel
-  const onPayPalCancel = (data: any) => {
-    console.log('PayPal payment cancelled:', data);
-    toast.info('Payment cancelled');
+  // Get the correct Polar product ID based on plan and billing cycle
+  const getPolarProductId = (planId: string, cycle: string): string => {
+    if (planId === 'tier1') {
+      return cycle === 'annual' ? POLAR_PRODUCTS.tier1_annual : POLAR_PRODUCTS.tier1_monthly;
+    }
+    if (planId === 'tier2') {
+      return cycle === 'annual' ? POLAR_PRODUCTS.tier2_annual : POLAR_PRODUCTS.tier2_monthly;
+    }
+    if (planId === 'tier3') {
+      return cycle === 'annual' ? POLAR_PRODUCTS.tier3_annual : POLAR_PRODUCTS.tier3_monthly;
+    }
+    if (planId === 'small_pack') {
+      return POLAR_PRODUCTS.small_pack;
+    }
+    if (planId === 'credit_pack' || planId === 'pay_as_go') {
+      return POLAR_PRODUCTS.credit_pack;
+    }
+    return '';
   };
 
   return (
@@ -401,7 +351,7 @@ export default function LandingPage() {
                 <div className="flex flex-col sm:flex-row gap-4">
                   <Button
                     size="lg"
-                    className="text-white px-8 py-4 text-lg font-semibold rounded-lg"
+                    className="text-white px-8 py-4 text-lg font-semibold rounded-lg mb-2 sm:mb-0"
                     style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
                     onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #003a42 0%, #0D4F5E 100%)'}
                     onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)'}
@@ -833,11 +783,10 @@ export default function LandingPage() {
             <div className="relative">
               <div className="bg-gray-100 rounded-2xl p-8">
                 <div className="aspect-w-4 aspect-h-3 rounded-lg mb-6 overflow-hidden relative h-64">
-                  <Image
+                  <img
                     src="/red-fox.png"
                     alt="Red fox standing on sandy beach during golden hour sunset with ocean waves in background"
-                    fill
-                    className="object-cover rounded-lg"
+                    className="object-cover rounded-lg w-full h-full"
                   />
                 </div>
                 <div className="text-sm text-gray-600 mb-2">Sample Image (fox on the beach):</div>
@@ -938,14 +887,14 @@ export default function LandingPage() {
               <div className="text-center">
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">Tier 1</h3>
                 <div className="text-3xl font-bold mb-6" style={{ color: '#003a42' }}>
-                  ${billingCycle === 'monthly' ? '12' : '129'}
+                  ${billingCycle === 'monthly' ? '10' : '108'}
                   <span className="text-xl text-gray-600 font-normal ml-1">USD</span>
                   <span className="text-xs text-gray-500 font-normal ml-1">
                     {billingCycle === 'monthly' ? 'per Month' : 'per Year'}
                   </span>
                 </div>
                 {billingCycle === 'annual' && (
-                  <p className="text-xs text-gray-500 mb-2">$10.75/month billed annually</p>
+                  <p className="text-xs text-gray-500 mb-2">$9/month billed annually</p>
                 )}
 
                 <div className="space-y-3 mb-8">
@@ -968,7 +917,7 @@ export default function LandingPage() {
                 </div>
 
                 <Button
-                  onClick={() => handlePlanSelection('tier1', 'Tier 1', billingCycle === 'monthly' ? '$12' : '$129')}
+                  onClick={() => handlePlanSelection('tier1', 'Tier 1', billingCycle === 'monthly' ? '$10' : '$108')}
                   className="w-full text-white"
                   style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
                   onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #003a42 0%, #0D4F5E 100%)'}
@@ -1000,7 +949,7 @@ export default function LandingPage() {
                 <div className="space-y-3 mb-8">
                   <div className="flex items-center">
                     <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-gray-700">2,400 Credits{billingCycle === 'annual' ? '/Month' : ''}</span>
+                    <span className="text-gray-700">2,300 Credits{billingCycle === 'annual' ? '/Month' : ''}</span>
                   </div>
                   <div className="flex items-center">
                     <Check className="h-5 w-5 text-green-500 mr-3" />
@@ -1039,20 +988,20 @@ export default function LandingPage() {
               <div className="text-center">
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">Tier 3</h3>
                 <div className="text-3xl font-bold mb-6" style={{ color: '#003a42' }}>
-                  ${billingCycle === 'monthly' ? '40' : '432'}
+                  ${billingCycle === 'monthly' ? '30' : '324'}
                   <span className="text-xl text-gray-600 font-normal ml-1">USD</span>
                   <span className="text-xs text-gray-500 font-normal ml-1">
                     {billingCycle === 'monthly' ? 'per Month' : 'per Year'}
                   </span>
                 </div>
                 {billingCycle === 'annual' && (
-                  <p className="text-xs text-gray-500 mb-2">$36/month billed annually</p>
+                  <p className="text-xs text-gray-500 mb-2">$27/month billed annually</p>
                 )}
 
                 <div className="space-y-3 mb-8">
                   <div className="flex items-center">
                     <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-gray-700">5,000 Credits{billingCycle === 'annual' ? '/Month' : ''}</span>
+                    <span className="text-gray-700">3,500 Credits{billingCycle === 'annual' ? '/Month' : ''}</span>
                   </div>
                   <div className="flex items-center">
                     <Check className="h-5 w-5 text-green-500 mr-3" />
@@ -1073,7 +1022,7 @@ export default function LandingPage() {
                 </div>
 
                 <Button
-                  onClick={() => handlePlanSelection('tier3', 'Tier 3', billingCycle === 'monthly' ? '$40' : '$432')}
+                  onClick={() => handlePlanSelection('tier3', 'Tier 3', billingCycle === 'monthly' ? '$30' : '$324')}
                   className="w-full text-white"
                   style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
                   onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #003a42 0%, #0D4F5E 100%)'}
@@ -1085,36 +1034,59 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* Pay As You Go Section */}
-          <div className="mt-12 max-w-2xl mx-auto">
+          {/* Pay As You Go Section - Two Options */}
+          <div className="mt-12 max-w-3xl mx-auto">
             <div className="bg-gradient-to-r from-teal-50 to-cyan-50 rounded-2xl shadow-lg p-8 border-2 border-teal-100">
-              <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-                <div className="text-center md:text-left">
-                  <div className="flex items-center justify-center md:justify-start gap-2 mb-2">
-                    <DollarSign className="h-6 w-6 text-[#0D4F5E]" />
-                    <h3 className="text-2xl font-bold text-gray-900">Pay As You Go</h3>
-                  </div>
-                  <p className="text-gray-600 mb-2">Need extra credits? Top up anytime!</p>
-                  <div className="flex items-center justify-center md:justify-start gap-4">
-                    <span className="text-3xl font-bold" style={{ color: '#003a42' }}>$5</span>
-                    <span className="text-gray-500">for</span>
-                    <span className="text-2xl font-semibold text-[#0D4F5E]">300 Credits</span>
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-2 justify-center md:justify-start">
-                    <span className="text-xs bg-teal-100 text-teal-700 px-2 py-1 rounded-full">Never expire</span>
-                    <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">Add to existing credits</span>
-                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">Works with any plan</span>
-                  </div>
+              <div className="text-center mb-6">
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <DollarSign className="h-6 w-6 text-[#0D4F5E]" />
+                  <h3 className="text-2xl font-bold text-gray-900">Pay As You Go</h3>
                 </div>
-                <Button
-                  onClick={() => handlePlanSelection('pay_as_go', 'Pay As You Go', '$5')}
-                  className="text-white px-8 py-3 text-lg whitespace-nowrap"
-                  style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #003a42 0%, #0D4F5E 100%)'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)'}
-                >
-                  Buy Credits
-                </Button>
+                <p className="text-gray-600">Need extra credits? Top up anytime!</p>
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-4 mb-4">
+                {/* Small Pack - $3 */}
+                <div className="bg-white rounded-xl p-4 border border-teal-200">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <span className="text-2xl font-bold" style={{ color: '#003a42' }}>$3</span>
+                      <span className="text-gray-500 ml-2">for</span>
+                      <span className="text-xl font-semibold text-[#0D4F5E] ml-2">350 Credits</span>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={() => handlePlanSelection('small_pack', 'Small Pack', '$3')}
+                    className="w-full text-white"
+                    style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
+                  >
+                    Buy 350 Credits
+                  </Button>
+                </div>
+
+                {/* Credit Pack - $5 */}
+                <div className="bg-white rounded-xl p-4 border border-teal-200">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <span className="text-2xl font-bold" style={{ color: '#003a42' }}>$5</span>
+                      <span className="text-gray-500 ml-2">for</span>
+                      <span className="text-xl font-semibold text-[#0D4F5E] ml-2">550 Credits</span>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={() => handlePlanSelection('credit_pack', 'Credit Pack', '$5')}
+                    className="w-full text-white"
+                    style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
+                  >
+                    Buy 550 Credits
+                  </Button>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2 justify-center">
+                <span className="text-xs bg-teal-100 text-teal-700 px-2 py-1 rounded-full">Never expire</span>
+                <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">Add to existing credits</span>
+                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">Works with any plan</span>
               </div>
             </div>
           </div>
@@ -1140,11 +1112,10 @@ export default function LandingPage() {
             {/* Example 1 */}
             <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
               <div className="aspect-w-4 aspect-h-3 relative h-48">
-                <Image
+                <img
                   src="/business-team.jpg"
                   alt="Business team collaborating around conference table"
-                  fill
-                  className="object-cover"
+                  className="object-cover w-full h-full"
                 />
               </div>
               <div className="p-6">
@@ -1164,11 +1135,10 @@ export default function LandingPage() {
             {/* Example 2 */}
             <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
               <div className="aspect-w-4 aspect-h-3 relative h-48">
-                <Image
+                <img
                   src="/fresh-vegetables.jpg"
                   alt="Fresh organic vegetables and fruits"
-                  fill
-                  className="object-cover"
+                  className="object-cover w-full h-full"
                 />
               </div>
               <div className="p-6">
@@ -1187,11 +1157,10 @@ export default function LandingPage() {
             {/* Example 3 */}
             <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
               <div className="aspect-w-4 aspect-h-3 relative h-48">
-                <Image
+                <img
                   src="/mountain-landscape.jpg"
                   alt="Snow-capped mountain peaks"
-                  fill
-                  className="object-cover"
+                  className="object-cover w-full h-full"
                 />
               </div>
               <div className="p-6">
@@ -1453,53 +1422,20 @@ export default function LandingPage() {
                 </div>
 
                 <div className="mb-6">
-                  {/* For subscriptions, use PayPal SDK subscription button */}
-                  {(selectedPlan.id === 'tier1' || selectedPlan.id === 'tier2' || selectedPlan.id === 'tier3') ? (
-                    <>
-                      {(() => {
-                        const planIdKey = billingCycle === 'annual' ? 'annual' : 'monthly';
-                        const paypalPlanId = PAYPAL_PLAN_IDS[selectedPlan.id]?.[planIdKey];
-                        console.log('Selected Plan:', selectedPlan.id);
-                        console.log('Billing Cycle:', billingCycle);
-                        console.log('Plan ID Key:', planIdKey);
-                        console.log('PayPal Plan ID:', paypalPlanId);
-                        console.log('All Plan IDs:', PAYPAL_PLAN_IDS);
-                        return null;
-                      })()}
-                      <PayPalSubscriptionButton
-                        planId={billingCycle === 'annual' ? `${selectedPlan.id}_annual` : selectedPlan.id}
-                        planName={`${selectedPlan.name}${billingCycle === 'annual' ? ' (Annual)' : ''}`}
-                        paypalPlanId={PAYPAL_PLAN_IDS[selectedPlan.id]?.[billingCycle === 'annual' ? 'annual' : 'monthly']}
-                        onSuccess={() => {
-                          toast.success(`Successfully subscribed to ${selectedPlan.name}!`);
-                          setShowPaymentModal(false);
-                          setSelectedPlan(null);
-                          setTimeout(() => {
-                            window.location.href = "/dashboard";
-                          }, 1500);
-                        }}
-                        onError={(error: any) => {
-                          console.error('PayPal subscription error:', error);
-                          toast.error(error.message || 'Subscription failed. Please try again.');
-                        }}
-                      />
-                    </>
-                  ) : (
-                    <PayPalScriptProvider options={paypalOptions}>
-                      <PayPalButtons
-                        createOrder={createPayPalOrder}
-                        onApprove={onPayPalApprove}
-                        onError={onPayPalError}
-                        onCancel={onPayPalCancel}
-                        style={{
-                          layout: "vertical",
-                          color: "blue",
-                          shape: "rect",
-                          label: "paypal"
-                        }}
-                      />
-                    </PayPalScriptProvider>
-                  )}
+                  {/* Polar.sh Checkout Button */}
+                  <Button
+                    onClick={() => {
+                      const productId = getPolarProductId(selectedPlan.id, billingCycle);
+                      redirectToCheckout(productId, user?.email);
+                    }}
+                    className="w-full h-12 text-white font-semibold"
+                    style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
+                  >
+                    Continue to Checkout
+                  </Button>
+                  <p className="text-xs text-gray-500 text-center mt-2">
+                    You will be redirected to our secure payment processor
+                  </p>
                 </div>
 
                 <div className="flex space-x-3">

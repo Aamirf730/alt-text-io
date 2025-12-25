@@ -3,6 +3,14 @@
 // Following guidance pattern - simpler function to check subscription status after PayPal redirect
 
 const fetch = require('node-fetch');
+const {
+  getCorsHeaders,
+  handlePreflight,
+  getClientIp,
+  checkRateLimit,
+  rateLimitExceededResponse,
+  methodNotAllowedResponse,
+} = require('./utils/cors');
 
 const PAYPAL_CLIENT_ID = process.env.PAYPAL_CLIENT_ID;
 const PAYPAL_SECRET = process.env.PAYPAL_CLIENT_SECRET;
@@ -38,29 +46,22 @@ async function getAccessToken() {
 }
 
 exports.handler = async (event) => {
-  // Enable CORS
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Content-Type': 'application/json'
-  };
+  // Get secure CORS headers (origin-validated)
+  const headers = getCorsHeaders(event.headers, ['POST', 'OPTIONS']);
 
   // Handle preflight OPTIONS request
-  if (event.httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 200,
-      headers,
-      body: ''
-    };
+  const preflightResponse = handlePreflight(event);
+  if (preflightResponse) return preflightResponse;
+
+  // Rate limiting for payment endpoints
+  const clientIp = getClientIp(event);
+  const rateLimit = checkRateLimit(`payment:${clientIp}`, 20);
+  if (!rateLimit.allowed) {
+    return rateLimitExceededResponse(headers, rateLimit);
   }
 
   if (event.httpMethod !== 'POST') {
-    return {
-      statusCode: 405,
-      headers,
-      body: JSON.stringify({ error: 'Method not allowed' })
-    };
+    return methodNotAllowedResponse(headers);
   }
 
   try {

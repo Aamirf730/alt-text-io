@@ -78,6 +78,13 @@ $alt_text_pro_current_page = isset($_GET['page']) ? sanitize_text_field(wp_unsla
                             )
                         ); ?>
                     </p>
+                    <?php if (empty($settings['api_key'])): ?>
+                        <p style="margin-top: 10px;">
+                            <button type="button" class="button-secondary-custom open-modal" data-modal="alt-text-pro-onboarding-modal">
+                                <?php esc_html_e('Start onboarding', 'alt-text-pro'); ?>
+                            </button>
+                        </p>
+                    <?php endif; ?>
                     <div id="connection-test-result" style="margin-top: 12px;"></div>
                 </div>
             </div>
@@ -177,97 +184,52 @@ $alt_text_pro_current_page = isset($_GET['page']) ? sanitize_text_field(wp_unsla
     </form>
 </div>
 
-<script type="text/javascript">
-jQuery(document).ready(function($) {
-    // Existing JS logic for settings...
-    // Test API connection
-    $('#test-connection').on('click', function() {
-        var $button = $(this);
-        var $result = $('#connection-test-result');
-        var apiKey = $('#api_key').val();
-        
-        if (!apiKey) {
-            $result.html('<div class="notice notice-error inline"><p>' + altTextAI.strings.invalidKey + '</p></div>');
-            return;
-        }
-        
-        $button.prop('disabled', true).text('Testing...');
-        $result.html('<div class="notice notice-info inline"><p>' + altTextAI.strings.generating + '</p></div>');
-        
-        $.ajax({
-            url: altTextAI.ajaxUrl,
-            type: 'POST',
-            data: {
-                action: 'alt_text_pro_test_connection',
-                api_key: apiKey,
-                nonce: altTextAI.nonce
-            },
-            success: function(response) {
-                if (response.success) {
-                    var userInfo = response.data.user_info;
-                    var message = '<strong>' + response.data.message + '</strong>';
-                    if (userInfo) {
-                        message += ' (' + userInfo.plan + ', ' + userInfo.credits_remaining + ' credits)';
-                    }
-                    $result.html('<div class="notice notice-success inline"><p>' + message + '</p></div>');
-                } else {
-                    $result.html('<div class="notice notice-error inline"><p>' + response.data + '</p></div>');
-                }
-            },
-            error: function() {
-                $result.html('<div class="notice notice-error inline"><p><?php echo esc_js(__('Connection test failed', 'alt-text-pro')); ?></p></div>');
-            },
-            complete: function() {
-                $button.prop('disabled', false).text('<?php echo esc_js(__('Test', 'alt-text-pro')); ?>');
-            }
-        });
-    });
+<!-- Onboarding modal -->
+<div id="alt-text-pro-onboarding-modal" class="alt-text-pro-modal modal" aria-hidden="true">
+    <div class="modal-overlay close-modal" tabindex="-1"></div>
+    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="alt-text-pro-onboarding-title">
+        <button type="button" class="close-modal modal-close" aria-label="<?php esc_attr_e('Close', 'alt-text-pro'); ?>">&times;</button>
 
-    // Export/Import logic (simplified from original file but functionality preserved)
-    $('#export-settings').on('click', function() {
-        var settings = {
-            version: '<?php echo esc_js(ALT_TEXT_PRO_VERSION); ?>',
-            exported_at: new Date().toISOString(),
-            settings: {
-                api_key: $('#api_key').val() ? '[CONFIGURED]' : '[NOT_CONFIGURED]',
-                auto_generate: $('#auto_generate').is(':checked'),
-                overwrite_existing: $('#overwrite_existing').is(':checked'),
-                context_enabled: $('#context_enabled').is(':checked'),
-                batch_size: parseInt($('#batch_size').val())
-            }
-        };
-        var dataStr = JSON.stringify(settings, null, 2);
-        var dataBlob = new Blob([dataStr], {type: 'application/json'});
-        var url = URL.createObjectURL(dataBlob);
-        var link = document.createElement('a');
-        link.href = url;
-        link.download = 'alt-text-pro-settings.json';
-        link.click();
-    });
+        <div class="modal-header">
+            <h2 id="alt-text-pro-onboarding-title">
+                <span class="dashicons dashicons-admin-network" style="font-size: 24px; width: 24px; height: 24px; color: var(--primary-color); vertical-align: middle; margin-right: 8px;"></span>
+                <?php esc_html_e('Connect Alt Text Pro', 'alt-text-pro'); ?>
+            </h2>
+            <p class="modal-subtitle"><?php esc_html_e('Unlock AI-powered alt text generation for your media library.', 'alt-text-pro'); ?></p>
+        </div>
 
-    $('#import-settings').on('click', function() {
-        $('#import-file').click();
-    });
+        <div class="modal-body">
+            <div class="onboarding-step">
+                <div class="step-label"><?php esc_html_e('Step 1', 'alt-text-pro'); ?></div>
+                <p><?php esc_html_e('Get your API key from the dashboard.', 'alt-text-pro'); ?></p>
+                <a class="button button-secondary-custom wide" href="https://www.alt-text.pro/dashboard" target="_blank" rel="noreferrer">
+                    <span class="dashicons dashicons-external"></span>
+                    <?php esc_html_e('Get API Key', 'alt-text-pro'); ?>
+                </a>
+            </div>
 
-    $('#import-file').on('change', function(e) {
-        var file = e.target.files[0];
-        if (!file) return;
-        var reader = new FileReader();
-        reader.onload = function(e) {
-            try {
-                var settings = JSON.parse(e.target.result);
-                if (settings.settings) {
-                    if (settings.settings.auto_generate !== undefined) $('#auto_generate').prop('checked', settings.settings.auto_generate);
-                    if (settings.settings.overwrite_existing !== undefined) $('#overwrite_existing').prop('checked', settings.settings.overwrite_existing);
-                    if (settings.settings.context_enabled !== undefined) $('#context_enabled').prop('checked', settings.settings.context_enabled);
-                    if (settings.settings.batch_size !== undefined) $('#batch_size').val(settings.settings.batch_size);
-                    alert('<?php echo esc_js(__('Settings imported! Please save to apply.', 'alt-text-pro')); ?>');
-                }
-            } catch (error) {
-                alert('<?php echo esc_js(__('Invalid file.', 'alt-text-pro')); ?>');
-            }
-        };
-        reader.readAsText(file);
-    });
-});
-</script>
+            <div class="step-connector">
+                <span><?php esc_html_e('then', 'alt-text-pro'); ?></span>
+            </div>
+
+            <div class="onboarding-step">
+                <div class="step-label"><?php esc_html_e('Step 2', 'alt-text-pro'); ?></div>
+                <div class="onboarding-field">
+                    <label for="onboarding_api_key"><?php esc_html_e('Paste your API key below', 'alt-text-pro'); ?></label>
+                    <div class="input-wrapper">
+                        <span class="dashicons dashicons-key input-icon"></span>
+                        <input type="password" id="onboarding_api_key" placeholder="alt_..." autocomplete="off" />
+                    </div>
+                </div>
+                <div id="onboarding-message" class="onboarding-message" aria-live="polite"></div>
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <button type="button" class="button button-primary-custom wide" id="onboarding-save">
+                <?php esc_html_e('Connect & Save', 'alt-text-pro'); ?>
+            </button>
+            <button type="button" class="button button-link close-modal"><?php esc_html_e('I\'ll do this later', 'alt-text-pro'); ?></button>
+        </div>
+    </div>
+</div>

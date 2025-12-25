@@ -60,7 +60,7 @@ function createGeminiError(message, statusCode = 502) {
   return error;
 }
 
-// Gemini AI integration
+// AI integration
 async function generateAltTextWithGemini(imageBase64, context = null) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -105,12 +105,12 @@ Now write ONE sentence describing this image (no formatting, no options, just th
     topK: 20
   };
 
-    const safetySettings = [
-      { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
-      { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
-      { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
-      { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' }
-    ];
+  const safetySettings = [
+    { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+    { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+    { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+    { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' }
+  ];
 
   const modelId = process.env.GEMINI_MODEL || 'models/gemini-2.5-flash';
   const apiBase = process.env.GEMINI_API_BASE || 'https://generativelanguage.googleapis.com/v1beta';
@@ -144,13 +144,13 @@ Now write ONE sentence describing this image (no formatting, no options, just th
   const payload = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    const errorMessage = payload?.error?.message || `Gemini API request failed with status ${response.status}`;
+    const errorMessage = payload?.error?.message || `AI service request failed with status ${response.status}`;
     throw createGeminiError(errorMessage);
   }
 
   const candidate = payload?.candidates?.[0];
   if (!candidate) {
-    throw createGeminiError('Gemini API returned no candidate response');
+    throw createGeminiError('AI service returned no candidate response');
   }
 
   const parts = candidate.content?.parts || [];
@@ -162,10 +162,10 @@ Now write ONE sentence describing this image (no formatting, no options, just th
     .trim();
 
   if (!altText) {
-    throw createGeminiError('Gemini API returned an empty response');
+    throw createGeminiError('AI service returned an empty response');
   }
 
-  console.log('Raw Gemini response (auth function):', altText.substring(0, 200));
+  console.log('Raw AI response (auth function):', altText.substring(0, 200));
 
   altText = altText
     .replace(/Here are.*?alt-text:?\s*/gi, '')
@@ -291,7 +291,7 @@ Now write ONE sentence describing this image (no formatting, no options, just th
   }
 
   if (isPlaceholderAltText(altText)) {
-    throw createGeminiError('Gemini API returned placeholder text');
+    throw createGeminiError('AI service returned placeholder text');
   }
 
   if (altText.length > 125) {
@@ -354,7 +354,7 @@ exports.handler = async (event, context) => {
     }
 
     const token = authHeader.replace('Bearer ', '');
-    
+
     // Verify user with Supabase Auth using the access token
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     if (authError || !user) {
@@ -366,7 +366,7 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Parse request body
+    // Validate base64 data size (AI service limit is ~20MB for base64)
     const { image_base64, context } = JSON.parse(event.body);
     if (!image_base64) {
       return {
@@ -400,7 +400,7 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Generate alt-text using Gemini
+    // Generate alt-text using AI
     console.log(`Generating alt-text for user ${user.id}`);
     const altText = await generateAltTextWithGemini(image_base64, context);
 

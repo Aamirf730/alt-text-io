@@ -3,49 +3,50 @@
  * Handles all admin interface interactions
  */
 
-(function($) {
+(function ($) {
     'use strict';
 
     // Main Admin Object
     window.AltTextProAdmin = {
-        
+
         // Initialize the admin interface
-        init: function() {
+        init: function () {
             this.bindEvents();
             this.initTooltips();
             this.initMediaFields();
+            this.initOnboarding();
         },
 
         // Bind all event handlers
-        bindEvents: function() {
+        bindEvents: function () {
             // Generate alt-text buttons
             $(document).on('click', '.alt-text-pro-generate-btn', this.generateAltText);
             $(document).on('click', '.alt-text-pro-apply-btn', this.applyAltText);
-            
+
             // Media library integration
             $(document).on('click', '.regenerate-alt-text', this.regenerateAltText);
-            
+
             // Settings page interactions
             this.bindSettingsEvents();
-            
+
             // Bulk processing
             this.bindBulkProcessEvents();
-            
+
             // General UI interactions
             this.bindUIEvents();
         },
 
         // Settings page event bindings
-        bindSettingsEvents: function() {
+        bindSettingsEvents: function () {
             // API key visibility toggle
-            $(document).on('click', '#toggle-api-key', function(e) {
+            $(document).on('click', '#toggle-api-key', function (e) {
                 e.preventDefault();
                 e.stopPropagation();
-                
+
                 var $input = $('#api_key');
                 var $button = $(this);
                 var $icon = $button.find('.dashicons');
-                
+
                 if ($input.attr('type') === 'password') {
                     $input.attr('type', 'text');
                     $icon.removeClass('dashicons-visibility').addClass('dashicons-hidden');
@@ -55,21 +56,31 @@
                     $icon.removeClass('dashicons-hidden').addClass('dashicons-visibility');
                     $button.attr('aria-label', 'Show API key');
                 }
-                
+
                 return false;
             });
 
             // Test API connection
             $(document).on('click', '#test-connection', this.testAPIConnection);
-            
+
             // Settings form validation
             $(document).on('submit', '.alt-text-pro-settings-form', this.validateSettingsForm);
+
+            // Onboarding save
+            $(document).on('click', '#onboarding-save', this.handleOnboardingSave);
+            $(document).on('keydown', '#onboarding_api_key', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    AltTextProAdmin.handleOnboardingSave(e);
+                }
+            });
         },
 
-        // Bulk processing event bindings
-        bindBulkProcessEvents: function() {
+
+        // Bulk processing event bindings - UI helpers only (start/cancel handled by inline script)
+        bindBulkProcessEvents: function () {
             // Process type selection
-            $(document).on('change', 'input[name="process_type"]', function() {
+            $(document).on('change', 'input[name="process_type"]', function () {
                 if ($(this).val() === 'selected') {
                     $('#image-selection-sidebar').slideDown();
                 } else {
@@ -78,12 +89,12 @@
             });
 
             // Select all/deselect all images
-            $(document).on('click', '#select-all-images', function() {
+            $(document).on('click', '#select-all-images', function () {
                 $('#image-list input[type="checkbox"]').prop('checked', true);
                 AltTextProAdmin.updateSelectionCount();
             });
 
-            $(document).on('click', '#deselect-all-images', function() {
+            $(document).on('click', '#deselect-all-images', function () {
                 $('#image-list input[type="checkbox"]').prop('checked', false);
                 AltTextProAdmin.updateSelectionCount();
             });
@@ -93,32 +104,42 @@
         },
 
         // General UI event bindings
-        bindUIEvents: function() {
+        bindUIEvents: function () {
             // Collapsible sections
             $(document).on('click', '.section-toggle', this.toggleSection);
-            
+
             // Copy to clipboard functionality
             $(document).on('click', '.copy-to-clipboard', this.copyToClipboard);
-            
+
             // Refresh buttons
             $(document).on('click', '.refresh-data', this.refreshData);
-            
+
             // Modal dialogs
             $(document).on('click', '.open-modal', this.openModal);
             $(document).on('click', '.close-modal, .modal-overlay', this.closeModal);
         },
 
         // Generate alt-text for a single image
-        generateAltText: function(e) {
+        generateAltText: function (e) {
             e.preventDefault();
-            
+
             var $button = $(this);
             var $container = $button.closest('.alt-text-pro-media-field');
             var attachmentId = $button.data('attachment-id');
-            var context = $container.find('input[name*="[alt_text_pro_context]"]').val() || '';
-            
+            // Try multiple selectors to ensure we get the context
+            var context = $container.find('.alt-text-pro-context input').val();
+            if (context === undefined || context === null) {
+                context = $container.find('input[name*="[alt_text_pro_context]"]').val();
+            }
+            if (context === undefined || context === null) {
+                context = $('#alt_text_pro_context_' + attachmentId).val();
+            }
+            context = context || '';
+
+            console.log('Alt Text Pro: Generating with context:', context);
+
             if (!attachmentId) {
-                AltTextProAdmin.showError('Invalid attachment ID');
+                AltTextProAdmin.showError('Invalid attachment ID', $container);
                 return;
             }
 
@@ -135,22 +156,22 @@
                     context: context,
                     nonce: altTextAI.nonce
                 },
-                success: function(response) {
+                success: function (response) {
                     if (response.success) {
                         AltTextProAdmin.showSuccess($container, response.data);
                     } else {
-                        AltTextProAdmin.showError(response.data || altTextAI.strings.error);
+                        AltTextProAdmin.showError(response.data || altTextAI.strings.error, $container);
                     }
                 },
-                error: function(xhr, status, error) {
+                error: function (xhr, status, error) {
                     console.error('Alt Text Pro AJAX Error:', {
                         status: status,
                         error: error,
                         response: xhr.responseText
                     });
-                    AltTextProAdmin.showError(altTextAI.strings.error + ' (Check console for details)');
+                    AltTextProAdmin.showError(altTextAI.strings.error + ' (Check console for details)', $container);
                 },
-                complete: function() {
+                complete: function () {
                     AltTextProAdmin.hideLoading($container);
                     $button.prop('disabled', false);
                 }
@@ -158,43 +179,43 @@
         },
 
         // Apply generated alt-text to the image
-        applyAltText: function(e) {
+        applyAltText: function (e) {
             e.preventDefault();
-            
+
             var $button = $(this);
             var $container = $button.closest('.alt-text-pro-media-field');
             var altText = $button.data('alt-text');
-            
+
             // Update the WordPress alt-text field
             var $altField = $('input[name*="[alt]"], textarea[name*="[alt]"]').first();
             if ($altField.length) {
                 $altField.val(altText).trigger('change');
             }
-            
+
             // Update current alt-text display
             $container.find('.current-alt-text').text(altText);
-            
+
             // Hide the success message
             $container.find('.alt-text-pro-success').slideUp();
-            
+
             AltTextProAdmin.showNotification(altTextAI.strings.success, 'success');
         },
 
         // Regenerate alt-text for existing image
-        regenerateAltText: function(e) {
+        regenerateAltText: function (e) {
             e.preventDefault();
-            
+
             var $button = $(this);
             var attachmentId = $button.data('attachment-id');
             var context = $button.data('context') || '';
-            
+
             if (!confirm('Are you sure you want to regenerate alt-text for this image? This will use 1 credit.')) {
                 return;
             }
-            
+
             var originalHtml = $button.html();
             $button.html('<span class="dashicons dashicons-update rotating"></span> Generating...').prop('disabled', true);
-            
+
             $.ajax({
                 url: altTextAI.ajaxUrl,
                 type: 'POST',
@@ -205,26 +226,26 @@
                     force_overwrite: true,
                     nonce: altTextAI.nonce
                 },
-                success: function(response) {
+                success: function (response) {
                     if (response.success) {
                         // Update alt-text display if present
                         var $altTextDisplay = $button.closest('tr').find('.alt-text-preview');
                         if ($altTextDisplay.length) {
                             $altTextDisplay.text(response.data.alt_text);
                         }
-                        
+
                         $button.html('<span class="dashicons dashicons-yes"></span> Updated!');
-                        setTimeout(function() {
+                        setTimeout(function () {
                             $button.html(originalHtml);
                         }, 3000);
-                        
+
                         AltTextProAdmin.showNotification('Alt-text updated successfully!', 'success');
                     } else {
                         AltTextProAdmin.showNotification(response.data || 'Failed to regenerate alt-text', 'error');
                         $button.html(originalHtml);
                     }
                 },
-                error: function(xhr, status, error) {
+                error: function (xhr, status, error) {
                     console.error('Alt Text Pro Regenerate Error:', {
                         status: status,
                         error: error,
@@ -233,29 +254,29 @@
                     AltTextProAdmin.showNotification('Failed to regenerate alt-text. Check console for details.', 'error');
                     $button.html(originalHtml).prop('disabled', false);
                 },
-                complete: function() {
+                complete: function () {
                     $button.prop('disabled', false);
                 }
             });
         },
 
         // Test API connection
-        testAPIConnection: function(e) {
+        testAPIConnection: function (e) {
             e.preventDefault();
-            
+
             var $button = $(this);
             var $result = $('#connection-test-result');
             var apiKey = $('#api_key').val();
-            
+
             if (!apiKey) {
                 $result.html('<div class="notice notice-error"><p>Please enter an API key first.</p></div>');
                 return;
             }
-            
+
             var originalHtml = $button.html();
             $button.html('<span class="dashicons dashicons-update rotating"></span> Testing...').prop('disabled', true);
             $result.html('<div class="notice notice-info"><p>Testing connection...</p></div>');
-            
+
             $.ajax({
                 url: altTextAI.ajaxUrl,
                 type: 'POST',
@@ -264,7 +285,7 @@
                     api_key: apiKey,
                     nonce: altTextAI.nonce
                 },
-                success: function(response) {
+                success: function (response) {
                     if (response.success) {
                         var message = '<strong>' + response.data.message + '</strong>';
                         if (response.data.user_info) {
@@ -276,55 +297,55 @@
                         $result.html('<div class="notice notice-error"><p>' + response.data + '</p></div>');
                     }
                 },
-                error: function() {
+                error: function () {
                     $result.html('<div class="notice notice-error"><p>Connection test failed</p></div>');
                 },
-                complete: function() {
+                complete: function () {
                     $button.html(originalHtml).prop('disabled', false);
                 }
             });
         },
 
         // Validate settings form before submission
-        validateSettingsForm: function(e) {
+        validateSettingsForm: function (e) {
             var apiKey = $('#api_key').val();
-            
+
             if (apiKey && !AltTextProAdmin.validateAPIKeyFormat(apiKey)) {
                 e.preventDefault();
                 AltTextProAdmin.showNotification('Invalid API key format. API keys should start with "alt_" or "altai_".', 'error');
                 $('#api_key').focus();
                 return false;
             }
-            
+
             return true;
         },
 
         // Validate API key format - accepts both alt_ and altai_ formats
-        validateAPIKeyFormat: function(apiKey) {
+        validateAPIKeyFormat: function (apiKey) {
             if (!apiKey || apiKey.length === 0) {
                 return false;
             }
-            
+
             // New format: alt_ followed by base64-like string (minimum 20 chars total)
             if (apiKey.indexOf('alt_') === 0) {
                 return apiKey.length > 20;
             }
-            
+
             // Legacy format: altai_[hash]_[random]_[timestamp]
             if (apiKey.indexOf('altai_') === 0) {
                 return /^altai_[a-zA-Z0-9]+_[a-zA-Z0-9]+_[a-zA-Z0-9]+$/.test(apiKey);
             }
-            
+
             return false;
         },
 
         // Update selection count for bulk processing
-        updateSelectionCount: function() {
+        updateSelectionCount: function () {
             var selectedCount = $('#image-list input[type="checkbox"]:checked').length;
             var totalCount = $('#image-list input[type="checkbox"]').length;
-            
+
             $('.selection-count').text(selectedCount + ' of ' + totalCount + ' selected');
-            
+
             // Enable/disable start button based on selection
             var processType = $('input[name="process_type"]:checked').val();
             if (processType === 'selected') {
@@ -332,24 +353,34 @@
             }
         },
 
+
         // Show loading state
-        showLoading: function($container) {
-            $container.find('.alt-text-pro-loading').show();
+        showLoading: function ($container) {
+            // Show the result container first, then show loading
+            $container.find('.alt-text-pro-result').css('display', 'block').show();
+            $container.find('.alt-text-pro-loading').css('display', 'block').show();
             $container.find('.alt-text-pro-success, .alt-text-pro-error').hide();
         },
 
         // Hide loading state
-        hideLoading: function($container) {
+        hideLoading: function ($container) {
             $container.find('.alt-text-pro-loading').hide();
+            // Only hide result container if there's no success or error message
+            if (!$container.find('.alt-text-pro-success:visible, .alt-text-pro-error:visible').length) {
+                $container.find('.alt-text-pro-result').hide();
+            }
         },
 
         // Show success message with generated alt-text
-        showSuccess: function($container, data) {
+        showSuccess: function ($container, data) {
+            // Ensure result container is visible
+            $container.find('.alt-text-pro-result').css('display', 'block').show();
+
             var $success = $container.find('.alt-text-pro-success');
             $success.find('.generated-alt-text').text(data.alt_text);
             $success.find('.alt-text-pro-apply-btn').data('alt-text', data.alt_text);
-            $success.show();
-            
+            $success.css('display', 'block').show();
+
             // Update credits display if present
             if (data.credits_remaining !== undefined) {
                 $('.credits-remaining').text(data.credits_remaining + ' credits remaining');
@@ -357,60 +388,68 @@
         },
 
         // Show error message
-        showError: function(message) {
-            $('.alt-text-pro-error').text(message).show();
+        showError: function (message, $container) {
+            // If container is provided, show error in that container
+            if ($container && $container.length) {
+                $container.find('.alt-text-pro-result').css('display', 'block').show();
+                $container.find('.alt-text-pro-error').text(message).css('display', 'block').show();
+                $container.find('.alt-text-pro-success, .alt-text-pro-loading').hide();
+            } else {
+                // Fallback to global error display
+                $('.alt-text-pro-error').text(message).show();
+            }
         },
 
         // Show notification
-        showNotification: function(message, type) {
+        showNotification: function (message, type) {
             type = type || 'info';
-            
+
             var $notification = $('<div class="alt-text-pro-notification notice notice-' + type + ' is-dismissible">')
                 .html('<p>' + message + '</p>')
                 .hide();
-            
+
             $('.wrap').prepend($notification);
             $notification.slideDown();
-            
+
             // Auto-hide after 5 seconds
-            setTimeout(function() {
-                $notification.slideUp(function() {
+            setTimeout(function () {
+                $notification.slideUp(function () {
                     $(this).remove();
                 });
             }, 5000);
-            
+
             // Make dismissible
-            $notification.on('click', '.notice-dismiss', function() {
-                $notification.slideUp(function() {
+            $notification.on('click', '.notice-dismiss', function () {
+                $notification.slideUp(function () {
                     $(this).remove();
                 });
             });
         },
 
         // Initialize tooltips
-        initTooltips: function() {
-            $('[data-tooltip]').each(function() {
+        initTooltips: function () {
+            $('[data-tooltip]').each(function () {
                 var $element = $(this);
                 var tooltipText = $element.data('tooltip');
-                
-                $element.on('mouseenter', function() {
+
+                $element.on('mouseenter', function () {
                     var $tooltip = $('<div class="alt-text-pro-tooltip">')
                         .text(tooltipText)
                         .appendTo('body');
-                    
+
                     var offset = $element.offset();
                     $tooltip.css({
                         top: offset.top - $tooltip.outerHeight() - 10,
                         left: offset.left + ($element.outerWidth() / 2) - ($tooltip.outerWidth() / 2)
                     }).fadeIn();
-                    
+
                     $element.data('tooltip-element', $tooltip);
                 });
-                
-                $element.on('mouseleave', function() {
+
+                $element.on('mouseleave', function () {
                     var $tooltip = $element.data('tooltip-element');
                     if ($tooltip) {
-                        $tooltip.fadeOut(function() {
+                        $tooltip.fadeOut(function () {
                             $(this).remove();
                         });
                     }
@@ -419,18 +458,24 @@
         },
 
         // Initialize media field interactions
-        initMediaFields: function() {
+        initMediaFields: function () {
+            // Ensure all result containers are hidden on page load
+            $('.alt-text-pro-result').hide();
+            $('.alt-text-pro-loading').hide();
+            $('.alt-text-pro-success').hide();
+            $('.alt-text-pro-error').hide();
+
             // Auto-resize textareas
-            $(document).on('input', '.alt-text-pro-context input', function() {
+            $(document).on('input', '.alt-text-pro-context input', function () {
                 this.style.height = 'auto';
                 this.style.height = (this.scrollHeight) + 'px';
             });
-            
+
             // Context suggestions
-            $(document).on('focus', '.alt-text-pro-context input', function() {
+            $(document).on('focus', '.alt-text-pro-context input', function () {
                 var $input = $(this);
                 var attachmentId = $input.closest('.alt-text-pro-media-field').find('.alt-text-pro-generate-btn').data('attachment-id');
-                
+
                 // Load context suggestions if not already loaded
                 if (!$input.data('suggestions-loaded')) {
                     AltTextProAdmin.loadContextSuggestions($input, attachmentId);
@@ -439,7 +484,7 @@
         },
 
         // Load context suggestions for an image
-        loadContextSuggestions: function($input, attachmentId) {
+        loadContextSuggestions: function ($input, attachmentId) {
             $.ajax({
                 url: altTextAI.ajaxUrl,
                 type: 'POST',
@@ -448,26 +493,26 @@
                     attachment_id: attachmentId,
                     nonce: altTextAI.nonce
                 },
-                success: function(response) {
+                success: function (response) {
                     if (response.success && response.data.length > 0) {
                         var $suggestions = $('<div class="context-suggestions">');
-                        
-                        response.data.forEach(function(suggestion) {
+
+                        response.data.forEach(function (suggestion) {
                             var $suggestion = $('<button type="button" class="context-suggestion">')
                                 .text(suggestion)
-                                .on('click', function(e) {
+                                .on('click', function (e) {
                                     e.preventDefault();
                                     $input.val(suggestion);
                                     $suggestions.remove();
                                 });
                             $suggestions.append($suggestion);
                         });
-                        
+
                         $input.after($suggestions);
                         $input.data('suggestions-loaded', true);
-                        
+
                         // Hide suggestions when clicking outside
-                        $(document).on('click.context-suggestions', function(e) {
+                        $(document).on('click.context-suggestions', function (e) {
                             if (!$(e.target).closest('.context-suggestions, .alt-text-pro-context input').length) {
                                 $suggestions.remove();
                                 $(document).off('click.context-suggestions');
@@ -479,27 +524,27 @@
         },
 
         // Toggle collapsible sections
-        toggleSection: function(e) {
+        toggleSection: function (e) {
             e.preventDefault();
-            
+
             var $toggle = $(this);
             var $section = $toggle.closest('.collapsible-section');
             var $content = $section.find('.section-content');
-            
+
             $content.slideToggle();
             $toggle.find('.dashicons').toggleClass('dashicons-arrow-down dashicons-arrow-up');
             $section.toggleClass('collapsed');
         },
 
         // Copy text to clipboard
-        copyToClipboard: function(e) {
+        copyToClipboard: function (e) {
             e.preventDefault();
-            
+
             var $button = $(this);
             var textToCopy = $button.data('copy-text') || $button.closest('.copy-container').find('.copy-target').text();
-            
+
             if (navigator.clipboard) {
-                navigator.clipboard.writeText(textToCopy).then(function() {
+                navigator.clipboard.writeText(textToCopy).then(function () {
                     AltTextProAdmin.showCopySuccess($button);
                 });
             } else {
@@ -515,25 +560,25 @@
         },
 
         // Show copy success feedback
-        showCopySuccess: function($button) {
+        showCopySuccess: function ($button) {
             var originalHtml = $button.html();
             $button.html('<span class="dashicons dashicons-yes"></span> Copied!');
-            
-            setTimeout(function() {
+
+            setTimeout(function () {
                 $button.html(originalHtml);
             }, 2000);
         },
 
         // Refresh data
-        refreshData: function(e) {
+        refreshData: function (e) {
             e.preventDefault();
-            
+
             var $button = $(this);
             var dataType = $button.data('refresh-type') || 'usage';
-            
+
             var originalHtml = $button.html();
             $button.html('<span class="dashicons dashicons-update rotating"></span> Refreshing...').prop('disabled', true);
-            
+
             $.ajax({
                 url: altTextAI.ajaxUrl,
                 type: 'POST',
@@ -541,7 +586,7 @@
                     action: 'alt_text_pro_refresh_' + dataType,
                     nonce: altTextAI.nonce
                 },
-                success: function(response) {
+                success: function (response) {
                     if (response.success) {
                         // Reload the page to show updated data
                         location.reload();
@@ -549,58 +594,144 @@
                         AltTextProAdmin.showNotification(response.data || 'Failed to refresh data', 'error');
                     }
                 },
-                error: function() {
+                error: function () {
                     AltTextProAdmin.showNotification('Failed to refresh data', 'error');
                 },
-                complete: function() {
+                complete: function () {
                     $button.html(originalHtml).prop('disabled', false);
                 }
             });
         },
 
         // Open modal dialog
-        openModal: function(e) {
+        openModal: function (e) {
             e.preventDefault();
-            
+
             var modalId = $(this).data('modal');
             var $modal = $('#' + modalId);
-            
+
             if ($modal.length) {
                 $modal.addClass('active');
                 $('body').addClass('modal-open');
+                $modal.find('input, button, a').first().trigger('focus');
             }
         },
 
         // Close modal dialog
-        closeModal: function(e) {
+        closeModal: function (e) {
             if ($(e.target).hasClass('modal-overlay') || $(e.target).hasClass('close-modal')) {
                 $('.modal').removeClass('active');
                 $('body').removeClass('modal-open');
             }
         },
 
+        // Init onboarding modal logic
+        initOnboarding: function () {
+            if (typeof altTextAI === 'undefined' || !altTextAI.onboarding) {
+                return;
+            }
+
+            var modalId = altTextAI.onboarding.modalId || 'alt-text-pro-onboarding-modal';
+            var $modal = $('#' + modalId);
+
+            if (!$modal.length) {
+                return;
+            }
+
+            // Auto-open if no API key is set
+            if (altTextAI.onboarding.show) {
+                // Scroll to top to ensure modal is visible
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                // Small delay to ensure scroll completes
+                var self = this;
+                setTimeout(function() {
+                    self.showModalById(modalId);
+                    $('#onboarding_api_key').trigger('focus');
+                }, 100);
+            }
+        },
+
+        showModalById: function (modalId) {
+            var $modal = $('#' + modalId);
+            if ($modal.length) {
+                // Ensure page is scrolled to top
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                $modal.addClass('active');
+                $('body').addClass('modal-open');
+                // Focus management for accessibility
+                $modal.find('.modal-content').attr('tabindex', '-1').focus();
+            }
+        },
+
+        setOnboardingMessage: function (message, type) {
+            var $msg = $('#onboarding-message');
+            $msg.removeClass('success error').addClass(type || '');
+            $msg.text(message);
+        },
+
+        handleOnboardingSave: function (e) {
+            e.preventDefault();
+
+            var apiKey = $('#onboarding_api_key').val();
+            if (!AltTextProAdmin.validateAPIKeyFormat(apiKey)) {
+                AltTextProAdmin.setOnboardingMessage(altTextAI.strings.onboardingInvalidFormat || 'Invalid API key format.', 'error');
+                $('#onboarding_api_key').focus();
+                return;
+            }
+
+            AltTextProAdmin.setOnboardingMessage(altTextAI.strings.generating || 'Validating...', '');
+
+            $.ajax({
+                url: altTextAI.ajaxUrl,
+                type: 'POST',
+                data: {
+                    action: 'alt_text_pro_validate_key',
+                    api_key: apiKey,
+                    nonce: altTextAI.nonce
+                },
+                success: function (response) {
+                    if (response.success) {
+                        AltTextProAdmin.setOnboardingMessage(altTextAI.strings.onboardingSaved || 'API key saved successfully!', 'success');
+                        // Mirror into settings field if present
+                        $('#api_key').val(apiKey);
+                        altTextAI.onboarding.show = false;
+                        setTimeout(function () {
+                            $('.modal').removeClass('active');
+                            $('body').removeClass('modal-open');
+                            location.reload();
+                        }, 800);
+                    } else {
+                        AltTextProAdmin.setOnboardingMessage(response.data || altTextAI.strings.invalidKey, 'error');
+                    }
+                },
+                error: function () {
+                    AltTextProAdmin.setOnboardingMessage(altTextAI.strings.connectionTestFailed || 'Validation failed.', 'error');
+                }
+            });
+        },
+
         // Utility function to format numbers
-        formatNumber: function(num) {
+        formatNumber: function (num) {
             return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
         },
 
         // Utility function to format file sizes
-        formatFileSize: function(bytes) {
+        formatFileSize: function (bytes) {
             if (bytes === 0) return '0 Bytes';
-            
+
             var k = 1024;
             var sizes = ['Bytes', 'KB', 'MB', 'GB'];
             var i = Math.floor(Math.log(bytes) / Math.log(k));
-            
+
             return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
         },
 
         // Utility function to debounce function calls
-        debounce: function(func, wait, immediate) {
+        debounce: function (func, wait, immediate) {
             var timeout;
-            return function() {
+            return function () {
                 var context = this, args = arguments;
-                var later = function() {
+                var later = function () {
                     timeout = null;
                     if (!immediate) func.apply(context, args);
                 };
@@ -613,15 +744,15 @@
     };
 
     // Initialize when document is ready
-    $(document).ready(function() {
+    $(document).ready(function () {
         AltTextProAdmin.init();
     });
 
     // Handle media modal events
-    $(document).on('DOMNodeInserted', function(e) {
+    $(document).on('DOMNodeInserted', function (e) {
         if ($(e.target).hasClass('media-modal') || $(e.target).find('.media-modal').length) {
             // Re-initialize for dynamically loaded media modals
-            setTimeout(function() {
+            setTimeout(function () {
                 AltTextProAdmin.initMediaFields();
             }, 100);
         }

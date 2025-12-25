@@ -223,7 +223,7 @@ REACT_APP_SUPABASE_URL=https://your-project.supabase.co
 REACT_APP_SUPABASE_ANON_KEY=your-anon-key
 
 # API
-GEMINI_API_KEY=your-gemini-key
+AI_API_KEY=your-gemini-key
 ```
 
 ### 6.2 Update Google OAuth URLs

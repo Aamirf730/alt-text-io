@@ -28,7 +28,7 @@ export default function TermsPage() {
                         <section>
                             <h2 className="text-2xl font-semibold text-gray-900 mb-4">2. Service Description</h2>
                             <p className="text-gray-700 leading-relaxed mb-4">
-                                Alt Text Pro is an AI-powered service that automatically generates descriptive alt text for images using Google Gemini AI technology. Our Service includes:
+                                Alt Text Pro is an AI-powered service that automatically generates descriptive alt text for images using advanced AI technology. Our Service includes:
                             </p>
                             <ul className="list-disc list-inside text-gray-700 space-y-2 ml-4">
                                 <li>Web-based alt-text generation tool</li>
@@ -63,10 +63,10 @@ export default function TermsPage() {
                             <div className="bg-gray-50 rounded-lg p-6 mb-4">
                                 <ul className="space-y-3 text-gray-700">
                                     <li><strong>Free Plan:</strong> $0/month - 50 credits per month</li>
-                                    <li><strong>Tier 1:</strong> $12/month ($129/year) - 1,000 credits per month</li>
-                                    <li><strong>Tier 2:</strong> $20/month ($216/year) - 2,400 credits per month</li>
-                                    <li><strong>Tier 3:</strong> $40/month ($432/year) - 5,000 credits per month</li>
-                                    <li><strong>Pay as you go:</strong> $5 one-time - 300 credits (never expire, adds to existing credits)</li>
+                                    <li><strong>Tier 1:</strong> $10/month ($108/year) - 1,000 credits per month</li>
+                                    <li><strong>Tier 2:</strong> $20/month ($216/year) - 2,300 credits per month</li>
+                                    <li><strong>Tier 3:</strong> $30/month ($324/year) - 3,500 credits per month</li>
+                                    <li><strong>Pay as you go:</strong> $3 for 350 credits or $5 for 550 credits (never expire)</li>
                                 </ul>
                             </div>
                             <p className="text-gray-700 leading-relaxed">

@@ -9,7 +9,7 @@ const createTransporter = () => {
 
   // Check if it's a custom domain (not @gmail.com)
   const isCustomDomain = emailUser && !emailUser.includes('@gmail.com');
-  
+
   // For Gmail or Google Workspace, use service: 'gmail'
   // For custom domains, we might need explicit SMTP settings
   if (emailService === 'gmail' || !isCustomDomain) {
@@ -54,7 +54,7 @@ exports.handler = async (event, context) => {
       });
       return {
         statusCode: 500,
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           error: 'Email service not configured',
           details: 'EMAIL_USER or EMAIL_PASSWORD environment variables are missing'
         }),
@@ -81,12 +81,12 @@ exports.handler = async (event, context) => {
     }
 
     const transporter = createTransporter();
-    
+
     // Verify transporter was created
     if (!transporter) {
       return {
         statusCode: 500,
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           error: 'Failed to create email transporter',
           details: 'Could not initialize email service'
         }),
@@ -96,7 +96,7 @@ exports.handler = async (event, context) => {
     // Email content
     const mailOptions = {
       from: process.env.EMAIL_USER || 'help@wpgeared.com',
-      to: 'support@alt-text.pro', // Recipient email address
+      to: 'help@wpgeared.com', // Recipient email address
       replyTo: email, // Allow replying directly to the sender
       subject: subject || `Contact Form: ${name}`,
       html: `
@@ -139,9 +139,9 @@ ${message}
 
     return {
       statusCode: 200,
-      body: JSON.stringify({ 
-        success: true, 
-        message: 'Email sent successfully' 
+      body: JSON.stringify({
+        success: true,
+        message: 'Email sent successfully'
       }),
     };
   } catch (error) {
@@ -153,11 +153,11 @@ ${message}
       hasService: !!process.env.EMAIL_SERVICE,
       userEmail: process.env.EMAIL_USER
     });
-    
+
     // Return more detailed error for debugging (but don't expose sensitive info)
     let errorMessage = 'Failed to send email';
     let errorDetails = error.message || 'Unknown error';
-    
+
     // Common Gmail errors
     if (error.message && error.message.includes('Invalid login')) {
       errorDetails = 'Invalid email credentials. Please check your email and app password.';
@@ -166,10 +166,10 @@ ${message}
     } else if (error.message && error.message.includes('ETIMEDOUT') || error.message.includes('ECONNREFUSED')) {
       errorDetails = 'Connection timeout. Please check your network or try again later.';
     }
-    
+
     return {
       statusCode: 500,
-      body: JSON.stringify({ 
+      body: JSON.stringify({
         error: errorMessage,
         details: errorDetails
       }),

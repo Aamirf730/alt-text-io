@@ -1,67 +1,70 @@
-=== Alt Text Pro ===
-Contributors: alttextai
-Tags: accessibility, alt-text, seo, ai, images
+=== Alt Text Pro – AI Alt Text Generator for Image SEO & Accessibility ===
+Contributors: aamirfaiz
+Tags: alt text generator, image seo, accessibility, ai alt text, automatic alt text
 Requires at least: 5.0
-Tested up to: 6.8
+Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 1.4.1
+Stable tag: 1.4.58
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Automatically generate professional alt-text for your images using AI. Improve accessibility and SEO with our powerful SaaS integration.
+AI-powered alt text generator that automatically creates image alt tags for better SEO and accessibility. Generate alt text for all your images with one click.
 
 == Description ==
 
-**Alt Text Pro** is a powerful WordPress plugin that automatically generates high-quality alt-text for your images using advanced AI technology. Improve your website's accessibility, SEO, and user experience with professionally written alt-text descriptions.
+**Alt Text Pro** is the ultimate AI-powered **alt text generator** for WordPress. Automatically generate professional **image alt text** and **alt tags** to boost your **image SEO** and meet accessibility standards. Our advanced AI creates accurate, descriptive alt text that improves your site's search rankings and makes your content accessible to everyone.
 
-### 🚀 Key Features
+Stop wasting hours writing alt text manually. Let our **automatic alt text generator** create optimized **alt attributes** for hundreds of images in minutes. Whether you're a blogger, e-commerce store owner, or agency, Alt Text Pro makes **image optimization** effortless.
 
-* **AI-Powered Generation**: Uses Google Gemini AI to create accurate, descriptive alt-text
-* **Automatic Processing**: Generate alt-text automatically when uploading images
-* **Bulk Processing**: Process hundreds of existing images at once
-* **Context-Aware**: Provides better descriptions using page context and metadata
-* **Beautiful Dashboard**: Modern, intuitive admin interface
+### Automatic Alt-Text Generation Features
+
+* **AI Alt Text Generator**: Uses advanced AI to create accurate, descriptive alt text automatically
+* **Automatic Alt Tag Creation**: Generate alt tags automatically when uploading images
+* **Bulk Alt Text Processing**: Process hundreds of existing images at once with our bulk alt text generator
+* **Context-Aware Descriptions**: AI understands your content to provide better image alt text
+* **Beautiful Dashboard**: Modern, intuitive admin interface for managing alt text generation
 * **Usage Tracking**: Monitor your API usage and credit consumption
-* **SEO Optimization**: Improve search engine rankings with better image descriptions
-* **Accessibility Compliance**: Meet WCAG guidelines for screen reader compatibility
+* **Image SEO Optimization**: Improve search engine rankings with better image alt text descriptions
+* **Accessibility Compliance**: Meet WCAG guidelines for screen reader compatibility with proper alt attributes
 
-### 💡 How It Works
+### How Our AI Alt Text Generator Works
 
 1. **Connect Your Account**: Get your API key from Alt Text Pro dashboard
-2. **Configure Settings**: Set up automatic generation and preferences
-3. **Generate Alt-Text**: Process images individually or in bulk
-4. **Review & Edit**: Fine-tune generated descriptions as needed
+2. **Configure Settings**: Set up automatic alt text generation preferences
+3. **Generate Alt Text**: Process images individually or use bulk alt text generation
+4. **Review & Edit**: Fine-tune generated alt tags and alt attributes as needed
 
-### 🎯 Perfect For
+### Perfect For Image SEO & Accessibility
 
-* **Content Creators**: Bloggers, journalists, and content marketers
-* **E-commerce Sites**: Product catalogs and online stores
-* **Agencies**: Web developers and digital marketing agencies
-* **Accessibility Advocates**: Organizations focused on inclusive design
-* **SEO Professionals**: Improving search engine optimization
+* **Content Creators**: Bloggers, journalists, and content marketers who need alt text fast
+* **E-commerce Sites**: Product catalogs needing automatic alt text for image SEO
+* **Agencies**: Web developers using bulk alt text generation for client sites
+* **Accessibility Advocates**: Organizations focused on inclusive design and alt tag compliance
+* **SEO Professionals**: Improving image SEO optimization with quality alt text
 
-### 📊 Pricing Plans
+### Pricing Plans
 
-* **Free Trial**: 30 credits to get started
+* **Free Trial**: 30 credits to try our alt text generator
 * **Starter Plan**: 500 credits/month for small sites
 * **Pro Plan**: 2000 credits/month for busy sites
 * **Pay-as-you-go**: $3 for 50 credits when you need more
 
-Each alt-text generation uses 1 credit.
+Each alt text generation uses 1 credit.
 
-### 🔧 Technical Requirements
+### Technical Requirements
 
 * WordPress 5.0 or higher
 * PHP 7.4 or higher
 * Active internet connection for API calls
 * Alt Text Pro account (free signup available)
 
-### 🌟 Why Choose Alt Text Pro?
+### Why Choose Alt Text Pro for Image SEO?
 
-* **Accuracy**: Advanced AI trained specifically for alt-text generation
-* **Speed**: Process hundreds of images in minutes
-* **Quality**: Human-like descriptions that make sense
-* **Integration**: Seamless WordPress integration
+* **Accuracy**: Advanced AI trained specifically for alt text and alt tag generation
+* **Speed**: Process hundreds of images in minutes with bulk alt text processing
+* **Quality**: Human-like image alt text descriptions that make sense
+* **Image Optimization**: Boost your image SEO with proper alt attributes
+* **Integration**: Seamless WordPress integration for automatic alt text
 * **Support**: Dedicated customer support team
 * **Privacy**: Your images are processed securely and not stored
 
@@ -88,45 +91,65 @@ Each alt-text generation uses 1 credit.
 3. Copy your API key from the dashboard
 4. Paste it into the plugin settings and save
 5. Test the connection to ensure everything works
-6. Start generating alt-text for your images!
+6. Start generating alt text for your images!
 
 == Frequently Asked Questions ==
 
+= What is alt text and why do I need it? =
+
+Alt text (also called alt tags or alt attributes) is descriptive text added to images that helps search engines understand your images and makes your site accessible to visually impaired users using screen readers. Proper alt text is essential for image SEO and accessibility compliance.
+
+= How does Alt Text Pro improve my image SEO? =
+
+Alt Text Pro automatically generates descriptive, keyword-relevant alt text for your images. Search engines like Google use alt text to understand and index your images, which can improve your rankings in image search results and boost overall image SEO performance.
+
+= Can this plugin automatically add alt tags to all my existing images? =
+
+Yes! Our bulk alt text generator can process hundreds of existing images that are missing alt tags. Simply go to the Bulk Processing page, select your images, and let the AI generate alt text automatically for all of them.
+
+= Is 'alt text' the same as an alt tag or alt attribute? =
+
+Yes, these terms refer to the same thing. "Alt text" is the content, while "alt tag" and "alt attribute" refer to the HTML attribute that contains this text. Alt Text Pro generates quality alt text that gets added to your images' alt attributes.
+
+= What makes your AI alt text generator accurate? =
+
+Our AI alt text generator uses advanced AI technology, specifically trained for image description and alt text generation. It analyzes image content, context, and metadata to create accurate, descriptive alt text that sounds natural and helps with image SEO.
+
 = Do I need an Alt Text Pro account? =
 
-Yes, you need a free Alt Text Pro account to use this plugin. You can sign up at https://www.alt-text.pro and get 100 free credits to start.
+Yes, you need a free Alt Text Pro account to use this plugin. You can sign up at https://www.alt-text.pro and get free credits to start generating alt text immediately.
 
-= How accurate is the AI-generated alt-text? =
+= How accurate is the AI-generated alt text? =
 
-Our AI is trained specifically for alt-text generation and provides highly accurate descriptions. However, we always recommend reviewing and editing the generated text to ensure it fits your specific context perfectly.
+Our AI is trained specifically for alt text generation and provides highly accurate descriptions. However, we always recommend reviewing and editing the generated alt text to ensure it fits your specific context perfectly.
 
-= Can I edit the generated alt-text? =
+= Can I edit the generated alt text? =
 
-Absolutely! The plugin generates alt-text as a starting point. You can always edit, refine, or completely rewrite the descriptions to match your needs.
+Absolutely! The plugin generates alt text as a starting point. You can always edit, refine, or completely rewrite the alt tags to match your needs.
 
 = What happens if I run out of credits? =
 
-If you run out of credits, the plugin will stop generating new alt-text. You can purchase more credits or upgrade your plan from your Alt Text Pro dashboard.
+If you run out of credits, the alt text generator will stop processing new images. You can purchase more credits or upgrade your plan from your Alt Text Pro dashboard.
 
-= Does this work with existing images? =
+= Does the bulk alt text generator work with existing images? =
 
-Yes! The plugin includes a powerful bulk processing feature that can generate alt-text for all your existing images that don't have alt-text yet.
+Yes! The bulk processing feature can generate alt text for all your existing images that don't have alt attributes yet, making image optimization fast and easy.
 
 = Is my data secure? =
 
 Yes, we take security seriously. Images are processed securely via encrypted connections and are not stored on our servers after processing.
 
-= Can I use this for e-commerce products? =
+= Can I use this alt text generator for e-commerce products? =
 
-Definitely! The plugin works great for product images. You can even provide context like "product photo" to get more relevant descriptions.
+Definitely! The plugin works great for product images and image SEO for online stores. You can even provide context like "product photo" to get more relevant alt text descriptions.
 
-= Does this help with SEO? =
+= Does proper alt text really help with SEO? =
 
-Yes! Proper alt-text improves your SEO by helping search engines understand your images, which can improve your rankings in image search results.
+Absolutely! Proper alt text is a key factor in image SEO. It helps search engines understand your images, improves image search rankings, and can drive significant traffic through Google Images. Our alt text generator creates SEO-optimized descriptions.
 
 = What image formats are supported? =
 
-The plugin supports all standard web image formats including JPEG, PNG, GIF, and WebP.
+The alt text generator supports all standard web image formats including JPEG, PNG, GIF, and WebP.
 
 = Can I cancel my subscription anytime? =
 
@@ -134,58 +157,299 @@ Yes, you can cancel your subscription at any time from your Alt Text Pro dashboa
 
 == Screenshots ==
 
-1. **Dashboard Overview** - Beautiful admin dashboard showing usage stats and quick actions
-2. **Settings Page** - Easy-to-use settings interface with API key configuration
-3. **Bulk Processing** - Process hundreds of images at once with progress tracking
-4. **Media Library Integration** - Generate alt-text directly from the media library
-5. **Usage Logs** - Track all your alt-text generations with detailed logs
-6. **Mobile Responsive** - Fully responsive design works on all devices
+1. **Alt Text Generator Dashboard** - AI-powered alt text generator dashboard showing usage stats and one-click generation
+2. **Alt Text Settings** - Configure automatic alt text generation, API settings, and image SEO preferences
+3. **Bulk Alt Text Generator** - Process hundreds of images with our bulk alt text processor and progress tracking
+4. **Media Library Alt Text Integration** - Generate alt text and alt tags directly from the WordPress media library
+5. **Alt Text Generation Logs** - Track all your alt text and alt tag generations with detailed usage logs
+6. **Mobile Responsive Design** - Fully responsive alt text generator works on all devices
 
 == Changelog ==
 
-= 1.0.8 =
+= 1.4.58 =
+* Improved onboarding modal design - removed hero section and moved key icon inline with title
+* Fixed modal positioning to prevent cutting at top of screen
+* Reduced modal padding to eliminate scrolling
+* Enhanced modal centering for better user experience
+
+= 1.4.57 =
+* Fixed modal positioning issue where form was cutting at the top
+* Added automatic scroll to top when onboarding modal opens
+* Improved modal container CSS for better centering
+* Enhanced modal content overflow handling
+
+= 1.4.56 =
+* Moved bulk batch size setting to Settings page only
+* Removed batch size input from bulk process page
+* Set default batch size to 2 images per batch
+* Updated JavaScript to read batch size from settings
+
+= 1.4.55 =
+* Fixed JavaScript syntax errors in bulk processing script
+* Removed escaped quotes that were causing syntax errors
+* Fixed line break issues in JavaScript strings
+* Improved code formatting and readability
+
+= 1.4.54 =
+* Fixed additional JavaScript syntax errors
+* Corrected quote escaping in HTML strings within JavaScript
+* Improved error handling and debugging
+
+= 1.4.53 =
+* Reformatted minified JavaScript code that was causing syntax errors
+* Fixed cancelProcessing, sendCancelRequest, resetUI, and showError functions
+* Improved code structure and readability
+
+= 1.4.52 =
+* Added fallback script output for bulk processing
+* Enhanced debugging with comprehensive console logging
+* Fixed JavaScript WP_DEBUG references (PHP constant used in JS)
+* Added inline onclick handlers as fallback for button clicks
+
+= 1.4.51 =
+* Added extensive debugging to diagnose bulk processing button issues
+* Enhanced console logging throughout bulk processing flow
+* Added try-catch blocks for error handling
+* Improved error reporting
+
+= 1.4.50 =
+* Fixed JavaScript errors where WP_DEBUG was referenced incorrectly
+* Removed all WP_DEBUG checks from JavaScript code
+* Enhanced debugging output
+
+= 1.4.49 =
+* Added comprehensive debugging for bulk processing button
+* Enhanced console logging for initialization and event binding
+* Added PHP error logging for script loading
+
+= 1.4.48 =
+* Changed event binding to use namespaced events
+* Added stopImmediatePropagation to prevent event conflicts
+* Improved button handler reliability
+
+= 1.4.47 =
+* Changed to document-level event delegation for better reliability
+* Added namespaced events to prevent conflicts
+* Improved event handler attachment
+
+= 1.4.46 =
+* Removed conflicting bulk processing implementation from admin.js
+* Consolidated to single inline script implementation
+* Fixed status badge updates
+
+= 1.4.45 =
+* Fixed status badge updates in fallback bulk processing
+* Added status updates in startBulkStatusPolling
+* Enhanced status badge logic
+
+= 1.4.44 =
+* Added safeguard to set status to "Processing..." when polling starts
+* Improved status badge update logic
+
+= 1.4.43 =
+* Simplified status badge update logic
+* Fixed status badge to show "Processing..." for all non-terminal states
+* Improved status display accuracy
+
+= 1.4.42 =
+* Enhanced cancel functionality with pendingCancel flag
+* Improved early cancellation handling
+* Added sendCancelRequest function for explicit cancel requests
+* Fixed status updates during cancellation
+
+= 1.4.41 =
+* Fixed cancel button functionality
+* Added support for canceling before processId is set
+* Improved cancel request handling
+* Enhanced UI updates during cancellation
+
+= 1.4.40 =
+* Improved bulk processing status updates
+* Enhanced status badge display logic
+* Fixed status polling interval
+
+= 1.4.39 =
+* Fixed status badge not updating during processing
+* Improved status update logic
+* Enhanced progress tracking
+
+= 1.4.38 =
+* Fixed bulk processing status display
+* Improved status badge updates
+* Enhanced error handling
+
+= 1.4.37 =
+* Fixed bulk processing completion detection
+* Improved status polling
+* Enhanced notification display
+
+= 1.4.36 =
+* Fixed bulk processing status updates
+* Improved progress tracking
+* Enhanced error reporting
+
+= 1.4.35 =
+* Fixed status badge display issues
+* Improved bulk processing flow
+* Enhanced UI updates
+
+= 1.4.34 =
+* Fixed bulk processing button handlers
+* Improved event binding
+* Enhanced error handling
+
+= 1.4.33 =
+* Fixed bulk processing initialization
+* Improved script loading
+* Enhanced compatibility
+
+= 1.4.32 =
+* Fixed Cancel button not responding to clicks
+* Fixed Cancel button visibility (override !important styles)
+* Removed conflicting inline script cancel handler
+* All button handlers now consistently in admin.js
+
+= 1.4.27 =
+* Improved plugin title and description for better discoverability
+* Optimized tags for image SEO and alt text searches
+* Enhanced FAQ section with additional helpful questions
+* Updated screenshot captions for clarity
+* Tested compatibility with WordPress 6.9
+
+= 1.4.24 =
+* Added onboarding modal for API key setup
+* Improved user experience with guided API key entry
+* Enhanced modal UI with better accessibility
+* Automatic modal display when API key is missing
+
+= 1.4.21 =
+* Fixed code analysis warnings for discouraged functions and syntax
+
+
+= 1.4.20 =
+* Temporarily hid context input field from media sidebar
+
+
+= 1.4.19 =
+* Fixed issue where context was not being sent to the API during generation
+* Improved JavaScript selectors for better compatibility with different admin views
+
+
+= 1.4.18 =
+* Fixed missing context input field in media edit sidebar
+
+
+= 1.4.17 =
+* Fixed bulk process progress counters showing incorrect numbers after completion
+* Ensured processed count and successful count match final results
+
+
+= 1.4.16 =
+* Fixed bulk process completion status bug where status was overwritten with "running"
+* Ensured success notification appears correctly after bulk processing completes
+
+
+= 1.4.15 =
+* Fixed status badge stuck on "Processing..." after completion
+* Fixed completion detection - now properly stops polling and shows completion
+* Added comprehensive console logging for debugging completion flow
+* Improved status update logic to prevent overriding completed status
+* Enhanced notification display to ensure it's visible
+
+= 1.4.14 =
+* Fixed success notification not appearing after bulk process completion
+* Fixed cancel button visibility - now properly hidden when process hasn't started
+* Improved notification display with better selector and visibility handling
+* Enhanced cancel button show/hide logic with proper !important styles
+
+= 1.4.13 =
+* Fixed JavaScript syntax error that was preventing script from loading
+* Removed problematic button cloning that caused DOM issues
+* Simplified event handler attachment for better reliability
+* Fixed typeof checks in event handlers
+
+= 1.4.12 =
+* Fixed "Start Processing" button - removed button cloning that was breaking event handlers
+* Added dual event handlers (jQuery + native DOM) for maximum compatibility
+* Enhanced form submission prevention with capture phase listeners
+* Improved event handler binding to ensure button works reliably
+
+= 1.4.11 =
+* Fixed "Start Processing" button click handler - improved event binding and prevention
+* Added immediate DOM event handlers to prevent form submission before jQuery loads
+* Enhanced event handler cleanup to prevent duplicate bindings
+* Added comprehensive console logging for debugging
+
+= 1.4.10 =
+* Fixed "Start Processing" button not working - added form submission prevention
+* Fixed Cancel button showing when process hasn't started - now properly hidden
+* Added validation to prevent double-clicking start button
+* Added console logging for debugging bulk process issues
+
+= 1.4.9 =
+* Fixed bulk process status badge not updating to "Completed" when process finishes
+* Added completion notification popup showing process results and error details
+* Improved status polling to stop immediately when process completes
+* Enhanced error reporting in completion notification
+
+= 1.4.8 =
+* Updated "Generate Alt-Text" button icon to show "SEO+" text instead of image icon
+* Improved button visual design for better relevance
+
+= 1.4.7 =
+* Fixed automatic alt-text generation appearing on image edit page
+* Loading state now only appears when user clicks "Generate Alt-Text" button
+* Automatic generation only occurs per plugin settings (on upload) or bulk process
+
+= 1.4.6 =
+* Fixed escaping of all variables when echoed
+* Added wp_kses_post() for HTML output from get_media_field_html()
+* Ensured all output follows WordPress escaping best practices
+
+= 1.4.5 =
+* Fixed text domain to match plugin slug (alt-text-pro)
+* Added load_plugin_textdomain() for proper translation loading
+* Ensured all 250+ translation functions use correct text domain
+
+= 1.4.4 =
+* Fixed JavaScript and CSS enqueuing to use WordPress built-in functions
+* Moved all inline scripts to wp_add_inline_script() for proper WordPress compliance
+* Removed inline script tags from template files
+
+= 1.4.3 =
+* Fixed Contributors field to include correct WordPress.org username
+
+= 1.4.2 =
+* Version update
+
+= 1.4.1 =
+* Renamed plugin slug and folder to match Text Domain
 * UI overhaul with modern design
 * Improved navigation and dashboard layout
 * Enhanced user experience for settings and logs
-
-= 1.0.7 =
-* Version update
-
-= 1.0.6 =
 * Added real-time completion notifications for bulk processing
 * Added immediate credit exhaustion alerts during processing
 * Improved error notifications with visual feedback
 * Enhanced status updates during bulk processing
 * Fixed notification display for all completion statuses
-
-= 1.0.4 =
 * Fixed critical bug: Processing now stops immediately when credits are exhausted
 * Fixed dashboard credit calculation - now correctly displays credits used vs total
 * Improved error messages when credits run out during bulk processing
 * Added proper handling for credit exhaustion across all subscription plans
 * Fixed edge cases in credit display (negative values, exceeding totals)
-
-= 1.0.3 =
 * Fixed processing options - "Process images missing alt-text", "Process all images", and "Process selected images" now work correctly
 * Fixed overwrite existing alt-text checkbox logic
 * Improved batch size handling
 * Better separation of process type and overwrite settings
-
-= 1.0.2 =
 * Fixed successful count tracking in bulk processing
 * Improved progress tracking accuracy across batches
 * Enhanced data persistence for bulk process status
 * Added automatic verification of successful count vs actual processed images
 * Better error handling and debug logging for bulk operations
-
-= 1.0.1 =
 * Fixed API endpoint from auth/validate to auth-validate
 * Enhanced debug logging to show exact URLs
 * Better error handling for 404 responses
-
-= 1.0.0 =
-* Initial release
-* AI-powered alt-text generation using Google Gemini
+* AI-powered alt-text generation using advanced AI technology
 * Automatic processing on image upload
 * Bulk processing for existing images
 * Beautiful admin dashboard
@@ -197,12 +461,12 @@ Yes, you can cancel your subscription at any time from your Alt Text Pro dashboa
 
 == Upgrade Notice ==
 
-= 1.0.0 =
-This is the initial release of Alt Text Pro. Install now to start improving your website's accessibility and SEO with AI-generated alt-text!
+= 1.4.58 =
+Improved onboarding experience with better modal design and positioning. Recommended update for all users.
 
 == Support ==
 
-Need help? We're here for you!
+Need help with alt text generation? We're here for you!
 
 * **Documentation**: Visit our [knowledge base](https://www.alt-text.pro/docs)
 * **Support**: Contact us at [support](https://www.alt-text.pro/support)
@@ -213,7 +477,7 @@ Need help? We're here for you!
 Alt Text Pro is committed to protecting your privacy:
 
 * Images are processed securely via encrypted HTTPS connections
-* Images are not stored on our servers after processing
+* Images are not stored on our servers after alt text generation
 * Only necessary metadata is logged for service improvement
 * We comply with GDPR and other privacy regulations
 * You can delete your account and data at any time
@@ -222,10 +486,10 @@ For full details, see our [Privacy Policy](https://www.alt-text.pro/privacy).
 
 == About Alt Text Pro ==
 
-Alt Text Pro is dedicated to making the web more accessible for everyone. Our mission is to provide powerful, easy-to-use tools that help website owners create better alt-text descriptions for their images.
+Alt Text Pro is the leading AI alt text generator dedicated to making the web more accessible for everyone. Our mission is to provide powerful, easy-to-use tools that help website owners create better alt text descriptions for their images, improving both accessibility and image SEO.
 
-Founded by accessibility advocates and AI experts, we understand the importance of inclusive design and the challenges of creating quality alt-text at scale. Our solution combines cutting-edge AI technology with human insight to deliver the best possible results.
+Founded by accessibility advocates and AI experts, we understand the importance of inclusive design and the challenges of creating quality alt text at scale. Our automatic alt text generator combines cutting-edge AI technology with human insight to deliver the best possible image optimization results.
 
-Join thousands of websites already using Alt Text Pro to improve their accessibility and SEO!
+Join thousands of websites already using Alt Text Pro - the #1 AI alt text generator - to improve their accessibility and image SEO!
 
-**Get started today**: [Sign up for free](https://www.alt-text.pro) and get 100 credits to try Alt Text Pro risk-free.
+**Get started today**: [Sign up for free](https://www.alt-text.pro) and get credits to try our alt text generator risk-free.

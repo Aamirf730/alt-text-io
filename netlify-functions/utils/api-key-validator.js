@@ -1,98 +1,74 @@
 // Utility module for API key validation
 // File: netlify/functions/utils/api-key-validator.js
+// 
+// IMPORTANT: All credit data is stored in the `profiles` table (single source of truth)
+// API keys are stored in the `api_keys` table and linked to profiles via user_id
 
 const { createClient } = require('@supabase/supabase-js');
 
 // Initialize Supabase client
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseUrl || !supabaseServiceKey) {
+  console.error('CRITICAL: Supabase credentials not configured');
+}
+
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 /**
- * Validate API key and return user information
+ * Validate API key and return user information from profiles table
  * @param {string} apiKey - The API key to validate
- * @returns {Object} - User object if valid, null if invalid
+ * @returns {Object|null} - User object if valid, null if invalid
  */
 async function validateApiKey(apiKey) {
+  // Validate API key format (accepts both altai_ and alt_ formats)
+  if (!apiKey || (!apiKey.startsWith('altai_') && !apiKey.startsWith('alt_'))) {
+    console.log('API key format invalid:', apiKey ? apiKey.substring(0, 10) + '...' : 'empty');
+    return null;
+  }
+
   try {
-    // Check if API key format is correct (accepts both altai_ and alt_ formats)
-    if (!apiKey || (!apiKey.startsWith('altai_') && !apiKey.startsWith('alt_'))) {
-      console.log('API key format invalid:', apiKey ? apiKey.substring(0, 10) + '...' : 'empty');
+    // Find API key in api_keys table
+    const { data: apiKeyRecord, error: apiKeyError } = await supabase
+      .from('api_keys')
+      .select('user_id, api_key, is_active, created_at')
+      .eq('api_key', apiKey)
+      .eq('is_active', true)
+      .single();
+
+    if (apiKeyError || !apiKeyRecord) {
+      console.log('API key not found or inactive:', apiKey.substring(0, 15) + '...');
       return null;
     }
 
-      // Try to find API key in api_keys table (new system)
-      try {
-        const { data: apiKeyRecord, error: apiKeyError } = await supabase
-          .from('api_keys')
-          .select('*')
-          .eq('api_key', apiKey)
-          .eq('is_active', true)
-          .single();
+    console.log('🔑 Found API key in api_keys table, user_id:', apiKeyRecord.user_id);
 
-        if (!apiKeyError && apiKeyRecord && apiKeyRecord.user_id) {
-          console.log('🔑 Found API key in api_keys table, user_id:', apiKeyRecord.user_id);
-          
-          // Get user profile separately
-          const { data: profile, error: profileError } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', apiKeyRecord.user_id)
-            .single();
-          
-          // If profile not found, try to get from auth.users
-          let userEmail = `user_${apiKeyRecord.user_id}@example.com`;
-          if (profileError) {
-            try {
-              const { data: authUser } = await supabase.auth.admin.getUserById(apiKeyRecord.user_id);
-              if (authUser?.user?.email) {
-                userEmail = authUser.user.email;
-              }
-            } catch (e) {
-              console.log('Could not get user email from auth');
-            }
-          }
-          
-          return {
-            id: apiKeyRecord.user_id,
-            email: profile?.email || userEmail,
-            apiKey: apiKeyRecord.api_key,
-            credits_remaining: profile?.credits_remaining || 100,
-            total_processed: profile?.total_processed || 0,
-            plan: profile?.subscription_plan || 'free',
-            created_at: apiKeyRecord.created_at,
-            updated_at: apiKeyRecord.updated_at
-          };
-        }
+    // Get user profile from profiles table (single source of truth)
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, email, credits_remaining, total_processed, subscription_plan, subscription_status, updated_at')
+      .eq('id', apiKeyRecord.user_id)
+      .single();
 
-      // Fallback: Try old users table (for backward compatibility)
-      const { data: users, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('api_key', apiKey)
-        .single();
-
-      if (!error && users) {
-        console.log('🔑 Found user in users table (legacy)');
-        return {
-          id: users.id,
-          email: users.email,
-          apiKey: users.api_key,
-          credits_remaining: users.credits_remaining || 100,
-          total_processed: users.total_processed || 0,
-          plan: users.plan || 'Free Trial',
-          created_at: users.created_at,
-          updated_at: users.updated_at
-        };
-      }
-
-      console.log('API key not found in any table');
-      return null;
-    } catch (error) {
-      console.error('API key validation error:', error);
+    if (profileError || !profile) {
+      console.error('Profile not found for user_id:', apiKeyRecord.user_id, profileError);
+      // Do NOT fall back - if profile doesn't exist, the API key is orphaned
       return null;
     }
-    
+
+    return {
+      id: profile.id,
+      email: profile.email,
+      apiKey: apiKeyRecord.api_key,
+      credits_remaining: profile.credits_remaining ?? 0,
+      total_processed: profile.total_processed ?? 0,
+      plan: profile.subscription_plan || 'free',
+      subscription_status: profile.subscription_status,
+      created_at: apiKeyRecord.created_at,
+      updated_at: profile.updated_at
+    };
+
   } catch (error) {
     console.error('API key validation error:', error);
     return null;
@@ -100,196 +76,244 @@ async function validateApiKey(apiKey) {
 }
 
 /**
- * Create users table and user if they don't exist
- */
-async function createUserAndTable(apiKey) {
-  try {
-    // First, try to create the users table
-    const { error: tableError } = await supabase.rpc('create_users_table_if_not_exists');
-    
-    if (tableError) {
-      console.log('Could not create table via RPC, trying direct SQL');
-      // If RPC fails, we'll create the user directly and let Supabase handle the table
-    }
-
-    // Create a new user
-    const newUser = {
-      api_key: apiKey,
-      email: `user_${Math.random().toString(36).substring(2, 8)}@example.com`,
-      credits_remaining: 100,
-      total_processed: 0,
-      plan: 'Free Trial',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-
-    const { data: createdUser, error: createError } = await supabase
-      .from('users')
-      .insert([newUser])
-      .select()
-      .single();
-
-    if (createError) {
-      console.error('Failed to create user:', createError);
-      // Fallback to in-memory storage if Supabase fails
-      return createFallbackUser(apiKey);
-    }
-
-    console.log('🔑 Created new user in Supabase:', createdUser.email, 'Credits:', createdUser.credits_remaining);
-    
-    return {
-      id: createdUser.id,
-      email: createdUser.email,
-      apiKey: createdUser.api_key,
-      credits_remaining: createdUser.credits_remaining,
-      total_processed: createdUser.total_processed,
-      plan: createdUser.plan,
-      created_at: createdUser.created_at,
-      updated_at: createdUser.updated_at
-    };
-
-  } catch (error) {
-    console.error('Error creating user and table:', error);
-    // Fallback to in-memory storage
-    return createFallbackUser(apiKey);
-  }
-}
-
-/**
- * Fallback user creation if Supabase fails
- */
-function createFallbackUser(apiKey) {
-  console.log('⚠️ Using fallback in-memory user storage');
-  return {
-    id: `fallback_${Date.now()}`,
-    email: `fallback_${Math.random().toString(36).substring(2, 8)}@example.com`,
-    apiKey: apiKey,
-    credits_remaining: 100,
-    total_processed: 0,
-    plan: 'Free Trial',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
-  };
-}
-
-/**
  * Check if user has sufficient credits
  * @param {Object} user - User object
- * @param {number} requiredCredits - Number of credits required
+ * @param {number} requiredCredits - Number of credits required (default: 1)
  * @returns {boolean} - True if user has sufficient credits
  */
 function hasSufficientCredits(user, requiredCredits = 1) {
-  return user && user.credits_remaining >= requiredCredits;
+  if (!user) return false;
+  const credits = user.credits_remaining ?? 0;
+  return credits >= requiredCredits;
 }
 
 /**
- * Deduct credits from user
+ * Deduct credits from user (in-memory only - must call updateUserCredits to persist)
  * @param {Object} user - User object
- * @param {number} creditsToDeduct - Number of credits to deduct
- * @returns {Object} - Updated user object
+ * @param {number} creditsToDeduct - Number of credits to deduct (default: 1)
+ * @returns {Object} - Updated user object with new credit values
  */
 function deductCredits(user, creditsToDeduct = 1) {
   if (!user) return null;
   
-  const updatedUser = {
+  return {
     ...user,
-    credits_remaining: Math.max(0, user.credits_remaining - creditsToDeduct),
-    total_processed: user.total_processed + 1,
+    credits_remaining: Math.max(0, (user.credits_remaining ?? 0) - creditsToDeduct),
+    total_processed: (user.total_processed ?? 0) + 1,
     updated_at: new Date().toISOString()
   };
-
-  return updatedUser;
 }
 
 /**
- * Update user credits in Supabase database
- * @param {string} userId - User ID
- * @param {number} newCredits - New credit count
- * @param {number} newTotalProcessed - New total processed count
+ * Update user credits in profiles table (single source of truth)
+ * Uses atomic update to prevent race conditions
+ * 
+ * @param {string} userId - User ID (UUID)
+ * @param {number} creditsToDeduct - Number of credits to deduct (default: 1)
+ * @param {string} altText - Generated alt text (for logging)
+ * @param {string} context - Image context (for logging)
+ * @returns {Object} - { success: boolean, credits_remaining: number, total_processed: number, error?: string }
  */
-async function updateUserCredits(userId, newCredits, newTotalProcessed) {
+async function updateUserCredits(userId, creditsToDeduct = 1, altText = null, context = null) {
+  if (!userId) {
+    return { success: false, error: 'User ID is required' };
+  }
+
   try {
-    // Skip update for fallback users
-    if (userId.startsWith('fallback_')) {
-      console.log('⚠️ Skipping database update for fallback user');
-      return;
+    // CRITICAL: Use RPC function for atomic credit deduction
+    // The use_credit RPC function uses FOR UPDATE locking to prevent race conditions
+    // and performs both profile update and usage log insertion in a single transaction
+    const { data: rpcResult, error: rpcError } = await supabase
+      .rpc('use_credit', {
+        user_uuid: userId,
+        alt_text: altText,
+        context: context
+      });
+
+    // Handle RPC errors (function doesn't exist, permission issues, etc.)
+    if (rpcError) {
+      console.error('❌ CRITICAL: use_credit RPC function error:', {
+        code: rpcError.code,
+        message: rpcError.message,
+        details: rpcError.details,
+        hint: rpcError.hint
+      });
+      return { 
+        success: false, 
+        error: 'Credit system temporarily unavailable. Please contact support if this persists.',
+        requiresDatabaseFix: true,
+        rpcError: rpcError.message
+      };
     }
 
-    const { error } = await supabase
-      .from('users')
-      .update({
-        credits_remaining: newCredits,
-        total_processed: newTotalProcessed,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', userId);
-
-    if (error) {
-      console.error('❌ Failed to update user credits in Supabase:', error);
-      throw error;
+    // Parse RPC result - handle various return formats
+    if (!rpcResult) {
+      console.error('❌ CRITICAL: use_credit RPC returned null/undefined');
+      return { 
+        success: false, 
+        error: 'Credit system temporarily unavailable. Please contact support.',
+        requiresDatabaseFix: true
+      };
     }
 
-    console.log('✅ Successfully updated user credits in Supabase:', {
+    let result = rpcResult;
+    
+    // Handle array response (some Supabase versions return arrays)
+    if (Array.isArray(result)) {
+      if (result.length === 0) {
+        console.error('❌ CRITICAL: use_credit RPC returned empty array');
+        return { 
+          success: false, 
+          error: 'Credit system temporarily unavailable. Please contact support.',
+          requiresDatabaseFix: true
+        };
+      }
+      result = result[0];
+    }
+    
+    // Handle string JSON response
+    if (typeof result === 'string') {
+      try {
+        result = JSON.parse(result);
+      } catch (parseError) {
+        console.error('❌ CRITICAL: Failed to parse RPC result as JSON:', parseError);
+        console.error('Raw RPC result:', rpcResult);
+        return { 
+          success: false, 
+          error: 'Invalid credit system response. Please contact support.',
+          requiresDatabaseFix: true
+        };
+      }
+    }
+    
+    // Validate result is an object
+    if (!result || typeof result !== 'object') {
+      console.error('❌ CRITICAL: Unexpected RPC result format:', typeof result, result);
+      return { 
+        success: false, 
+        error: 'Invalid credit system response. Please contact support.',
+        requiresDatabaseFix: true
+      };
+    }
+    
+    // Check for error in result
+    if (result.error) {
+      console.error('RPC use_credit returned error:', result.error);
+      return { 
+        success: false, 
+        error: result.error || 'Credit deduction failed',
+        credits_remaining: result.credits_remaining // May be included in error response
+      };
+    }
+    
+    // Check for explicit failure
+    if (result.success === false) {
+      console.error('RPC use_credit returned failure:', result);
+      return { 
+        success: false, 
+        error: result.error || 'Credit deduction failed'
+      };
+    }
+    
+    // Validate success response has required fields
+    if (result.credits_remaining === undefined || result.total_processed === undefined) {
+      console.error('❌ CRITICAL: RPC result missing required fields:', result);
+      return { 
+        success: false, 
+        error: 'Invalid credit system response. Please contact support.',
+        requiresDatabaseFix: true
+      };
+    }
+    
+    // Success case - all validations passed
+    console.log('✅ Credits updated atomically via RPC:', {
       userId,
-      newCredits,
-      newTotalProcessed
+      credits_remaining: result.credits_remaining,
+      total_processed: result.total_processed
     });
 
+    return {
+      success: true,
+      credits_remaining: result.credits_remaining,
+      total_processed: result.total_processed
+    };
+
   } catch (error) {
-    console.error('❌ Error updating user credits:', error);
-    throw error;
+    console.error('❌ CRITICAL: Unexpected error in updateUserCredits:', {
+      error: error.message,
+      stack: error.stack,
+      userId
+    });
+    return { 
+      success: false, 
+      error: 'Database error during credit deduction',
+      requiresDatabaseFix: true
+    };
   }
 }
 
 /**
- * Get all users from Supabase (for debugging)
+ * Get user profile by ID (for debugging/admin)
+ * @param {string} userId - User ID
+ * @returns {Object|null} - User profile or null
  */
-async function getAllUsers() {
+async function getUserProfile(userId) {
   try {
-    const { data: users, error } = await supabase
-      .from('users')
+    const { data: profile, error } = await supabase
+      .from('profiles')
       .select('*')
-      .order('created_at', { ascending: false });
+      .eq('id', userId)
+      .single();
 
     if (error) {
-      console.error('Failed to fetch users:', error);
-      return [];
+      console.error('Failed to get profile:', error);
+      return null;
     }
 
-    return users || [];
+    return profile;
   } catch (error) {
-    console.error('Error fetching users:', error);
-    return [];
+    console.error('Error getting profile:', error);
+    return null;
   }
 }
 
 /**
- * Get credit store statistics (for debugging)
+ * Get credit statistics (for debugging/admin)
+ * @returns {Object} - Statistics about users and credits
  */
 async function getCreditStoreStats() {
   try {
-    const users = await getAllUsers();
-    
+    const { data: profiles, error } = await supabase
+      .from('profiles')
+      .select('id, email, credits_remaining, total_processed, subscription_plan, subscription_status')
+      .order('total_processed', { ascending: false })
+      .limit(100);
+
+    if (error) {
+      console.error('Failed to get stats:', error);
+      return { error: error.message };
+    }
+
+    const totalUsers = profiles?.length ?? 0;
+    const totalCredits = profiles?.reduce((sum, p) => sum + (p.credits_remaining ?? 0), 0) ?? 0;
+    const totalProcessed = profiles?.reduce((sum, p) => sum + (p.total_processed ?? 0), 0) ?? 0;
+
     return {
-      total_users: users.length,
-      storage_type: 'Supabase Database',
-      users: users.map(user => ({
-        id: user.id,
-        email: user.email,
-        credits_remaining: user.credits_remaining,
-        total_processed: user.total_processed,
-        plan: user.plan,
-        created_at: user.created_at,
-        updated_at: user.updated_at
+      total_users: totalUsers,
+      total_credits_remaining: totalCredits,
+      total_processed: totalProcessed,
+      storage_type: 'Supabase profiles table',
+      sample_users: profiles?.slice(0, 10).map(p => ({
+        id: p.id,
+        email: p.email,
+        credits_remaining: p.credits_remaining,
+        total_processed: p.total_processed,
+        plan: p.subscription_plan
       }))
     };
   } catch (error) {
-    console.error('Error getting credit store stats:', error);
-    return {
-      total_users: 0,
-      storage_type: 'Error fetching data',
-      users: []
-    };
+    console.error('Error getting stats:', error);
+    return { error: error.message };
   }
 }
 
@@ -298,6 +322,6 @@ module.exports = {
   hasSufficientCredits,
   deductCredits,
   updateUserCredits,
-  getCreditStoreStats,
-  getAllUsers
-}; 
+  getUserProfile,
+  getCreditStoreStats
+};

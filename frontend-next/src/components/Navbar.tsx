@@ -100,10 +100,9 @@ const Navbar = ({ onSignInClick, onSignUpClick }: NavbarProps) => {
                     boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05)'
                 }}>
                     <div className="flex items-center justify-between h-12">
-                        {/* Logo */}
                         <div className="flex items-center">
                             <Link href="/" className="flex items-center space-x-3">
-                                <Image
+                                <img
                                     src="/logo-alt-text-pro.png"
                                     alt="Alt Text Pro Logo"
                                     width={40}

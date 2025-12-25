@@ -111,9 +111,9 @@ export default function PrivacyPage() {
                                 Payment processing is handled by PayPal. When you make a payment, PayPal collects and processes your payment information according to their privacy policy. We receive transaction details but not your full payment credentials.
                             </p>
 
-                            <h3 className="text-xl font-semibold text-gray-900 mb-3 mt-4">5.3 Google Gemini AI</h3>
+                            <h3 className="text-xl font-semibold text-gray-900 mb-3 mt-4">5.3 AI Technology</h3>
                             <p className="text-gray-700 leading-relaxed mb-4">
-                                We use Google's Gemini AI to generate alt text for your images. When you submit an image for processing, it is sent to Google's AI service. Google's privacy policy applies to data processed by their AI services.
+                                We use advanced AI technology to generate alt text for your images. When you submit an image for processing, it is sent to our AI service providers. Their privacy policies apply to data processed by their services.
                             </p>
                         </section>
 

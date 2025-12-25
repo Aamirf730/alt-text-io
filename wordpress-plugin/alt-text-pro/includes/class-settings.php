@@ -98,7 +98,7 @@ class AltTextPro_Settings {
             'auto_generate' => false,
             'overwrite_existing' => false,
             'context_enabled' => true,
-            'batch_size' => 10
+            'batch_size' => 2
         );
     }
     
@@ -151,7 +151,7 @@ class AltTextPro_Settings {
         
         // Sanitize batch size
         if (isset($input['batch_size'])) {
-            $sanitized['batch_size'] = min(50, max(1, intval($input['batch_size'] ?? 10)));
+            $sanitized['batch_size'] = min(50, max(1, intval($input['batch_size'] ?? 2)));
         }
         
         return $sanitized;

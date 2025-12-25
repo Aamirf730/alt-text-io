@@ -3,6 +3,14 @@
 // This function deletes users and all their associated data from Supabase
 
 const { createClient } = require('@supabase/supabase-js');
+const {
+  getCorsHeaders,
+  handlePreflight,
+  getClientIp,
+  checkRateLimit,
+  rateLimitExceededResponse,
+  methodNotAllowedResponse,
+} = require('./utils/cors');
 
 // Initialize Supabase client with service role key for admin access
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -12,34 +20,26 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 // Superuser emails (comma-separated list from environment variable)
 const SUPERUSER_EMAILS = (process.env.SUPERUSER_EMAILS || '').split(',').map(email => email.trim()).filter(Boolean);
 
+// Stricter rate limit for admin endpoints
+const ADMIN_RATE_LIMIT = 10;
+
 exports.handler = async (event, context) => {
-  console.log('=== DELETE-USERS FUNCTION CALLED ===');
-  console.log('Timestamp:', new Date().toISOString());
-  console.log('HTTP Method:', event.httpMethod);
-  
-  // Enable CORS
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Content-Type': 'application/json',
-  };
+  // Get secure CORS headers (origin-validated)
+  const headers = getCorsHeaders(event.headers, ['POST', 'OPTIONS']);
 
   // Handle preflight OPTIONS request
-  if (event.httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 200,
-      headers,
-      body: '',
-    };
+  const preflightResponse = handlePreflight(event);
+  if (preflightResponse) return preflightResponse;
+
+  // Stricter rate limiting for delete endpoints
+  const clientIp = getClientIp(event);
+  const rateLimit = checkRateLimit(`admin-delete:${clientIp}`, ADMIN_RATE_LIMIT);
+  if (!rateLimit.allowed) {
+    return rateLimitExceededResponse(headers, rateLimit);
   }
 
   if (event.httpMethod !== 'POST') {
-    return {
-      statusCode: 405,
-      headers,
-      body: JSON.stringify({ error: 'Method not allowed' }),
-    };
+    return methodNotAllowedResponse(headers);
   }
 
   try {

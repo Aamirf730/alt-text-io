@@ -7,7 +7,7 @@ This directory contains the Netlify functions that power the WordPress plugin in
 ### 1. Generate Alt-Text
 **Endpoint:** `/.netlify/functions/generate-alt-text`  
 **Method:** POST  
-**Purpose:** Generate alt-text for a single image using Gemini AI
+**Purpose:** Generate alt-text for a single image using our AI service
 
 **Headers:**
 ```
@@ -88,9 +88,11 @@ Example: `altai_abc123_def456_xyz789`
 
 ## 💳 Credit System
 
-- **Free Trial:** 30 credits
-- **Starter Plan:** 500 credits/month
-- **Pro Plan:** 2000 credits/month
+- **Free Trial:** 50 credits
+- **Tier 1:** $12/month - 1,000 credits/month
+- **Tier 2:** $20/month - 2,400 credits/month
+- **Tier 3:** $40/month - 5,000 credits/month
+- **Pay-as-you-go:** $5 for 300 credits (never expire)
 - **Pay-as-you-go:** $3 for 50 credits
 
 Each alt-text generation consumes 1 credit.
@@ -174,7 +176,7 @@ curl -X POST https://www.alt-text.pro/.netlify/functions/auth/validate \
 Required environment variables:
 - `SUPABASE_URL` - Your Supabase project URL
 - `SUPABASE_SERVICE_ROLE_KEY` - Supabase service role key
-- `GEMINI_API_KEY` - Google Gemini API key
+- `AI_API_KEY` - Our core AI service API key
 
 ### File Structure
 ```
@@ -238,7 +240,7 @@ Monitor usage and performance through:
 
 ### Regular Tasks
 - Monitor credit usage and limits
-- Update Gemini AI models as needed
+- Update AI models as needed
 - Review and optimize function performance
 - Monitor error rates and user feedback
 

@@ -3,6 +3,14 @@
 // Supports both one-time payments and subscriptions
 
 const { createClient } = require('@supabase/supabase-js');
+const {
+  getCorsHeaders,
+  handlePreflight,
+  getClientIp,
+  checkRateLimit,
+  rateLimitExceededResponse,
+  methodNotAllowedResponse,
+} = require('./utils/cors');
 
 // Initialize Supabase client
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -29,7 +37,7 @@ async function getPayPalAccessToken() {
   console.log('PayPal authentication check:');
   console.log('- PAYPAL_ENVIRONMENT:', process.env.PAYPAL_ENVIRONMENT || 'production (default)');
   console.log('- PAYPAL_BASE_URL:', PAYPAL_BASE_URL);
-  console.log('- PAYPAL_CLIENT_ID:', PAYPAL_CLIENT_ID ? (PAYPAL_CLIENT_ID.substring(0, 20) + '...') : 'NOT SET');
+  console.log('- PAYPAL_CLIENT_ID:', PAYPAL_CLIENT_ID ? 'SET (hidden)' : 'NOT SET');
   console.log('- PAYPAL_CLIENT_SECRET:', PAYPAL_CLIENT_SECRET ? 'SET (hidden)' : 'NOT SET');
   
   if (!PAYPAL_CLIENT_ID || !PAYPAL_CLIENT_SECRET) {
@@ -52,18 +60,16 @@ async function getPayPalAccessToken() {
   const data = await response.json();
   
   if (!response.ok) {
-    console.error('PayPal access token error response:', {
+    console.error('PayPal access token error:', {
       status: response.status,
-      statusText: response.statusText,
-      error: data.error,
-      error_description: data.error_description,
-      full_response: data
+      error: data.error || 'unknown',
+      hasDescription: !!data.error_description
     });
-    throw new Error(`Failed to get PayPal access token: ${data.error_description || data.error || JSON.stringify(data)}`);
+    throw new Error(`Failed to get PayPal access token: ${data.error_description || data.error || 'Unknown error'}`);
   }
   
   if (!data.access_token) {
-    console.error('No access token in response:', data);
+    console.error('No access token in response');
     throw new Error('PayPal access token not received in response');
   }
   
@@ -104,21 +110,22 @@ async function verifyPayPalPlan(planId, accessToken) {
     
     if (!response.ok) {
       const errorData = await response.json();
-      console.error(`❌ Failed to fetch plan details:`, JSON.stringify(errorData, null, 2));
+      console.error(`❌ Failed to fetch plan details:`, {
+        status: response.status,
+        error: errorData.error || 'unknown',
+        hasMessage: !!errorData.message
+      });
       throw new Error(`Failed to verify plan: ${errorData.message || errorData.error_description || 'Plan not found'}`);
     }
     
     const plan = await response.json();
-    console.log(`Plan details:`, {
+    console.log(`Plan verified:`, {
       id: plan.id,
-      name: plan.name,
-      status: plan.status,
-      product_id: plan.product_id
+      status: plan.status
     });
     
     if (plan.status !== 'ACTIVE') {
       console.error(`❌ Plan is not ACTIVE. Current status: ${plan.status}`);
-      console.error(`Full plan object:`, JSON.stringify(plan, null, 2));
       throw new Error(`PayPal plan ${paypalPlanId} is not ACTIVE. Current status: ${plan.status}. Please activate the plan in PayPal dashboard.`);
     }
     
@@ -144,24 +151,27 @@ async function verifyPayPalSubscription(subscriptionId, accessToken) {
     
     if (!response.ok) {
       const errorData = await response.json();
-      console.error(`❌ Failed to fetch subscription details:`, JSON.stringify(errorData, null, 2));
+      console.error(`❌ Failed to fetch subscription details:`, {
+        status: response.status,
+        error: errorData.error || 'unknown',
+        hasMessage: !!errorData.message
+      });
       throw new Error(`Failed to verify subscription: ${errorData.message || errorData.error_description || 'Subscription not found'}`);
     }
     
     const subscription = await response.json();
-    console.log(`Subscription details:`, {
+    console.log(`Subscription verified:`, {
       id: subscription.id,
       status: subscription.status,
-      plan_id: subscription.plan_id,
-      has_links: !!subscription.links,
-      links_count: subscription.links?.length || 0
+      hasPlanId: !!subscription.plan_id,
+      hasLinks: !!subscription.links,
+      linksCount: subscription.links?.length || 0
     });
     
     // Valid statuses for a newly created subscription
     const validStatuses = ['APPROVAL_PENDING', 'APPROVED', 'ACTIVE'];
     if (!validStatuses.includes(subscription.status)) {
       console.error(`❌ Subscription has invalid status: ${subscription.status}`);
-      console.error(`Full subscription object:`, JSON.stringify(subscription, null, 2));
       throw new Error(`Subscription ${subscriptionId} has invalid status: ${subscription.status}. Expected: ${validStatuses.join(', ')}`);
     }
     
@@ -174,13 +184,15 @@ async function verifyPayPalSubscription(subscriptionId, accessToken) {
     const approveLink = subscription.links.find(link => link.rel === 'approve');
     if (!approveLink) {
       console.error(`❌ Subscription has no approval link`);
-      console.error(`Available links:`, subscription.links.map(l => ({ rel: l.rel, href: l.href })));
+      const linkRels = subscription.links.map(l => l.rel);
+      console.error(`Available link types:`, linkRels);
       throw new Error(`Subscription ${subscriptionId} has no approval link`);
     }
     
-    console.log(`✅ Subscription ${subscriptionId} is valid:`);
-    console.log(`   Status: ${subscription.status}`);
-    console.log(`   Approval URL: ${approveLink.href}`);
+    console.log(`✅ Subscription ${subscriptionId} is valid:`, {
+      status: subscription.status,
+      hasApprovalUrl: !!approveLink.href
+    });
     
     return subscription;
   } catch (error) {
@@ -240,7 +252,11 @@ async function createPayPalSubscription(planId, planDetails, returnUrl, cancelUr
     };
     console.log('Subscription creation requested at:', now.toISOString());
 
-    console.log('Creating PayPal subscription with data:', JSON.stringify(subscriptionData, null, 2));
+    console.log('Creating PayPal subscription:', {
+      planId: subscriptionData.plan_id,
+      hasApplicationContext: !!subscriptionData.application_context,
+      hasCustomId: !!subscriptionData.custom_id
+    });
 
     const response = await fetch(`${PAYPAL_BASE_URL}/v1/billing/subscriptions`, {
       method: 'POST',
@@ -257,15 +273,19 @@ async function createPayPalSubscription(planId, planDetails, returnUrl, cancelUr
     const result = await response.json();
 
     if (!response.ok) {
-      console.error('PayPal subscription creation failed:', JSON.stringify(result, null, 2));
-      console.error('Response status:', response.status);
-      throw new Error(result.message || result.error_description || JSON.stringify(result) || 'Failed to create subscription');
+      console.error('PayPal subscription creation failed:', {
+        status: response.status,
+        error: result.error || 'unknown',
+        hasMessage: !!result.message
+      });
+      throw new Error(result.message || result.error_description || 'Failed to create subscription');
     }
 
-    console.log('PayPal subscription created successfully:', result.id);
-    console.log('Subscription status:', result.status);
-    console.log('Full subscription response:', JSON.stringify(result, null, 2));
-    console.log('Subscription links:', result.links ? JSON.stringify(result.links, null, 2) : 'No links');
+    console.log('PayPal subscription created:', {
+      id: result.id,
+      status: result.status,
+      hasLinks: !!(result.links && result.links.length > 0)
+    });
     
     // STEP 2: Verify subscription was created successfully and has valid status
     const verifiedSubscription = await verifyPayPalSubscription(result.id, accessToken);
@@ -279,7 +299,7 @@ async function createPayPalSubscription(planId, planDetails, returnUrl, cancelUr
     if (linksToCheck && linksToCheck.length > 0) {
       const approveLink = linksToCheck.find(link => link.rel === 'approve');
       if (approveLink) {
-        console.log('Approval URL found:', approveLink.href);
+        console.log('Approval URL found (not logged for security)');
         // Validate the ba_token is present and URL format is correct
         try {
           const urlObj = new URL(approveLink.href);
@@ -287,7 +307,7 @@ async function createPayPalSubscription(planId, planDetails, returnUrl, cancelUr
           
           // Ensure the URL is for subscription approval, not one-time payment
           if (!approveLink.href.includes('/billing/subscriptions')) {
-            console.error('⚠️ Approval URL is not for subscriptions:', approveLink.href);
+            console.error('⚠️ Approval URL is not for subscriptions');
             throw new Error('Invalid approval URL format - not a subscription URL');
           }
           
@@ -295,9 +315,8 @@ async function createPayPalSubscription(planId, planDetails, returnUrl, cancelUr
             console.error('⚠️ Approval URL does not contain ba_token parameter');
             throw new Error('Approval URL missing ba_token parameter');
           } else {
-            console.log('✅ ba_token found in approval URL (length:', baToken.length, ')');
+            console.log('✅ ba_token: present (length:', baToken.length, ')');
             console.log('✅ Approval URL is correct format for subscriptions');
-            console.log(`✅ ba_token format: ${baToken.substring(0, 10)}...${baToken.substring(baToken.length - 10)}`);
           }
         } catch (err) {
           console.error('⚠️ Error validating approval URL:', err.message);
@@ -305,7 +324,8 @@ async function createPayPalSubscription(planId, planDetails, returnUrl, cancelUr
         }
       } else {
         console.error('⚠️ No approval link found in subscription response');
-        console.error('Available links:', linksToCheck.map(l => ({ rel: l.rel, href: l.href })));
+        const linkRels = linksToCheck.map(l => l.rel);
+        console.error('Available link types:', linkRels);
         throw new Error('No approval URL returned from PayPal');
       }
     } else {
@@ -372,28 +392,22 @@ exports.handler = async (event, context) => {
   console.log('Headers:', JSON.stringify(event.headers, null, 2));
   console.log('Body:', event.body);
   
-  // Enable CORS
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  };
+  // Get secure CORS headers (origin-validated)
+  const headers = getCorsHeaders(event.headers, ['POST', 'OPTIONS']);
 
   // Handle preflight OPTIONS request
-  if (event.httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 200,
-      headers,
-      body: '',
-    };
+  const preflightResponse = handlePreflight(event);
+  if (preflightResponse) return preflightResponse;
+
+  // Rate limiting for payment endpoints (stricter - 20 per minute)
+  const clientIp = getClientIp(event);
+  const rateLimit = checkRateLimit(`payment:${clientIp}`, 20);
+  if (!rateLimit.allowed) {
+    return rateLimitExceededResponse(headers, rateLimit);
   }
 
   if (event.httpMethod !== 'POST') {
-    return {
-      statusCode: 405,
-      headers,
-      body: JSON.stringify({ error: 'Method not allowed' }),
-    };
+    return methodNotAllowedResponse(headers);
   }
 
   try {
@@ -429,7 +443,7 @@ exports.handler = async (event, context) => {
     // Verify user authentication
     console.log('Verifying user token...');
     console.log('Supabase URL being used:', supabaseUrl);
-    console.log('Token preview:', token ? token.substring(0, 20) + '...' : 'NO TOKEN');
+    console.log('Token present:', !!token);
     
     // Try to verify token - if it fails, try alternative method
     let authUser = null;
@@ -618,15 +632,17 @@ exports.handler = async (event, context) => {
       paymentResult = await createPayPalOneTimePayment(planId, plan, returnUrl, cancelUrl, accessToken);
     }
 
-    console.log('Payment result received:', JSON.stringify(paymentResult, null, 2));
-    console.log('Payment result has ID:', !!paymentResult.id);
-    console.log('Payment result has links:', !!paymentResult.links);
+    console.log('Payment result received:', {
+      hasId: !!paymentResult.id,
+      hasLinks: !!paymentResult.links,
+      hasError: !!paymentResult.error,
+      status: paymentResult.status
+    });
     
     if (paymentResult.error || (!paymentResult.id && !paymentResult.links)) {
       console.error('=== PAYPAL PAYMENT CREATION FAILED ===');
-      console.error('Payment result:', JSON.stringify(paymentResult, null, 2));
-      console.error('Error:', paymentResult.error);
-      console.error('Message:', paymentResult.message);
+      console.error('Error:', paymentResult.error || 'unknown');
+      console.error('Message:', paymentResult.message || 'none');
       return {
         statusCode: 400,
         headers,
@@ -660,7 +676,12 @@ exports.handler = async (event, context) => {
     // Extract approval URL
     let approvalUrl = null;
     console.log('Extracting approval URL from payment result...');
-    console.log('Payment result links:', paymentResult.links ? JSON.stringify(paymentResult.links, null, 2) : 'No links array');
+    if (paymentResult.links) {
+      const linkRels = paymentResult.links.map(l => l.rel);
+      console.log('Payment result link types:', linkRels);
+    } else {
+      console.log('No links array in payment result');
+    }
     
     if (paymentResult.links && Array.isArray(paymentResult.links)) {
       // PayPal Subscriptions API uses 'approve' as the rel value
@@ -670,7 +691,7 @@ exports.handler = async (event, context) => {
         link.rel === 'approval_url'
       );
       approvalUrl = approvalLink ? approvalLink.href : null;
-      console.log('Found approval link:', approvalLink ? JSON.stringify(approvalLink, null, 2) : 'Not found');
+      console.log('Found approval link:', approvalLink ? { rel: approvalLink.rel, hasHref: !!approvalLink.href } : 'Not found');
     } else if (isSubscription && paymentResult.id) {
       // For subscriptions, if no links, construct the approval URL
       // PayPal subscription approval URLs follow this pattern:
@@ -686,7 +707,11 @@ exports.handler = async (event, context) => {
           }
         });
         const subDetails = await subResponse.json();
-        console.log('Subscription details:', JSON.stringify(subDetails, null, 2));
+        console.log('Subscription details:', {
+          id: subDetails.id,
+          status: subDetails.status,
+          hasLinks: !!subDetails.links
+        });
         if (subDetails.links) {
           const approveLink = subDetails.links.find(link => link.rel === 'approve');
           approvalUrl = approveLink ? approveLink.href : null;
@@ -699,7 +724,7 @@ exports.handler = async (event, context) => {
     console.log('═══════════════════════════════════════════════════════════');
     console.log('✅ APPROVAL URL READY TO RETURN');
     console.log('═══════════════════════════════════════════════════════════');
-    console.log('Final approval URL:', approvalUrl || 'NOT FOUND');
+    console.log('Final approval URL: present:', !!approvalUrl);
     
     if (approvalUrl) {
       try {
@@ -708,23 +733,18 @@ exports.handler = async (event, context) => {
         console.log('  - Protocol:', urlObj.protocol);
         console.log('  - Host:', urlObj.host);
         console.log('  - Pathname:', urlObj.pathname);
-        console.log('  - Full Search:', urlObj.search);
+        console.log('  - Has query params:', urlObj.search.length > 0);
         
         const baToken = urlObj.searchParams.get('ba_token');
         if (baToken) {
-          console.log('  - ba_token: PRESENT');
-          console.log('  - ba_token length:', baToken.length);
-          console.log('  - ba_token format:', baToken.substring(0, 10) + '...' + baToken.substring(baToken.length - 5));
+          console.log('  - ba_token: PRESENT (length:', baToken.length, ')');
         } else {
           console.error('  - ba_token: MISSING!');
         }
         
-        // Log all query parameters
-        const allParams = {};
-        urlObj.searchParams.forEach((value, key) => {
-          allParams[key] = key === 'ba_token' ? value.substring(0, 10) + '...' + value.substring(value.length - 5) : value;
-        });
-        console.log('  - All query params:', allParams);
+        // Log query parameter names only (not values for security)
+        const paramNames = Array.from(urlObj.searchParams.keys());
+        console.log('  - Query param names:', paramNames);
         
         // Validate URL format
         if (!approvalUrl.includes('/billing/subscriptions')) {
@@ -766,7 +786,12 @@ exports.handler = async (event, context) => {
     // Log more details for debugging
     if (error.response) {
       console.error('Error response status:', error.response.status);
-      console.error('Error response data:', JSON.stringify(error.response.data, null, 2));
+      const errorData = error.response.data;
+      console.error('Error response:', {
+        status: error.response.status,
+        hasError: !!errorData?.error,
+        hasMessage: !!errorData?.message
+      });
     }
     
     // Return detailed error for debugging

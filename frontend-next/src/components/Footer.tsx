@@ -9,7 +9,7 @@ const Footer = () => {
                 <div className="flex flex-col items-center text-center space-y-6">
                     {/* Logo & Company Info */}
                     <div className="flex items-center space-x-2">
-                        <Image
+                        <img
                             src="/logo-alt-text-pro.png"
                             alt="Alt Text Pro Logo"
                             width={40}

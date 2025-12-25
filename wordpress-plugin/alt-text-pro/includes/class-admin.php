@@ -240,7 +240,7 @@ class AltTextPro_Admin {
             }
             
             $api_key = isset($_POST['api_key']) ? sanitize_text_field(wp_unslash($_POST['api_key'])) : '';
-            $batch_size = isset($_POST['batch_size']) ? intval($_POST['batch_size']) : 10;
+            $batch_size = isset($_POST['batch_size']) ? intval($_POST['batch_size']) : 2;
             
             $settings = array(
                 'api_key' => $api_key,
@@ -260,7 +260,7 @@ class AltTextPro_Admin {
             'auto_generate' => false,
             'overwrite_existing' => false,
             'context_enabled' => true,
-            'batch_size' => 10
+            'batch_size' => 2
         ));
         
         include ALT_TEXT_PRO_PLUGIN_PATH . 'templates/settings.php';
@@ -357,7 +357,7 @@ class AltTextPro_Admin {
                     <p class="current-alt-text"><?php echo esc_html($current_alt_text ?: esc_html__('No alt-text set', 'alt-text-pro')); ?></p>
                 </div>
                 
-                <div class="alt-text-pro-context" style="margin: 10px 0;">
+                <div class="alt-text-pro-context" style="margin: 10px 0; display: none !important;">
                     <label for="alt_text_pro_context_<?php echo esc_attr($attachment_id); ?>">
                         <?php esc_html_e('Context (optional):', 'alt-text-pro'); ?>
                     </label>
@@ -371,22 +371,22 @@ class AltTextPro_Admin {
                 <button type="button" 
                         class="button button-primary alt-text-pro-generate-btn" 
                         data-attachment-id="<?php echo esc_attr($attachment_id); ?>">
-                    <span class="dashicons dashicons-format-image"></span>
+                    <span style="font-weight: 600; margin-right: 4px;">SEO+</span>
                     <?php esc_html_e('Generate Alt-Text', 'alt-text-pro'); ?>
                 </button>
                 
-                <div class="alt-text-pro-result" style="margin-top: 10px; display: none;">
-                    <div class="alt-text-pro-loading" style="display: none;">
+                <div class="alt-text-pro-result" style="margin-top: 10px; display: none !important;">
+                    <div class="alt-text-pro-loading" style="display: none !important;">
                         <span class="spinner is-active"></span>
                         <?php esc_html_e('Generating alt-text...', 'alt-text-pro'); ?>
                     </div>
-                    <div class="alt-text-pro-success" style="display: none;">
+                    <div class="alt-text-pro-success" style="display: none !important;">
                         <p class="generated-alt-text"></p>
                         <button type="button" class="button alt-text-pro-apply-btn">
                             <?php esc_html_e('Apply Alt-Text', 'alt-text-pro'); ?>
                         </button>
                     </div>
-                    <div class="alt-text-pro-error" style="display: none; color: #d63638;"></div>
+                    <div class="alt-text-pro-error" style="display: none !important; color: #d63638;"></div>
                 </div>
             <?php else: ?>
                 <div class="alt-text-pro-notice">
@@ -425,7 +425,7 @@ class AltTextPro_Admin {
         }
         
         $alt_text = get_post_meta($post->ID, '_wp_attachment_image_alt', true);
-        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- get_media_field_html() returns escaped HTML
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- get_media_field_html() returns properly escaped HTML and wp_kses_post strips input tags
         echo $this->get_media_field_html($post->ID, $alt_text);
     }
 }

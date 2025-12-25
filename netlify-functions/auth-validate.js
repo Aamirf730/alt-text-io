@@ -2,6 +2,14 @@
 // File: netlify-functions/auth-validate.js
 
 const { createClient } = require('@supabase/supabase-js');
+const {
+  getCorsHeaders,
+  handlePreflight,
+  getClientIp,
+  checkRateLimit,
+  rateLimitExceededResponse,
+  methodNotAllowedResponse,
+} = require('./utils/cors');
 
 // Initialize Supabase clients
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -16,28 +24,22 @@ if (!supabaseAnonKey) {
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 exports.handler = async (event, context) => {
-  // Enable CORS
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  };
+  // Get secure CORS headers (origin-validated)
+  const headers = getCorsHeaders(event.headers, ['POST', 'OPTIONS']);
 
   // Handle preflight OPTIONS request
-  if (event.httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 200,
-      headers,
-      body: '',
-    };
+  const preflightResponse = handlePreflight(event);
+  if (preflightResponse) return preflightResponse;
+
+  // Rate limiting for auth endpoints
+  const clientIp = getClientIp(event);
+  const rateLimit = checkRateLimit(`auth:${clientIp}`, 60);
+  if (!rateLimit.allowed) {
+    return rateLimitExceededResponse(headers, rateLimit);
   }
 
   if (event.httpMethod !== 'POST') {
-    return {
-      statusCode: 405,
-      headers,
-      body: JSON.stringify({ error: 'Method not allowed' }),
-    };
+    return methodNotAllowedResponse(headers);
   }
 
   try {

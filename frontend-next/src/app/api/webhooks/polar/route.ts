@@ -137,26 +137,19 @@ export const POST = Webhooks({
             // Get product details early to check if this is a subscription
             const productName = order.product?.name || "";
 
-            // Check if this is a subscription purchase
-            // Subscriptions should ONLY be handled by onSubscriptionActive to prevent double allocation
+            // NEW: Normalize product name for reliable subscription check
+            const normalizedProductName = productName.toLowerCase().replace(/\s+/g, "_");
+
             const isSubscription =
-                productName.toLowerCase().includes('tier1') ||
-                productName.toLowerCase().includes('tier2') ||
-                productName.toLowerCase().includes('tier3') ||
-                productName.toLowerCase().includes('tier_1') ||
-                productName.toLowerCase().includes('tier_2') ||
-                productName.toLowerCase().includes('tier_3') ||
-                productName.toLowerCase().includes('monthly') ||
-                productName.toLowerCase().includes('annual') ||
+                normalizedProductName.includes('tier1') ||
+                normalizedProductName.includes('tier2') ||
+                normalizedProductName.includes('tier3') ||
+                normalizedProductName.includes('tier_1') ||
+                normalizedProductName.includes('tier_2') ||
+                normalizedProductName.includes('tier_3') ||
+                normalizedProductName.includes('monthly') ||
+                normalizedProductName.includes('annual') ||
                 order.product?.metadata?.type === 'subscription';
-
-            if (isSubscription) {
-                console.log(`⚠️ Skipping onOrderPaid for subscription "${productName}" - will be handled by onSubscriptionActive to prevent double allocation`);
-                return;
-            }
-
-            // Only process one-time purchases (credit packs) from this point
-            console.log(`✓ Processing one-time purchase: ${productName}`);
 
             // Find user by email
             const { data: users, error: userError } = await getSupabase()
@@ -178,6 +171,47 @@ export const POST = Webhooks({
                 console.error(`No user found for email: ${customerEmail}`);
                 return;
             }
+
+            // RECORD PAYMENT: Ensure every payment is recorded for admin dashboard stats
+            // Polar amount is in cents
+            const anyOrder = order as any;
+            const paymentAmount = (anyOrder.amount || 0) / 100;
+            const currency = anyOrder.currency?.toUpperCase() || "USD";
+            const planId = productName.toLowerCase().includes("tier1") ? "tier1" :
+                productName.toLowerCase().includes("tier2") ? "tier2" :
+                    productName.toLowerCase().includes("tier3") ? "tier3" :
+                        productName.toLowerCase().includes("small") ? "small_pack" :
+                            productName.toLowerCase().includes("credit") ? "pay_as_go" : "free";
+
+            const { error: paymentError } = await getSupabase()
+                .from("payments")
+                .insert({
+                    user_id: userId,
+                    payment_id: `polar_ord_${order.id}`,
+                    subscription_id: anyOrder.subscription_id || anyOrder.subscriptionId || null,
+                    plan_id: planId,
+                    amount: paymentAmount,
+                    currency: currency,
+                    status: "completed",
+                    payment_method: "polar",
+                    created_at: new Date().toISOString(),
+                });
+
+            if (paymentError) {
+                console.error(`Error recording payment for user ${userId}:`, paymentError);
+            } else {
+                console.log(`✓ Recorded payment of ${currency} ${paymentAmount} for user ${userId} (Order ID: ${order.id})`);
+            }
+
+            // Check if this is a subscription purchase
+            // Subscriptions should ONLY be handled by onSubscriptionActive to prevent double allocation
+            if (isSubscription) {
+                console.log(`⚠️ Skipping credit allocation in onOrderPaid for subscription "${productName}" (normalized: "${normalizedProductName}") - will be handled by onSubscriptionActive`);
+                return;
+            }
+
+            // Only process one-time purchases (credit packs) from this point
+            console.log(`✓ Processing one-time purchase: ${productName}`);
 
             const credits = getCreditsForProduct(productName, order.metadata as Record<string, string>);
 
@@ -248,7 +282,7 @@ export const POST = Webhooks({
                 .update({
                     subscription_plan: planId,
                     subscription_status: "active",
-                    polar_subscription_id: subscription.id,
+                    subscription_id: subscription.id,
                     updated_at: new Date().toISOString(),
                 })
                 .eq("id", userId);

@@ -1,6 +1,6 @@
 /**
- * Add Launch Program Credits Script
- * Adds 5000 free credits to user "nedra@adventuremomblog.com" as part of launch program
+ * Add Trial Program Credits Script
+ * Adds 5000 free credits to user "travelbunny@live.co.uk" as part of trial program
  */
 
 const { createClient } = require('@supabase/supabase-js');
@@ -18,10 +18,10 @@ if (!supabaseUrl || !supabaseServiceKey) {
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 async function addLaunchCredits() {
-  const userEmail = 'nedra@adventuremomblog.com';
+  const userEmail = 'travelbunny@live.co.uk';
   const creditsToAdd = 5000;
   
-  console.log('🎁 Launch Program: Adding Free Credits');
+  console.log('🎁 Trial Program: Adding Free Credits');
   console.log('=====================================');
   console.log(`User Email: ${userEmail}`);
   console.log(`Credits to Add: ${creditsToAdd}`);
@@ -111,7 +111,7 @@ async function addLaunchCredits() {
     console.log('  Subscription Status:', updatedProfile.subscription_status);
     console.log('  Updated At:', updatedProfile.updated_at);
     
-    console.log('\n🎉 Launch program credits successfully added!');
+    console.log('\n🎉 Trial program credits successfully added!');
     console.log(`   User ${userEmail} now has ${updatedProfile.credits_remaining} credits.`);
     
   } catch (error) {

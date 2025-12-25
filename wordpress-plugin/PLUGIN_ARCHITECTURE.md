@@ -14,7 +14,7 @@
 
 ## Plugin Overview
 
-**Alt Text Pro** is a WordPress plugin that generates AI-powered alt-text for images using Google Gemini AI via a SaaS backend (Netlify Functions + Supabase).
+**Alt Text Pro** is a WordPress plugin that generates AI-powered alt-text for images using an advanced AI service via a SaaS backend (Netlify Functions + Supabase).
 
 **Version:** 1.0.1  
 **WordPress Requirements:** 5.0+  
@@ -34,7 +34,7 @@ API Client (class-api-client.php)
     ↓
 Netlify Functions (generate-alt-text.js)
     ↓
-Google Gemini AI API
+Core AI Service API
     ↓
 Supabase Database (credits, usage logs)
 ```
@@ -288,7 +288,7 @@ alt-text-ai/
 7. Netlify Function:
    - Validates API key
    - Checks credits
-   - Calls Gemini API
+   - Calls AI Service API
    - Deducts credit
    - Returns alt-text
    ↓
@@ -391,8 +391,8 @@ alt-text-ai/
 - `usage_logs` table - Generation history
 - `users` table (auth) - User authentication
 
-**Google Gemini AI:**
-- Model: `gemini-2.0-flash`
+**Core AI Service:**
+- Model: Advanced Vision AI (Core Service)
 - Image input: Base64 encoded
 - Output: Plain text alt-text description
 - Safety filters: Built-in content filtering
@@ -559,7 +559,7 @@ Body:
    - Real-time updates
 
 4. **Error Handling**
-   - Better Gemini API error detection
+   - Better AI Service error detection
    - Safety filter detection
    - Detailed error messages
    - Comprehensive logging

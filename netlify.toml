@@ -1,39 +1,73 @@
 [build]
   base = "."
-  publish = "frontend/build"
-  command = "cd netlify-functions && npm install && cd ../frontend && yarn install --ignore-engines --frozen-lockfile --production=false && NODE_ENV=production yarn build"
+  publish = "frontend-next/.next"
+  command = "cd netlify-functions && npm install && cd ../frontend-next && npm install --legacy-peer-deps && npm run build"
   functions = "netlify-functions"
 
 [dev]
   port = 9999
   targetPort = 3000
   watch = ["netlify-functions"]
-
+  command = "npm run dev --prefix frontend-next"
 
 [build.environment]
-  NODE_VERSION = "18"
+  NODE_VERSION = "20"
   # These environment variables will be pulled from Netlify dashboard
-  # REACT_APP_SUPABASE_URL
-  # REACT_APP_SUPABASE_ANON_KEY
-  # REACT_APP_BACKEND_URL
+  # NEXT_PUBLIC_SUPABASE_URL
+  # NEXT_PUBLIC_SUPABASE_ANON_KEY
+  # NEXT_PUBLIC_PAYPAL_CLIENT_ID
 
-# Redirect all API calls to Netlify functions (MUST come before catch-all)
+# Specific redirects for legacy Netlify Functions (preserve access for Plugin/Dashboard)
 [[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/:splat"
+  from = "/api/generate-alt-text"
+  to = "/.netlify/functions/generate-alt-text"
   status = 200
 
-# SPA fallback for React Router - this is crucial for fixing 404 errors
-# This MUST be last to catch all other routes
 [[redirects]]
-  from = "/*"
-  to = "/index.html"
+  from = "/api/auth-validate"
+  to = "/.netlify/functions/auth-validate"
   status = 200
 
-# Environment variables (set in Netlify dashboard)
-# SUPABASE_URL=your_supabase_project_url
-# SUPABASE_ANON_KEY=your_supabase_anon_key  
-# SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
-# GEMINI_API_KEY=your_gemini_api_key
-# REACT_APP_SUPABASE_URL=your_supabase_project_url
-# REACT_APP_SUPABASE_ANON_KEY=your_supabase_anon_key
+[[redirects]]
+  from = "/api/get-api-key"
+  to = "/.netlify/functions/get-api-key"
+  status = 200
+
+[[redirects]]
+  from = "/api/get-usage"
+  to = "/.netlify/functions/get-usage"
+  status = 200
+
+[[redirects]]
+  from = "/api/get-subscription"
+  to = "/.netlify/functions/get-subscription"
+  status = 200
+
+[[redirects]]
+  from = "/api/get-plans"
+  to = "/.netlify/functions/get-plans"
+  status = 200
+
+[[redirects]]
+  from = "/api/admin-get-users"
+  to = "/.netlify/functions/admin-get-users"
+  status = 200
+
+[[redirects]]
+  from = "/api/delete-users"
+  to = "/.netlify/functions/delete-users"
+  status = 200
+
+[[redirects]]
+  from = "/api/send-contact-email"
+  to = "/.netlify/functions/send-contact-email"
+  status = 200
+
+[[redirects]]
+  from = "/api/activate-subscription"
+  to = "/.netlify/functions/activate-subscription"
+  status = 200
+
+# Next.js plugin handles everything else (including new /api/checkout)
+[[plugins]]
+  package = "@netlify/plugin-nextjs"

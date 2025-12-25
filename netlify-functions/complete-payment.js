@@ -2,6 +2,14 @@
 // File: netlify-functions/complete-payment.js
 
 const { createClient } = require('@supabase/supabase-js');
+const {
+  getCorsHeaders,
+  handlePreflight,
+  getClientIp,
+  checkRateLimit,
+  rateLimitExceededResponse,
+  methodNotAllowedResponse,
+} = require('./utils/cors');
 
 // Initialize Supabase client
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -21,7 +29,7 @@ async function getPayPalAccessToken() {
   console.log('PayPal authentication check:');
   console.log('- PAYPAL_ENVIRONMENT:', process.env.PAYPAL_ENVIRONMENT || 'production (default)');
   console.log('- PAYPAL_BASE_URL:', PAYPAL_BASE_URL);
-  console.log('- PAYPAL_CLIENT_ID:', PAYPAL_CLIENT_ID ? (PAYPAL_CLIENT_ID.substring(0, 20) + '...') : 'NOT SET');
+  console.log('- PAYPAL_CLIENT_ID:', PAYPAL_CLIENT_ID ? 'SET (hidden)' : 'NOT SET');
   console.log('- PAYPAL_CLIENT_SECRET:', PAYPAL_CLIENT_SECRET ? 'SET (hidden)' : 'NOT SET');
   
   if (!PAYPAL_CLIENT_ID || !PAYPAL_CLIENT_SECRET) {
@@ -44,18 +52,16 @@ async function getPayPalAccessToken() {
   const data = await response.json();
   
   if (!response.ok) {
-    console.error('PayPal access token error response:', {
+    console.error('PayPal access token error:', {
       status: response.status,
-      statusText: response.statusText,
-      error: data.error,
-      error_description: data.error_description,
-      full_response: data
+      error: data.error || 'unknown',
+      hasDescription: !!data.error_description
     });
-    throw new Error(`Failed to get PayPal access token: ${data.error_description || data.error || JSON.stringify(data)}`);
+    throw new Error(`Failed to get PayPal access token: ${data.error_description || data.error || 'Unknown error'}`);
   }
   
   if (!data.access_token) {
-    console.error('No access token in response:', data);
+    console.error('No access token in response');
     throw new Error('PayPal access token not received in response');
   }
   
@@ -104,9 +110,7 @@ async function getPayPalSubscription(subscriptionId) {
       throw new Error('Failed to obtain PayPal access token');
     }
     
-    console.log(`Access token obtained, length: ${accessToken.length}`);
-    console.log(`Access token preview: ${accessToken.substring(0, 30)}...`);
-    console.log(`Fetching subscription from: ${PAYPAL_BASE_URL}/v1/billing/subscriptions/${subscriptionId}`);
+    console.log(`Access token obtained`);
   
   const response = await fetch(`${PAYPAL_BASE_URL}/v1/billing/subscriptions/${subscriptionId}`, {
     method: 'GET',
@@ -120,21 +124,15 @@ async function getPayPalSubscription(subscriptionId) {
     const data = await response.json();
     
     console.log(`PayPal subscription fetch response status: ${response.status}`);
-    console.log(`PayPal subscription fetch response headers:`, Object.fromEntries(response.headers.entries()));
     
     if (!response.ok) {
       console.error('PayPal subscription fetch error:', {
         status: response.status,
-        statusText: response.statusText,
         subscriptionId: subscriptionId,
-        error: data,
-        accessTokenPresent: !!accessToken,
-        accessTokenLength: accessToken ? accessToken.length : 0,
-        accessTokenPreview: accessToken ? accessToken.substring(0, 30) + '...' : 'NONE',
-        requestUrl: `${PAYPAL_BASE_URL}/v1/billing/subscriptions/${subscriptionId}`,
-        authorizationHeader: accessToken ? `Bearer ${accessToken.substring(0, 30)}...` : 'MISSING'
+        error: data.error || data.name || 'unknown',
+        hasMessage: !!data.message
       });
-      throw new Error(`Failed to get PayPal subscription: ${data.name || data.message || data.error || JSON.stringify(data)}`);
+      throw new Error(`Failed to get PayPal subscription: ${data.name || data.message || data.error || 'Unknown error'}`);
     }
 
     console.log(`Subscription status: ${data.status}`);
@@ -150,28 +148,22 @@ async function getPayPalSubscription(subscriptionId) {
 }
 
 exports.handler = async (event, context) => {
-  // Enable CORS
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  };
+  // Get secure CORS headers (origin-validated)
+  const headers = getCorsHeaders(event.headers, ['POST', 'OPTIONS']);
 
   // Handle preflight OPTIONS request
-  if (event.httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 200,
-      headers,
-      body: '',
-    };
+  const preflightResponse = handlePreflight(event);
+  if (preflightResponse) return preflightResponse;
+
+  // Rate limiting for payment endpoints (stricter - 20 per minute)
+  const clientIp = getClientIp(event);
+  const rateLimit = checkRateLimit(`payment:${clientIp}`, 20);
+  if (!rateLimit.allowed) {
+    return rateLimitExceededResponse(headers, rateLimit);
   }
 
   if (event.httpMethod !== 'POST') {
-    return {
-      statusCode: 405,
-      headers,
-      body: JSON.stringify({ error: 'Method not allowed' }),
-    };
+    return methodNotAllowedResponse(headers);
   }
 
   try {
@@ -199,11 +191,19 @@ exports.handler = async (event, context) => {
 
     // Parse request body
     const { paymentId, planId, isSubscription = false, subscriptionId } = JSON.parse(event.body);
-    if (!paymentId || !planId) {
+
+    // Support annual plan ids coming from frontend (e.g., tier1_annual)
+    const isAnnualRequest = typeof planId === 'string' && planId.endsWith('_annual');
+    const normalizedPlanId = isAnnualRequest ? planId.replace('_annual', '') : planId;
+
+    // For subscriptions, allow subscriptionId in place of paymentId (PayPal SDK returns subscriptionID)
+    const providedPaymentId = paymentId || (isSubscription ? subscriptionId : null);
+
+    if (!providedPaymentId || !normalizedPlanId) {
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ error: 'paymentId and planId are required' }),
+        body: JSON.stringify({ error: 'paymentId (or subscriptionId for subscriptions) and planId are required' }),
       };
     }
 
@@ -211,7 +211,7 @@ exports.handler = async (event, context) => {
     const { data: plan, error: planError } = await supabase
       .from('subscription_plans')
       .select('*')
-      .eq('id', planId)
+      .eq('id', normalizedPlanId)
       .single();
 
     if (planError || !plan) {
@@ -222,8 +222,8 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Determine if this is actually a subscription based on billing_cycle
-    const actualIsSubscription = plan.billing_cycle === 'monthly' || plan.billing_cycle === 'yearly';
+    // Determine if this is actually a subscription based on billing_cycle or annual request
+    const actualIsSubscription = isAnnualRequest || plan.billing_cycle === 'monthly' || plan.billing_cycle === 'yearly';
     
     // If subscription ID is not provided but this is a subscription, try to find it from database
     let finalSubscriptionId = subscriptionId;
@@ -233,7 +233,7 @@ exports.handler = async (event, context) => {
         .from('payments')
         .select('subscription_id')
         .eq('user_id', authUser.id)
-        .eq('plan_id', planId)
+        .eq('plan_id', normalizedPlanId)
         .eq('status', 'pending')
         .not('subscription_id', 'is', null)
         .order('created_at', { ascending: false })
@@ -260,7 +260,7 @@ exports.handler = async (event, context) => {
 
     if (actualIsSubscription) {
       // Handle subscription - get subscription details and verify status
-      if (!finalSubscriptionId && !paymentId) {
+      if (!finalSubscriptionId && !providedPaymentId) {
         return {
           statusCode: 400,
           headers,
@@ -271,18 +271,19 @@ exports.handler = async (event, context) => {
         };
       }
       
-      const subscriptionIdToUse = finalSubscriptionId || paymentId;
+      const subscriptionIdToUse = finalSubscriptionId || providedPaymentId;
       console.log('🔍 Verifying subscription status with PayPal API for:', subscriptionIdToUse);
       
       // Verify subscription status from PayPal (like PaymentDetails API in Adaptive Payments)
       paymentResult = await getPayPalSubscription(subscriptionIdToUse);
 
-      console.log('✅ PayPal subscription verification result:', JSON.stringify(paymentResult, null, 2));
-      console.log('📊 Subscription Status:', paymentResult.status);
-      console.log('📊 Subscription ID:', paymentResult.id);
-      console.log('📊 Plan ID:', paymentResult.plan_id);
-      console.log('📊 Create Time:', paymentResult.create_time);
-      console.log('📊 Start Time:', paymentResult.start_time);
+      console.log('✅ PayPal subscription verified:', {
+        subscriptionId: paymentResult.id,
+        status: paymentResult.status,
+        planId: paymentResult.plan_id ? 'present' : 'missing',
+        hasBillingInfo: !!paymentResult.billing_info,
+        hasSubscriber: !!paymentResult.subscriber
+      });
       
       if (!paymentResult) {
         return {
@@ -296,17 +297,60 @@ exports.handler = async (event, context) => {
         };
       }
 
-      // Verify the subscription belongs to the correct plan
+      // CRITICAL SECURITY: Verify the subscription belongs to the correct plan
+      // This prevents users from buying a cheaper plan while selecting a premium one
       if (paymentResult.plan_id) {
-        const expectedPlanId = process.env[`PAYPAL_PLAN_${planId.toUpperCase()}`];
+        const envKey = isAnnualRequest
+          ? `PAYPAL_PLAN_${normalizedPlanId.toUpperCase()}_ANNUAL`
+          : `PAYPAL_PLAN_${normalizedPlanId.toUpperCase()}`;
+        const expectedPlanId = process.env[envKey];
         console.log('🔍 Verifying plan ID match:');
         console.log('  Expected:', expectedPlanId);
         console.log('  Actual:', paymentResult.plan_id);
         
-        // Note: We don't fail if plan IDs don't match exactly, as PayPal might use different plan IDs
-        // But we log it for debugging
+        // CRITICAL SECURITY: Reject if plan IDs don't match
+        // This prevents users from buying a cheaper plan while selecting a premium one
         if (expectedPlanId && paymentResult.plan_id !== expectedPlanId) {
-          console.warn('⚠️ Plan ID mismatch - subscription may be for different plan');
+          console.error('❌ SECURITY: Plan ID mismatch - rejecting payment');
+          console.error('  Requested plan:', planId);
+          console.error('  Expected PayPal plan:', expectedPlanId);
+          console.error('  Actual PayPal plan:', paymentResult.plan_id);
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ 
+              error: 'Plan mismatch detected',
+              message: 'The payment plan does not match the selected subscription. Payment rejected for security.',
+              requestedPlan: planId,
+              expectedPayPalPlan: expectedPlanId,
+              actualPayPalPlan: paymentResult.plan_id,
+            }),
+          };
+        }
+        
+        // Also verify plan_id exists if we have an expected value
+        if (expectedPlanId && !paymentResult.plan_id) {
+          console.error('❌ SECURITY: PayPal subscription missing plan_id');
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ 
+              error: 'Invalid subscription',
+              message: 'Subscription does not contain a valid plan identifier.',
+            }),
+          };
+        }
+        
+        console.log('✅ Plan ID verified successfully');
+      } else {
+        // If we expect a plan_id but PayPal doesn't provide one, that's suspicious
+        const envKey = isAnnualRequest
+          ? `PAYPAL_PLAN_${normalizedPlanId.toUpperCase()}_ANNUAL`
+          : `PAYPAL_PLAN_${normalizedPlanId.toUpperCase()}`;
+        const expectedPlanId = process.env[envKey];
+        if (expectedPlanId) {
+          console.warn('⚠️ PayPal subscription response missing plan_id, but expected:', expectedPlanId);
+          // We'll still proceed but log the warning for investigation
         }
       }
 
@@ -321,7 +365,7 @@ exports.handler = async (event, context) => {
       if (validStates.includes(paymentResult.status)) {
         // Subscription is in a valid state
         subscriptionStatus = paymentResult.status;
-        amount = parseFloat(plan.price);
+        amount = parseFloat(isAnnualRequest && plan.annual_price ? plan.annual_price : plan.price);
         
         if (processingStates.includes(paymentResult.status)) {
           console.log(`⏳ Subscription ${subscriptionIdToUse} is in ${paymentResult.status} state - webhook will activate it shortly`);
@@ -351,12 +395,12 @@ exports.handler = async (event, context) => {
       
       // Additional verification: Check if subscription has billing agreement
       if (paymentResult.billing_info) {
-        console.log('💳 Billing Info:', JSON.stringify(paymentResult.billing_info, null, 2));
+        console.log('💳 Billing Info: present (not logged for privacy)');
       }
       
       // Log subscriber information
       if (paymentResult.subscriber) {
-        console.log('👤 Subscriber:', JSON.stringify(paymentResult.subscriber, null, 2));
+        console.log('👤 Subscriber: present (not logged for privacy)');
       }
     } else {
       // Handle one-time payment
@@ -395,21 +439,75 @@ exports.handler = async (event, context) => {
       if (paymentResult.purchase_units && paymentResult.purchase_units[0]) {
         amount = parseFloat(paymentResult.purchase_units[0].amount.value);
       }
+
+      // CRITICAL SECURITY: Verify payment amount matches plan price
+      // This prevents users from paying less than the selected plan price
+      // Use annual price when the request was annual, otherwise default price
+      const expectedAmount = parseFloat(isAnnualRequest && plan.annual_price ? plan.annual_price : plan.price);
+      const amountDifference = Math.abs(amount - expectedAmount);
+
+      // Allow small rounding differences (e.g., $19.99 vs $20.00)
+      const ALLOWED_DIFFERENCE = 0.01;
+
+      if (amountDifference > ALLOWED_DIFFERENCE) {
+        console.error('❌ SECURITY: Payment amount mismatch - rejecting payment');
+        console.error('  Requested plan:', planId);
+        console.error('  Plan price:', expectedAmount);
+        console.error('  PayPal amount:', amount);
+        console.error('  Difference:', amountDifference);
+        
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ 
+            error: 'Payment amount mismatch',
+            message: 'The payment amount does not match the selected plan price. Payment rejected for security.',
+            requestedPlan: planId,
+            planPrice: expectedAmount,
+            paymentAmount: amount,
+            difference: amountDifference,
+          }),
+        };
+      }
+
+      console.log('✅ Payment amount verified:', amount, 'matches plan price:', expectedAmount);
+    }
+
+    // CRITICAL SECURITY: Final validation before crediting user
+    // Double-check that we're about to credit the correct plan
+    if (actualIsSubscription) {
+      // For subscriptions, we already validated plan_id above
+      // Just log confirmation
+      console.log('✅ Subscription plan validated - proceeding with upgrade');
+    } else {
+      // For one-time payments, verify amount one more time
+      const finalExpectedAmount = parseFloat(plan.price);
+      if (Math.abs(amount - finalExpectedAmount) > 0.01) {
+        console.error('❌ SECURITY: Amount validation failed before crediting');
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ 
+            error: 'Payment validation failed',
+            message: 'Unable to verify payment amount. Please contact support.',
+          }),
+        };
+      }
     }
 
     // Update user subscription using the database function
     console.log('Calling upgrade_subscription with:', {
       user_uuid: authUser.id,
-      new_plan: planId,
-      payment_id: paymentId,
+      new_plan: normalizedPlanId,
+      payment_id: providedPaymentId,
       subscription_id_param: finalSubscriptionId
     });
     
     const { data: upgradeResult, error: upgradeError } = await supabase
       .rpc('upgrade_subscription', {
         user_uuid: authUser.id,
-        new_plan: planId,
-        payment_id: paymentId,
+        new_plan: normalizedPlanId,
+        payment_id: providedPaymentId,
         subscription_id_param: finalSubscriptionId
       });
 
@@ -437,7 +535,7 @@ exports.handler = async (event, context) => {
         subscription_id: finalSubscriptionId,
         updated_at: new Date().toISOString()
       })
-      .eq('payment_id', paymentId)
+      .eq('payment_id', providedPaymentId)
       .eq('user_id', authUser.id);
 
     if (paymentUpdateError) {
@@ -460,7 +558,7 @@ exports.handler = async (event, context) => {
       headers,
       body: JSON.stringify({
         success: true,
-        paymentId: paymentId,
+        paymentId: providedPaymentId,
         subscriptionId: finalSubscriptionId,
         isSubscription: actualIsSubscription,
         plan: profile?.subscription_plan,

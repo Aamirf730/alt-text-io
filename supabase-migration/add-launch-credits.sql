@@ -1,10 +1,10 @@
--- Add Launch Program Credits
--- Adds 5000 free credits to user "nedra@adventuremomblog.com" as part of launch program
+-- Add Trial Program Credits
+-- Adds 5000 free credits to user "travelbunny@live.co.uk" as part of trial program
 -- Run this in Supabase SQL Editor
 
 DO $$
 DECLARE
-  user_email TEXT := 'nedra@adventuremomblog.com';
+  user_email TEXT := 'travelbunny@live.co.uk';
   credits_to_add INTEGER := 5000;
   user_id UUID;
   current_credits INTEGER;
@@ -39,7 +39,7 @@ BEGIN
   WHERE id = user_id;
   
   -- Output results
-  RAISE NOTICE '✅ Launch Program Credits Added Successfully!';
+  RAISE NOTICE '✅ Trial Program Credits Added Successfully!';
   RAISE NOTICE '   User Email: %', user_email;
   RAISE NOTICE '   User ID: %', user_id;
   RAISE NOTICE '   Previous Credits: %', current_credits;
@@ -58,5 +58,5 @@ SELECT
   p.updated_at
 FROM public.profiles p
 JOIN auth.users u ON p.id = u.id
-WHERE u.email = 'nedra@adventuremomblog.com';
+WHERE u.email = 'travelbunny@live.co.uk';
 

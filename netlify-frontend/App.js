@@ -37,7 +37,7 @@ const LandingPage = () => {
     setIsLoading(true);
     try {
       let result;
-      
+
       if (isLogin) {
         // Login existing user
         result = await supabase.auth.signInWithPassword({
@@ -95,7 +95,7 @@ const LandingPage = () => {
       <section className="max-w-7xl mx-auto px-6 py-20">
         <div className="text-center max-w-4xl mx-auto">
           <Badge className="mb-6 bg-violet-100 text-violet-700 hover:bg-violet-200">
-            ✨ Powered by Gemini 2.0 Flash + Supabase
+            ✨ Powered by AI + Supabase
           </Badge>
           <h1 className="text-6xl font-bold text-slate-800 mb-6 leading-tight">
             Generate Perfect
@@ -105,7 +105,7 @@ const LandingPage = () => {
           <p className="text-xl text-slate-600 mb-8 leading-relaxed">
             Boost your WordPress SEO with AI-generated, accessible alt-text. Hosted on Netlify with Supabase database for maximum reliability and scalability.
           </p>
-          
+
           <form onSubmit={handleAuth} className="max-w-md mx-auto mb-12 space-y-4">
             <div className="flex gap-3">
               <Input
@@ -189,7 +189,7 @@ const Dashboard = () => {
     try {
       // Get current user from Supabase
       const { data: { user }, error } = await supabase.auth.getUser();
-      
+
       if (error || !user) {
         window.location.href = "/";
         return;
@@ -320,7 +320,7 @@ const Dashboard = () => {
           <h1 className="text-3xl font-bold text-slate-800 mb-2">Dashboard</h1>
           <p className="text-slate-600">Powered by Netlify + Supabase</p>
         </div>
-        
+
         {/* Dashboard content remains the same... */}
       </div>
     </div>
