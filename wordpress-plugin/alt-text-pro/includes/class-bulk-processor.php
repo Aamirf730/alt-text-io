@@ -21,7 +21,6 @@ class AltTextPro_Bulk_Processor
         add_action('wp_ajax_alt_text_pro_bulk_status', array($this, 'ajax_get_bulk_status'));
         add_action('wp_ajax_alt_text_pro_bulk_process_batch', array($this, 'ajax_process_batch'));
         add_action('wp_ajax_alt_text_pro_bulk_cancel', array($this, 'ajax_cancel_bulk_process'));
-        add_action('alt_text_pro_bulk_process_batch', array($this, 'process_batch_background'));
     }
 
     /**
@@ -42,8 +41,9 @@ class AltTextPro_Bulk_Processor
 
         // Get images to process based on process type
         if ($process_type === 'selected' && !empty($selected_images)) {
-            // Process only selected images
-            $images_to_process = $this->get_selected_images($selected_images, $overwrite_existing);
+            // Process only selected images. For selected images, we always include them regardless of alt-text
+            // unless the user explicitly wants to filter them (not currently exposed in UI for selected)
+            $images_to_process = $this->get_selected_images($selected_images, true);
         } elseif ($process_type === 'all') {
             // Process all images (regardless of alt-text status)
             $images_to_process = $this->get_images_without_alt_text(true); // true = include all images
@@ -91,7 +91,13 @@ class AltTextPro_Bulk_Processor
         }
 
         if (empty($images_to_process)) {
-            wp_send_json_error(esc_html__('No images found to process. All selected images already have alt-text.', 'alt-text-pro'));
+            $msg = esc_html__('No images found to process.', 'alt-text-pro');
+            if ($process_type === 'missing') {
+                $msg = esc_html__('All images already have alt-text.', 'alt-text-pro');
+            } elseif ($process_type === 'selected') {
+                $msg = esc_html__('The selected images already have alt-text or are not valid attachments.', 'alt-text-pro');
+            }
+            wp_send_json_error($msg);
         }
 
         // Check credits before starting bulk processing
@@ -168,12 +174,13 @@ class AltTextPro_Bulk_Processor
         }
 
         // Process the batch
-        $this->process_batch_sync($process_id, $batch_offset);
+        $batch_results = $this->process_batch_sync($process_id, $batch_offset);
 
         // Get updated status
         $status = $this->get_bulk_process_status($process_id);
 
         if ($status) {
+            $status['batch_results'] = $batch_results;
             wp_send_json_success($status);
         } else {
             wp_send_json_error(esc_html__('Process not found.', 'alt-text-pro'));
@@ -194,7 +201,10 @@ class AltTextPro_Bulk_Processor
         $process_id = isset($_POST['process_id']) ? sanitize_text_field(wp_unslash($_POST['process_id'])) : '';
         $this->cancel_bulk_process($process_id);
 
-        wp_send_json_success(esc_html__('Bulk process cancelled.', 'alt-text-pro'));
+        // Get updated data to return for the summary
+        $process_data = get_transient('alt_text_pro_bulk_' . $process_id);
+
+        wp_send_json_success($process_data);
     }
 
     /**
@@ -202,7 +212,7 @@ class AltTextPro_Bulk_Processor
      */
     public function process_batch_sync($process_id, $batch_offset)
     {
-        $this->process_batch_background($process_id, $batch_offset);
+        return $this->process_batch_background($process_id, $batch_offset);
     }
 
     /**
@@ -224,6 +234,7 @@ class AltTextPro_Bulk_Processor
         $skipped = 0;
         $successful = 0; // Track successful generations separately
         $errors = array();
+        $batch_results = array();
 
         // Get existing successful image IDs to prevent double-counting
         $successful_image_ids = isset($process_data['successful_image_ids']) ? $process_data['successful_image_ids'] : array();
@@ -249,6 +260,11 @@ class AltTextPro_Bulk_Processor
                 // Already processed successfully, skip to prevent double-counting and duplicate credit deduction
                 $skipped++;
                 $processed++;
+                $batch_results[] = array(
+                    'id' => $image_id,
+                    'filename' => basename(get_attached_file($image_id)),
+                    'status' => 'skipped'
+                );
                 continue;
             }
 
@@ -260,11 +276,33 @@ class AltTextPro_Bulk_Processor
                     // Image already has alt-text, skip API call to prevent credit deduction
                     $skipped++;
                     $processed++;
+                    $batch_results[] = array(
+                        'id' => $image_id,
+                        'filename' => basename(get_attached_file($image_id)),
+                        'status' => 'skipped'
+                    );
                     continue;
                 }
             }
 
-            $result = $api_client->generate_alt_text($image_id);
+            // Get blog context from settings
+            $settings = get_option('alt_text_pro_settings', array());
+            $blog_context = isset($settings['blog_context']) ? $settings['blog_context'] : '';
+            $context_enabled = !empty($settings['context_enabled']);
+
+            // Get individual image context if available
+            $image_context = get_post_meta($image_id, '_alt_text_pro_context', true);
+
+            // Auto-generate context if enabled and empty
+            if ($context_enabled && empty($image_context)) {
+                $media_handler = new AltTextPro_Media_Handler();
+                $suggestions = $media_handler->get_context_suggestions($image_id);
+                if (!empty($suggestions)) {
+                    $image_context = implode(' | ', $suggestions);
+                }
+            }
+
+            $result = $api_client->generate_alt_text($image_id, $image_context, $blog_context);
 
             // Check if credits ran out (402 error)
             if (isset($result['no_credits']) && $result['no_credits'] === true) {
@@ -281,6 +319,12 @@ class AltTextPro_Bulk_Processor
                 }
                 $errors[] = array(
                     'image_id' => $image_id,
+                    'error' => $error_message
+                );
+                $batch_results[] = array(
+                    'id' => $image_id,
+                    'filename' => basename(get_attached_file($image_id)),
+                    'status' => 'error',
                     'error' => $error_message
                 );
                 $processed++;
@@ -318,8 +362,8 @@ class AltTextPro_Bulk_Processor
                 // Complete process immediately
                 $this->complete_bulk_process($process_id, true);
 
-                // Return immediately - do not process any more images
-                return;
+                // Return current batch results up to this point
+                return $batch_results;
             }
 
             if ($result['success'] && !empty($result['alt_text'])) {
@@ -334,6 +378,12 @@ class AltTextPro_Bulk_Processor
                 $processed++;
                 $successful++; // Only count as successful when alt-text is actually generated
                 $new_successful_ids[] = $image_id; // Track this image as successfully processed in this batch
+
+                $batch_results[] = array(
+                    'id' => $image_id,
+                    'filename' => basename(get_attached_file($image_id)),
+                    'status' => 'success'
+                );
 
                 if (defined('WP_DEBUG') && WP_DEBUG) {
                     // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
@@ -356,6 +406,12 @@ class AltTextPro_Bulk_Processor
                 }
                 $errors[] = array(
                     'image_id' => $image_id,
+                    'error' => $error_message
+                );
+                $batch_results[] = array(
+                    'id' => $image_id,
+                    'filename' => basename(get_attached_file($image_id)),
+                    'status' => 'error',
                     'error' => $error_message
                 );
                 // Still count as processed even if failed, but NOT as successful
@@ -420,36 +476,20 @@ class AltTextPro_Bulk_Processor
         }
 
         // Check if there are more batches to process
-        // IMPORTANT: Only continue if status is still 'running' (not stopped)
+        // IMPORTANT: No longer using cron. Browser will request next batch based on these flags.
         $next_batch_offset = $batch_offset + count($images);
         if ($next_batch_offset < count($process_data['images']) && $process_data['status'] === 'running') {
             // Set flag that frontend should request next batch
             $process_data['next_batch_offset'] = $next_batch_offset;
             $process_data['needs_next_batch'] = true;
 
-            // Schedule next batch via cron (as backup)
-            wp_schedule_single_event(time() + 2, 'alt_text_pro_bulk_process_batch', array($process_id, $next_batch_offset));
-
-            // Try to trigger cron immediately
-            if (function_exists('spawn_cron')) {
-                spawn_cron();
-            }
-
             set_transient('alt_text_pro_bulk_' . $process_id, $process_data, DAY_IN_SECONDS * 2);
-        } else {
-            // Mark process as completed
-            $this->complete_bulk_process($process_id);
-
-            // Update local state to match completed status so we don't overwrite it
-            $process_data['needs_next_batch'] = false;
-            $process_data['status'] = 'completed';
-            $process_data['completed_at'] = current_time('mysql');
-            $process_data['email_sent'] = true;
+            // Save updated process data
+            set_transient('alt_text_pro_bulk_' . $process_id, $process_data, DAY_IN_SECONDS * 2);
+            wp_cache_delete('alt_text_pro_bulk_' . $process_id, 'transient');
         }
 
-        // Save updated process data
-        set_transient('alt_text_pro_bulk_' . $process_id, $process_data, DAY_IN_SECONDS * 2);
-        wp_cache_delete('alt_text_pro_bulk_' . $process_id, 'transient');
+        return $batch_results;
     }
 
     /**
@@ -630,11 +670,14 @@ class AltTextPro_Bulk_Processor
         // Include stopped_reason if process was stopped due to credits
         $status_data = array(
             'process_id' => $process_id,
-            'status' => $process_data['status'] ?? 'running',
+            'status' => ($process_data['status'] ?? 'running') === 'running' ? 'processing' : ($process_data['status'] ?? 'running'),
             'total_images' => isset($process_data['images']) ? count($process_data['images']) : 0,
             'processed' => $processed,
+            'processed_count' => $processed, // Added for JS compatibility
             'successful' => $successful,
+            'successful_count' => $successful, // Added for JS compatibility
             'errors' => $errors,
+            'error_count' => count($errors), // Added for JS compatibility
             'batch_size' => $process_data['batch_size'] ?? 2,
             'started_at' => $process_data['started_at'] ?? null,
             'completed_at' => $process_data['completed_at'] ?? null,
@@ -720,9 +763,6 @@ class AltTextPro_Bulk_Processor
 
             set_transient('alt_text_pro_bulk_' . $process_id, $process_data, DAY_IN_SECONDS);
         }
-
-        // Clear any scheduled events for this process
-        wp_clear_scheduled_hook('alt_text_pro_bulk_process_batch', array($process_id));
     }
 
     /**

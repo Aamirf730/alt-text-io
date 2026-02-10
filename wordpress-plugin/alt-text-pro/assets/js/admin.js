@@ -5,6 +5,7 @@
 
 (function ($) {
     'use strict';
+    console.log('Alt Text Pro: admin.js loading...');
 
     // Main Admin Object
     window.AltTextProAdmin = {
@@ -15,6 +16,7 @@
             this.initTooltips();
             this.initMediaFields();
             this.initOnboarding();
+            this.updateSelectionCount();
         },
 
         // Bind all event handlers
@@ -81,11 +83,20 @@
         bindBulkProcessEvents: function () {
             // Process type selection
             $(document).on('change', 'input[name="process_type"]', function () {
-                if ($(this).val() === 'selected') {
+                var val = $(this).val();
+                if (val === 'selected') {
                     $('#image-selection-sidebar').slideDown();
                 } else {
                     $('#image-selection-sidebar').slideUp();
                 }
+
+                if (val === 'all') {
+                    $('#overwrite-option-container').slideDown();
+                } else {
+                    $('#overwrite-option-container').slideUp();
+                }
+
+                AltTextProAdmin.updateSelectionCount();
             });
 
             // Select all/deselect all images
@@ -342,14 +353,14 @@
         // Update selection count for bulk processing
         updateSelectionCount: function () {
             var selectedCount = $('#image-list input[type="checkbox"]:checked').length;
-            var totalCount = $('#image-list input[type="checkbox"]').length;
-
-            $('.selection-count').text(selectedCount + ' of ' + totalCount + ' selected');
+            $('.selection-count').text(selectedCount > 0 ? selectedCount + ' selected' : '');
 
             // Enable/disable start button based on selection
             var processType = $('input[name="process_type"]:checked').val();
             if (processType === 'selected') {
-                $('#start-bulk-process').prop('disabled', selectedCount === 0);
+                $('#start-bulk-process').prop('disabled', selectedCount === 0).css('opacity', selectedCount === 0 ? '0.5' : '1');
+            } else {
+                $('#start-bulk-process').prop('disabled', false).css('opacity', '1');
             }
         },
 
@@ -644,7 +655,7 @@
                 window.scrollTo({ top: 0, behavior: 'smooth' });
                 // Small delay to ensure scroll completes
                 var self = this;
-                setTimeout(function() {
+                setTimeout(function () {
                     self.showModalById(modalId);
                     $('#onboarding_api_key').trigger('focus');
                 }, 100);
@@ -761,4 +772,340 @@
     // Export for global access
     window.AltTextProAdmin = AltTextProAdmin;
 
+    // Bulk Processor Object (Migrated from inline script)
+    window.bulkProcessor = {
+        processId: null,
+        isProcessing: false,
+        cancelRequested: false,
+        pendingCancel: false,
+        startRequest: null,
+        pendingBatchRequests: [],
+        statusInterval: null,
+        processingBatches: {},
+        notificationsShown: {},
+
+        init: function () {
+            console.log('Alt Text Pro: Initializing bulk processor');
+        },
+
+        startProcessing: function () {
+            if (this.isProcessing) return;
+
+            var self = this;
+            var processType = $('input[name="process_type"]:checked').val();
+            var overwriteExisting = $('#overwrite_existing').is(':checked');
+            var selectedImages = [];
+
+            if (processType === 'selected') {
+                $('input[name="selected_images[]"]:checked').each(function () {
+                    selectedImages.push($(this).val());
+                });
+
+                if (selectedImages.length === 0) {
+                    alert('Please select at least one image.');
+                    return;
+                }
+            }
+
+            console.log('Alt Text Pro: Starting bulk process', { type: processType, overwrite: overwriteExisting });
+
+            this.isProcessing = true;
+            this.cancelRequested = false;
+            this.pendingCancel = false;
+            this.processId = null;
+            this.pendingBatchRequests = [];
+
+            // UI setup
+            $('#start-bulk-process').hide();
+            $('#cancel-bulk-process').attr('style', 'display: inline-flex !important;').show();
+            $('#progress-card').slideDown();
+            $('#results-card').hide();
+            $('#progress-status').text('Initializing...').removeClass('success error').addClass('warning');
+            $('#progress-fill').css('width', '0%');
+            $('#progress-text').text('0%');
+            $('#processed-count').text('0 / 0');
+            $('#successful-count').text('0');
+            $('#error-count').text('0');
+            $('#progress-log').empty().append('<div>Starting bulk optimization...</div>');
+
+            this.startRequest = $.ajax({
+                url: altTextAI.ajaxUrl,
+                type: 'POST',
+                data: {
+                    action: 'alt_text_pro_bulk_start',
+                    process_type: processType,
+                    overwrite_existing: overwriteExisting ? 1 : 0,
+                    selected_images: selectedImages,
+                    batch_size: altTextAI.settings.batch_size || 2,
+                    nonce: altTextAI.nonce
+                },
+                success: function (response) {
+                    if (response.success) {
+                        self.processId = response.data.process_id;
+                        var total = response.data.total_images;
+
+                        $('#processed-count').text('0 / ' + total);
+                        $('#progress-log').append('<div>Initialized process #' + self.processId + ' (' + total + ' images)</div>');
+
+                        if (total === 0) {
+                            self.finishProcess({ success: true, processed: 0, successful: 0, errors: 0 });
+                            return;
+                        }
+
+                        if (self.cancelRequested) {
+                            self.sendCancelRequest();
+                            return;
+                        }
+
+                        self.startStatusPolling();
+                    } else {
+                        self.showError(response.data || 'Failed to start bulk process');
+                        self.resetUI();
+                    }
+                },
+                error: function (xhr, status, error) {
+                    if (status !== 'abort') {
+                        console.error('Alt Text Pro: Bulk start error', error);
+                        self.showError('Failed to connect to server');
+                        self.resetUI();
+                    }
+                }
+            });
+        },
+
+        cancelProcessing: function () {
+            if (!this.isProcessing || this.cancelRequested) return;
+
+            console.log('Alt Text Pro: Cancel requested');
+            this.cancelRequested = true;
+            this.pendingCancel = true;
+
+            if (this.startRequest) {
+                this.startRequest.abort();
+            }
+
+            if (this.statusRequest) {
+                this.statusRequest.abort();
+            }
+
+            // If we have any pending batch requests, abort them
+            this.pendingBatchRequests.forEach(function (req) {
+                if (req && req.abort) req.abort();
+            });
+            this.pendingBatchRequests = [];
+
+            this.sendCancelRequest();
+        },
+
+        sendCancelRequest: function () {
+            var self = this;
+            if (!this.processId) {
+                this.resetUI();
+                $('#progress-status').text('Cancelled').removeClass('warning success').addClass('error');
+                return;
+            }
+
+            $('#progress-status').text('Cancelling...').removeClass('success').addClass('warning');
+
+            $.ajax({
+                url: altTextAI.ajaxUrl,
+                type: 'POST',
+                data: {
+                    action: 'alt_text_pro_bulk_cancel',
+                    process_id: this.processId,
+                    nonce: altTextAI.nonce
+                },
+                success: function (response) {
+                    if (response.success) {
+                        self.finishProcess(response.data || { status: 'cancelled' });
+                    } else {
+                        self.resetUI();
+                    }
+                },
+                error: function () {
+                    self.resetUI();
+                }
+            });
+        },
+
+        startStatusPolling: function () {
+            var self = this;
+            this.statusInterval = setInterval(function () {
+                self.pollStatus();
+            }, 3000);
+        },
+
+        pollStatus: function () {
+            var self = this;
+            if (!this.processId || !this.isProcessing || this.cancelRequested) return;
+
+            this.statusRequest = $.ajax({
+                url: altTextAI.ajaxUrl,
+                type: 'POST',
+                data: {
+                    action: 'alt_text_pro_bulk_status',
+                    process_id: this.processId,
+                    nonce: altTextAI.nonce
+                },
+                success: function (response) {
+                    if (response.success) {
+                        self.updateProgress(response.data);
+
+                        // If background process needs a nudge or frontend batching is preferred
+                        if (response.data.needs_next_batch && response.data.next_batch_offset !== null) {
+                            self.triggerNextBatch(response.data.next_batch_offset);
+                        }
+
+                        if (response.data.status === 'completed' || response.data.status === 'error' || response.data.status === 'stopped_no_credits') {
+                            self.finishProcess(response.data);
+                        }
+                    }
+                }
+            });
+        },
+
+        triggerNextBatch: function (offset) {
+            var self = this;
+            if (this.cancelRequested) return;
+
+            // Prevent duplicate requests for the same offset
+            if (this.processingBatches[offset]) return;
+            this.processingBatches[offset] = true;
+
+            console.log('Alt Text Pro: Triggering batch at offset ' + offset);
+
+            var batchReq = $.ajax({
+                url: altTextAI.ajaxUrl,
+                type: 'POST',
+                data: {
+                    action: 'alt_text_pro_bulk_process_batch',
+                    process_id: this.processId,
+                    batch_offset: offset,
+                    nonce: altTextAI.nonce
+                },
+                success: function (response) {
+                    if (response.success && response.data && response.data.batch_results) {
+                        self.appendBatchResults(response.data.batch_results);
+                    }
+                    // When a batch finishes, poll status immediately to update progress and trigger next
+                    self.pollStatus();
+                },
+                complete: function () {
+                    // Remove from pending list
+                    self.pendingBatchRequests = self.pendingBatchRequests.filter(function (r) { return r !== batchReq; });
+                }
+            });
+
+            this.pendingBatchRequests.push(batchReq);
+        },
+
+        updateProgress: function (data) {
+            var total = data.total_images || 0;
+            var processed = data.processed_count !== undefined ? data.processed_count : (data.processed || 0);
+            var percent = total > 0 ? Math.round((processed / total) * 100) : 100;
+
+            $('#progress-fill').css('width', percent + '%');
+            $('#progress-text').text(percent + '%');
+            $('#processed-count').text(processed + ' / ' + total);
+            $('#successful-count').text(data.successful_count !== undefined ? data.successful_count : (data.successful || 0));
+            $('#error-count').text(data.error_count !== undefined ? data.error_count : (data.errors ? data.errors.length : 0));
+
+            if (data.status === 'processing' || data.status === 'running') {
+                $('#progress-status').text('Processing...');
+            }
+        },
+
+        appendBatchResults: function (results) {
+            if (!results || !results.length) return;
+
+            var $log = $('#progress-log');
+            var self = this;
+
+            results.forEach(function (result) {
+                var icon = 'dashicons-yes';
+                var statusClass = 'success';
+                var statusText = 'Success';
+
+                if (result.status === 'error') {
+                    icon = 'dashicons-no-alt';
+                    statusClass = 'error';
+                    statusText = 'Failed';
+                } else if (result.status === 'skipped') {
+                    icon = 'dashicons-warning';
+                    statusClass = 'skipped';
+                    statusText = 'Skipped';
+                }
+
+                var html = '<div class="log-item ' + statusClass + '">' +
+                    '<span class="dashicons ' + icon + '"></span>' +
+                    '<span class="log-filename" title="' + result.filename + '">' + result.filename + '</span>';
+
+                if (result.status === 'error' && result.error) {
+                    html += '<span class="log-error">' + result.error + '</span>';
+                }
+
+                html += '</div>';
+
+                $log.append(html);
+            });
+
+            // Auto-scroll to bottom
+            $log.scrollTop($log[0].scrollHeight);
+        },
+
+        finishProcess: function (data) {
+            this.isProcessing = false;
+            if (this.statusInterval) {
+                clearInterval(this.statusInterval);
+                this.statusInterval = null;
+            }
+
+            $('#start-bulk-process').show();
+            $('#cancel-bulk-process').attr('style', 'display: none !important;').hide();
+
+            var processed = data.processed_count !== undefined ? data.processed_count : (data.processed || 0);
+            var successful = data.successful_count !== undefined ? data.successful_count : (data.successful || 0);
+            var errors = data.error_count !== undefined ? data.error_count : (data.errors ? data.errors.length : 0);
+
+            if (data.success || data.status === 'completed') {
+                $('#progress-status').text('Completed').removeClass('warning error').addClass('success');
+                $('#progress-log').append('<div style="color: var(--success-color); font-weight: bold;">Bulk optimization completed!</div>');
+            } else if (data.status === 'cancelled') {
+                $('#progress-status').text('Cancelled').removeClass('warning success').addClass('error');
+
+                // Show summary instead of progress bar
+                $('#process-progress-container').hide();
+                $('#process-summary-container').show();
+                $('#process-summary-text').text('Process Cancelled');
+                $('#process-summary-details').text('Processed ' + processed + ' images (' + successful + ' successful, ' + errors + ' errors) before stopping.');
+
+                $('#progress-log').append('<div style="color: var(--danger-color); font-weight: bold;">Bulk optimization cancelled by user.</div>');
+            } else {
+                $('#progress-status').text('Error').removeClass('warning success').addClass('error');
+                $('#progress-log').append('<div style="color: var(--danger-color);">Process ended with errors or was interrupted.</div>');
+            }
+        },
+
+        resetUI: function () {
+            $('#start-bulk-process').show();
+            $('#cancel-bulk-process').attr('style', 'display: none !important;').hide();
+            $('#progress-card').hide();
+            $('#process-progress-container').show();
+            $('#process-summary-container').hide();
+            this.isProcessing = false;
+            this.cancelRequested = false;
+            this.processingBatches = {};
+            if (this.statusInterval) {
+                clearInterval(this.statusInterval);
+                this.statusInterval = null;
+            }
+        },
+
+        showError: function (msg) {
+            $('#progress-log').append('<div style="color: var(--danger-color);">Error: ' + msg + '</div>');
+        }
+    };
+
+    console.log('Alt Text Pro: admin.js loaded fully');
 })(jQuery);
+

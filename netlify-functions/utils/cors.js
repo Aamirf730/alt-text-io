@@ -51,8 +51,12 @@ const ALLOWED_ORIGINS = [
   'https://alt-text-ai.netlify.app',
   // Development origins
   'http://localhost:3000',
+  'http://localhost:3001',
+  'http://localhost:3002',
   'http://localhost:9999',
   'http://127.0.0.1:3000',
+  'http://127.0.0.1:3001',
+  'http://127.0.0.1:3002',
   'http://127.0.0.1:9999',
 ];
 
@@ -75,23 +79,23 @@ let instanceRequestCount = 0;
  */
 function getValidatedOrigin(headers) {
   const origin = headers.origin || headers.Origin;
-  
+
   if (!origin) {
     // No origin header (e.g., server-to-server calls, mobile apps)
     // Allow but don't set Access-Control-Allow-Origin
     return null;
   }
-  
+
   // Check if origin is in allowed list
   if (ALLOWED_ORIGINS.includes(origin)) {
     return origin;
   }
-  
+
   // Check for Netlify preview deploys (*.netlify.app)
   if (origin.endsWith('.netlify.app')) {
     return origin;
   }
-  
+
   console.warn('CORS: Rejected origin:', origin);
   return null;
 }
@@ -104,20 +108,20 @@ function getValidatedOrigin(headers) {
  */
 function getCorsHeaders(requestHeaders, allowedMethods = ['GET', 'POST', 'OPTIONS']) {
   const validatedOrigin = getValidatedOrigin(requestHeaders);
-  
+
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
     'Access-Control-Allow-Methods': allowedMethods.join(', '),
     'Access-Control-Max-Age': '86400', // Cache preflight for 24 hours
   };
-  
+
   // Only set Allow-Origin if we have a validated origin
   if (validatedOrigin) {
     headers['Access-Control-Allow-Origin'] = validatedOrigin;
     headers['Access-Control-Allow-Credentials'] = 'true';
   }
-  
+
   return headers;
 }
 
@@ -145,9 +149,9 @@ function handlePreflight(event) {
  */
 function getClientIp(event) {
   return event.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
-         event.headers['x-real-ip'] ||
-         event.headers['client-ip'] ||
-         'unknown';
+    event.headers['x-real-ip'] ||
+    event.headers['client-ip'] ||
+    'unknown';
 }
 
 /**
@@ -164,13 +168,13 @@ function getClientIp(event) {
 function checkRateLimit(clientIp, maxRequests = RATE_LIMIT_MAX_REQUESTS, windowMs = RATE_LIMIT_WINDOW_MS) {
   const now = Date.now();
   const key = clientIp;
-  
+
   // Track total requests to this instance (for debugging/monitoring)
   instanceRequestCount++;
-  
+
   // Get or create rate limit entry
   let entry = rateLimitStore.get(key);
-  
+
   if (!entry || entry.windowStart + windowMs < now) {
     // New window - log when starting fresh (helps identify cold starts)
     if (!entry) {
@@ -182,19 +186,19 @@ function checkRateLimit(clientIp, maxRequests = RATE_LIMIT_MAX_REQUESTS, windowM
       count: 0,
     };
   }
-  
+
   entry.count++;
   rateLimitStore.set(key, entry);
-  
+
   const remaining = Math.max(0, maxRequests - entry.count);
   const resetAt = new Date(entry.windowStart + windowMs);
   const allowed = entry.count <= maxRequests;
-  
+
   // Log rate limit violations (helps identify attacks)
   if (!allowed) {
     console.warn(`[RATE_LIMIT] IP ${clientIp} exceeded limit (${entry.count}/${maxRequests}) on instance ${INSTANCE_ID}`);
   }
-  
+
   // Clean up old entries periodically (every 1000 entries or when store gets large)
   if (rateLimitStore.size > 5000 || (instanceRequestCount % 1000 === 0 && rateLimitStore.size > 100)) {
     const cutoff = now - windowMs;
@@ -209,7 +213,7 @@ function checkRateLimit(clientIp, maxRequests = RATE_LIMIT_MAX_REQUESTS, windowM
       console.log(`[RATE_LIMIT] Cleaned ${cleaned} expired entries, ${rateLimitStore.size} remaining`);
     }
   }
-  
+
   return {
     allowed,
     remaining,
@@ -228,7 +232,7 @@ function checkRateLimit(clientIp, maxRequests = RATE_LIMIT_MAX_REQUESTS, windowM
  */
 function rateLimitExceededResponse(headers, rateLimitInfo) {
   const retryAfter = Math.max(1, Math.ceil((rateLimitInfo.resetAt - Date.now()) / 1000));
-  
+
   return {
     statusCode: 429,
     headers: {
@@ -255,7 +259,7 @@ function rateLimitExceededResponse(headers, rateLimitInfo) {
  */
 function validateAuthHeader(event) {
   const authHeader = event.headers.authorization || event.headers.Authorization;
-  
+
   if (!authHeader) {
     return {
       valid: false,
@@ -263,9 +267,9 @@ function validateAuthHeader(event) {
       error: 'Authorization header required',
     };
   }
-  
+
   const token = authHeader.replace(/^Bearer\s+/i, '').trim();
-  
+
   if (!token) {
     return {
       valid: false,
@@ -273,7 +277,7 @@ function validateAuthHeader(event) {
       error: 'Invalid authorization token format',
     };
   }
-  
+
   return {
     valid: true,
     token,

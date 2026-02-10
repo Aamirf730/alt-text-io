@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from '@/lib/supabase';
+import { getApiBase } from '@/lib/utils';
 import { toast } from "sonner";
 import { RefreshCw, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -54,13 +55,7 @@ export default function AdminDashboard() {
 
     const loadUsers = async (token: string) => {
         try {
-            let apiBase;
-            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-                // Use localhost Netlify Dev functions (port 9999)
-                apiBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:9999/.netlify/functions';
-            } else {
-                apiBase = '/.netlify/functions';
-            }
+            const apiBase = getApiBase();
 
             const response = await fetch(`${apiBase}/admin-get-users`, {
                 method: 'GET',

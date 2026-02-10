@@ -62,11 +62,11 @@ export default function TermsPage() {
                             </p>
                             <div className="bg-gray-50 rounded-lg p-6 mb-4">
                                 <ul className="space-y-3 text-gray-700">
-                                    <li><strong>Free Plan:</strong> $0/month - 50 credits per month</li>
-                                    <li><strong>Tier 1:</strong> $10/month ($108/year) - 1,000 credits per month</li>
-                                    <li><strong>Tier 2:</strong> $20/month ($216/year) - 2,300 credits per month</li>
-                                    <li><strong>Tier 3:</strong> $30/month ($324/year) - 3,500 credits per month</li>
-                                    <li><strong>Pay as you go:</strong> $3 for 350 credits or $5 for 550 credits (never expire)</li>
+                                    <li><strong>Free Plan:</strong> $0/month - 30 credits per month</li>
+                                    <li><strong>Lite:</strong> $3/month ($30/year) - 150 images per month</li>
+                                    <li><strong>Standard:</strong> $5/month ($48/year) - 400 images per month</li>
+                                    <li><strong>Pro:</strong> $9/month ($86/year) - 1,000 images per month</li>
+                                    <li><strong>Pay as you go:</strong> $5 for 100 images or $10 for 250 images (never expire)</li>
                                 </ul>
                             </div>
                             <p className="text-gray-700 leading-relaxed">

@@ -27,8 +27,12 @@ class AltTextPro_API_Client
 
     /**
      * Generate alt-text for an image
+     * 
+     * @param int    $attachment_id The attachment ID
+     * @param string $context       Individual image context (optional)
+     * @param string $blog_context  Global blog context from settings (optional)
      */
-    public function generate_alt_text($attachment_id, $context = '')
+    public function generate_alt_text($attachment_id, $context = '', $blog_context = '')
     {
         if (empty($this->api_key)) {
             return array(
@@ -61,10 +65,13 @@ class AltTextPro_API_Client
             );
         }
 
+        // Combine blog context and individual image context
+        $combined_context = trim($blog_context . ($blog_context && $context ? ' | ' : '') . $context);
+
         // Prepare request data
         $request_data = array(
             'image_base64' => $image_data,
-            'context' => $context
+            'context' => $combined_context
         );
 
         // Make API request
@@ -347,8 +354,17 @@ class AltTextPro_API_Client
                     $error_message = esc_html__('Rate limit exceeded. Please try again later.', 'alt-text-pro');
                     break;
                 case 500:
-                    $error_message = esc_html__('Server error. Please try again later.', 'alt-text-pro');
+                    // Only use generic message if no specific message was returned by the API
+                    if (empty($error_message) || $error_message === sprintf(esc_html__('API error (Status: %1$d)', 'alt-text-pro'), 500)) {
+                        $error_message = esc_html__('Server error. Please try again later.', 'alt-text-pro');
+                    }
                     break;
+            }
+
+            // Handle specific AI service errors (moved inside status >= 400 block)
+            if (!empty($error_message) && (stripos($error_message, 'AI Service') !== false || stripos($error_message, 'empty response') !== false)) {
+                $raw_details = !empty($decoded_body['error']) ? ' (' . $decoded_body['error'] . ')' : '';
+                $error_message = esc_html__('AI service returned an empty or blocked response. This may be due to image content restrictions or API limitations.', 'alt-text-pro') . $raw_details;
             }
 
             return array(
@@ -379,14 +395,12 @@ class AltTextPro_API_Client
             $error_message = $decoded_body['error'];
 
             // Check if it's an authentication error
-            if (stripos($error_message, 'invalid') !== false || stripos($error_message, 'expired') !== false || stripos($error_message, 'token') !== false) {
+            // Only override if status code is 401 (Unauthorized)
+            if ($status_code === 401) {
                 $error_message = esc_html__('Invalid or expired API key. Please check your API key in settings and ensure it\'s correct.', 'alt-text-pro');
             }
 
-            // Handle specific AI service errors
-            if (stripos($error_message, 'AI Service') !== false || stripos($error_message, 'empty response') !== false) {
-                $error_message = esc_html__('AI service returned an empty response. This may be due to image content restrictions or API limitations. Please try again or use a different image.', 'alt-text-pro');
-            }
+            // The mapping for AI Service error is now handled above for status >= 400
 
             return array(
                 'success' => false,

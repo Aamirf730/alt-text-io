@@ -102,7 +102,7 @@ const Navbar = ({ onSignInClick, onSignUpClick }: NavbarProps) => {
                     <div className="flex items-center justify-between h-12">
                         <div className="flex items-center">
                             <Link href="/" className="flex items-center space-x-3">
-                                <img
+                                <Image
                                     src="/logo-alt-text-pro.png"
                                     alt="Alt Text Pro Logo"
                                     width={40}

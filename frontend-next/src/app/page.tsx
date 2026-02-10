@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { supabase } from '@/lib/supabase';
+import { getApiBase } from '@/lib/utils';
 import { toast } from "sonner";
 import {
   Brain, Zap, CheckCircle, Star, ArrowRight, Users, Shield, Rocket,
@@ -126,12 +127,7 @@ export default function LandingPage() {
           return;
         }
 
-        let apiBase;
-        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-          apiBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:9999/.netlify/functions';
-        } else {
-          apiBase = '/.netlify/functions';
-        }
+        const apiBase = getApiBase();
 
         const endpoint = `${apiBase}/generate-alt-text`;
 
@@ -216,7 +212,7 @@ export default function LandingPage() {
             emailRedirectTo: window.location.origin + '/email-confirmed',
             data: {
               subscription_plan: 'free',
-              credits_remaining: 50
+              credits_remaining: 30
             }
           }
         });
@@ -377,7 +373,7 @@ export default function LandingPage() {
                 <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
                   <div className="flex items-center space-x-1">
                     <CheckCircle className="h-4 w-4 text-green-500" />
-                    <span>50 free credits</span>
+                    <span>30 free credits</span>
                   </div>
                   <div className="flex items-center space-x-1">
                     <CheckCircle className="h-4 w-4 text-green-500" />
@@ -809,36 +805,41 @@ export default function LandingPage() {
             <p className="text-xl text-gray-600 mb-4">Choose the plan that fits your needs</p>
 
             {/* Billing Cycle Toggle */}
-            <div className="flex items-center justify-center gap-4 mt-6">
-              <span className={`text-sm font-medium transition-colors min-w-[60px] text-right ${billingCycle === 'monthly' ? 'text-gray-900' : 'text-gray-500'}`}>
-                Monthly
-              </span>
-              <button
-                type="button"
-                onClick={() => setBillingCycle(billingCycle === 'monthly' ? 'annual' : 'monthly')}
-                className={`relative inline-flex h-8 w-16 items-center rounded-full transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 ${billingCycle === 'annual'
-                  ? 'bg-teal-600 focus:ring-teal-400'
-                  : 'bg-gray-300 focus:ring-gray-400'
-                  }`}
-                style={billingCycle === 'annual'
-                  ? { background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }
-                  : {}
-                }
-                role="switch"
-                aria-checked={billingCycle === 'annual'}
-              >
-                <span
-                  className={`inline-block h-6 w-6 transform rounded-full bg-white shadow-lg transition-transform duration-300 ${billingCycle === 'annual' ? 'translate-x-9' : 'translate-x-1'
+            <div className="flex flex-col items-center justify-center mt-6">
+              <div className="flex items-center justify-center gap-4">
+                <span className={`text-sm font-medium transition-colors ${billingCycle === 'monthly' ? 'text-gray-900' : 'text-gray-500'}`}>
+                  Monthly
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setBillingCycle(billingCycle === 'monthly' ? 'annual' : 'monthly')}
+                  className={`relative inline-flex h-8 w-16 items-center rounded-full transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 ${billingCycle === 'annual'
+                    ? 'bg-teal-600 focus:ring-teal-400'
+                    : 'bg-gray-300 focus:ring-gray-400'
                     }`}
-                />
-              </button>
-              <span className={`text-sm font-medium transition-colors min-w-[50px] text-left ${billingCycle === 'annual' ? 'text-gray-900' : 'text-gray-500'}`}>
-                Annual
-              </span>
-              <span className={`text-xs text-green-600 font-semibold bg-green-50 px-2 py-1 rounded transition-opacity duration-300 min-w-[70px] text-center ${billingCycle === 'annual' ? 'opacity-100' : 'opacity-0'
-                }`}>
-                Save 10%
-              </span>
+                  style={billingCycle === 'annual'
+                    ? { background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }
+                    : {}
+                  }
+                  role="switch"
+                  aria-checked={billingCycle === 'annual'}
+                >
+                  <span
+                    className={`inline-block h-6 w-6 transform rounded-full bg-white shadow-lg transition-transform duration-300 ${billingCycle === 'annual' ? 'translate-x-9' : 'translate-x-1'
+                      }`}
+                  />
+                </button>
+                <div className="relative">
+                  <span className={`text-sm font-medium transition-colors ${billingCycle === 'annual' ? 'text-gray-900' : 'text-gray-500'}`}>
+                    Annual
+                  </span>
+                  <span className={`absolute left-full ml-2 top-1/2 -translate-y-1/2 text-xs text-green-600 font-semibold bg-green-50 px-2 py-1 rounded transition-opacity duration-300 whitespace-nowrap text-center ${billingCycle === 'annual' ? 'opacity-100' : 'opacity-0'
+                    }`}>
+                    Save ~20%
+                  </span>
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 mt-4 italic">1 Credit = 1 AI-Optimized Alt Text</p>
             </div>
           </div>
 
@@ -859,15 +860,15 @@ export default function LandingPage() {
                 <div className="space-y-3 mb-8">
                   <div className="flex items-center">
                     <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-gray-700">50 Credits</span>
+                    <span className="text-sm text-gray-700">30 Free SEO Alt Texts</span>
                   </div>
                   <div className="flex items-center">
                     <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-gray-700">Basic support</span>
+                    <span className="text-sm text-gray-700">Full WordPress Plugin</span>
                   </div>
                   <div className="flex items-center">
                     <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-gray-700">API access</span>
+                    <span className="text-[13px] text-gray-700">Media Library Sync</span>
                   </div>
                 </div>
 
@@ -880,44 +881,48 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* Tier 1 */}
-            <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-100 transition-colors"
+            {/* Lite */}
+            <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-100 transition-colors relative"
               onMouseEnter={(e) => e.currentTarget.style.borderColor = 'rgba(13, 79, 94, 0.3)'}
               onMouseLeave={(e) => e.currentTarget.style.borderColor = '#f3f4f6'}>
+              {billingCycle === 'annual' && (
+                <div className="absolute top-2 right-2">
+                  <Badge variant="secondary" className="bg-green-50 text-green-700 border-none text-[10px] py-0.5 px-2 font-bold shadow-sm">
+                    $2.50/mo
+                  </Badge>
+                </div>
+              )}
               <div className="text-center">
-                <h3 className="text-2xl font-bold text-gray-900 mb-2">Tier 1</h3>
+                <h3 className="text-2xl font-bold text-gray-900 mb-2">Lite</h3>
                 <div className="text-3xl font-bold mb-6" style={{ color: '#003a42' }}>
-                  ${billingCycle === 'monthly' ? '10' : '108'}
+                  ${billingCycle === 'monthly' ? '3' : '30'}
                   <span className="text-xl text-gray-600 font-normal ml-1">USD</span>
                   <span className="text-xs text-gray-500 font-normal ml-1">
                     {billingCycle === 'monthly' ? 'per Month' : 'per Year'}
                   </span>
                 </div>
-                {billingCycle === 'annual' && (
-                  <p className="text-xs text-gray-500 mb-2">$9/month billed annually</p>
-                )}
 
                 <div className="space-y-3 mb-8">
                   <div className="flex items-center">
                     <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-gray-700">1,000 Credits{billingCycle === 'annual' ? '/Month' : ''}</span>
+                    <span className="text-[13px] text-gray-700">150 Credits{billingCycle === 'annual' ? '/Month' : ''}</span>
                   </div>
                   <div className="flex items-center">
                     <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-gray-700">Priority support</span>
+                    <span className="text-[13px] text-gray-700">Auto-Describe on Upload</span>
                   </div>
                   <div className="flex items-center">
                     <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-gray-700">API access</span>
+                    <span className="text-[13px] text-gray-700">High-Accuracy Visual AI</span>
                   </div>
                   <div className="flex items-center">
                     <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-gray-700">Bulk processing</span>
+                    <span className="text-[13px] text-gray-700">Standard Email Support</span>
                   </div>
                 </div>
 
                 <Button
-                  onClick={() => handlePlanSelection('tier1', 'Tier 1', billingCycle === 'monthly' ? '$10' : '$108')}
+                  onClick={() => handlePlanSelection('tier1', 'Lite', billingCycle === 'monthly' ? '$3' : '$30')}
                   className="w-full text-white"
                   style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
                   onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #003a42 0%, #0D4F5E 100%)'}
@@ -928,49 +933,53 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* Tier 2 - Most Popular */}
+            {/* Standard - Most Popular */}
             <div className="bg-white rounded-2xl shadow-lg p-8 border-2 relative transform scale-105" style={{ borderColor: '#0D4F5E' }}>
               <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
                 <span className="text-white px-4 py-1 rounded-full text-sm font-medium" style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}>Most Popular</span>
               </div>
+              {billingCycle === 'annual' && (
+                <div className="absolute top-2 right-2">
+                  <Badge variant="secondary" className="bg-green-50 text-green-700 border-none text-[10px] py-0.5 px-2 font-bold shadow-sm">
+                    $4/mo
+                  </Badge>
+                </div>
+              )}
               <div className="text-center">
-                <h3 className="text-2xl font-bold text-gray-900 mb-2">Tier 2</h3>
+                <h3 className="text-2xl font-bold text-gray-900 mb-2">Standard</h3>
                 <div className="text-3xl font-bold mb-6" style={{ color: '#003a42' }}>
-                  ${billingCycle === 'monthly' ? '20' : '216'}
+                  ${billingCycle === 'monthly' ? '5' : '48'}
                   <span className="text-xl text-gray-600 font-normal ml-1">USD</span>
                   <span className="text-xs text-gray-500 font-normal ml-1">
                     {billingCycle === 'monthly' ? 'per Month' : 'per Year'}
                   </span>
                 </div>
-                {billingCycle === 'annual' && (
-                  <p className="text-xs text-gray-500 mb-2">$18/month billed annually</p>
-                )}
 
                 <div className="space-y-3 mb-8">
                   <div className="flex items-center">
                     <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-gray-700">2,300 Credits{billingCycle === 'annual' ? '/Month' : ''}</span>
+                    <span className="text-[13px] text-gray-700">400 Credits{billingCycle === 'annual' ? '/Month' : ''}</span>
                   </div>
                   <div className="flex items-center">
                     <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-gray-700">Premium support</span>
+                    <span className="text-[13px] text-gray-700">Bulk One-Click Library Fix</span>
                   </div>
                   <div className="flex items-center">
                     <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-gray-700">API Access</span>
+                    <span className="text-[13px] text-gray-700">Multi-Language AI (130+)</span>
                   </div>
                   <div className="flex items-center">
                     <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-gray-700">Priority processing</span>
+                    <span className="text-[13px] text-gray-700">SEO & WCAG Compliance</span>
                   </div>
                   <div className="flex items-center">
                     <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-gray-700">Bulk processing</span>
+                    <span className="text-[13px] text-gray-700">Priority Support</span>
                   </div>
                 </div>
 
                 <Button
-                  onClick={() => handlePlanSelection('tier2', 'Tier 2', billingCycle === 'monthly' ? '$20' : '$216')}
+                  onClick={() => handlePlanSelection('tier2', 'Standard', billingCycle === 'monthly' ? '$5' : '$48')}
                   className="w-full text-white"
                   style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
                   onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #003a42 0%, #0D4F5E 100%)'}
@@ -981,48 +990,52 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* Tier 3 */}
-            <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-100 transition-colors"
+            {/* Pro */}
+            <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-100 transition-colors relative"
               onMouseEnter={(e) => e.currentTarget.style.borderColor = 'rgba(13, 79, 94, 0.3)'}
               onMouseLeave={(e) => e.currentTarget.style.borderColor = '#f3f4f6'}>
+              {billingCycle === 'annual' && (
+                <div className="absolute top-2 right-2">
+                  <Badge variant="secondary" className="bg-green-50 text-green-700 border-none text-[10px] py-0.5 px-2 font-bold shadow-sm">
+                    $7.17/mo
+                  </Badge>
+                </div>
+              )}
               <div className="text-center">
-                <h3 className="text-2xl font-bold text-gray-900 mb-2">Tier 3</h3>
+                <h3 className="text-2xl font-bold text-gray-900 mb-2">Pro</h3>
                 <div className="text-3xl font-bold mb-6" style={{ color: '#003a42' }}>
-                  ${billingCycle === 'monthly' ? '30' : '324'}
+                  ${billingCycle === 'monthly' ? '9' : '86'}
                   <span className="text-xl text-gray-600 font-normal ml-1">USD</span>
                   <span className="text-xs text-gray-500 font-normal ml-1">
                     {billingCycle === 'monthly' ? 'per Month' : 'per Year'}
                   </span>
                 </div>
-                {billingCycle === 'annual' && (
-                  <p className="text-xs text-gray-500 mb-2">$27/month billed annually</p>
-                )}
 
                 <div className="space-y-3 mb-8">
                   <div className="flex items-center">
                     <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-gray-700">3,500 Credits{billingCycle === 'annual' ? '/Month' : ''}</span>
+                    <span className="text-[13px] text-gray-700">1,000 Credits{billingCycle === 'annual' ? '/Month' : ''}</span>
                   </div>
                   <div className="flex items-center">
                     <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-gray-700">Premium support</span>
+                    <span className="text-[13px] text-gray-700">Advanced Context-Aware AI</span>
                   </div>
                   <div className="flex items-center">
                     <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-gray-700">API Access</span>
+                    <span className="text-[13px] text-gray-700">Full Auto-Pilot Workflow</span>
                   </div>
                   <div className="flex items-center">
                     <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-gray-700">Priority processing</span>
+                    <span className="text-[13px] text-gray-700">Custom Post Type Support</span>
                   </div>
                   <div className="flex items-center">
                     <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-gray-700">Bulk Processing</span>
+                    <span className="text-[13px] text-gray-700">Premium 24/7 Support</span>
                   </div>
                 </div>
 
                 <Button
-                  onClick={() => handlePlanSelection('tier3', 'Tier 3', billingCycle === 'monthly' ? '$30' : '$324')}
+                  onClick={() => handlePlanSelection('tier3', 'Pro', billingCycle === 'monthly' ? '$9' : '$86')}
                   className="w-full text-white"
                   style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
                   onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #003a42 0%, #0D4F5E 100%)'}
@@ -1046,39 +1059,39 @@ export default function LandingPage() {
               </div>
 
               <div className="grid md:grid-cols-2 gap-4 mb-4">
-                {/* Small Pack - $3 */}
-                <div className="bg-white rounded-xl p-4 border border-teal-200">
-                  <div className="flex items-center justify-between mb-3">
-                    <div>
-                      <span className="text-2xl font-bold" style={{ color: '#003a42' }}>$3</span>
-                      <span className="text-gray-500 ml-2">for</span>
-                      <span className="text-xl font-semibold text-[#0D4F5E] ml-2">350 Credits</span>
-                    </div>
-                  </div>
-                  <Button
-                    onClick={() => handlePlanSelection('small_pack', 'Small Pack', '$3')}
-                    className="w-full text-white"
-                    style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
-                  >
-                    Buy 350 Credits
-                  </Button>
-                </div>
-
-                {/* Credit Pack - $5 */}
+                {/* Small Pack - $5 for 100 */}
                 <div className="bg-white rounded-xl p-4 border border-teal-200">
                   <div className="flex items-center justify-between mb-3">
                     <div>
                       <span className="text-2xl font-bold" style={{ color: '#003a42' }}>$5</span>
                       <span className="text-gray-500 ml-2">for</span>
-                      <span className="text-xl font-semibold text-[#0D4F5E] ml-2">550 Credits</span>
+                      <span className="text-xl font-semibold text-[#0D4F5E] ml-2">100 Images</span>
                     </div>
                   </div>
                   <Button
-                    onClick={() => handlePlanSelection('credit_pack', 'Credit Pack', '$5')}
+                    onClick={() => handlePlanSelection('small_pack', 'Small Pack', '$5')}
                     className="w-full text-white"
                     style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
                   >
-                    Buy 550 Credits
+                    Buy 100 Images
+                  </Button>
+                </div>
+
+                {/* Credit Pack - $10 for 250 */}
+                <div className="bg-white rounded-xl p-4 border border-teal-200">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <span className="text-2xl font-bold" style={{ color: '#003a42' }}>$10</span>
+                      <span className="text-gray-500 ml-2">for</span>
+                      <span className="text-xl font-semibold text-[#0D4F5E] ml-2">250 Images</span>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={() => handlePlanSelection('credit_pack', 'Credit Pack', '$10')}
+                    className="w-full text-white"
+                    style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
+                  >
+                    Buy 250 Images
                   </Button>
                 </div>
               </div>
@@ -1358,19 +1371,19 @@ export default function LandingPage() {
                       <>
                         <div className="flex items-center">
                           <Check className="h-4 w-4 text-green-500 mr-2" />
-                          <span className="text-sm text-gray-700">1,000 Credits per month</span>
+                          <span className="text-[13px] text-gray-700">150 Credits/month</span>
                         </div>
                         <div className="flex items-center">
                           <Check className="h-4 w-4 text-green-500 mr-2" />
-                          <span className="text-sm text-gray-700">Priority support</span>
+                          <span className="text-[13px] text-gray-700">Auto-Describe on Upload</span>
                         </div>
                         <div className="flex items-center">
                           <Check className="h-4 w-4 text-green-500 mr-2" />
-                          <span className="text-sm text-gray-700">API access</span>
+                          <span className="text-[13px] text-gray-700">High-Accuracy Visual AI</span>
                         </div>
                         <div className="flex items-center">
                           <Check className="h-4 w-4 text-green-500 mr-2" />
-                          <span className="text-sm text-gray-700">Bulk processing</span>
+                          <span className="text-[13px] text-gray-700">Standard Email Support</span>
                         </div>
                       </>
                     )}
@@ -1378,39 +1391,75 @@ export default function LandingPage() {
                       <>
                         <div className="flex items-center">
                           <Check className="h-4 w-4 text-green-500 mr-2" />
-                          <span className="text-sm text-gray-700">2,500 Credits per month</span>
+                          <span className="text-[13px] text-gray-700">400 Credits/month</span>
                         </div>
                         <div className="flex items-center">
                           <Check className="h-4 w-4 text-green-500 mr-2" />
-                          <span className="text-sm text-gray-700">Premium support</span>
+                          <span className="text-[13px] text-gray-700">Bulk One-Click Library Fix</span>
                         </div>
                         <div className="flex items-center">
                           <Check className="h-4 w-4 text-green-500 mr-2" />
-                          <span className="text-sm text-gray-700">API access</span>
+                          <span className="text-[13px] text-gray-700">Multi-Language AI (130+)</span>
                         </div>
                         <div className="flex items-center">
                           <Check className="h-4 w-4 text-green-500 mr-2" />
-                          <span className="text-sm text-gray-700">Bulk processing</span>
+                          <span className="text-[13px] text-gray-700">SEO & WCAG Compliance</span>
                         </div>
                         <div className="flex items-center">
                           <Check className="h-4 w-4 text-green-500 mr-2" />
-                          <span className="text-sm text-gray-700">Custom integrations</span>
+                          <span className="text-[13px] text-gray-700">Priority Support</span>
                         </div>
                       </>
                     )}
-                    {selectedPlan.id === 'pay_as_go' && (
+                    {selectedPlan.id === 'tier3' && (
                       <>
                         <div className="flex items-center">
                           <Check className="h-4 w-4 text-green-500 mr-2" />
-                          <span className="text-sm text-gray-700">300 Credits (one-time)</span>
+                          <span className="text-[13px] text-gray-700">1,000 Credits/month</span>
+                        </div>
+                        <div className="flex items-center">
+                          <Check className="h-4 w-4 text-green-500 mr-2" />
+                          <span className="text-[13px] text-gray-700">Advanced Context-Aware AI</span>
+                        </div>
+                        <div className="flex items-center">
+                          <Check className="h-4 w-4 text-green-500 mr-2" />
+                          <span className="text-[13px] text-gray-700">Full Auto-Pilot Workflow</span>
+                        </div>
+                        <div className="flex items-center">
+                          <Check className="h-4 w-4 text-green-500 mr-2" />
+                          <span className="text-[13px] text-gray-700">Custom Post Type Support</span>
+                        </div>
+                        <div className="flex items-center">
+                          <Check className="h-4 w-4 text-green-500 mr-2" />
+                          <span className="text-[13px] text-gray-700">Premium 24/7 Support</span>
+                        </div>
+                      </>
+                    )}
+                    {selectedPlan.id === 'small_pack' && (
+                      <>
+                        <div className="flex items-center">
+                          <Check className="h-4 w-4 text-green-500 mr-2" />
+                          <span className="text-[13px] text-gray-700">100 Credits (one-time)</span>
+                        </div>
+                        <div className="flex items-center">
+                          <Check className="h-4 w-4 text-green-500 mr-2" />
+                          <span className="text-[13px] text-gray-700">No monthly commitment</span>
+                        </div>
+                        <div className="flex items-center">
+                          <Check className="h-4 w-4 text-green-500 mr-2" />
+                          <span className="text-[13px] text-gray-700">Standard support</span>
+                        </div>
+                      </>
+                    )}
+                    {selectedPlan.id === 'credit_pack' && (
+                      <>
+                        <div className="flex items-center">
+                          <Check className="h-4 w-4 text-green-500 mr-2" />
+                          <span className="text-[13px] text-gray-700">250 Credits (one-time)</span>
                         </div>
                         <div className="flex items-center">
                           <Check className="h-4 w-4 text-green-500 mr-2" />
                           <span className="text-sm text-gray-700">No monthly commitment</span>
-                        </div>
-                        <div className="flex items-center">
-                          <Check className="h-4 w-4 text-green-500 mr-2" />
-                          <span className="text-sm text-gray-700">API access</span>
                         </div>
                         <div className="flex items-center">
                           <Check className="h-4 w-4 text-green-500 mr-2" />

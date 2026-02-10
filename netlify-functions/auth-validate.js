@@ -49,94 +49,114 @@ exports.handler = async (event, context) => {
       return {
         statusCode: 401,
         headers,
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           success: false,
-          error: 'Authorization header required' 
+          error: 'Authorization header required'
         }),
       };
     }
 
     const token = authHeader.replace('Bearer ', '').trim();
-    
+
     // Validate token format (basic check)
     if (!token) {
       return {
         statusCode: 401,
         headers,
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           success: false,
-          error: 'Authorization token required' 
+          error: 'Authorization token required'
         }),
       };
     }
-    
+
     let authUser = null;
     let userId = null;
-    
-    // Check if this is an API key (starts with 'alt_')
-    if (token.startsWith('alt_')) {
-      console.log('Validating API key format:', token.substring(0, 20) + '...');
-      
-      // Validate API key
+
+    // Check if this is an API key (starts with 'alt_' or legacy 'altai_')
+    if (token.startsWith('alt_') || token.startsWith('altai_')) {
+      console.log('🔑 [auth-validate] Validating API key:', token.substring(0, 20) + '...');
+
+      // First try RPC function
+      let userId = null;
       const { data: userIdData, error: apiKeyError } = await supabase
         .rpc('validate_api_key', { p_api_key: token });
-      
-      console.log('API key validation result:', { userIdData, apiKeyError, hasUserId: !!userIdData });
-      
+
       if (apiKeyError) {
-        console.error('API key validation RPC error:', apiKeyError);
+        console.error('❌ [auth-validate] RPC validate_api_key error:', apiKeyError.message, apiKeyError.details);
+      }
+
+      console.log('🔍 [auth-validate] RPC result:', { userIdData, hasError: !!apiKeyError });
+
+      if (!apiKeyError && userIdData) {
+        userId = userIdData;
+        console.log('✅ [auth-validate] RPC validation successful, user_id:', userId);
+      } else {
+        // Fallback: Direct table query if RPC fails
+        console.log('⚠️ [auth-validate] RPC failed, trying direct table query...');
+        const { data: apiKeyRecord, error: directError } = await supabase
+          .from('api_keys')
+          .select('user_id, is_active')
+          .eq('api_key', token)
+          .single();
+
+        if (directError) {
+          console.error('❌ [auth-validate] Direct query error:', directError.message);
+        }
+
+        console.log('🔍 [auth-validate] Direct query result:', {
+          found: !!apiKeyRecord,
+          isActive: apiKeyRecord?.is_active,
+          userId: apiKeyRecord?.user_id
+        });
+
+        if (apiKeyRecord?.user_id && apiKeyRecord?.is_active) {
+          userId = apiKeyRecord.user_id;
+          console.log('✅ [auth-validate] Direct query successful, user_id:', userId);
+        }
+      }
+
+      if (!userId) {
+        console.error('❌ [auth-validate] API key validation failed completely for:', token.substring(0, 20) + '...');
         return {
           statusCode: 401,
           headers,
-          body: JSON.stringify({ 
+          body: JSON.stringify({
             success: false,
-            error: `API key validation failed: ${apiKeyError.message || 'Unknown error'}` 
+            error: 'Invalid or expired API key'
           }),
         };
       }
-      
-      if (!userIdData) {
-        console.error('API key not found or inactive:', token.substring(0, 20) + '...');
-        return {
-          statusCode: 401,
-          headers,
-          body: JSON.stringify({ 
-            success: false,
-            error: 'Invalid or expired API key' 
-          }),
-        };
-      }
-      
-      userId = userIdData;
-      console.log('Found user ID from API key:', userId);
-      
+
+      console.log('🔑 [auth-validate] Found user ID from API key:', userId);
+
       // Get user info using service role
       const { data: userData, error: userError } = await supabase.auth.admin.getUserById(userId);
-      
+
       if (userError) {
         console.error('User lookup error:', userError);
         return {
           statusCode: 401,
           headers,
-          body: JSON.stringify({ 
+          body: JSON.stringify({
             success: false,
-            error: `User lookup failed: ${userError.message}` 
+            error: `User lookup failed: ${userError.message}`
           }),
         };
       }
-      
+
       if (!userData?.user) {
         console.error('User not found for ID:', userId);
         return {
           statusCode: 401,
           headers,
-          body: JSON.stringify({ 
+          body: JSON.stringify({
             success: false,
-            error: 'User not found' 
+            error: 'User not found'
           }),
         };
       }
-      
+
       authUser = userData.user;
       console.log('Successfully validated API key for user:', authUser.email);
     } else {
@@ -147,13 +167,13 @@ exports.handler = async (event, context) => {
         return {
           statusCode: 500,
           headers,
-          body: JSON.stringify({ 
+          body: JSON.stringify({
             success: false,
-            error: 'Server configuration error' 
+            error: 'Server configuration error'
           }),
         };
       }
-      
+
       try {
         // Try using Supabase REST API to get user info
         const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
@@ -164,7 +184,7 @@ exports.handler = async (event, context) => {
             'Content-Type': 'application/json'
           }
         });
-        
+
         if (response.ok) {
           authUser = await response.json();
           userId = authUser.id;
@@ -173,9 +193,9 @@ exports.handler = async (event, context) => {
           return {
             statusCode: 401,
             headers,
-            body: JSON.stringify({ 
+            body: JSON.stringify({
               success: false,
-              error: errorData.message || errorData.error_description || 'Invalid token' 
+              error: errorData.message || errorData.error_description || 'Invalid token'
             }),
           };
         }
@@ -184,21 +204,21 @@ exports.handler = async (event, context) => {
         return {
           statusCode: 401,
           headers,
-          body: JSON.stringify({ 
+          body: JSON.stringify({
             success: false,
-            error: 'Token validation failed' 
+            error: 'Token validation failed'
           }),
         };
       }
     }
-    
+
     if (!authUser) {
       return {
         statusCode: 401,
         headers,
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           success: false,
-          error: 'User not found' 
+          error: 'User not found'
         }),
       };
     }
@@ -214,9 +234,9 @@ exports.handler = async (event, context) => {
       return {
         statusCode: 404,
         headers,
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           success: false,
-          error: 'User profile not found' 
+          error: 'User profile not found'
         }),
       };
     }
@@ -260,9 +280,9 @@ exports.handler = async (event, context) => {
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ 
+      body: JSON.stringify({
         success: false,
-        error: 'Internal server error' 
+        error: 'Internal server error'
       }),
     };
   }

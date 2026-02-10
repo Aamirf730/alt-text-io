@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
+import { getApiBase } from '@/lib/utils';
 import { PAYPAL_CLIENT_ID } from '@/lib/paypal';
 import { toast } from 'sonner';
 
@@ -86,12 +87,7 @@ const PayPalSubscriptionButton: React.FC<PayPalSubscriptionButtonProps> = ({
                     }
 
                     // Determine API base URL
-                    let apiBase;
-                    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-                        apiBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:9999/.netlify/functions';
-                    } else {
-                        apiBase = '/.netlify/functions';
-                    }
+                    const apiBase = getApiBase();
 
                     // Complete the subscription on our backend
                     const response = await fetch(`${apiBase}/complete-payment`, {

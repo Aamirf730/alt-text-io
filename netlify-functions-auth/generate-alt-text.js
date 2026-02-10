@@ -62,9 +62,9 @@ function createGeminiError(message, statusCode = 502) {
 
 // AI integration
 async function generateAltTextWithGemini(imageBase64, context = null) {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.AI_API_KEY || process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    throw createGeminiError('GEMINI_API_KEY is not configured', 500);
+    throw createGeminiError('AI API key is not configured (AI_API_KEY or GEMINI_API_KEY)', 500);
   }
 
   const mimeType = detectImageMimeType(imageBase64);
@@ -112,7 +112,7 @@ Now write ONE sentence describing this image (no formatting, no options, just th
     { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' }
   ];
 
-  const modelId = process.env.GEMINI_MODEL || 'models/gemini-2.5-flash';
+  const modelId = process.env.AI_MODEL || process.env.GEMINI_MODEL || 'models/gemini-2.5-flash';
   const apiBase = process.env.GEMINI_API_BASE || 'https://generativelanguage.googleapis.com/v1beta';
   const url = `${apiBase}/${modelId}:generateContent?key=${apiKey}`;
 

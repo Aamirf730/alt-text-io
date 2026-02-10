@@ -9,7 +9,7 @@ const Footer = () => {
                 <div className="flex flex-col items-center text-center space-y-6">
                     {/* Logo & Company Info */}
                     <div className="flex items-center space-x-2">
-                        <img
+                        <Image
                             src="/logo-alt-text-pro.png"
                             alt="Alt Text Pro Logo"
                             width={40}
@@ -33,7 +33,7 @@ const Footer = () => {
 
                     {/* Copyright */}
                     <p className="text-gray-300 text-sm pt-4 border-t border-white/20 w-full">
-                        © 2024 Alt Text Pro. All rights reserved.
+                        © {new Date().getFullYear()} Alt Text Pro. All rights reserved.
                     </p>
                 </div>
             </div>
@@ -42,3 +42,4 @@ const Footer = () => {
 };
 
 export default Footer;
+

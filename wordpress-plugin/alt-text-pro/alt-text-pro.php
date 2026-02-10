@@ -3,7 +3,7 @@
  * Plugin Name: Alt Text Pro – AI Alt Text Generator for Image SEO & Accessibility
  * Plugin URI: https://www.alt-text.pro
  * Description: AI-powered alt text generator that automatically creates image alt tags for better SEO and accessibility. Generate alt text for all your images with one click.
- * Version: 1.4.58
+ * Version:           1.4.76
  * Author: Alt Text Pro
  * Author URI: https://www.alt-text.pro/about
  * License: GPL v2 or later
@@ -20,7 +20,8 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('ALT_TEXT_PRO_VERSION', '1.4.58'); // Version 1.4.58
+define('ALT_TEXT_PRO_VERSION', '1.4.76');
+// Version 1.4.68 - Fix data mismatch and background batching
 define('ALT_TEXT_PRO_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('ALT_TEXT_PRO_PLUGIN_PATH', plugin_dir_path(__FILE__));
 define('ALT_TEXT_PRO_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -126,6 +127,9 @@ class AltTextPro
             ));
         }
 
+        // Clear any scheduled events for bulk processing
+        wp_clear_scheduled_hook('alt_text_pro_bulk_process_batch');
+
         // Clear any cached data
         wp_cache_flush();
     }
@@ -137,6 +141,7 @@ class AltTextPro
     {
         // Clear scheduled events
         wp_clear_scheduled_hook('alt_text_pro_cleanup');
+        wp_clear_scheduled_hook('alt_text_pro_bulk_process_batch');
 
         // Clear cache
         wp_cache_flush();
@@ -173,6 +178,9 @@ class AltTextPro
      */
     public function enqueue_admin_scripts($hook)
     {
+        // Diagnostic logging: uncomment to see original hook names in error log
+        // error_log('Alt Text Pro Hook: ' . $hook);
+
         // Only load on relevant admin pages
         $allowed_pages = array(
             'upload.php',
@@ -203,7 +211,7 @@ class AltTextPro
         wp_enqueue_script(
             'alt-text-pro-admin',
             ALT_TEXT_PRO_PLUGIN_URL . 'assets/js/admin.js',
-            array('jquery', 'wp-util'),
+            array('jquery'),
             ALT_TEXT_PRO_VERSION,
             true
         );
@@ -250,10 +258,13 @@ class AltTextPro
         ));
 
         // Add page-specific inline scripts
+        // Debug: Log the hook to verify page detection
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log('Alt Text Pro: enqueue_admin_scripts hook = ' . $hook);
+        }
+
         if ($hook === 'alt-text-pro_page_alt-text-pro-settings') {
             $this->add_settings_inline_script();
-        } elseif ($hook === 'alt-text-pro_page_alt-text-pro-bulk') {
-            $this->add_bulk_process_inline_script();
         } elseif ($hook === 'alt-text-pro_page_alt-text-pro-logs') {
             $this->add_logs_inline_script();
         }
@@ -360,62 +371,6 @@ class AltTextPro
     }
 
     /**
-     * Add inline script for bulk process page
-     */
-    private function add_bulk_process_inline_script()
-    {
-        // Debug logging
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-            error_log('Alt Text Pro: Adding bulk process inline script');
-        }
-        
-        // Use output buffering to avoid escaping issues
-        ob_start();
-        ?>
-        jQuery(document).ready(function($) {
-        console.log('Alt Text Pro: Bulk process script loaded');
-        
-        // Debug: Log jQuery and DOM readiness
-        console.log('Alt Text Pro: jQuery version:', $.fn.jquery);
-        console.log('Alt Text Pro: Document ready, checking for buttons...');
-        console.log('Alt Text Pro: Start button exists:', $('#start-bulk-process').length > 0);
-        console.log('Alt Text Pro: Cancel button exists:', $('#cancel-bulk-process').length > 0);
-
-        // Prevent form submission globally
-        var form = document.getElementById('bulk-process-form');
-        if (form) {
-        form.addEventListener('submit', function(e) {
-        console.log('Alt Text Pro: Form submit prevented (DOM)');
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        return false;
-        }, true);
-        }
-
-        var bulkProcessor = {
-        processId: null,
-        isProcessing: false,
-        cancelRequested: false,
-        pendingCancel: false,
-        startRequest: null,
-        pendingBatchRequests: [],
-        statusInterval: null,
-        processingBatches: {},
-        notificationsShown: {},
-
-        init: function() {
-        console.log('Alt Text Pro: Initializing bulk processor');
-        
-        // Debug: Check if button exists
-        var $startBtn = $('#start-bulk-process');
-        var $cancelBtn = $('#cancel-bulk-process');
-        console.log('Alt Text Pro: Start button exists:', $startBtn.length > 0);
-        console.log('Alt Text Pro: Cancel button exists:', $cancelBtn.length > 0);
-        
-        // Debug logging (always log, not conditional on WP_DEBUG in JS)
-        if (typeof console !== 'undefined') {
         console.log('Alt Text Pro: jQuery version:', $.fn.jquery);
         console.log('Alt Text Pro: bulkProcessor object:', typeof bulkProcessor);
         }
@@ -437,7 +392,7 @@ class AltTextPro
 
         bindEvents: function() {
         var self = this;
-        
+
         console.log('Alt Text Pro: bindEvents() called');
 
         $('input[name="process_type"]').on('change', function() {
@@ -451,11 +406,12 @@ class AltTextPro
         // Start button handler - bind directly since we're in document.ready
         var $startBtn = $('#start-bulk-process');
         console.log('Alt Text Pro: Attempting to bind start button, button found:', $startBtn.length);
-        
+
         if ($startBtn.length === 0) {
         console.error('Alt Text Pro: ERROR - Start button not found in DOM!');
         if (typeof console !== 'undefined') {
-        console.error('Alt Text Pro: Available buttons:', $('button').map(function() { return this.id || this.className; }).get());
+        console.error('Alt Text Pro: Available buttons:', $('button').map(function() { return this.id || this.className;
+        }).get());
         }
         } else {
         $startBtn.off('click.bulkProcessor').on('click.bulkProcessor', function(e) {
@@ -477,7 +433,7 @@ class AltTextPro
         // Cancel button handler - bind directly since we're in document.ready
         var $cancelBtn = $('#cancel-bulk-process');
         console.log('Alt Text Pro: Attempting to bind cancel button, button found:', $cancelBtn.length);
-        
+
         if ($cancelBtn.length === 0) {
         console.error('Alt Text Pro: ERROR - Cancel button not found in DOM!');
         } else {
@@ -510,7 +466,7 @@ class AltTextPro
 
         startProcessing: function() {
         var self = this;
-        
+
         console.log('Alt Text Pro: startProcessing() called');
         console.log('Alt Text Pro: isProcessing:', this.isProcessing);
 
@@ -532,7 +488,7 @@ class AltTextPro
         }
 
         if (processType === 'selected') {
-            selectedImages = $('#image-list input[type="checkbox"]:checked').map(function() {
+        selectedImages = $('#image-list input[type="checkbox"]:checked').map(function() {
         return parseInt($(this).val());
         }).get();
 
@@ -561,7 +517,8 @@ class AltTextPro
 
         $('#start-bulk-process').hide();
         // Show cancel button with !important
-        $('#cancel-bulk-process').attr('style', 'display: inline-block !important; color: var(--danger-color) !important; border-color: var(--danger-color) !important;').show();
+        $('#cancel-bulk-process').attr('style', 'display: inline-block !important; color: var(--danger-color) !important;
+        border-color: var(--danger-color) !important;').show();
         $('#progress-status').text(altTextAI.strings.starting).removeClass('warning error success').addClass('warning');
 
         this.startRequest = $.ajax({
@@ -771,7 +728,7 @@ class AltTextPro
         // Update status badge - ALWAYS update for any status
         var status = data.status || 'running';
         var $statusBadge = $('#progress-status');
-        
+
         // Check terminal states first
         if (status === 'completed') {
         $statusBadge.text('Completed').removeClass('warning error').addClass('success');
@@ -827,7 +784,8 @@ class AltTextPro
         // Build summary
         var summary = '<p><strong>Processed ' + data.processed + ' of ' + data.total_images + ' images.</strong></p>';
         if (data.successful > 0) {
-        summary += '<p style="color: var(--success-color); margin: 8px 0;">✓ ' + data.successful + ' images processed successfully</p>';
+        summary += '<p style="color: var(--success-color); margin: 8px 0;">✓ ' + data.successful + ' images processed
+            successfully</p>';
         }
         if (data.errors && data.errors.length > 0) {
         summary += '<p style="color: var(--danger-color); margin: 8px 0;">✗ ' + data.errors.length + ' errors occurred</p>';
@@ -852,9 +810,11 @@ class AltTextPro
         if (data.errors && data.errors.length > 0) {
         notificationType = 'warning';
         notificationMessage += '<br>✗ <strong>' + data.errors.length + '</strong> errors occurred';
-        notificationMessage += '<br><br><strong>Error Details:</strong><ul style="margin: 8px 0 0 20px; padding-left: 0;">';
+        notificationMessage += '<br><br><strong>Error Details:</strong>
+        <ul style="margin: 8px 0 0 20px; padding-left: 0;">';
             data.errors.slice(0, 5).forEach(function(e) {
-            notificationMessage += '<li style="margin: 4px 0;">Image ID ' + e.image_id + ': ' + (e.error || 'Unknown error') + '</li>';
+            notificationMessage += '<li style="margin: 4px 0;">Image ID ' + e.image_id + ': ' + (e.error || 'Unknown error') + '
+            </li>';
             });
             notificationMessage += '</ul>';
         if (data.errors.length > 5) {
@@ -867,8 +827,10 @@ class AltTextPro
         // Show WordPress-style notification
         console.log('Alt Text Pro: Creating notification:', notificationTitle);
         var $notification = $('<div class="notice notice-' + notificationType
-            + ' is-dismissible" style="margin: 15px 0; display: block !important; padding: 12px;">').html('<p><strong>' +
-                notificationTitle + '</strong></p><p>' + notificationMessage + '</p>');
+            + ' is-dismissible" style="margin: 15px 0; display: block !important; padding: 12px;">').html('<p><strong>'
+                    +
+                    notificationTitle + '</strong></p>
+            <p>' + notificationMessage + '</p>');
 
             // Find the main content area and prepend notification
             var $wrap = $('.wrap').first();
@@ -921,82 +883,30 @@ class AltTextPro
             // Abort ALL pending batch requests
             if (this.pendingBatchRequests && this.pendingBatchRequests.length > 0) {
             console.log('Alt Text Pro: Aborting', this.pendingBatchRequests.length, 'pending batch requests');
-            for (var i = 0; i < this.pendingBatchRequests.length; i++) {
-                if (this.pendingBatchRequests[i] && this.pendingBatchRequests[i].readyState !== 4) {
-                    this.pendingBatchRequests[i].abort();
-                }
-            }
-            this.pendingBatchRequests = [];
-            }
-            
-            // Clear batch tracking
-            this.processingBatches = {};
-            
-            // If we already have a process id, send cancel now
-            if (this.processId) {
-                this.sendCancelRequest();
-                return;
-            }
-            
-            // Otherwise, wait for start to finish and mark cancelling
-            $('#progress-status').text('Cancelling...').removeClass('success').addClass('warning');
-        },
-        
-        sendCancelRequest: function() {
-            var self = this;
-            
-            // If no processId yet, the cancel will be handled when start AJAX completes
-            // (it checks cancelRequested flag)
-            if (!this.processId) {
-                console.log('Alt Text Pro: No processId yet - cancel will be sent when start completes');
-                $('#progress-status').text('Cancelling...').removeClass('success').addClass('warning');
-                return;
-            }
-            
-            this.isProcessing = false;
-            
-            if (this.statusInterval) {
-                clearInterval(this.statusInterval);
-                this.statusInterval = null;
-            }
-            
-            $('#progress-status').text('Cancelling...').removeClass('success').addClass('warning');
-            
-            $.ajax({
-                url: altTextAI.ajaxUrl,
-                type: 'POST',
-                data: {
-                    action: 'alt_text_pro_bulk_cancel',
-                    process_id: this.processId,
-                    nonce: altTextAI.nonce
-                },
-                success: function() {
-                    console.log('Alt Text Pro: Cancel request sent successfully');
-                    self.resetUI();
-                    $('#progress-status').text('Cancelled').removeClass('warning success').addClass('error');
-                },
-                error: function(xhr, status, error) {
-                    console.error('Alt Text Pro: Cancel request failed', error);
-                    self.resetUI();
-                    $('#progress-status').text('Cancel failed').removeClass('success warning').addClass('error');
-                }
-            });
-        },
-        
-        resetUI: function() {
-            $('#start-bulk-process').show();
-            // Hide cancel button with !important to override any inline styles
-            $('#cancel-bulk-process').attr('style', 'display: none !important;').hide();
-            this.isProcessing = false;
-            this.pendingCancel = false;
-            this.cancelRequested = false;
-            this.processId = null;
-            this.pendingBatchRequests = [];
-            this.processingBatches = {};
-        },
-        
-        showError: function(msg) {
-            $('#progress-log').append('<div>Error: ' + msg + '</div>');
+            for (var i = 0; i < this.pendingBatchRequests.length; i++) { if (this.pendingBatchRequests[i] &&
+                this.pendingBatchRequests[i].readyState !==4) { this.pendingBatchRequests[i].abort(); } }
+                this.pendingBatchRequests=[]; } // Clear batch tracking this.processingBatches={}; // If we already have a
+                process id, send cancel now if (this.processId) { this.sendCancelRequest(); return; } // Otherwise, wait for
+                start to finish and mark cancelling
+                $('#progress-status').text('Cancelling...').removeClass('success').addClass('warning'); }, sendCancelRequest:
+                function() { var self=this; // If no processId yet, the cancel will be handled when start AJAX completes // (it
+                checks cancelRequested flag) if (!this.processId) { console.log('Alt Text Pro: No processId yet - cancel will be
+                sent when start completes');
+                $('#progress-status').text('Cancelling...').removeClass('success').addClass('warning'); return; }
+                this.isProcessing=false; if (this.statusInterval) { clearInterval(this.statusInterval);
+                this.statusInterval=null; }
+                $('#progress-status').text('Cancelling...').removeClass('success').addClass('warning'); $.ajax({ url:
+                altTextAI.ajaxUrl, type: 'POST' , data: { action: 'alt_text_pro_bulk_cancel' , process_id: this.processId,
+                nonce: altTextAI.nonce }, success: function() { console.log('Alt Text Pro: Cancel request sent successfully');
+                self.resetUI(); $('#progress-status').text('Cancelled').removeClass('warning success').addClass('error'); },
+                error: function(xhr, status, error) { console.error('Alt Text Pro: Cancel request failed', error);
+                self.resetUI(); $('#progress-status').text('Cancel failed').removeClass('success warning').addClass('error'); }
+                }); }, resetUI: function() { $('#start-bulk-process').show(); // Hide cancel button with !important to override
+                any inline styles $('#cancel-bulk-process').attr('style', 'display: none !important;' ).hide();
+                this.isProcessing=false; this.pendingCancel=false; this.cancelRequested=false; this.processId=null;
+                this.pendingBatchRequests=[]; this.processingBatches={}; }, showError: function(msg) {
+                $('#progress-log').append('<div>Error: ' + msg + '
+        </div>');
         }
         };
 
@@ -1076,8 +986,12 @@ class AltTextPro
             wp_send_json_error(esc_html__('Invalid attachment ID.', 'alt-text-pro'));
         }
 
+        // Get blog context from settings
+        $settings = get_option('alt_text_pro_settings', array());
+        $blog_context = isset($settings['blog_context']) ? $settings['blog_context'] : '';
+
         $api_client = new AltTextPro_API_Client();
-        $result = $api_client->generate_alt_text($attachment_id, $context);
+        $result = $api_client->generate_alt_text($attachment_id, $context, $blog_context);
 
         if ($result['success'] && !empty($result['alt_text'])) {
             // Update attachment alt text

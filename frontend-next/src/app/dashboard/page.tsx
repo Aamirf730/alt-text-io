@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from '@/lib/supabase';
+import { getApiBase, PLUGIN_VERSION } from '@/lib/utils';
 // Polar.sh product IDs from environment variables
 const POLAR_PRODUCTS = {
     tier1_monthly: process.env.NEXT_PUBLIC_POLAR_TIER1_MONTHLY || '',
@@ -245,20 +246,20 @@ export default function Dashboard() {
                 console.log('Using direct Supabase query for localhost');
                 const { data: profile, error: profileError } = await supabase
                     .from('profiles')
-                    .select('credits_remaining, total_processed, subscription_plan, subscription_status, next_billing_date')
+                    .select('credits_remaining, total_processed, subscription_plan, subscription_status, next_billing_date, polar_customer_id')
                     .eq('id', session.user.id)
                     .single();
 
                 if (profileError || !profile) {
                     console.error('Error loading profile:', profileError);
                     setUsageStats({
-                        credits_remaining: 50,
+                        credits_remaining: 0,
                         total_processed: 0,
                         plan: 'free'
                     });
                 } else {
                     setUsageStats({
-                        credits_remaining: profile.credits_remaining || 50,
+                        credits_remaining: profile.credits_remaining || 0,
                         total_processed: profile.total_processed || 0,
                         plan: profile.subscription_plan || 'free'
                     });
@@ -292,20 +293,20 @@ export default function Dashboard() {
                     // Fallback: try direct Supabase query as backup
                     const { data: profile, error: profileError } = await supabase
                         .from('profiles')
-                        .select('credits_remaining, total_processed, subscription_plan, subscription_status, next_billing_date')
+                        .select('credits_remaining, total_processed, subscription_plan, subscription_status, next_billing_date, polar_customer_id')
                         .eq('id', session.user.id)
                         .single();
 
                     if (profileError || !profile) {
                         console.error('Error loading profile:', profileError);
                         setUsageStats({
-                            credits_remaining: 50,
+                            credits_remaining: 0,
                             total_processed: 0,
                             plan: 'free'
                         });
                     } else {
                         setUsageStats({
-                            credits_remaining: profile.credits_remaining || 50,
+                            credits_remaining: profile.credits_remaining || 0,
                             total_processed: profile.total_processed || 0,
                             plan: profile.subscription_plan || 'free'
                         });
@@ -387,16 +388,8 @@ export default function Dashboard() {
             // Extract base64 from data URL
             const base64Data = testImage.split(',')[1];
 
-            // Determine API endpoint - use local development or production
-            // For localhost, use production API (Netlify Dev server not required)
-            let apiBase;
-            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-                // Use localhost Netlify Dev functions (port 9999)
-                apiBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:9999/.netlify/functions';
-            } else {
-                // Production - use relative path
-                apiBase = '/.netlify/functions';
-            }
+            // Determine API endpoint
+            const apiBase = getApiBase();
 
             const endpoint = `${apiBase}/generate-alt-text`;
 
@@ -543,10 +536,10 @@ export default function Dashboard() {
                         <p className="text-gray-500 mt-1">Manage your account, credits, and API keys</p>
                     </div>
                     <div className="flex items-center gap-3">
-                        <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">Plugin v1.4.58</span>
+                        <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">Plugin v{PLUGIN_VERSION}</span>
                         <a
-                            href="/wordpress-plugin/alt-text-pro-plugin-1.4.58.zip"
-                            download="alt-text-pro-plugin-1.4.58.zip"
+                            href={`/wordpress-plugin/alt-text-pro-plugin-${PLUGIN_VERSION}.zip`}
+                            download={`alt-text-pro-plugin-${PLUGIN_VERSION}.zip`}
                             className="inline-flex items-center px-4 py-2 text-sm font-medium text-white transition-all rounded-lg shadow-sm hover:shadow hover:-translate-y-0.5"
                             style={{
                                 background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)'
@@ -575,11 +568,11 @@ export default function Dashboard() {
                             <div className="w-full bg-gray-100 rounded-full h-2 mb-2">
                                 <div
                                     className="bg-teal-500 h-2 rounded-full transition-all duration-500"
-                                    style={{ width: `${Math.min(((usageStats?.credits_remaining || 0) / 50) * 100, 100)}%` }}
+                                    style={{ width: `${Math.min(((usageStats?.credits_remaining || 0) / (({ 'free': 30, 'lite': 150, 'standard': 400, 'pro': 1000 } as Record<string, number>)[String(usageStats?.plan || 'free')] || 50)) * 100, 100)}%` }}
                                 ></div>
                             </div>
                             <div className="flex justify-between items-center text-xs text-gray-500">
-                                <span>{usageStats?.plan === 'free' ? '50 total' : 'Monthly quota'}</span>
+                                <span>{usageStats?.plan === 'free' ? '30 total' : 'Monthly quota'}</span>
                                 <button
                                     onClick={() => handleUpgradePlan('pay_as_go', 'Pay as you go', '$5')}
                                     className="text-teal-600 font-medium hover:text-teal-700"
@@ -620,12 +613,44 @@ export default function Dashboard() {
                                     <Crown className="h-6 w-6 text-purple-600" />
                                 </div>
                             </div>
-                            <button
-                                onClick={() => setShowUpgradeModal(true)}
-                                className="text-sm text-purple-600 font-medium hover:text-purple-700 flex items-center"
-                            >
-                                Manage Subscription <ArrowRight className="h-4 w-4 ml-1" />
-                            </button>
+                            {usageStats?.plan && usageStats.plan !== 'free' ? (
+                                <div className="flex flex-col gap-2">
+                                    <button
+                                        onClick={() => {
+                                            const customerId = subscriptionData?.subscription?.polar_customer_id;
+                                            if (customerId) {
+                                                window.location.href = `/api/customer-portal?customerId=${customerId}`;
+                                            } else {
+                                                toast.info("Opening customer portal. Please sign in there if prompted.");
+                                                window.location.href = `/api/customer-portal`;
+                                            }
+                                        }}
+                                        className="text-sm text-purple-600 font-medium hover:text-purple-700 flex items-center"
+                                    >
+                                        Manage Subscription <ArrowRight className="h-4 w-4 ml-1" />
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            const customerId = subscriptionData?.subscription?.polar_customer_id;
+                                            if (customerId) {
+                                                window.location.href = `/api/customer-portal?customerId=${customerId}`;
+                                            } else {
+                                                window.location.href = `/api/customer-portal`;
+                                            }
+                                        }}
+                                        className="text-xs text-gray-400 hover:text-red-500 transition-colors flex items-center"
+                                    >
+                                        Cancel Subscription
+                                    </button>
+                                </div>
+                            ) : (
+                                <button
+                                    onClick={() => setShowUpgradeModal(true)}
+                                    className="text-sm text-purple-600 font-medium hover:text-purple-700 flex items-center"
+                                >
+                                    Upgrade Plan <ArrowRight className="h-4 w-4 ml-1" />
+                                </button>
+                            )}
                         </CardContent>
                     </Card>
                 </div>
@@ -995,126 +1020,155 @@ export default function Dashboard() {
                                     </button>
                                 </div>
                             ) : (
-                                <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-                                    {/* Tier 1 */}
+                                <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
+                                    {/* Lite */}
                                     <div className="border border-gray-200 rounded-2xl p-6 hover:border-teal-500 hover:shadow-lg transition-all cursor-pointer relative group">
-                                        <div className="absolute top-0 right-0 bg-teal-500 text-white text-xs font-bold px-3 py-1 rounded-bl-lg rounded-tr-lg">
-                                            POPULAR
-                                        </div>
-                                        <h3 className="text-lg font-bold text-gray-900">Starter</h3>
+                                        <h3 className="text-lg font-bold text-gray-900">Lite</h3>
                                         <div className="mt-4 mb-6">
-                                            <span className="text-4xl font-bold text-gray-900">$10</span>
+                                            <span className="text-4xl font-bold text-gray-900">$3</span>
                                             <span className="text-gray-500">/month</span>
                                         </div>
                                         <ul className="space-y-3 mb-8">
-                                            <li className="flex items-center text-sm text-gray-600">
+                                            <li className="flex items-center text-xs text-gray-600">
                                                 <Check className="h-4 w-4 text-teal-500 mr-2" />
-                                                1,000 credits/month
+                                                150 Credits
                                             </li>
-                                            <li className="flex items-center text-sm text-gray-600">
+                                            <li className="flex items-center text-xs text-gray-600">
                                                 <Check className="h-4 w-4 text-teal-500 mr-2" />
-                                                Priority support
+                                                Auto-Describe on Upload
                                             </li>
-                                            <li className="flex items-center text-sm text-gray-600">
+                                            <li className="flex items-center text-xs text-gray-600">
                                                 <Check className="h-4 w-4 text-teal-500 mr-2" />
-                                                Bulk processing
+                                                High-Accuracy Visual AI
                                             </li>
                                         </ul>
                                         <Button
                                             className="w-full"
-                                            onClick={() => handleUpgradePlan('tier1', 'Starter Plan', '$10')}
+                                            onClick={() => handleUpgradePlan('tier1', 'Lite', '$3')}
                                             style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
                                         >
-                                            Choose Starter
+                                            Choose Lite
                                         </Button>
                                     </div>
 
-                                    {/* Tier 2 */}
-                                    <div className="border border-gray-200 rounded-2xl p-6 hover:border-purple-500 hover:shadow-lg transition-all cursor-pointer">
-                                        <h3 className="text-lg font-bold text-gray-900">Pro</h3>
+                                    {/* Standard - Most Popular */}
+                                    <div className="border border-gray-200 rounded-2xl p-6 hover:border-purple-500 hover:shadow-lg transition-all cursor-pointer relative">
+                                        <div className="absolute top-0 right-0 bg-purple-500 text-white text-xs font-bold px-3 py-1 rounded-bl-lg rounded-tr-lg">
+                                            POPULAR
+                                        </div>
+                                        <h3 className="text-lg font-bold text-gray-900">Standard</h3>
                                         <div className="mt-4 mb-6">
-                                            <span className="text-4xl font-bold text-gray-900">$20</span>
+                                            <span className="text-4xl font-bold text-gray-900">$5</span>
                                             <span className="text-gray-500">/month</span>
                                         </div>
                                         <ul className="space-y-3 mb-8">
-                                            <li className="flex items-center text-sm text-gray-600">
+                                            <li className="flex items-center text-xs text-gray-600">
                                                 <Check className="h-4 w-4 text-purple-500 mr-2" />
-                                                2,300 credits/month
+                                                400 Credits
                                             </li>
-                                            <li className="flex items-center text-sm text-gray-600">
+                                            <li className="flex items-center text-xs text-gray-600">
                                                 <Check className="h-4 w-4 text-purple-500 mr-2" />
-                                                Premium support
+                                                Bulk One-Click Library Fix
                                             </li>
-                                            <li className="flex items-center text-sm text-gray-600">
+                                            <li className="flex items-center text-xs text-gray-600">
                                                 <Check className="h-4 w-4 text-purple-500 mr-2" />
-                                                Advanced analytics
+                                                Multi-Language AI (130+)
                                             </li>
                                         </ul>
                                         <Button
                                             className="w-full bg-white text-purple-600 border-2 border-purple-600 hover:bg-purple-50"
-                                            onClick={() => handleUpgradePlan('tier2', 'Pro Plan', '$20')}
+                                            onClick={() => handleUpgradePlan('tier2', 'Standard', '$5')}
+                                        >
+                                            Choose Standard
+                                        </Button>
+                                    </div>
+
+                                    {/* Pro */}
+                                    <div className="border border-gray-200 rounded-2xl p-6 hover:border-blue-500 hover:shadow-lg transition-all cursor-pointer relative">
+                                        <h3 className="text-lg font-bold text-gray-900">Pro</h3>
+                                        <div className="mt-4 mb-6">
+                                            <span className="text-4xl font-bold text-gray-900">$9</span>
+                                            <span className="text-gray-500">/month</span>
+                                        </div>
+                                        <ul className="space-y-3 mb-8">
+                                            <li className="flex items-center text-xs text-gray-600">
+                                                <Check className="h-4 w-4 text-blue-500 mr-2" />
+                                                1,000 Credits
+                                            </li>
+                                            <li className="flex items-center text-xs text-gray-600">
+                                                <Check className="h-4 w-4 text-blue-500 mr-2" />
+                                                Advanced Context-Aware AI
+                                            </li>
+                                            <li className="flex items-center text-xs text-gray-600">
+                                                <Check className="h-4 w-4 text-blue-500 mr-2" />
+                                                Premium 24/7 Support
+                                            </li>
+                                        </ul>
+                                        <Button
+                                            className="w-full bg-blue-600 text-white hover:bg-blue-700"
+                                            onClick={() => handleUpgradePlan('tier3', 'Pro', '$9')}
                                         >
                                             Choose Pro
                                         </Button>
                                     </div>
 
-                                    {/* Pay As You Go - $3 Pack */}
+                                    {/* Small Pack - $5 for 100 */}
                                     <div className="border border-gray-200 rounded-2xl p-6 hover:border-amber-500 hover:shadow-lg transition-all cursor-pointer bg-gradient-to-br from-amber-50 to-orange-50">
                                         <h3 className="text-lg font-bold text-gray-900">Small Pack</h3>
-                                        <div className="mt-4 mb-6">
-                                            <span className="text-4xl font-bold text-gray-900">$3</span>
-                                            <span className="text-gray-500">/pack</span>
-                                        </div>
-                                        <ul className="space-y-3 mb-8">
-                                            <li className="flex items-center text-sm text-gray-600">
-                                                <Check className="h-4 w-4 text-amber-500 mr-2" />
-                                                350 credits
-                                            </li>
-                                            <li className="flex items-center text-sm text-gray-600">
-                                                <Check className="h-4 w-4 text-amber-500 mr-2" />
-                                                Never expires
-                                            </li>
-                                            <li className="flex items-center text-sm text-gray-600">
-                                                <Check className="h-4 w-4 text-amber-500 mr-2" />
-                                                Adds to existing
-                                            </li>
-                                        </ul>
-                                        <Button
-                                            className="w-full text-white"
-                                            style={{ background: 'linear-gradient(135deg, #d97706 0%, #b45309 100%)' }}
-                                            onClick={() => handleUpgradePlan('small_pack', 'Small Pack', '$3')}
-                                        >
-                                            Buy 350 Credits
-                                        </Button>
-                                    </div>
-
-                                    {/* Pay As You Go - $5 Pack */}
-                                    <div className="border border-gray-200 rounded-2xl p-6 hover:border-green-500 hover:shadow-lg transition-all cursor-pointer bg-gradient-to-br from-green-50 to-emerald-50">
-                                        <h3 className="text-lg font-bold text-gray-900">Credit Pack</h3>
                                         <div className="mt-4 mb-6">
                                             <span className="text-4xl font-bold text-gray-900">$5</span>
                                             <span className="text-gray-500">/pack</span>
                                         </div>
                                         <ul className="space-y-3 mb-8">
-                                            <li className="flex items-center text-sm text-gray-600">
-                                                <Check className="h-4 w-4 text-green-500 mr-2" />
-                                                550 credits
+                                            <li className="flex items-center text-xs text-gray-600">
+                                                <Check className="h-4 w-4 text-amber-500 mr-2" />
+                                                100 credits (one-time)
                                             </li>
-                                            <li className="flex items-center text-sm text-gray-600">
-                                                <Check className="h-4 w-4 text-green-500 mr-2" />
+                                            <li className="flex items-center text-xs text-gray-600">
+                                                <Check className="h-4 w-4 text-amber-500 mr-2" />
+                                                Smart AI Optimization
+                                            </li>
+                                            <li className="flex items-center text-xs text-gray-600">
+                                                <Check className="h-4 w-4 text-amber-500 mr-2" />
                                                 Never expires
                                             </li>
-                                            <li className="flex items-center text-sm text-gray-600">
+                                        </ul>
+                                        <Button
+                                            className="w-full text-white"
+                                            style={{ background: 'linear-gradient(135deg, #d97706 0%, #b45309 100%)' }}
+                                            onClick={() => handleUpgradePlan('small_pack', 'Small Pack', '$5')}
+                                        >
+                                            Buy 100 Images
+                                        </Button>
+                                    </div>
+
+                                    {/* Credit Pack - $10 for 250 */}
+                                    <div className="border border-gray-200 rounded-2xl p-6 hover:border-green-500 hover:shadow-lg transition-all cursor-pointer bg-gradient-to-br from-green-50 to-emerald-50">
+                                        <h3 className="text-lg font-bold text-gray-900">Credit Pack</h3>
+                                        <div className="mt-4 mb-6">
+                                            <span className="text-4xl font-bold text-gray-900">$10</span>
+                                            <span className="text-gray-500">/pack</span>
+                                        </div>
+                                        <ul className="space-y-3 mb-8">
+                                            <li className="flex items-center text-xs text-gray-600">
                                                 <Check className="h-4 w-4 text-green-500 mr-2" />
-                                                Best value
+                                                250 credits (one-time)
+                                            </li>
+                                            <li className="flex items-center text-xs text-gray-600">
+                                                <Check className="h-4 w-4 text-green-500 mr-2" />
+                                                Priority Support
+                                            </li>
+                                            <li className="flex items-center text-xs text-gray-600">
+                                                <Check className="h-4 w-4 text-green-500 mr-2" />
+                                                Best Value
                                             </li>
                                         </ul>
                                         <Button
                                             className="w-full text-white"
                                             style={{ background: 'linear-gradient(135deg, #059669 0%, #047857 100%)' }}
-                                            onClick={() => handleUpgradePlan('credit_pack', 'Credit Pack', '$5')}
+                                            onClick={() => handleUpgradePlan('credit_pack', 'Credit Pack', '$10')}
                                         >
-                                            Buy 550 Credits
+                                            Buy 250 Images
                                         </Button>
                                     </div>
                                 </div>

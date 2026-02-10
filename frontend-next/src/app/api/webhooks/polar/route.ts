@@ -15,18 +15,26 @@ const getSupabase = (): SupabaseClient => {
 };
 
 // Credit mapping based on product/plan
+// Updated Feb 2026: Lite/Standard/Pro plans
 const CREDITS_MAP: Record<string, number> = {
-    // Monthly subscriptions
-    tier1_monthly: 1000,
-    tier2_monthly: 2300,
-    tier3_monthly: 3500,
-    // Annual subscriptions (total for year)
-    tier1_annual: 12000,
-    tier2_annual: 27600,
-    tier3_annual: 42000,
-    // One-time purchases
-    small_pack: 350,
-    credit_pack: 550,
+    // New plan names (Feb 2026)
+    lite_monthly: 150,
+    standard_monthly: 400,
+    pro_monthly: 1000,
+    // Annual subscriptions (monthly credits × 12)
+    lite_annual: 1800,      // 150 × 12
+    standard_annual: 4800,  // 400 × 12
+    pro_annual: 12000,      // 1000 × 12
+    // Legacy aliases (maps old tier names to new credits)
+    tier1_monthly: 150,
+    tier2_monthly: 400,
+    tier3_monthly: 1000,
+    tier1_annual: 1800,
+    tier2_annual: 4800,
+    tier3_annual: 12000,
+    // One-time purchases (Feb 2026 update)
+    small_pack: 100,   // $5 for 100 images
+    credit_pack: 250,  // $10 for 250 images
 };
 
 // Helper to get credits from product name or metadata
@@ -46,20 +54,31 @@ function getCreditsForProduct(productName: string, metadata?: Record<string, str
     }
 
     // Fallback based on common naming patterns
-    if (normalizedName.includes("tier1") || normalizedName.includes("tier_1")) {
+    // New naming: lite/standard/pro
+    if (normalizedName.includes("lite")) {
+        return normalizedName.includes("annual") ? 1800 : 150;
+    }
+    if (normalizedName.includes("standard")) {
+        return normalizedName.includes("annual") ? 4800 : 400;
+    }
+    if (normalizedName.includes("pro")) {
         return normalizedName.includes("annual") ? 12000 : 1000;
     }
+    // Legacy naming: tier1/tier2/tier3
+    if (normalizedName.includes("tier1") || normalizedName.includes("tier_1")) {
+        return normalizedName.includes("annual") ? 1800 : 150;
+    }
     if (normalizedName.includes("tier2") || normalizedName.includes("tier_2")) {
-        return normalizedName.includes("annual") ? 27600 : 2300;
+        return normalizedName.includes("annual") ? 4800 : 400;
     }
     if (normalizedName.includes("tier3") || normalizedName.includes("tier_3")) {
-        return normalizedName.includes("annual") ? 42000 : 3500;
+        return normalizedName.includes("annual") ? 12000 : 1000;
     }
     if (normalizedName.includes("small")) {
-        return 350;
+        return 100;
     }
     if (normalizedName.includes("credit") || normalizedName.includes("pack")) {
-        return 550;
+        return 250;
     }
 
     console.warn(`Unknown product: ${productName}, defaulting to 0 credits`);
@@ -77,6 +96,7 @@ async function updateUserCredits(userId: string, credits: number, isSubscription
             .update({
                 credits_remaining: credits,
                 subscription_status: "active",
+                polar_customer_id: userId.startsWith('cus_') ? userId : undefined, // userId might be customerId in some contexts, but let's be safe
                 updated_at: new Date().toISOString(),
             })
             .eq("id", userId);
@@ -181,7 +201,7 @@ export const POST = Webhooks({
                 productName.toLowerCase().includes("tier2") ? "tier2" :
                     productName.toLowerCase().includes("tier3") ? "tier3" :
                         productName.toLowerCase().includes("small") ? "small_pack" :
-                            productName.toLowerCase().includes("credit") ? "pay_as_go" : "free";
+                            productName.toLowerCase().includes("credit") ? "credit_pack" : "free";
 
             const { error: paymentError } = await getSupabase()
                 .from("payments")
@@ -201,6 +221,17 @@ export const POST = Webhooks({
                 console.error(`Error recording payment for user ${userId}:`, paymentError);
             } else {
                 console.log(`✓ Recorded payment of ${currency} ${paymentAmount} for user ${userId} (Order ID: ${order.id})`);
+            }
+
+            // Save customer ID if available
+            if (order.customer?.id) {
+                await getSupabase()
+                    .from("profiles")
+                    .update({
+                        polar_customer_id: order.customer.id,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq("id", userId);
             }
 
             // Check if this is a subscription purchase
@@ -283,6 +314,7 @@ export const POST = Webhooks({
                     subscription_plan: planId,
                     subscription_status: "active",
                     subscription_id: subscription.id,
+                    polar_customer_id: subscription.customer?.id || null,
                     updated_at: new Date().toISOString(),
                 })
                 .eq("id", userId);
@@ -354,25 +386,93 @@ export const POST = Webhooks({
                 const customerEmail = subscription.customer?.email;
 
                 if (!customerEmail) {
+                    console.warn("No customer email in subscription update");
                     return;
                 }
 
-                // Find user
+                // Find user - use subscription_id (not polar_subscription_id which doesn't exist)
                 const { data: users } = await getSupabase()
                     .from("profiles")
-                    .select("id, polar_subscription_id")
+                    .select("id, subscription_id, credits_remaining, credits_last_renewed_at")
                     .eq("email", customerEmail);
 
                 if (users && users.length > 0) {
-                    const userId = users[0].id;
+                    const user = users[0];
+                    const userId = user.id;
                     const productName = subscription.product?.name || "";
                     const credits = getCreditsForProduct(productName);
 
-                    // Only reset credits if this looks like a renewal
-                    if (credits > 0 && users[0].polar_subscription_id === subscription.id) {
-                        await updateUserCredits(userId, credits, true);
-                        console.log(`Renewed subscription credits for user ${userId}: ${credits} credits`);
+                    console.log(`Processing subscription update for ${customerEmail}:`, {
+                        productName,
+                        credits,
+                        storedSubscriptionId: user.subscription_id,
+                        incomingSubscriptionId: subscription.id,
+                        currentPeriodStart: subscription.currentPeriodStart,
+                        currentPeriodEnd: subscription.currentPeriodEnd,
+                    });
+
+                    // Check if this is a renewal by comparing subscription_id OR if subscription_id is null (legacy)
+                    const isMatchingSubscription = user.subscription_id === subscription.id || user.subscription_id === null;
+
+                    // Detect renewal: check if current_period_start is after the last renewal
+                    const currentPeriodStart = new Date(subscription.currentPeriodStart);
+                    const lastRenewed = user.credits_last_renewed_at ? new Date(user.credits_last_renewed_at) : null;
+                    const isRenewal = !lastRenewed || currentPeriodStart > lastRenewed;
+
+                    if (credits > 0 && isMatchingSubscription && isRenewal) {
+                        // Calculate new credits with rollover
+                        const existingCredits = user.credits_remaining || 0;
+                        const newCredits = credits + existingCredits;
+
+                        console.log(`✓ Renewal detected! Adding ${credits} credits (rollover: ${existingCredits}, total: ${newCredits})`);
+
+                        // Update credits with rollover support
+                        const { error: updateError } = await getSupabase()
+                            .from("profiles")
+                            .update({
+                                credits_remaining: newCredits,
+                                subscription_status: "active",
+                                subscription_id: subscription.id,
+                                next_billing_date: subscription.currentPeriodEnd,
+                                credits_last_renewed_at: new Date().toISOString(),
+                                updated_at: new Date().toISOString(),
+                            })
+                            .eq("id", userId);
+
+                        if (updateError) {
+                            console.error("Error updating renewal credits:", updateError);
+                        } else {
+                            console.log(`✓ Renewed subscription credits for user ${userId}: +${credits} credits (total: ${newCredits})`);
+                        }
+
+                        // Record renewal payment
+                        const planId = productName.toLowerCase().includes("tier1") ? "tier1" :
+                            productName.toLowerCase().includes("tier2") ? "tier2" :
+                                productName.toLowerCase().includes("tier3") ? "tier3" : "free";
+
+                        const anySubscription = subscription as any;
+                        const amount = (anySubscription.amount || 0) / 100;
+
+                        await getSupabase()
+                            .from("payments")
+                            .insert({
+                                user_id: userId,
+                                payment_id: `polar_renewal_${subscription.id}_${Date.now()}`,
+                                subscription_id: subscription.id,
+                                plan_id: planId,
+                                amount: amount,
+                                currency: anySubscription.currency?.toUpperCase() || "USD",
+                                status: "completed",
+                                payment_method: "polar",
+                                created_at: new Date().toISOString(),
+                            });
+
+                        console.log(`✓ Recorded renewal payment for ${planId}`);
+                    } else {
+                        console.log(`Skipping credit update: isMatchingSubscription=${isMatchingSubscription}, isRenewal=${isRenewal}, credits=${credits}`);
                     }
+                } else {
+                    console.warn(`No user found for email: ${customerEmail}`);
                 }
             }
         } catch (error) {

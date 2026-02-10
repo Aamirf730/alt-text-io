@@ -47,29 +47,58 @@ exports.handler = async (event, context) => {
     }
 
     const token = authHeader.replace('Bearer ', '').trim();
-    
+
     let authUser = null;
     let userId = null;
-    
-    // Check if this is an API key (starts with 'alt_')
-    if (token.startsWith('alt_')) {
-      // Validate API key
+
+    // Check if this is an API key (starts with 'alt_' or legacy 'altai_')
+    if (token.startsWith('alt_') || token.startsWith('altai_')) {
+      console.log('🔑 [get-usage] Validating API key:', token.substring(0, 20) + '...');
+
+      // First try RPC function
+      let userId = null;
       const { data: userIdData, error: apiKeyError } = await supabase
         .rpc('validate_api_key', { p_api_key: token });
-      
-      if (apiKeyError || !userIdData) {
+
+      if (apiKeyError) {
+        console.error('❌ [get-usage] RPC validate_api_key error:', apiKeyError.message);
+      }
+
+      if (!apiKeyError && userIdData) {
+        userId = userIdData;
+        console.log('✅ [get-usage] RPC validation successful, user_id:', userId);
+      } else {
+        // Fallback: Direct table query if RPC fails
+        console.log('⚠️ [get-usage] RPC failed, trying direct table query...');
+        const { data: apiKeyRecord, error: directError } = await supabase
+          .from('api_keys')
+          .select('user_id')
+          .eq('api_key', token)
+          .eq('is_active', true)
+          .single();
+
+        if (directError) {
+          console.error('❌ [get-usage] Direct query error:', directError.message);
+        }
+
+        if (apiKeyRecord?.user_id) {
+          userId = apiKeyRecord.user_id;
+          console.log('✅ [get-usage] Direct query successful, user_id:', userId);
+        }
+      }
+
+      if (!userId) {
+        console.error('❌ [get-usage] API key validation failed completely');
         return {
           statusCode: 401,
           headers,
           body: JSON.stringify({ error: 'Invalid or expired API key' }),
         };
       }
-      
-      userId = userIdData;
-      
+
       // Get user info using service role
       const { data: userData, error: userError } = await supabase.auth.admin.getUserById(userId);
-      
+
       if (userError || !userData?.user) {
         return {
           statusCode: 401,
@@ -77,7 +106,7 @@ exports.handler = async (event, context) => {
           body: JSON.stringify({ error: 'User not found' }),
         };
       }
-      
+
       authUser = userData.user;
     } else {
       // Legacy: Validate as JWT token (for dashboard)
@@ -126,12 +155,12 @@ exports.handler = async (event, context) => {
 
     // Calculate statistics
     const totalGenerated = usageLogs ? usageLogs.length : 0;
-    
+
     // Use total_processed from profile instead of summing all usage_logs
     // This ensures we only show usage from the current plan period
     // (total_processed is reset to 0 when upgrading to a subscription plan)
     const creditsUsed = profile.total_processed || 0;
-    
+
     // Get subscription plan details
     const { data: planDetails, error: planError } = await supabase
       .from('subscription_plans')

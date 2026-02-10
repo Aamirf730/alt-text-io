@@ -47,7 +47,7 @@ exports.handler = async (event, context) => {
     }
 
     const token = authHeader.replace('Bearer ', '');
-    
+
     // Verify user authentication
     const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(token);
     if (authError || !authUser) {
@@ -67,6 +67,7 @@ exports.handler = async (event, context) => {
         total_processed,
         subscription_status,
         subscription_id,
+        polar_customer_id,
         next_billing_date,
         created_at,
         updated_at
@@ -129,6 +130,7 @@ exports.handler = async (event, context) => {
           plan: profile.subscription_plan,
           status: profile.subscription_status,
           subscription_id: profile.subscription_id,
+          polar_customer_id: profile.polar_customer_id,
           next_billing_date: profile.next_billing_date,
           credits_remaining: profile.credits_remaining,
           total_processed: profile.total_processed,

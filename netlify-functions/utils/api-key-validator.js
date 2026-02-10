@@ -24,9 +24,11 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 async function validateApiKey(apiKey) {
   // Validate API key format (accepts both altai_ and alt_ formats)
   if (!apiKey || (!apiKey.startsWith('altai_') && !apiKey.startsWith('alt_'))) {
-    console.log('API key format invalid:', apiKey ? apiKey.substring(0, 10) + '...' : 'empty');
+    console.log('❌ [validateApiKey] API key format invalid:', apiKey ? apiKey.substring(0, 10) + '...' : 'empty');
     return null;
   }
+
+  console.log('🔑 [validateApiKey] Validating key:', apiKey.substring(0, 20) + '...');
 
   try {
     // Find API key in api_keys table
@@ -37,12 +39,16 @@ async function validateApiKey(apiKey) {
       .eq('is_active', true)
       .single();
 
-    if (apiKeyError || !apiKeyRecord) {
-      console.log('API key not found or inactive:', apiKey.substring(0, 15) + '...');
+    if (apiKeyError) {
+      console.error('❌ [validateApiKey] Query error:', apiKeyError.message, apiKeyError.details || '');
+    }
+
+    if (!apiKeyRecord) {
+      console.log('❌ [validateApiKey] API key not found or inactive:', apiKey.substring(0, 15) + '...');
       return null;
     }
 
-    console.log('🔑 Found API key in api_keys table, user_id:', apiKeyRecord.user_id);
+    console.log('✅ [validateApiKey] Found API key in api_keys table, user_id:', apiKeyRecord.user_id);
 
     // Get user profile from profiles table (single source of truth)
     const { data: profile, error: profileError } = await supabase
@@ -95,7 +101,7 @@ function hasSufficientCredits(user, requiredCredits = 1) {
  */
 function deductCredits(user, creditsToDeduct = 1) {
   if (!user) return null;
-  
+
   return {
     ...user,
     credits_remaining: Math.max(0, (user.credits_remaining ?? 0) - creditsToDeduct),
@@ -138,8 +144,8 @@ async function updateUserCredits(userId, creditsToDeduct = 1, altText = null, co
         details: rpcError.details,
         hint: rpcError.hint
       });
-      return { 
-        success: false, 
+      return {
+        success: false,
         error: 'Credit system temporarily unavailable. Please contact support if this persists.',
         requiresDatabaseFix: true,
         rpcError: rpcError.message
@@ -149,28 +155,28 @@ async function updateUserCredits(userId, creditsToDeduct = 1, altText = null, co
     // Parse RPC result - handle various return formats
     if (!rpcResult) {
       console.error('❌ CRITICAL: use_credit RPC returned null/undefined');
-      return { 
-        success: false, 
+      return {
+        success: false,
         error: 'Credit system temporarily unavailable. Please contact support.',
         requiresDatabaseFix: true
       };
     }
 
     let result = rpcResult;
-    
+
     // Handle array response (some Supabase versions return arrays)
     if (Array.isArray(result)) {
       if (result.length === 0) {
         console.error('❌ CRITICAL: use_credit RPC returned empty array');
-        return { 
-          success: false, 
+        return {
+          success: false,
           error: 'Credit system temporarily unavailable. Please contact support.',
           requiresDatabaseFix: true
         };
       }
       result = result[0];
     }
-    
+
     // Handle string JSON response
     if (typeof result === 'string') {
       try {
@@ -178,53 +184,53 @@ async function updateUserCredits(userId, creditsToDeduct = 1, altText = null, co
       } catch (parseError) {
         console.error('❌ CRITICAL: Failed to parse RPC result as JSON:', parseError);
         console.error('Raw RPC result:', rpcResult);
-        return { 
-          success: false, 
+        return {
+          success: false,
           error: 'Invalid credit system response. Please contact support.',
           requiresDatabaseFix: true
         };
       }
     }
-    
+
     // Validate result is an object
     if (!result || typeof result !== 'object') {
       console.error('❌ CRITICAL: Unexpected RPC result format:', typeof result, result);
-      return { 
-        success: false, 
+      return {
+        success: false,
         error: 'Invalid credit system response. Please contact support.',
         requiresDatabaseFix: true
       };
     }
-    
+
     // Check for error in result
     if (result.error) {
       console.error('RPC use_credit returned error:', result.error);
-      return { 
-        success: false, 
+      return {
+        success: false,
         error: result.error || 'Credit deduction failed',
         credits_remaining: result.credits_remaining // May be included in error response
       };
     }
-    
+
     // Check for explicit failure
     if (result.success === false) {
       console.error('RPC use_credit returned failure:', result);
-      return { 
-        success: false, 
+      return {
+        success: false,
         error: result.error || 'Credit deduction failed'
       };
     }
-    
+
     // Validate success response has required fields
     if (result.credits_remaining === undefined || result.total_processed === undefined) {
       console.error('❌ CRITICAL: RPC result missing required fields:', result);
-      return { 
-        success: false, 
+      return {
+        success: false,
         error: 'Invalid credit system response. Please contact support.',
         requiresDatabaseFix: true
       };
     }
-    
+
     // Success case - all validations passed
     console.log('✅ Credits updated atomically via RPC:', {
       userId,
@@ -244,8 +250,8 @@ async function updateUserCredits(userId, creditsToDeduct = 1, altText = null, co
       stack: error.stack,
       userId
     });
-    return { 
-      success: false, 
+    return {
+      success: false,
       error: 'Database error during credit deduction',
       requiresDatabaseFix: true
     };

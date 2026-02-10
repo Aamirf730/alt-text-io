@@ -9,22 +9,25 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-class AltTextPro_Admin {
-    
+class AltTextPro_Admin
+{
+
     /**
      * Constructor
      */
-    public function __construct() {
+    public function __construct()
+    {
         add_action('admin_menu', array($this, 'add_admin_menu'));
         add_action('admin_init', array($this, 'admin_init'));
         // Removed attachment_fields_to_edit filter - using meta box instead to avoid duplication
         add_action('add_meta_boxes', array($this, 'add_media_meta_boxes'));
     }
-    
+
     /**
      * Add admin menu
      */
-    public function add_admin_menu() {
+    public function add_admin_menu()
+    {
         add_menu_page(
             __('Alt Text Pro', 'alt-text-pro'),
             __('Alt Text Pro', 'alt-text-pro'),
@@ -34,7 +37,7 @@ class AltTextPro_Admin {
             'dashicons-format-image',
             30
         );
-        
+
         add_submenu_page(
             'alt-text-pro',
             __('Dashboard', 'alt-text-pro'),
@@ -43,7 +46,7 @@ class AltTextPro_Admin {
             'alt-text-pro',
             array($this, 'dashboard_page')
         );
-        
+
         add_submenu_page(
             'alt-text-pro',
             __('Bulk Process', 'alt-text-pro'),
@@ -52,7 +55,7 @@ class AltTextPro_Admin {
             'alt-text-pro-bulk',
             array($this, 'bulk_process_page')
         );
-        
+
         add_submenu_page(
             'alt-text-pro',
             __('Settings', 'alt-text-pro'),
@@ -61,7 +64,7 @@ class AltTextPro_Admin {
             'alt-text-pro-settings',
             array($this, 'settings_page')
         );
-        
+
         add_submenu_page(
             'alt-text-pro',
             __('Usage & Logs', 'alt-text-pro'),
@@ -71,36 +74,39 @@ class AltTextPro_Admin {
             array($this, 'logs_page')
         );
     }
-    
+
     /**
      * Admin init
      */
-    public function admin_init() {
+    public function admin_init()
+    {
         // Add settings link to plugins page
         add_filter('plugin_action_links_' . ALT_TEXT_PRO_PLUGIN_BASENAME, array($this, 'add_plugin_action_links'));
-        
+
         // Add admin notices
         add_action('admin_notices', array($this, 'admin_notices'));
     }
-    
+
     /**
      * Add plugin action links
      */
-    public function add_plugin_action_links($links) {
+    public function add_plugin_action_links($links)
+    {
         $settings_link = '<a href="' . admin_url('admin.php?page=alt-text-pro-settings') . '">' . __('Settings', 'alt-text-pro') . '</a>';
         $dashboard_link = '<a href="' . admin_url('admin.php?page=alt-text-pro') . '">' . __('Dashboard', 'alt-text-pro') . '</a>';
-        
+
         array_unshift($links, $settings_link, $dashboard_link);
-        
+
         return $links;
     }
-    
+
     /**
      * Admin notices
      */
-    public function admin_notices() {
+    public function admin_notices()
+    {
         $settings = get_option('alt_text_pro_settings', array());
-        
+
         // Show notice if API key is not configured
         if (empty($settings['api_key'])) {
             echo '<div class="notice notice-warning is-dismissible">';
@@ -115,15 +121,16 @@ class AltTextPro_Admin {
             echo '</p></div>';
         }
     }
-    
+
     /**
      * Dashboard page
      */
-    public function dashboard_page() {
+    public function dashboard_page()
+    {
         $api_client = new AltTextPro_API_Client();
         $usage_stats = null;
         $connection_status = null;
-        
+
         // Get usage stats if API key is configured
         $settings = get_option('alt_text_pro_settings', array());
         if (!empty($settings['api_key'])) {
@@ -131,15 +138,15 @@ class AltTextPro_Admin {
             if ($usage_response['success']) {
                 $usage_stats = $usage_response['data'];
             }
-            
+
             $connection_response = $api_client->test_connection();
             $connection_status = $connection_response;
         }
-        
+
         // Get local statistics
         global $wpdb;
         $logs_table = $wpdb->prefix . 'alt_text_pro_logs';
-        
+
         // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery
         $total_generated = $wpdb->get_var("SELECT COUNT(*) FROM $logs_table");
         // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery
@@ -150,10 +157,10 @@ class AltTextPro_Admin {
              LEFT JOIN {$wpdb->posts} p ON l.attachment_id = p.ID 
              ORDER BY l.created_at DESC 
              LIMIT 10";
-             
+
         // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
         $recent_generations = $wpdb->get_results($query);
-        
+
         // Get images without alt text (using a more reliable query)
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery
         $images_without_alt = $wpdb->get_var(
@@ -170,16 +177,17 @@ class AltTextPro_Admin {
                  AND TRIM(pm.meta_value) != ''
              )"
         );
-        
+
         include ALT_TEXT_PRO_PLUGIN_PATH . 'templates/dashboard.php';
     }
-    
+
     /**
      * Bulk process page
      */
-    public function bulk_process_page() {
+    public function bulk_process_page()
+    {
         global $wpdb;
-        
+
         // Get images without alt text (using a more reliable query)
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery
         $images_without_alt = $wpdb->get_results(
@@ -198,7 +206,7 @@ class AltTextPro_Admin {
              ORDER BY p.post_date DESC
              LIMIT 100"
         );
-        
+
         // Get total count
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery
         $total_without_alt = $wpdb->get_var(
@@ -215,7 +223,7 @@ class AltTextPro_Admin {
                  AND TRIM(pm.meta_value) != ''
              )"
         );
-        
+
         // Get all images count
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery
         $total_images = $wpdb->get_var(
@@ -224,24 +232,25 @@ class AltTextPro_Admin {
              WHERE post_type = 'attachment' 
              AND post_mime_type LIKE 'image/%'"
         );
-        
+
         include ALT_TEXT_PRO_PLUGIN_PATH . 'templates/bulk-process.php';
     }
-    
+
     /**
      * Settings page
      */
-    public function settings_page() {
+    public function settings_page()
+    {
         // Handle form submission
         if (isset($_POST['submit'])) {
             // Check nonce
             if (!isset($_POST['_wpnonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['_wpnonce'])), 'alt_text_pro_settings')) {
                 wp_die(esc_html__('Security check failed.', 'alt-text-pro'));
             }
-            
+
             $api_key = isset($_POST['api_key']) ? sanitize_text_field(wp_unslash($_POST['api_key'])) : '';
             $batch_size = isset($_POST['batch_size']) ? intval($_POST['batch_size']) : 2;
-            
+
             $settings = array(
                 'api_key' => $api_key,
                 'auto_generate' => isset($_POST['auto_generate']),
@@ -249,35 +258,38 @@ class AltTextPro_Admin {
                 'context_enabled' => isset($_POST['context_enabled']),
                 'batch_size' => min(50, max(1, $batch_size))
             );
-            
+
             update_option('alt_text_pro_settings', $settings);
-            
+
             echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__('Settings saved successfully!', 'alt-text-pro') . '</p></div>';
         }
-        
+
         $settings = get_option('alt_text_pro_settings', array(
             'api_key' => '',
             'auto_generate' => false,
             'overwrite_existing' => false,
             'context_enabled' => true,
+            'blog_context' => '',
+            'show_context_field' => false,
             'batch_size' => 2
         ));
-        
+
         include ALT_TEXT_PRO_PLUGIN_PATH . 'templates/settings.php';
     }
-    
+
     /**
      * Logs page
      */
-    public function logs_page() {
+    public function logs_page()
+    {
         global $wpdb;
-        
+
         $logs_table = $wpdb->prefix . 'alt_text_pro_logs';
         $per_page = 20;
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         $current_page = max(1, intval($_GET['paged'] ?? 1));
         $offset = ($current_page - 1) * $per_page;
-        
+
         // Get logs with pagination
         // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
         $query = "SELECT l.*, p.post_title, p.guid 
@@ -285,15 +297,15 @@ class AltTextPro_Admin {
              LEFT JOIN {$wpdb->posts} p ON l.attachment_id = p.ID 
              ORDER BY l.created_at DESC 
              LIMIT %d OFFSET %d";
-             
+
         // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
         $logs = $wpdb->get_results($wpdb->prepare($query, $per_page, $offset));
-        
+
         // Get total count for pagination
         // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery
         $total_logs = $wpdb->get_var("SELECT COUNT(*) FROM $logs_table");
         $total_pages = ceil($total_logs / $per_page);
-        
+
         // Get summary stats
         $stats = array(
             // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery
@@ -307,74 +319,84 @@ class AltTextPro_Admin {
             // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery
             'this_month_generated' => $wpdb->get_var("SELECT COUNT(*) FROM $logs_table WHERE MONTH(created_at) = MONTH(CURDATE()) AND YEAR(created_at) = YEAR(CURDATE())")
         );
-        
+
         include ALT_TEXT_PRO_PLUGIN_PATH . 'templates/logs.php';
     }
-    
+
     /**
      * Add alt-text field to media attachment fields
      */
-    public function add_alt_text_field($form_fields, $post) {
+    public function add_alt_text_field($form_fields, $post)
+    {
         if (!str_starts_with($post->post_mime_type, 'image/')) {
             return $form_fields;
         }
-        
+
         $alt_text = get_post_meta($post->ID, '_wp_attachment_image_alt', true);
-        
+
         $form_fields['alt_text_pro_generate'] = array(
             'label' => __('Alt Text Pro', 'alt-text-pro'),
             'input' => 'html',
             'html' => $this->get_media_field_html($post->ID, $alt_text)
         );
-        
+
         return $form_fields;
     }
-    
+
     /**
      * Save alt-text field
      */
-    public function save_alt_text_field($post, $attachment) {
+    public function save_alt_text_field($post, $attachment)
+    {
         if (isset($attachment['alt_text_pro_context'])) {
             update_post_meta($post['ID'], '_alt_text_pro_context', sanitize_text_field($attachment['alt_text_pro_context']));
         }
-        
+
         return $post;
     }
-    
+
     /**
      * Get media field HTML
      */
-    private function get_media_field_html($attachment_id, $current_alt_text) {
+    private function get_media_field_html($attachment_id, $current_alt_text)
+    {
         $settings = get_option('alt_text_pro_settings', array());
         $api_configured = !empty($settings['api_key']);
-        
+
         ob_start();
         ?>
         <div class="alt-text-pro-media-field">
             <?php if ($api_configured): ?>
                 <div class="alt-text-pro-current">
                     <strong><?php esc_html_e('Current Alt-Text:', 'alt-text-pro'); ?></strong>
-                    <p class="current-alt-text"><?php echo esc_html($current_alt_text ?: esc_html__('No alt-text set', 'alt-text-pro')); ?></p>
+                    <p class="current-alt-text">
+                        <?php echo esc_html($current_alt_text ?: esc_html__('No alt-text set', 'alt-text-pro')); ?>
+                    </p>
                 </div>
-                
-                <div class="alt-text-pro-context" style="margin: 10px 0; display: none !important;">
+
+                <?php
+                // Show context field if setting is enabled
+                $show_context = !empty($settings['show_context_field']);
+                ?>
+                <div class="alt-text-pro-context" style="margin: 10px 0;<?php echo $show_context ? '' : ' display: none;'; ?>">
                     <label for="alt_text_pro_context_<?php echo esc_attr($attachment_id); ?>">
-                        <?php esc_html_e('Context (optional):', 'alt-text-pro'); ?>
+                        <?php esc_html_e('Image Context (optional):', 'alt-text-pro'); ?>
                     </label>
-                    <input type="text" 
-                           id="alt_text_pro_context_<?php echo esc_attr($attachment_id); ?>" 
-                           name="attachments[<?php echo esc_attr($attachment_id); ?>][alt_text_pro_context]" 
-                           placeholder="<?php esc_attr_e('e.g., product photo, team meeting, etc.', 'alt-text-pro'); ?>"
-                           style="width: 100%; margin-top: 5px;">
+                    <input type="text" id="alt_text_pro_context_<?php echo esc_attr($attachment_id); ?>"
+                        name="attachments[<?php echo esc_attr($attachment_id); ?>][alt_text_pro_context]"
+                        placeholder="<?php esc_attr_e('e.g., product photo, team meeting, etc.', 'alt-text-pro'); ?>"
+                        style="width: 100%; margin-top: 5px;">
+                    <p class="description" style="font-size: 11px; margin-top: 4px;">
+                        <?php esc_html_e('Add specific context for this image to improve alt-text accuracy.', 'alt-text-pro'); ?>
+                    </p>
                 </div>
-                
-                <button type="button" 
-                        class="button button-primary alt-text-pro-generate-btn" 
-                        data-attachment-id="<?php echo esc_attr($attachment_id); ?>">
+
+                <button type="button" class="button button-primary alt-text-pro-generate-btn"
+                    data-attachment-id="<?php echo esc_attr($attachment_id); ?>">
                     <span style="font-weight: 600; margin-right: 4px;">SEO+</span>
                     <?php esc_html_e('Generate Alt-Text', 'alt-text-pro'); ?>
                 </button>
-                
+
                 <div class="alt-text-pro-result" style="margin-top: 10px; display: none !important;">
                     <div class="alt-text-pro-loading" style="display: none !important;">
                         <span class="spinner is-active"></span>
@@ -400,11 +422,12 @@ class AltTextPro_Admin {
         <?php
         return ob_get_clean();
     }
-    
+
     /**
      * Add meta boxes for media edit screen
      */
-    public function add_media_meta_boxes() {
+    public function add_media_meta_boxes()
+    {
         add_meta_box(
             'alt-text-pro-meta-box',
             esc_html__('Alt Text Pro', 'alt-text-pro'),
@@ -414,16 +437,17 @@ class AltTextPro_Admin {
             'high'
         );
     }
-    
+
     /**
      * Media meta box callback
      */
-    public function media_meta_box_callback($post) {
+    public function media_meta_box_callback($post)
+    {
         if (!str_starts_with($post->post_mime_type, 'image/')) {
             echo '<p>' . esc_html__('Alt-text generation is only available for images.', 'alt-text-pro') . '</p>';
             return;
         }
-        
+
         $alt_text = get_post_meta($post->ID, '_wp_attachment_image_alt', true);
         // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- get_media_field_html() returns properly escaped HTML and wp_kses_post strips input tags
         echo $this->get_media_field_html($post->ID, $alt_text);

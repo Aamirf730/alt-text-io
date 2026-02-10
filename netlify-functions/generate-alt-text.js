@@ -20,7 +20,7 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 // Helper function to detect image MIME type from base64
 function detectImageMimeType(imageBase64) {
   // Check base64 prefix to determine image type
-  const prefix = imageBase64.substring(0, 30);
+  const prefix = imageBase64.substring(0, 50); // Increased for longer headers like AVIF
 
   if (prefix.startsWith('/9j/') || prefix.startsWith('/9j4AAQ')) {
     return 'image/jpeg';
@@ -30,7 +30,13 @@ function detectImageMimeType(imageBase64) {
     return 'image/webp';
   } else if (prefix.startsWith('R0lGOD')) {
     return 'image/gif';
+  } else if (prefix.includes('AAAAIGZ0eXBhdm') || prefix.includes('AAAAGGZ0eXBhdm')) {
+    return 'image/avif';
   } else {
+    // Check if it's AVIF via a broader search in the header
+    if (prefix.includes('YXZpZ') || prefix.includes('YXZpZg')) {
+      return 'image/avif';
+    }
     // Default to PNG if uncertain
     return 'image/png';
   }
@@ -39,42 +45,37 @@ function detectImageMimeType(imageBase64) {
 // Core AI integration
 async function generateAltTextWithGemini(imageBase64, context = null) {
   try {
-    const { GoogleGenerativeAI } = require('@google/generative-ai');
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } = require('@google/generative-ai');
+    const apiKey = process.env.AI_API_KEY || process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error('AI service API key not configured (neither AI_API_KEY nor GEMINI_API_KEY found)');
+    }
+    const genAI = new GoogleGenerativeAI(apiKey);
 
     // Detect the actual image MIME type
     const mimeType = detectImageMimeType(imageBase64);
     console.log('Detected image MIME type:', mimeType);
 
-    // Ultra-strict prompt - MUST output single sentence only
-    let prompt = `Generate an alt-text description for this image. You must output ONLY one sentence with no formatting.
+    // Base prompt instructions with focus on Landmark Recognition
+    let instructions = `You are an expert in image accessibility, SEO, and global geography.
+Your goal is to generate a professional alt-text description for the provided image.
 
-CRITICAL: Your response must be EXACTLY like these examples (copy this format):
-Business team collaborating around conference table in modern office with laptops and documents.
-Fresh organic vegetables and fruits colorfully arranged at farmers market.
-Snow-capped mountain peaks reflecting in pristine alpine lake during golden hour.
+CRITICAL REQUIREMENT: LANDMARK IDENTIFICATION
+Leverage your extensive visual knowledge to identify any popular landmarks, cities, buildings, or specific locations in this image.
+- If you recognize a specific popular location (e.g., Eiffel Tower, Grand Canyon, Burj Khalifa, Big Ben), you MUST include its name in the description.
+- Be specific whenever possible.
 
-DO NOT output:
-- "Here are a few options:"
-- "* Option 1:" or "* Option 2:"
-- Any asterisks, bullets, or markdown
-- Any introductory text
-- Multiple sentences or options
-
-OUTPUT FORMAT REQUIREMENTS:
-- Start immediately with the description
-- Plain text only, no symbols
-- One complete sentence
-- Under 120 characters
-- End with a period
-- Describe what you actually see in the image
-
-Now write ONE sentence describing this image (no formatting, no options, just the description):`;
-
+FORMAT REQUIREMENTS:
+- Output exactly ONE descriptive sentence.
+- No asterisks, bullets, formatting, or introductory text.
+- No text like "The image shows..." or "A photo of...".
+- Keep it under 120 characters and end with a period.`;
 
     if (context) {
-      prompt += `\n\nContext about the image: ${context}`;
+      instructions += `\n\nADDITIONAL CONTEXT (use this to identify specific locations, products, or people if visible):\n${context}`;
     }
+
+    const prompt = `${instructions}\n\nGOAL: Write the ONE-sentence alt-text description now:`;
 
     const imageParts = [
       {
@@ -88,15 +89,38 @@ Now write ONE sentence describing this image (no formatting, no options, just th
     // Use strict generationConfig to prevent formatting
     const generationConfig = {
       temperature: 0.2, // Lower temperature for more focused responses
-      maxOutputTokens: 120, // Strict limit - just enough for alt-text
+      maxOutputTokens: 1000, // Increased further to prevent cut-off for complex images
       topP: 0.7, // Narrow probability mass
       topK: 20, // Limit token choices
     };
 
-    // Get model with config
+    const modelName = process.env.AI_MODEL || 'gemini-2.5-flash';
+
+    // Loosen safety filters to prevent "false positive" blocks on landmarks/religious sites
+    const safetySettings = [
+      {
+        category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+        threshold: HarmBlockThreshold.BLOCK_NONE,
+      },
+      {
+        category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+        threshold: HarmBlockThreshold.BLOCK_NONE,
+      },
+      {
+        category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+        threshold: HarmBlockThreshold.BLOCK_NONE,
+      },
+      {
+        category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+        threshold: HarmBlockThreshold.BLOCK_NONE,
+      },
+    ];
+
+    // Get model with config and safety settings
     const modelWithConfig = genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash',
-      generationConfig: generationConfig
+      model: modelName,
+      generationConfig: generationConfig,
+      safetySettings: safetySettings
     });
 
     const result = await modelWithConfig.generateContent([prompt, ...imageParts]);
@@ -901,7 +925,7 @@ exports.handler = async (event, context) => {
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: 'Internal server error' }),
+      body: JSON.stringify({ error: error.message || 'Internal server error' }),
     };
   }
 };

@@ -8,6 +8,7 @@ import Footer from '@/components/Footer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Mail } from 'lucide-react';
+import { getApiBase } from '@/lib/utils';
 
 export default function ContactPage() {
     const [formData, setFormData] = useState({
@@ -31,10 +32,7 @@ export default function ContactPage() {
         setIsSubmitting(true);
 
         try {
-            let url = '/.netlify/functions/send-contact-email';
-            if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-                url = `${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:9999/.netlify/functions'}/send-contact-email`;
-            }
+            const url = `${getApiBase()}/send-contact-email`;
 
             const response = await fetch(url, {
                 method: 'POST',

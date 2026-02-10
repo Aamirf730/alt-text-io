@@ -2,15 +2,16 @@
 Contributors: aamirfaiz
 Tags: alt text generator, image seo, accessibility, ai alt text, automatic alt text
 Requires at least: 5.0
-Tested up to: 6.9
+Tested up to: 6.4
 Requires PHP: 7.4
-Stable tag: 1.4.58
+Stable tag: 1.4.76
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-AI-powered alt text generator that automatically creates image alt tags for better SEO and accessibility. Generate alt text for all your images with one click.
+AI-powered alt text generator for WordPress. Automatically creates SEO-optimized, accessible alt text for images using advanced vision AI.
 
 == Description ==
+Because accessibility matters. Alt Text Pro automatically generates SEO-optimized, accessible alt text for your WordPress images using advanced AI (Google Gemini Vision). It works for both new uploads and existing media library images.
 
 **Alt Text Pro** is the ultimate AI-powered **alt text generator** for WordPress. Automatically generate professional **image alt text** and **alt tags** to boost your **image SEO** and meet accessibility standards. Our advanced AI creates accurate, descriptive alt text that improves your site's search rankings and makes your content accessible to everyone.
 
@@ -165,6 +166,44 @@ Yes, you can cancel your subscription at any time from your Alt Text Pro dashboa
 6. **Mobile Responsive Design** - Fully responsive alt text generator works on all devices
 
 == Changelog ==
+
+= 1.4.73 =
+* Fix: "Overwrite Existing" option visibility logic in bulk processor.
+* Fix: "Process selected images" error and improved selection handling.
+* Add: Selection count display to bulk processing UI.
+
+= 1.4.72 =
+* Fix: Prevent cancellation UI from disappearing immediately.
+* UI: Improved result summary accuracy on cancellation.
+
+= 1.4.71 =
+* UI: Show result summary on cancellation instead of hiding everything.
+* UI: Improved cancellation status visibility.
+
+= 1.4.70 =
+* UI: Hide progress bar immediately when "Cancel" is clicked.
+* UI: Improved UI reset logic for better professional feel.
+
+= 1.4.69 =
+* Bug Fix: Refactored bulk processor to be entirely browser-driven.
+* Security: Removed WordPress Cron dependency for bulk processing to ensure images are only processed while the dashboard is open.
+* Improvement: Fixed "Initialization" stall by aligning frontend and backend data keys.
+
+= 1.4.68 =
+* Fix: Resolved "stuck" initialization in bulk processor by fixing data key mismatches between PHP and JavaScript.
+* Fix: Added frontend-triggered batching as a backup for WordPress cron.
+* Fix: Corrected cron hook registration to support multiple arguments.
+* Fix: Synchronized status strings between server and client.
+
+= 1.4.67 =
+* Fixed bug where plugin settings page would break for new installations
+* Added missing default values for blog_context and show_context_field settings
+
+= 1.4.59 =
+* Added Context Awareness feature - blog-wide context for improved alt-text generation
+* New "Context Settings" in settings page with blog context textarea
+* Added "Show Context Field" toggle to control per-image context visibility
+* Fixed short description length for WordPress.org compliance
 
 = 1.4.58 =
 * Improved onboarding modal design - removed hero section and moved key icon inline with title
@@ -461,8 +500,8 @@ Yes, you can cancel your subscription at any time from your Alt Text Pro dashboa
 
 == Upgrade Notice ==
 
-= 1.4.58 =
-Improved onboarding experience with better modal design and positioning. Recommended update for all users.
+= 1.4.60 =
+Bug fix: Fixed settings page initialization for new installations. Recommended update for all users.
 
 == Support ==
 

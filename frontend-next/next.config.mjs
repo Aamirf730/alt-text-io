@@ -4,7 +4,11 @@ const nextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: '**',
+        hostname: 'www.alt-text.pro',
+      },
+      {
+        protocol: 'https',
+        hostname: 'alt-text.pro',
       },
     ],
   },

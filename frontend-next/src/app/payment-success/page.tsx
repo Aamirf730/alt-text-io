@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { getApiBase } from '@/lib/utils';
 
 // Payment Success Handler Component
 // Updated to work with Polar.sh checkout flow
@@ -35,12 +36,7 @@ export default function PaymentSuccess() {
             }, 3000);
         } else if (subscriptionId) {
             // Legacy PayPal flow - try to activate subscription
-            let apiBase;
-            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-                apiBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:9999/.netlify/functions';
-            } else {
-                apiBase = '/.netlify/functions';
-            }
+            const apiBase = getApiBase();
 
             fetch(`${apiBase}/activate-subscription`, {
                 method: 'POST',

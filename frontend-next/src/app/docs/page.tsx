@@ -137,7 +137,7 @@ export default function DocsPage() {
                                     <h2 className="text-2xl font-bold mt-8 mb-4" style={{ color: '#003a42' }}>Quick Start Guide</h2>
                                     <div className="bg-teal-50 border-l-4 border-teal-500 p-6 rounded-lg my-6">
                                         <ol className="list-decimal list-inside space-y-3 text-gray-700">
-                                            <li><strong>Sign up for free</strong> at <a href="https://www.alt-text.pro" className="text-teal-600 hover:underline">alt-text.pro</a> and get 50 free credits</li>
+                                            <li><strong>Sign up for free</strong> at <a href="https://www.alt-text.pro" className="text-teal-600 hover:underline">alt-text.pro</a> and get 30 free credits</li>
                                             <li><strong>Get your API key</strong> from your dashboard</li>
                                             <li><strong>Install the WordPress plugin</strong> or use our API to start generating alt-text</li>
                                         </ol>
@@ -154,7 +154,7 @@ export default function DocsPage() {
                                 <div className="prose max-w-none">
                                     <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#003a42' }}>Step 1: Create Your Account</h3>
                                     <p className="text-gray-700 mb-4">
-                                        Visit <a href="https://www.alt-text.pro" className="text-teal-600 hover:underline">www.alt-text.pro</a> and sign up for a free account. You'll receive 50 credits to get started - no credit card required.
+                                        Visit <a href="https://www.alt-text.pro" className="text-teal-600 hover:underline">www.alt-text.pro</a> and sign up for a free account. You'll receive 30 credits to get started - no credit card required.
                                     </p>
                                     <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#003a42' }}>Step 2: Get Your API Key</h3>
                                     <ol className="list-decimal list-inside space-y-2 text-gray-700 mb-4">
@@ -176,7 +176,7 @@ export default function DocsPage() {
                                     <div className="bg-gray-50 p-6 rounded-lg my-4">
                                         <h4 className="font-semibold mb-3">Method 2: Manual Installation</h4>
                                         <ol className="list-decimal list-inside space-y-2 text-gray-700">
-                                            <li>Download the plugin from <a href="https://www.alt-text.pro/wordpress-plugin/alt-text-pro-plugin-1.4.24.zip" className="text-teal-600 hover:underline">alt-text.pro/wordpress-plugin/alt-text-pro-plugin-1.4.24.zip</a></li>
+                                            <li>Download the plugin from <a href="https://www.alt-text.pro/wordpress-plugin/alt-text-pro-plugin-1.4.76.zip" className="text-teal-600 hover:underline">alt-text.pro/wordpress-plugin/alt-text-pro-plugin-1.4.76.zip</a></li>
                                             <li>Extract the zip file</li>
                                             <li>Upload the <code className="bg-gray-200 px-2 py-1 rounded">alt-text-pro</code> folder to <code className="bg-gray-200 px-2 py-1 rounded">/wp-content/plugins/</code></li>
                                             <li>Go to <strong>Plugins</strong> in WordPress admin and activate <strong>Alt Text Pro</strong></li>
@@ -374,28 +374,28 @@ export default function DocsPage() {
                                             <h4 className="text-xl font-bold mb-2">Free</h4>
                                             <div className="text-3xl font-bold mb-4" style={{ color: '#003a42' }}>$0</div>
                                             <ul className="space-y-2 text-gray-700 mb-4">
-                                                <li className="flex items-center"><Check className="h-4 w-4 mr-2 text-green-500" /> 50 Credits</li>
-                                                <li className="flex items-center"><Check className="h-4 w-4 mr-2 text-green-500" /> Basic Support</li>
-                                                <li className="flex items-center"><Check className="h-4 w-4 mr-2 text-green-500" /> API Access</li>
+                                                <li className="flex items-center text-sm"><Check className="h-4 w-4 mr-2 text-green-500" /> 30 Free SEO Alt Texts</li>
+                                                <li className="flex items-center text-sm"><Check className="h-4 w-4 mr-2 text-green-500" /> Full WordPress Plugin</li>
+                                                <li className="flex items-center text-sm"><Check className="h-4 w-4 mr-2 text-green-500" /> Media Library Sync</li>
                                             </ul>
                                         </Card>
                                         <Card className="p-6 border-2 border-teal-500">
                                             <Badge className="mb-2" style={{ backgroundColor: '#0D4F5E', color: 'white' }}>Popular</Badge>
-                                            <h4 className="text-xl font-bold mb-2">Tier 1</h4>
-                                            <div className="text-3xl font-bold mb-4" style={{ color: '#003a42' }}>$12<span className="text-sm text-gray-500">/mo</span></div>
+                                            <h4 className="text-xl font-bold mb-2">Standard</h4>
+                                            <div className="text-3xl font-bold mb-4" style={{ color: '#003a42' }}>$5<span className="text-sm text-gray-500">/mo</span></div>
                                             <ul className="space-y-2 text-gray-700 mb-4">
-                                                <li className="flex items-center"><Check className="h-4 w-4 mr-2 text-green-500" /> 1,000 Credits/month</li>
-                                                <li className="flex items-center"><Check className="h-4 w-4 mr-2 text-green-500" /> Priority Support</li>
-                                                <li className="flex items-center"><Check className="h-4 w-4 mr-2 text-green-500" /> Bulk Processing</li>
+                                                <li className="flex items-center text-sm"><Check className="h-4 w-4 mr-2 text-green-500" /> 400 Credits</li>
+                                                <li className="flex items-center text-sm"><Check className="h-4 w-4 mr-2 text-green-500" /> Bulk One-Click Library Fix</li>
+                                                <li className="flex items-center text-sm"><Check className="h-4 w-4 mr-2 text-green-500" /> Multi-Language AI (130+)</li>
                                             </ul>
                                         </Card>
                                         <Card className="p-6 border-2">
-                                            <h4 className="text-xl font-bold mb-2">Tier 2</h4>
-                                            <div className="text-3xl font-bold mb-4" style={{ color: '#003a42' }}>$20<span className="text-sm text-gray-500">/mo</span></div>
+                                            <h4 className="text-xl font-bold mb-2">Pro</h4>
+                                            <div className="text-3xl font-bold mb-4" style={{ color: '#003a42' }}>$9<span className="text-sm text-gray-500">/mo</span></div>
                                             <ul className="space-y-2 text-gray-700 mb-4">
-                                                <li className="flex items-center"><Check className="h-4 w-4 mr-2 text-green-500" /> 2,500 Credits/month</li>
-                                                <li className="flex items-center"><Check className="h-4 w-4 mr-2 text-green-500" /> Premium Support</li>
-                                                <li className="flex items-center"><Check className="h-4 w-4 mr-2 text-green-500" /> Advanced Features</li>
+                                                <li className="flex items-center text-sm"><Check className="h-4 w-4 mr-2 text-green-500" /> 1,000 Credits</li>
+                                                <li className="flex items-center text-sm"><Check className="h-4 w-4 mr-2 text-green-500" /> Advanced Context-Aware AI</li>
+                                                <li className="flex items-center text-sm"><Check className="h-4 w-4 mr-2 text-green-500" /> Premium 24/7 Support</li>
                                             </ul>
                                         </Card>
                                     </div>
@@ -496,7 +496,7 @@ export default function DocsPage() {
                                     Frequently Asked Questions
                                 </h2>
                                 <div className="space-y-6">
-                                    <Card className="p-6"><h3 className="font-bold text-lg mb-2">Do I need an Alt Text Pro account?</h3><p className="text-gray-700">Yes, you need a free Alt Text Pro account to use the plugin or API. Sign up at <a href="https://www.alt-text.pro" className="text-teal-600 hover:underline">alt-text.pro</a> and get 50 free credits to start.</p></Card>
+                                    <Card className="p-6"><h3 className="font-bold text-lg mb-2">Do I need an Alt Text Pro account?</h3><p className="text-gray-700">Yes, you need a free Alt Text Pro account to use the plugin or API. Sign up at <a href="https://www.alt-text.pro" className="text-teal-600 hover:underline">alt-text.pro</a> and get 30 free credits to start.</p></Card>
                                     <Card className="p-6"><h3 className="font-bold text-lg mb-2">How accurate is the AI-generated alt-text?</h3><p className="text-gray-700">Our service uses advanced AI models and provides highly accurate descriptions. However, we always recommend reviewing and editing the generated text to ensure it fits your specific context perfectly.</p></Card>
                                     <Card className="p-6"><h3 className="font-bold text-lg mb-2">Can I edit the generated alt-text?</h3><p className="text-gray-700">Absolutely! The plugin generates alt-text as a starting point. You can always edit, refine, or completely rewrite the descriptions in WordPress media library.</p></Card>
                                     <Card className="p-6"><h3 className="font-bold text-lg mb-2">What happens if I run out of credits?</h3><p className="text-gray-700">If you run out of credits, the plugin will stop generating new alt-text. You can purchase more credits or upgrade your plan from your dashboard.</p></Card>
