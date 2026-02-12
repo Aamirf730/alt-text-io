@@ -33,13 +33,13 @@ export default function PrivacyPage() {
 
                             <h3 className="text-xl font-semibold text-gray-900 mb-3 mt-4">2.2 Payment Information</h3>
                             <p className="text-gray-700 leading-relaxed mb-4">
-                                Payment processing is handled by PayPal. We do not store your credit card or PayPal account details. PayPal may share transaction information with us, including:
+                                Payment processing is handled by Polar.sh, our payment provider. We do not store your credit card or payment account details. Polar.sh may share transaction information with us, including:
                             </p>
                             <ul className="list-disc list-inside text-gray-700 space-y-2 ml-4">
                                 <li>Payment amount and currency</li>
                                 <li>Transaction date and status</li>
                                 <li>Subscription plan information</li>
-                                <li>PayPal transaction IDs</li>
+                                <li>Transaction IDs</li>
                             </ul>
 
                             <h3 className="text-xl font-semibold text-gray-900 mb-3 mt-4">2.3 Usage Data</h3>
@@ -106,9 +106,9 @@ export default function PrivacyPage() {
                                 We use Supabase for user authentication, database storage, and user management. Supabase's privacy policy applies to data stored in their systems.
                             </p>
 
-                            <h3 className="text-xl font-semibold text-gray-900 mb-3 mt-4">5.2 PayPal</h3>
+                            <h3 className="text-xl font-semibold text-gray-900 mb-3 mt-4">5.2 Polar.sh</h3>
                             <p className="text-gray-700 leading-relaxed mb-4">
-                                Payment processing is handled by PayPal. When you make a payment, PayPal collects and processes your payment information according to their privacy policy. We receive transaction details but not your full payment credentials.
+                                Payment processing is handled by Polar.sh. When you make a payment, Polar.sh collects and processes your payment information according to their privacy policy. We receive transaction details but not your full payment credentials.
                             </p>
 
                             <h3 className="text-xl font-semibold text-gray-900 mb-3 mt-4">5.3 AI Technology</h3>

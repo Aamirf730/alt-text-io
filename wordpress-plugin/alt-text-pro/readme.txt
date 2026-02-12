@@ -4,7 +4,7 @@ Tags: alt text generator, image seo, accessibility, ai alt text, automatic alt t
 Requires at least: 5.0
 Tested up to: 6.4
 Requires PHP: 7.4
-Stable tag: 1.4.76
+Stable tag: 1.4.79
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -166,6 +166,21 @@ Yes, you can cancel your subscription at any time from your Alt Text Pro dashboa
 6. **Mobile Responsive Design** - Fully responsive alt text generator works on all devices
 
 == Changelog ==
+
+= 1.4.79 =
+* Fix: Alt text for content images now updates the post HTML, not just attachment metadata.
+* Content images in the block editor will now correctly show generated alt text.
+
+= 1.4.78 =
+* Fixed AJAX handler argument mismatch (passing attachment ID instead of URL).
+* Corrected JavaScript variable mismatch in posts list view.
+
+= 1.4.77 =
+* New: Per-post "Add Alt Text" button in the Posts & Pages list tables
+* New: Generate alt-text for all images in a specific post with one click
+* New: "Alt Text" column shows image status (missing count, all done, no images)
+* Automatically finds images in post content (wp-image classes, data attributes) and featured image
+* Skips images that already have alt-text to save credits
 
 = 1.4.73 =
 * Fix: "Overwrite Existing" option visibility logic in bulk processor.

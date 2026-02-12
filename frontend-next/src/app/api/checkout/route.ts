@@ -21,18 +21,24 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: "POLAR_ACCESS_TOKEN not configured" }, { status: 500 });
         }
 
+        console.log('Checkout API called with:', { productId, customerEmail });
+        console.log('Using Polar access token (prefix):', accessToken.substring(0, 10) + '...');
+        console.log('Polar environment:', environment);
+
         const polar = new Polar({
             accessToken,
             server: environment === "sandbox" ? "sandbox" : "production",
         });
 
         // Using correct property names based on SDK types
+        console.log('Creating checkout for products:', [productId]);
         const checkout = await polar.checkouts.create({
             products: [productId],
             successUrl,
             customerEmail: customerEmail || undefined,
         });
 
+        console.log('Polar checkout created:', checkout.url);
         return NextResponse.redirect(checkout.url);
     } catch (error: unknown) {
         console.error("Checkout error:", error);

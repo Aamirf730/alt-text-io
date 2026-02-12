@@ -77,7 +77,7 @@ export default function TermsPage() {
                         <section>
                             <h2 className="text-2xl font-semibold text-gray-900 mb-4">5. Payment Terms</h2>
                             <p className="text-gray-700 leading-relaxed mb-4">
-                                Payments are processed through PayPal. By subscribing, you authorize us to charge your PayPal account for the subscription fee on a recurring monthly basis.
+                                Payments are processed securely through Polar.sh. By subscribing, you authorize us to charge your payment method for the subscription fee on a recurring basis.
                             </p>
                             <ul className="list-disc list-inside text-gray-700 space-y-2 ml-4">
                                 <li>Subscription fees are charged in advance for each billing period</li>
@@ -91,7 +91,7 @@ export default function TermsPage() {
                         <section>
                             <h2 className="text-2xl font-semibold text-gray-900 mb-4">6. Cancellation and Refund Policy</h2>
                             <p className="text-gray-700 leading-relaxed mb-4">
-                                You may cancel your subscription at any time through your PayPal account or by contacting us. Cancellation will take effect at the end of your current billing period.
+                                You may cancel your subscription at any time through your dashboard or by contacting us. Cancellation will take effect at the end of your current billing period.
                             </p>
                             <ul className="list-disc list-inside text-gray-700 space-y-2 ml-4">
                                 <li>No refunds are provided for partial billing periods</li>

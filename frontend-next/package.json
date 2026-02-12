@@ -9,7 +9,6 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@paypal/react-paypal-js": "^8.9.2",
     "@polar-sh/nextjs": "^0.9.1",
     "@polar-sh/sdk": "^0.41.5",
     "@radix-ui/react-progress": "^1.0.3",

@@ -824,3 +824,56 @@
 .alt-text-pro-modal.active .modal-content {
     animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
+
+/* ===== POSTS LIST - PER POST ALT TEXT ===== */
+.column-alt_text_pro {
+    width: 130px;
+}
+
+.atp-post-generate-btn {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 3px;
+    font-size: 12px !important;
+    padding: 2px 8px !important;
+    height: auto !important;
+    line-height: 1.6 !important;
+    border-color: var(--primary-color) !important;
+    color: var(--primary-color) !important;
+    background: #EFF6FF !important;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.atp-post-generate-btn:hover {
+    background: var(--primary-color) !important;
+    color: #fff !important;
+    border-color: var(--primary-color) !important;
+}
+
+.atp-post-generate-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.atp-post-generate-btn .dashicons {
+    font-size: 14px;
+    width: 14px;
+    height: 14px;
+    line-height: 14px;
+}
+
+@keyframes atp-spin {
+    to { transform: rotate(360deg); }
+}
+
+.atp-spin {
+    animation: atp-spin 1s linear infinite;
+    display: inline-block;
+}
+
+.atp-post-badge {
+    font-size: 11px;
+    color: #9CA3AF;
+}

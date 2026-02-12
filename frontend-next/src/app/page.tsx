@@ -306,7 +306,7 @@ export default function LandingPage() {
     if (planId === 'small_pack') {
       return POLAR_PRODUCTS.small_pack;
     }
-    if (planId === 'credit_pack' || planId === 'pay_as_go') {
+    if (planId === 'credit_pack') {
       return POLAR_PRODUCTS.credit_pack;
     }
     return '';

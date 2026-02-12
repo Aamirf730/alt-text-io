@@ -3,7 +3,7 @@
  * Plugin Name: Alt Text Pro – AI Alt Text Generator for Image SEO & Accessibility
  * Plugin URI: https://www.alt-text.pro
  * Description: AI-powered alt text generator that automatically creates image alt tags for better SEO and accessibility. Generate alt text for all your images with one click.
- * Version:           1.4.76
+ * Version:           1.4.79
  * Author: Alt Text Pro
  * Author URI: https://www.alt-text.pro/about
  * License: GPL v2 or later
@@ -20,8 +20,8 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('ALT_TEXT_PRO_VERSION', '1.4.76');
-// Version 1.4.68 - Fix data mismatch and background batching
+define('ALT_TEXT_PRO_VERSION', '1.4.79');
+// Version 1.4.79 - Fix: update alt attributes in post content HTML for content images
 define('ALT_TEXT_PRO_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('ALT_TEXT_PRO_PLUGIN_PATH', plugin_dir_path(__FILE__));
 define('ALT_TEXT_PRO_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -92,6 +92,12 @@ class AltTextPro
         if (is_admin()) {
             new AltTextPro_Admin();
             new AltTextPro_Settings();
+
+            // Posts list columns
+            add_filter('manage_posts_columns', array($this, 'add_alt_text_column'));
+            add_filter('manage_pages_columns', array($this, 'add_alt_text_column'));
+            add_action('manage_posts_custom_column', array($this, 'render_alt_text_column'), 10, 2);
+            add_action('manage_pages_custom_column', array($this, 'render_alt_text_column'), 10, 2);
         }
 
         // Media hooks
@@ -103,6 +109,7 @@ class AltTextPro
         add_action('wp_ajax_alt_text_pro_bulk_process', array($this, 'ajax_bulk_process'));
         add_action('wp_ajax_alt_text_pro_get_usage', array($this, 'ajax_get_usage'));
         add_action('wp_ajax_alt_text_pro_validate_key', array($this, 'ajax_validate_key'));
+        add_action('wp_ajax_alt_text_pro_generate_post', array($this, 'ajax_generate_post_alt_text'));
 
         // Enqueue scripts
         add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_scripts'));
@@ -184,6 +191,7 @@ class AltTextPro
         // Only load on relevant admin pages
         $allowed_pages = array(
             'upload.php',
+            'edit.php',
             'post.php',
             'post-new.php',
             'media-upload-popup',
@@ -253,7 +261,13 @@ class AltTextPro
                 'onboardingSave' => __('Save API Key', 'alt-text-pro'),
                 'onboardingSkip' => __('Maybe later', 'alt-text-pro'),
                 'onboardingInvalidFormat' => __('Invalid API key format. Keys should start with "alt_" or "altai_".', 'alt-text-pro'),
-                'onboardingSaved' => __('API key saved successfully!', 'alt-text-pro')
+                'onboardingSaved' => __('API key saved successfully!', 'alt-text-pro'),
+                'postGenerating' => __('Generating...', 'alt-text-pro'),
+                'postNoImages' => __('No images found in this post.', 'alt-text-pro'),
+                'postAllDone' => __('All images already have alt-text!', 'alt-text-pro'),
+                'postSuccess' => __('Done! %d image(s) updated.', 'alt-text-pro'),
+                'postError' => __('Error generating alt-text.', 'alt-text-pro'),
+                'postAddAltText' => __('Add Alt Text', 'alt-text-pro')
             )
         ));
 
@@ -267,6 +281,8 @@ class AltTextPro
             $this->add_settings_inline_script();
         } elseif ($hook === 'alt-text-pro_page_alt-text-pro-logs') {
             $this->add_logs_inline_script();
+        } elseif ($hook === 'edit.php') {
+            $this->add_posts_list_inline_script();
         }
     }
 
@@ -1110,6 +1126,385 @@ class AltTextPro
             ),
             array('%d', '%s', '%d', '%s')
         );
+    }
+
+    /**
+     * Add "Alt Text" column to posts/pages list table
+     */
+    public function add_alt_text_column($columns)
+    {
+        $columns['alt_text_pro'] = __('Alt Text', 'alt-text-pro');
+        return $columns;
+    }
+
+    /**
+     * Render the "Alt Text" column content for each post/page
+     */
+    public function render_alt_text_column($column, $post_id)
+    {
+        if ($column !== 'alt_text_pro') {
+            return;
+        }
+
+        $attachments = $this->get_post_image_attachments($post_id);
+        $total = count($attachments);
+
+        if ($total === 0) {
+            echo '<span class="atp-post-status atp-no-images" style="color:#9CA3AF;font-size:12px;">— ' . esc_html__('No images', 'alt-text-pro') . '</span>';
+            return;
+        }
+
+        // Count images missing alt-text
+        $missing = 0;
+        foreach ($attachments as $att_id) {
+            $alt = get_post_meta($att_id, '_wp_attachment_image_alt', true);
+            if (empty($alt)) {
+                $missing++;
+            }
+        }
+
+        if ($missing === 0) {
+            echo '<span class="atp-post-status atp-all-done" style="color:#10B981;font-size:12px;">✓ ' . esc_html__('All done', 'alt-text-pro') . '</span>';
+            return;
+        }
+
+        // Show the button
+        printf(
+            '<button type="button" class="button button-small atp-post-generate-btn" data-post-id="%d" data-nonce="%s" title="%s">
+                <span class="dashicons dashicons-images-alt2" style="font-size:14px;width:14px;height:14px;vertical-align:middle;margin-right:2px;"></span>
+                <span class="atp-btn-text">%s</span>
+            </button>
+            <span class="atp-post-badge" style="margin-left:4px;font-size:11px;color:#6B7280;">%d/%d</span>',
+            intval($post_id),
+            esc_attr(wp_create_nonce('alt_text_pro_nonce')),
+            /* translators: %d: number of images missing alt-text */
+            esc_attr(sprintf(__('%d image(s) missing alt-text', 'alt-text-pro'), $missing)),
+            esc_html__('Add Alt Text', 'alt-text-pro'),
+            intval($missing),
+            intval($total)
+        );
+    }
+
+    /**
+     * Get all image attachment IDs used in a post (content images + featured image)
+     */
+    private function get_post_image_attachments($post_id)
+    {
+        $attachment_ids = array();
+        $post = get_post($post_id);
+
+        if (!$post) {
+            return $attachment_ids;
+        }
+
+        // 1. Featured image
+        $thumbnail_id = get_post_thumbnail_id($post_id);
+        if ($thumbnail_id) {
+            $attachment_ids[] = intval($thumbnail_id);
+        }
+
+        // 2. Images in post content — match wp-image-{id} class pattern
+        if (!empty($post->post_content)) {
+            // Match WordPress image classes like wp-image-123
+            if (preg_match_all('/wp-image-(\d+)/', $post->post_content, $matches)) {
+                foreach ($matches[1] as $id) {
+                    $attachment_ids[] = intval($id);
+                }
+            }
+
+            // Also match <img> tags that reference attachment IDs via data attributes
+            if (preg_match_all('/data-id=["\'](\d+)["\']/', $post->post_content, $matches)) {
+                foreach ($matches[1] as $id) {
+                    $attachment_ids[] = intval($id);
+                }
+            }
+        }
+
+        // 3. Remove duplicates and verify they are valid attachments
+        $attachment_ids = array_unique($attachment_ids);
+        $valid_ids = array();
+        foreach ($attachment_ids as $att_id) {
+            if (wp_attachment_is_image($att_id)) {
+                $valid_ids[] = $att_id;
+            }
+        }
+
+        return $valid_ids;
+    }
+
+    /**
+     * AJAX handler for generating alt-text for all images in a specific post
+     */
+    public function ajax_generate_post_alt_text()
+    {
+        check_ajax_referer('alt_text_pro_nonce', 'nonce');
+
+        if (!current_user_can('upload_files')) {
+            wp_send_json_error(__('You do not have permission to perform this action.', 'alt-text-pro'));
+        }
+
+        $post_id = isset($_POST['post_id']) ? intval($_POST['post_id']) : 0;
+
+        if (!$post_id || !get_post($post_id)) {
+            wp_send_json_error(__('Invalid post.', 'alt-text-pro'));
+        }
+
+        $attachments = $this->get_post_image_attachments($post_id);
+
+        // DEBUG: Log found attachments
+        // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log, WordPress.PHP.DevelopmentFunctions.error_log_print_r
+        error_log('Alt Text Pro DEBUG: Post ID ' . $post_id . ' - Found attachments: ' . print_r($attachments, true));
+
+        // DEBUG: Log the post content patterns
+        $post_obj = get_post($post_id);
+        if ($post_obj && !empty($post_obj->post_content)) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+            error_log('Alt Text Pro DEBUG: Post content length: ' . strlen($post_obj->post_content));
+            // Check what image patterns exist
+            if (preg_match_all('/wp-image-(\d+)/', $post_obj->post_content, $debug_matches)) {
+                // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log, WordPress.PHP.DevelopmentFunctions.error_log_print_r
+                error_log('Alt Text Pro DEBUG: wp-image IDs found in content: ' . print_r($debug_matches[1], true));
+            } else {
+                // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+                error_log('Alt Text Pro DEBUG: NO wp-image-{id} patterns found in content');
+            }
+            // Also log first 500 chars of content for inspection
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+            error_log('Alt Text Pro DEBUG: Content preview: ' . substr($post_obj->post_content, 0, 1000));
+        }
+
+        if (empty($attachments)) {
+            wp_send_json_error(__('No images found in this post.', 'alt-text-pro'));
+        }
+
+        $api_client = new AltTextPro_API_Client();
+        $settings = get_option('alt_text_pro_settings', array());
+        $results = array(
+            'total' => count($attachments),
+            'processed' => 0,
+            'skipped' => 0,
+            'errors' => 0,
+            'details' => array()
+        );
+
+        foreach ($attachments as $attachment_id) {
+            // Check if already has alt-text
+            $existing_alt = get_post_meta($attachment_id, '_wp_attachment_image_alt', true);
+
+            // DEBUG: Log each attachment's status
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+            error_log('Alt Text Pro DEBUG: Attachment ID ' . $attachment_id . ' - existing alt: "' . ($existing_alt ? $existing_alt : '(empty)') . '"');
+
+            if (!empty($existing_alt)) {
+                $results['skipped']++;
+                $results['details'][] = array(
+                    'id' => $attachment_id,
+                    'status' => 'skipped',
+                    'message' => __('Already has alt-text', 'alt-text-pro')
+                );
+                continue;
+            }
+
+            // Get image URL
+            $image_url = wp_get_attachment_url($attachment_id);
+            if (!$image_url) {
+                $results['errors']++;
+                $results['details'][] = array(
+                    'id' => $attachment_id,
+                    'status' => 'error',
+                    'message' => __('Could not get image URL', 'alt-text-pro')
+                );
+                continue;
+            }
+
+            // Generate alt-text via API
+            $context = '';
+            if (!empty($settings['use_context'])) {
+                $post = get_post($post_id);
+                if ($post) {
+                    $context = $post->post_title;
+                }
+            }
+
+            $result = $api_client->generate_alt_text($attachment_id, $context);
+
+            if ($result['success'] && !empty($result['alt_text'])) {
+                // Save alt-text
+                update_post_meta($attachment_id, '_wp_attachment_image_alt', sanitize_text_field($result['alt_text']));
+
+                // Log generation
+                $this->log_generation($attachment_id, $result['alt_text']);
+
+                $results['processed']++;
+                $results['details'][] = array(
+                    'id' => $attachment_id,
+                    'status' => 'success',
+                    'alt_text' => $result['alt_text']
+                );
+            } else {
+                $results['errors']++;
+                $results['details'][] = array(
+                    'id' => $attachment_id,
+                    'status' => 'error',
+                    'message' => isset($result['message']) ? $result['message'] : __('Failed to generate alt-text', 'alt-text-pro')
+                );
+            }
+        }
+
+        // ── Update alt attributes inside the post_content HTML ──
+        // WordPress stores content-image alt text in the block markup
+        // (<img alt="...">), not in attachment metadata. So we must
+        // patch the actual post_content for content images to pick up
+        // the newly generated alt text in the block editor.
+        // Include BOTH newly generated AND skipped (already had metadata) images,
+        // because skipped images may have alt text in metadata but NOT in the HTML.
+        $content_updates = array();
+        foreach ($results['details'] as $detail) {
+            if ($detail['status'] === 'success' && !empty($detail['alt_text'])) {
+                $content_updates[$detail['id']] = $detail['alt_text'];
+            } elseif ($detail['status'] === 'skipped') {
+                // Image already has alt text in metadata — ensure it's also in the HTML
+                $existing = get_post_meta($detail['id'], '_wp_attachment_image_alt', true);
+                if (!empty($existing)) {
+                    $content_updates[$detail['id']] = $existing;
+                }
+            }
+        }
+
+        if (!empty($content_updates)) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log, WordPress.PHP.DevelopmentFunctions.error_log_print_r
+            error_log('Alt Text Pro DEBUG: content_updates to apply: ' . print_r($content_updates, true));
+
+            $post = get_post($post_id);
+            if ($post && !empty($post->post_content)) {
+                $content = $post->post_content;
+
+                foreach ($content_updates as $att_id => $alt_text) {
+                    $escaped_alt = esc_attr($alt_text);
+                    $pattern = '/<img\b([^>]*\bwp-image-' . intval($att_id) . '\b[^>]*?)(\/?>)/i';
+
+                    // DEBUG: Check if pattern matches before replacing
+                    $match_count = preg_match_all($pattern, $content, $debug_img_matches);
+                    // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+                    error_log('Alt Text Pro DEBUG: Regex for wp-image-' . $att_id . ' found ' . $match_count . ' match(es)');
+                    if ($match_count > 0) {
+                        // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+                        error_log('Alt Text Pro DEBUG: Matched img tag: ' . $debug_img_matches[0][0]);
+                    }
+
+                    // Match <img> tags that reference wp-image-{id}
+                    $content = preg_replace_callback(
+                        $pattern,
+                        function ($matches) use ($escaped_alt) {
+                            $attrs = $matches[1];
+                            $close = $matches[2];
+
+                            // Strip any existing alt attribute (empty or otherwise)
+                            $attrs = preg_replace('/\s+alt\s*=\s*"[^"]*"/i', '', $attrs);
+
+                            // Insert the new alt attribute
+                            return '<img' . $attrs . ' alt="' . $escaped_alt . '"' . $close;
+                        },
+                        $content
+                    );
+                }
+
+                // DEBUG: Log a snippet of the updated content showing img tags
+                // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+                error_log('Alt Text Pro DEBUG: About to call wp_update_post for post ' . $post_id);
+
+                // Save the updated content back to the post
+                $update_result = wp_update_post(array(
+                    'ID' => $post_id,
+                    'post_content' => $content,
+                ));
+
+                // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+                error_log('Alt Text Pro DEBUG: wp_update_post result: ' . ($update_result ? 'success (ID: ' . $update_result . ')' : 'FAILED'));
+
+                // Log a snippet showing one of the updated img tags
+                if (preg_match('/<img[^>]*wp-image-\d+[^>]*>/', $content, $sample_img)) {
+                    // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+                    error_log('Alt Text Pro DEBUG: Sample updated img tag: ' . $sample_img[0]);
+                }
+            }
+        } else {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+            error_log('Alt Text Pro DEBUG: No content_updates to apply');
+        }
+
+        wp_send_json_success($results);
+    }
+
+    /**
+     * Add inline script for posts list page interactions
+     */
+    private function add_posts_list_inline_script()
+    {
+        wp_add_inline_script('alt-text-pro-admin', '
+            (function($) {
+                "use strict";
+
+                $(document).on("click", ".atp-post-generate-btn", function(e) {
+                    e.preventDefault();
+                    var $btn = $(this);
+                    var postId = $btn.data("post-id");
+                    var nonce = $btn.data("nonce");
+                    var $badge = $btn.siblings(".atp-post-badge");
+                    var $cell = $btn.closest("td");
+
+                    // Prevent double-click
+                    if ($btn.prop("disabled")) return;
+
+                    // Show loading state
+                    $btn.prop("disabled", true);
+                    $btn.find(".atp-btn-text").text(altTextAI.strings.postGenerating);
+                    $btn.find(".dashicons").removeClass("dashicons-images-alt2").addClass("dashicons-update atp-spin");
+
+                    $.ajax({
+                        url: altTextAI.ajaxUrl,
+                        type: "POST",
+                        data: {
+                            action: "alt_text_pro_generate_post",
+                            nonce: nonce,
+                            post_id: postId
+                        },
+                        success: function(response) {
+                            if (response.success) {
+                                var data = response.data;
+                                var processed = data.processed || 0;
+
+                                if (processed > 0) {
+                                    // Show success
+                                    var msg = altTextAI.strings.postSuccess.replace("%d", processed);
+                                    $cell.html("<span class=\"atp-post-status atp-all-done\" style=\"color:#10B981;font-size:12px;\">✓ " + msg + "</span>");
+                                } else if (data.skipped === data.total) {
+                                    $cell.html("<span class=\"atp-post-status atp-all-done\" style=\"color:#10B981;font-size:12px;\">✓ " + altTextAI.strings.postAllDone + "</span>");
+                                } else {
+                                    // Partial — some errors
+                                    $btn.prop("disabled", false);
+                                    $btn.find(".dashicons").removeClass("dashicons-update atp-spin").addClass("dashicons-warning");
+                                    $btn.find(".atp-btn-text").text(data.errors + " error(s)");
+                                    $btn.css("color", "#EF4444");
+                                }
+                            } else {
+                                // Error
+                                $btn.prop("disabled", false);
+                                $btn.find(".dashicons").removeClass("dashicons-update atp-spin").addClass("dashicons-images-alt2");
+                                $btn.find(".atp-btn-text").text(altTextAI.strings.postAddAltText);
+                                alert(response.data || altTextAI.strings.postError);
+                            }
+                        },
+                        error: function() {
+                            $btn.prop("disabled", false);
+                            $btn.find(".dashicons").removeClass("dashicons-update atp-spin").addClass("dashicons-images-alt2");
+                            $btn.find(".atp-btn-text").text(altTextAI.strings.postAddAltText);
+                            alert(altTextAI.strings.postError);
+                        }
+                    });
+                });
+            })(jQuery);
+        ');
     }
 }
 

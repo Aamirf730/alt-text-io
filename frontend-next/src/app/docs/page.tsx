@@ -414,7 +414,7 @@ export default function DocsPage() {
                                         <li>Go to your dashboard at <a href="https://www.alt-text.pro/dashboard" className="text-teal-600 hover:underline">alt-text.pro/dashboard</a></li>
                                         <li>Click "Upgrade Plan" or visit the Pricing section</li>
                                         <li>Select your desired plan</li>
-                                        <li>Complete payment via PayPal</li>
+                                        <li>Complete payment via our secure checkout</li>
                                         <li>Your new credits will be available immediately</li>
                                     </ol>
                                 </div>

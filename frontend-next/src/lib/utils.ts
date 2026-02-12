@@ -5,8 +5,7 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-/** Current WordPress plugin version — single source of truth */
-export const PLUGIN_VERSION = "1.4.76";
+export const PLUGIN_VERSION = "1.4.79";
 
 /**
  * Returns the correct API base URL for Netlify functions.

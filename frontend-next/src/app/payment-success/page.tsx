@@ -4,10 +4,9 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { getApiBase } from '@/lib/utils';
 
 // Payment Success Handler Component
-// Updated to work with Polar.sh checkout flow
+// Works with Polar.sh checkout flow
 export default function PaymentSuccess() {
     const [status, setStatus] = useState('processing');
     const router = useRouter();
@@ -20,11 +19,6 @@ export default function PaymentSuccess() {
         // Check for Polar's customer session token (indicates successful checkout)
         const customerSessionToken = searchParams.get('customer_session_token');
 
-        // Also check for legacy PayPal parameters for backward compatibility
-        const subscriptionId = searchParams.get('subscription_id') ||
-            searchParams.get('subscriptionId') ||
-            searchParams.get('token');
-
         if (customerSessionToken) {
             // Polar checkout was successful - credits will be applied via webhook
             console.log('Polar checkout successful, token:', customerSessionToken);
@@ -34,38 +28,6 @@ export default function PaymentSuccess() {
             setTimeout(() => {
                 router.push('/dashboard');
             }, 3000);
-        } else if (subscriptionId) {
-            // Legacy PayPal flow - try to activate subscription
-            const apiBase = getApiBase();
-
-            fetch(`${apiBase}/activate-subscription`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ subscriptionId })
-            })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.status === 'ACTIVE') {
-                        setStatus('success');
-                        setTimeout(() => {
-                            router.push('/dashboard');
-                        }, 2000);
-                    } else if (data.status === 'APPROVAL_PENDING' || data.status === 'APPROVED') {
-                        setStatus('pending');
-                        setTimeout(() => {
-                            router.push('/dashboard');
-                        }, 2000);
-                    } else {
-                        setStatus('pending');
-                        setTimeout(() => {
-                            router.push('/dashboard');
-                        }, 2000);
-                    }
-                })
-                .catch(error => {
-                    console.error('Subscription activation error:', error);
-                    setStatus('error');
-                });
         } else {
             // No recognized token - could be direct access or one-time payment
             // For Polar one-time payments, the webhook handles everything
@@ -105,18 +67,6 @@ export default function PaymentSuccess() {
                 <div className="text-center">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4"></div>
                     <p className="text-gray-700">Processing your payment...</p>
-                </div>
-            </div>
-        );
-    }
-
-    if (status === 'pending') {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-cyan-50 to-teal-50">
-                <div className="text-center max-w-md mx-auto p-6">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4"></div>
-                    <h2 className="text-2xl font-bold text-gray-800 mb-2">Payment Processing</h2>
-                    <p className="text-gray-600 mb-6">Your payment is being processed. You will be redirected to your dashboard shortly.</p>
                 </div>
             </div>
         );

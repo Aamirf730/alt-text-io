@@ -69,17 +69,26 @@ export default function Dashboard() {
     // Load subscription data from API
     const loadSubscriptionData = async (token: string) => {
         try {
-            // Skip API call on localhost - use fallback data for development
+            // On localhost, query Supabase directly instead of Netlify function
             if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-                console.log('Using fallback subscription data for localhost');
-                setSubscriptionData({
-                    subscription: {
-                        plan: 'free',
-                        status: 'active',
-                        subscription_id: null,
-                        next_billing_date: null
-                    }
-                });
+                console.log('Using direct Supabase query for localhost subscription data');
+                const { data: { session } } = await supabase.auth.getSession();
+                if (session) {
+                    const { data: profile } = await supabase
+                        .from('profiles')
+                        .select('subscription_plan, subscription_status, subscription_id, next_billing_date, polar_customer_id')
+                        .eq('id', session.user.id)
+                        .single();
+                    setSubscriptionData({
+                        subscription: {
+                            plan: profile?.subscription_plan || 'free',
+                            status: profile?.subscription_status || 'active',
+                            subscription_id: profile?.subscription_id || null,
+                            next_billing_date: profile?.next_billing_date || null,
+                            polar_customer_id: profile?.polar_customer_id || null
+                        }
+                    });
+                }
                 return;
             }
 
@@ -126,6 +135,7 @@ export default function Dashboard() {
 
     // Redirect to Polar.sh checkout
     const redirectToCheckout = (productId: string) => {
+        console.log('Redirecting to checkout with productId:', productId);
         if (!productId) {
             toast.error('Product not configured. Please contact support.');
             return;
@@ -138,27 +148,40 @@ export default function Dashboard() {
             checkoutUrl += `&customerEmail=${encodeURIComponent(user.email)}`;
         }
 
+        console.log('Final checkout URL:', checkoutUrl);
         window.location.href = checkoutUrl;
     };
 
     // Get the correct Polar product ID based on plan
     const getPolarProductId = (planId: string): string => {
+        console.log('Mapping planId to productId:', planId);
         // For dashboard upgrades, default to monthly plans
         if (planId === 'tier1') {
-            return POLAR_PRODUCTS.tier1_monthly;
+            const id = POLAR_PRODUCTS.tier1_monthly;
+            console.log('Mapped tier1 to:', id);
+            return id;
         }
         if (planId === 'tier2') {
-            return POLAR_PRODUCTS.tier2_monthly;
+            const id = POLAR_PRODUCTS.tier2_monthly;
+            console.log('Mapped tier2 to:', id);
+            return id;
         }
         if (planId === 'tier3') {
-            return POLAR_PRODUCTS.tier3_monthly;
+            const id = POLAR_PRODUCTS.tier3_monthly;
+            console.log('Mapped tier3 to:', id);
+            return id;
         }
         if (planId === 'small_pack') {
-            return POLAR_PRODUCTS.small_pack;
+            const id = POLAR_PRODUCTS.small_pack;
+            console.log('Mapped small_pack to:', id);
+            return id;
         }
-        if (planId === 'credit_pack' || planId === 'pay_as_go') {
-            return POLAR_PRODUCTS.credit_pack;
+        if (planId === 'credit_pack') {
+            const id = POLAR_PRODUCTS.credit_pack;
+            console.log('Mapped credit_pack to:', id);
+            return id;
         }
+        console.warn('Unknown planId:', planId);
         return '';
     };
 
@@ -246,7 +269,7 @@ export default function Dashboard() {
                 console.log('Using direct Supabase query for localhost');
                 const { data: profile, error: profileError } = await supabase
                     .from('profiles')
-                    .select('credits_remaining, total_processed, subscription_plan, subscription_status, next_billing_date, polar_customer_id')
+                    .select('credits_remaining, total_processed, subscription_plan, subscription_status, next_billing_date, subscription_id')
                     .eq('id', session.user.id)
                     .single();
 
@@ -293,7 +316,7 @@ export default function Dashboard() {
                     // Fallback: try direct Supabase query as backup
                     const { data: profile, error: profileError } = await supabase
                         .from('profiles')
-                        .select('credits_remaining, total_processed, subscription_plan, subscription_status, next_billing_date, polar_customer_id')
+                        .select('credits_remaining, total_processed, subscription_plan, subscription_status, next_billing_date, subscription_id')
                         .eq('id', session.user.id)
                         .single();
 
@@ -574,7 +597,7 @@ export default function Dashboard() {
                             <div className="flex justify-between items-center text-xs text-gray-500">
                                 <span>{usageStats?.plan === 'free' ? '30 total' : 'Monthly quota'}</span>
                                 <button
-                                    onClick={() => handleUpgradePlan('pay_as_go', 'Pay as you go', '$5')}
+                                    onClick={() => handleUpgradePlan('small_pack', 'Small Pack', '$5')}
                                     className="text-teal-600 font-medium hover:text-teal-700"
                                 >
                                     Top up +

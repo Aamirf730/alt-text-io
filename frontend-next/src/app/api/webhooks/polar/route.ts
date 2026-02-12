@@ -37,11 +37,23 @@ const CREDITS_MAP: Record<string, number> = {
     credit_pack: 250,  // $10 for 250 images
 };
 
+// Monthly credit allowance for annual plans (used by pg_cron monthly drip)
+const MONTHLY_CREDITS_MAP: Record<string, number> = {
+    tier1: 150,
+    tier2: 400,
+    tier3: 1000,
+};
+
 // Helper to get credits from product name or metadata
-function getCreditsForProduct(productName: string, metadata?: Record<string, string>): number {
+function getCreditsForProduct(
+    productName: string,
+    metadata?: Record<string, string | number | boolean | null | undefined>
+): number {
     // First check metadata for explicit credits
     if (metadata?.credits) {
-        return parseInt(metadata.credits, 10);
+        const raw = metadata.credits;
+        const asNum = typeof raw === "number" ? raw : parseInt(String(raw), 10);
+        return Number.isFinite(asNum) ? asNum : 0;
     }
 
     // Try to match by product name pattern
@@ -96,7 +108,6 @@ async function updateUserCredits(userId: string, credits: number, isSubscription
             .update({
                 credits_remaining: credits,
                 subscription_status: "active",
-                polar_customer_id: userId.startsWith('cus_') ? userId : undefined, // userId might be customerId in some contexts, but let's be safe
                 updated_at: new Date().toISOString(),
             })
             .eq("id", userId);
@@ -244,7 +255,13 @@ export const POST = Webhooks({
             // Only process one-time purchases (credit packs) from this point
             console.log(`✓ Processing one-time purchase: ${productName}`);
 
-            const credits = getCreditsForProduct(productName, order.metadata as Record<string, string>);
+            // Prefer product metadata (configured in Polar catalog), allow order metadata to override.
+            const mergedMetadata = {
+                ...(order.product?.metadata || {}),
+                ...(order.metadata || {}),
+            } as Record<string, string | number | boolean>;
+
+            const credits = getCreditsForProduct(productName, mergedMetadata);
 
             if (credits > 0) {
                 await updateUserCredits(userId, credits, false);
@@ -294,19 +311,34 @@ export const POST = Webhooks({
                 return;
             }
 
-            const credits = getCreditsForProduct(productName, subscription.metadata as Record<string, string>);
+            // Determine planId
+            const planId = productName.toLowerCase().includes("tier1") ? "tier1" :
+                productName.toLowerCase().includes("tier2") ? "tier2" :
+                    productName.toLowerCase().includes("tier3") ? "tier3" : "free";
 
-            if (credits > 0) {
-                await updateUserCredits(userId, credits, true);
-                console.log(`✓ Set ${credits} credits for user ${userId} for subscription "${productName}"`);
+            const isAnnual = productName.toLowerCase().includes("annual");
+            const mergedMetadata = {
+                ...(subscription.product?.metadata || {}),
+                ...(subscription.metadata || {}),
+            } as Record<string, string | number | boolean>;
+
+            const rawCredits = getCreditsForProduct(productName, mergedMetadata);
+
+            // Determine billing cycle
+            const billingCycle = isAnnual ? "annual" : "monthly";
+
+            // For Monthly Drip, annual plans only get the monthly portion initially (e.g. 150 instead of 1800)
+            const creditsToGrant = isAnnual ? (MONTHLY_CREDITS_MAP[planId] || rawCredits) : rawCredits;
+
+            if (creditsToGrant > 0) {
+                await updateUserCredits(userId, creditsToGrant, true);
+                console.log(`✓ Set ${creditsToGrant} credits for user ${userId} for subscription "${productName}" (${billingCycle} drip)`);
             } else {
                 console.warn(`No credits found for subscription product: ${productName}`);
             }
 
-            // Update subscription plan in profile
-            const planId = productName.toLowerCase().includes("tier1") ? "tier1" :
-                productName.toLowerCase().includes("tier2") ? "tier2" :
-                    productName.toLowerCase().includes("tier3") ? "tier3" : "free";
+            // Update profile with subscription info and drip metadata
+            const monthlyAllowance = MONTHLY_CREDITS_MAP[planId] || null;
 
             await getSupabase()
                 .from("profiles")
@@ -315,11 +347,14 @@ export const POST = Webhooks({
                     subscription_status: "active",
                     subscription_id: subscription.id,
                     polar_customer_id: subscription.customer?.id || null,
+                    billing_cycle: billingCycle,
+                    monthly_credit_allowance: billingCycle === "annual" ? monthlyAllowance : null,
+                    credits_last_renewed_at: new Date().toISOString(),
                     updated_at: new Date().toISOString(),
                 })
                 .eq("id", userId);
 
-            console.log(`✓ Updated subscription plan to ${planId} for user ${userId}`);
+            console.log(`✓ Configured profile for ${planId} (${billingCycle}) for user ${userId}`);
 
         } catch (error) {
             console.error("Error processing subscription active webhook:", error);
@@ -359,11 +394,13 @@ export const POST = Webhooks({
                 return;
             }
 
-            // Update profile to reflect cancellation
+            // Update profile to reflect cancellation and stop monthly drip
             await getSupabase()
                 .from("profiles")
                 .update({
                     subscription_status: "cancelled",
+                    billing_cycle: null,
+                    monthly_credit_allowance: null,
                     updated_at: new Date().toISOString(),
                 })
                 .eq("id", userId);
@@ -400,11 +437,29 @@ export const POST = Webhooks({
                     const user = users[0];
                     const userId = user.id;
                     const productName = subscription.product?.name || "";
-                    const credits = getCreditsForProduct(productName);
+
+                    const isAnnual = productName.toLowerCase().includes("annual");
+                    const mergedMetadata = {
+                        ...(subscription.product?.metadata || {}),
+                        ...(subscription.metadata || {}),
+                    } as Record<string, string | number | boolean>;
+
+                    const rawCredits = getCreditsForProduct(productName, mergedMetadata);
+
+                    // Determine planId
+                    const planId = productName.toLowerCase().includes("tier1") ? "tier1" :
+                        productName.toLowerCase().includes("tier2") ? "tier2" :
+                            productName.toLowerCase().includes("tier3") ? "tier3" : "free";
+
+                    // Billing cycle check
+                    const billingCycle = isAnnual ? "annual" : "monthly";
+
+                    // For Monthly Drip, annual renewals only get the monthly portion initially
+                    const creditsToGrant = isAnnual ? (MONTHLY_CREDITS_MAP[planId] || rawCredits) : rawCredits;
 
                     console.log(`Processing subscription update for ${customerEmail}:`, {
                         productName,
-                        credits,
+                        creditsToGrant,
                         storedSubscriptionId: user.subscription_id,
                         incomingSubscriptionId: subscription.id,
                         currentPeriodStart: subscription.currentPeriodStart,
@@ -419,12 +474,12 @@ export const POST = Webhooks({
                     const lastRenewed = user.credits_last_renewed_at ? new Date(user.credits_last_renewed_at) : null;
                     const isRenewal = !lastRenewed || currentPeriodStart > lastRenewed;
 
-                    if (credits > 0 && isMatchingSubscription && isRenewal) {
+                    if (creditsToGrant > 0 && isMatchingSubscription && isRenewal) {
                         // Calculate new credits with rollover
                         const existingCredits = user.credits_remaining || 0;
-                        const newCredits = credits + existingCredits;
+                        const newCredits = creditsToGrant + existingCredits;
 
-                        console.log(`✓ Renewal detected! Adding ${credits} credits (rollover: ${existingCredits}, total: ${newCredits})`);
+                        console.log(`✓ Renewal detected! Adding ${creditsToGrant} credits (rollover: ${existingCredits}, total: ${newCredits})`);
 
                         // Update credits with rollover support
                         const { error: updateError } = await getSupabase()
@@ -434,6 +489,9 @@ export const POST = Webhooks({
                                 subscription_status: "active",
                                 subscription_id: subscription.id,
                                 next_billing_date: subscription.currentPeriodEnd,
+                                // Update metadata for drip
+                                billing_cycle: billingCycle,
+                                monthly_credit_allowance: billingCycle === "annual" ? (MONTHLY_CREDITS_MAP[planId] || null) : null,
                                 credits_last_renewed_at: new Date().toISOString(),
                                 updated_at: new Date().toISOString(),
                             })
@@ -442,14 +500,10 @@ export const POST = Webhooks({
                         if (updateError) {
                             console.error("Error updating renewal credits:", updateError);
                         } else {
-                            console.log(`✓ Renewed subscription credits for user ${userId}: +${credits} credits (total: ${newCredits})`);
+                            console.log(`✓ Renewed subscription credits for user ${userId}: +${creditsToGrant} credits (total: ${newCredits})`);
                         }
 
                         // Record renewal payment
-                        const planId = productName.toLowerCase().includes("tier1") ? "tier1" :
-                            productName.toLowerCase().includes("tier2") ? "tier2" :
-                                productName.toLowerCase().includes("tier3") ? "tier3" : "free";
-
                         const anySubscription = subscription as any;
                         const amount = (anySubscription.amount || 0) / 100;
 
@@ -469,7 +523,7 @@ export const POST = Webhooks({
 
                         console.log(`✓ Recorded renewal payment for ${planId}`);
                     } else {
-                        console.log(`Skipping credit update: isMatchingSubscription=${isMatchingSubscription}, isRenewal=${isRenewal}, credits=${credits}`);
+                        console.log(`Skipping credit update: isMatchingSubscription=${isMatchingSubscription}, isRenewal=${isRenewal}, credits=${creditsToGrant}`);
                     }
                 } else {
                     console.warn(`No user found for email: ${customerEmail}`);
