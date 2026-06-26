@@ -42,6 +42,19 @@ yarn-error.log*
 .pnpm-debug.log*
 dump.rdb
 
+# One-off local audit and migration artifacts
+/PRE_LIVE_TEST_REPORT.md
+/PRODUCTION_READINESS*.md
+/PROJECT_REVIEW_REPORT.md
+/delete_react_env.sh
+/scope_env.sh
+/frontend-next/convert_theme.js
+/frontend-next/fix_page.js
+/frontend-next/fix_page_theme.js
+/frontend-next/src/scripts/migrate_theme.py
+/supabase/.temp/
+/supabase/supabase/
+
 # System files
 .DS_Store
 *.pem
