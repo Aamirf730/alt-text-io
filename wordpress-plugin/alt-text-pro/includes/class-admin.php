@@ -295,7 +295,7 @@ class AltTextPro_Admin
             'context_enabled' => true,
             'blog_context' => '',
             'show_context_field' => false,
-            'batch_size' => 2
+            'batch_size' => 1
         ));
 
         include ALT_TEXT_PRO_PLUGIN_PATH . 'templates/settings.php';

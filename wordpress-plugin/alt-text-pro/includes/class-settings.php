@@ -109,7 +109,7 @@ class AltTextPro_Settings
             'context_enabled' => true,
             'blog_context' => '',
             'show_context_field' => false,
-            'batch_size' => 2
+            'batch_size' => 1
         );
     }
 
@@ -176,7 +176,7 @@ class AltTextPro_Settings
 
         // Sanitize batch size
         if (isset($input['batch_size'])) {
-            $sanitized['batch_size'] = min(50, max(1, intval($input['batch_size'])));
+            $sanitized['batch_size'] = min(10, max(1, intval($input['batch_size'])));
         }
 
         // Sanitize blog context (textarea, max 500 chars)

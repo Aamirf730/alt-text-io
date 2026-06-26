@@ -214,14 +214,14 @@ endif; ?>
                     </label>
                     <div style="display: flex; align-items: center; gap: 8px;">
                         <input type="number" id="batch_size" name="alt_text_pro_settings[batch_size]"
-                            value="<?php echo esc_attr($settings['batch_size']); ?>" min="1" max="50"
+                            value="<?php echo esc_attr($settings['batch_size']); ?>" min="1" max="10"
                             style="width: 100px;" />
                         <span style="color: var(--text-secondary);">
                             <?php esc_html_e('images per batch', 'alt-text-pro'); ?>
                         </span>
                     </div>
                     <p class="description" style="margin-top: 8px; color: var(--text-secondary); font-size: 13px;">
-                        <?php esc_html_e('Lower this number if you experience timeouts during bulk processing.', 'alt-text-pro'); ?>
+                        <?php esc_html_e('For credit-accurate cancellation, bulk processing runs one billable image at a time even if an older saved value is higher.', 'alt-text-pro'); ?>
                     </p>
                 </div>
             </div>

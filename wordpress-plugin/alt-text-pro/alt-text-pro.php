@@ -3,7 +3,7 @@
  * Plugin Name: AI Alt Text Pro
  * Plugin URI: https://www.alt-text.pro
  * Description: AI-powered alt text generator that automatically creates image alt tags for better SEO and accessibility. Generate alt text for all your images with one click.
- * Version:           1.4.96
+ * Version:           1.4.97
  * Author: Alt Text Pro
  * Author URI: https://www.alt-text.pro/about
  * License: GPL v2 or later
@@ -20,7 +20,8 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('ALT_TEXT_PRO_VERSION', '1.4.96');
+define('ALT_TEXT_PRO_VERSION', '1.4.97');
+// Version 1.4.97 - Fix: make bulk cancellation credit-accurate by processing one billable image per request and preserving cancelled state server-side.
 // Version 1.4.96 - Fix: prevent duplicate manual generation requests and make bulk cancel stop before billable batches start.
 // Version 1.4.95 - Growth tracking: add connect, plugin download, and bulk-processing funnel events for onboarding automation.
 // Version 1.4.94 - Brand refresh: align plugin admin colors with the Alt Text Pro logo palette.
@@ -170,7 +171,7 @@ class AltTextPro
                 'auto_generate' => false,
                 'overwrite_existing' => false,
                 'context_enabled' => true,
-                'batch_size' => 2
+                'batch_size' => 1
             ));
         }
 
@@ -292,7 +293,7 @@ class AltTextPro
             'nonce' => wp_create_nonce('alt_text_pro_nonce'),
             'version' => ALT_TEXT_PRO_VERSION,
             'settings' => array(
-                'batch_size' => isset($settings['batch_size']) ? intval($settings['batch_size']) : 2
+                'batch_size' => 1
             ),
             'onboarding' => array(
                 'show' => (bool)$show_onboarding,

@@ -992,6 +992,9 @@
         statusInterval: null,
         processingBatches: {},
         notificationsShown: {},
+        nextBatchTimer: null,
+        scheduledBatchOffset: null,
+        batchDelayMs: 1500,
 
         init: function () {
             debugLog('Alt Text Pro: Initializing bulk processor');
@@ -1004,6 +1007,7 @@
             var processType = $('input[name="process_type"]:checked').val();
             var overwriteExisting = $('#overwrite_existing').is(':checked');
             var selectedImages = [];
+            var batchSize = 1;
 
             if (processType === 'selected') {
                 $('input[name="selected_images[]"]:checked').each(function () {
@@ -1021,7 +1025,7 @@
                 process_type: processType,
                 selected_count: selectedImages.length,
                 overwrite_existing: overwriteExisting,
-                batch_size: altTextAI.settings.batch_size || 2
+                batch_size: batchSize
             });
 
             this.isProcessing = true;
@@ -1029,6 +1033,8 @@
             this.pendingCancel = false;
             this.processId = null;
             this.pendingBatchRequests = [];
+            this.processingBatches = {};
+            this.clearScheduledBatch();
 
             // UI setup
             $('#start-bulk-process').hide();
@@ -1051,7 +1057,7 @@
                     process_type: processType,
                     overwrite_existing: overwriteExisting ? 1 : 0,
                     selected_images: selectedImages,
-                    batch_size: altTextAI.settings.batch_size || 2,
+                    batch_size: batchSize,
                     nonce: altTextAI.nonce
                 },
                 success: function (response) {
@@ -1094,8 +1100,15 @@
             debugLog('Alt Text Pro: Cancel requested');
             this.cancelRequested = true;
             this.pendingCancel = true;
+            this.isProcessing = false;
+            this.clearScheduledBatch();
 
-            if (this.startRequest) {
+            if (this.statusInterval) {
+                clearInterval(this.statusInterval);
+                this.statusInterval = null;
+            }
+
+            if (this.startRequest && this.processId) {
                 this.startRequest.abort();
             }
 
@@ -1108,6 +1121,12 @@
                 if (req && req.abort) req.abort();
             });
             this.pendingBatchRequests = [];
+            this.processingBatches = {};
+
+            if (!this.processId) {
+                $('#progress-status').text('Cancelling...').removeClass('success').addClass('warning');
+                return;
+            }
 
             this.sendCancelRequest();
         },
@@ -1145,6 +1164,7 @@
 
         startStatusPolling: function () {
             var self = this;
+            this.pollStatus();
             this.statusInterval = setInterval(function () {
                 self.pollStatus();
             }, 1000);
@@ -1164,24 +1184,52 @@
                 },
                 success: function (response) {
                     if (response.success) {
+                        if (self.cancelRequested || self.pendingCancel) return;
+
                         self.updateProgress(response.data);
 
-                        // If background process needs a nudge or frontend batching is preferred
-                        if (response.data.needs_next_batch && response.data.next_batch_offset !== null) {
-                            self.triggerNextBatch(response.data.next_batch_offset);
+                        if (response.data.status === 'completed' || response.data.status === 'cancelled' || response.data.status === 'error' || response.data.status === 'stopped_no_credits') {
+                            self.finishProcess(response.data);
+                            return;
                         }
 
-                        if (response.data.status === 'completed' || response.data.status === 'error' || response.data.status === 'stopped_no_credits') {
-                            self.finishProcess(response.data);
+                        // Schedule the next billable request after the UI has rendered the latest count.
+                        if (response.data.needs_next_batch && response.data.next_batch_offset !== null) {
+                            self.scheduleNextBatch(response.data.next_batch_offset);
                         }
                     }
                 }
             });
         },
 
+        scheduleNextBatch: function (offset) {
+            var self = this;
+            if (this.cancelRequested || this.pendingCancel || !this.isProcessing || !this.processId) return;
+            if (this.processingBatches[offset]) return;
+            if (this.nextBatchTimer && this.scheduledBatchOffset === offset) return;
+
+            this.clearScheduledBatch();
+            this.scheduledBatchOffset = offset;
+            this.nextBatchTimer = setTimeout(function () {
+                self.nextBatchTimer = null;
+                self.scheduledBatchOffset = null;
+
+                if (self.cancelRequested || self.pendingCancel || !self.isProcessing) return;
+                self.triggerNextBatch(offset);
+            }, this.batchDelayMs);
+        },
+
+        clearScheduledBatch: function () {
+            if (this.nextBatchTimer) {
+                clearTimeout(this.nextBatchTimer);
+                this.nextBatchTimer = null;
+            }
+            this.scheduledBatchOffset = null;
+        },
+
         triggerNextBatch: function (offset) {
             var self = this;
-            if (this.cancelRequested) return;
+            if (this.cancelRequested || this.pendingCancel || !this.isProcessing || !this.processId) return;
 
             // Prevent duplicate requests for same offset
             if (this.processingBatches[offset]) return;
@@ -1203,12 +1251,31 @@
                     var idx = self.pendingBatchRequests.indexOf(batchReq);
                     if (idx > -1) self.pendingBatchRequests.splice(idx, 1);
                     delete self.processingBatches[offset];
+                    if (self.cancelRequested || self.pendingCancel) return;
 
                     if (response.success && response.data && response.data.batch_results) {
                         self.appendBatchResults(response.data.batch_results);
                     }
-                    // When a batch finishes, poll status immediately to update progress and trigger next
-                    self.pollStatus();
+
+                    if (response.success && response.data) {
+                        self.updateProgress(response.data);
+
+                        if (response.data.status === 'completed' || response.data.status === 'cancelled' || response.data.status === 'stopped_no_credits') {
+                            self.finishProcess(response.data);
+                            return;
+                        }
+
+                        if (response.data.needs_next_batch && response.data.next_batch_offset !== null) {
+                            self.scheduleNextBatch(response.data.next_batch_offset);
+                        }
+                    } else {
+                        self.pollStatus();
+                    }
+                },
+                error: function () {
+                    var idx = self.pendingBatchRequests.indexOf(batchReq);
+                    if (idx > -1) self.pendingBatchRequests.splice(idx, 1);
+                    delete self.processingBatches[offset];
                 },
                 complete: function () {
                     // Remove from pending list
@@ -1276,6 +1343,7 @@
 
         finishProcess: function (data) {
             this.isProcessing = false;
+            this.clearScheduledBatch();
             if (this.statusInterval) {
                 clearInterval(this.statusInterval);
                 this.statusInterval = null;
@@ -1321,7 +1389,9 @@
             $('#process-summary-container').hide();
             this.isProcessing = false;
             this.cancelRequested = false;
+            this.pendingCancel = false;
             this.processingBatches = {};
+            this.clearScheduledBatch();
             if (this.statusInterval) {
                 clearInterval(this.statusInterval);
                 this.statusInterval = null;

@@ -103,7 +103,7 @@ WordPress.org plugin release:
 As of 2026-06-26:
 
 - Production Netlify deploy is live through commit `6e7b20b`.
-- Local commit `2b4c414` prepares plugin `1.4.96` credit-usage fixes but still needs push/deploy/SVN release.
+- Local working tree prepares plugin `1.4.97` bulk credit-cancellation fixes but still needs commit/push/deploy/SVN release.
 - WordPress.org latest confirmed release before this fix was `1.4.95`.
 - Supabase project ref used locally: `qurbdtzrngzfzevgoolp`.
 
@@ -121,6 +121,7 @@ User reported one manual generation consuming two credits and cancelled bulk con
 - Manual generation double-charged because `admin.js` initialized handlers twice.
 - Bulk start processed the first batch synchronously before the browser received a cancellable `process_id`.
 - Fix prepared in commit `2b4c414`: single admin init, cancellable bulk start, 1-second status polling, final batch completion state, plugin version `1.4.96`.
+- Follow-up local fix: plugin `1.4.97` forces one billable image per bulk request, delays/cancels next-batch scheduling in the browser, and preserves `cancelled` server-side so an already-open batch cannot flip the job back to running.
 
 ## Safety Rules
 
