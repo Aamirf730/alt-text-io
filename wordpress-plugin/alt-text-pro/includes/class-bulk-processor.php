@@ -122,10 +122,6 @@ class AltTextPro_Bulk_Processor
         // Create bulk process record
         $process_id = $this->create_bulk_process_record($images_to_process, $batch_size, $overwrite_existing);
 
-        // Process first batch immediately via AJAX (synchronous processing)
-        // This ensures processing starts right away without relying on cron
-        $this->process_batch_sync($process_id, 0);
-
         wp_send_json_success(array(
             'process_id' => $process_id,
             'total_images' => count($images_to_process),
@@ -453,6 +449,8 @@ class AltTextPro_Bulk_Processor
         $process_data['successful_image_ids'] = $all_successful_ids; // Store successful image IDs
         $process_data['errors'] = $all_errors; // Store merged errors
         $process_data['last_updated'] = current_time('mysql');
+        $process_data['needs_next_batch'] = false;
+        $process_data['next_batch_offset'] = null;
 
         // Save process data immediately to ensure it's persisted
         set_transient('alt_text_pro_bulk_' . $process_id, $process_data, DAY_IN_SECONDS * 2);
@@ -484,9 +482,14 @@ class AltTextPro_Bulk_Processor
             $process_data['needs_next_batch'] = true;
 
             set_transient('alt_text_pro_bulk_' . $process_id, $process_data, DAY_IN_SECONDS * 2);
-            // Save updated process data
+            wp_cache_delete('alt_text_pro_bulk_' . $process_id, 'transient');
+        } elseif ($process_data['status'] === 'running') {
+            $process_data['status'] = 'completed';
+            $process_data['needs_next_batch'] = false;
+            $process_data['next_batch_offset'] = null;
             set_transient('alt_text_pro_bulk_' . $process_id, $process_data, DAY_IN_SECONDS * 2);
             wp_cache_delete('alt_text_pro_bulk_' . $process_id, 'transient');
+            $this->complete_bulk_process($process_id);
         }
 
         return $batch_results;
@@ -618,6 +621,8 @@ class AltTextPro_Bulk_Processor
             'successful' => 0, // Track successful generations separately
             'successful_image_ids' => array(), // Track which images were successfully processed to prevent double-counting
             'errors' => array(),
+            'needs_next_batch' => true,
+            'next_batch_offset' => 0,
             'started_at' => current_time('mysql'),
             'user_id' => get_current_user_id()
         );

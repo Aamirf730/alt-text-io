@@ -4,7 +4,7 @@ Tags: alt text generator, image seo, accessibility, ai alt text, automatic alt t
 Requires at least: 5.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 1.4.95
+Stable tag: 1.4.96
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -169,6 +169,11 @@ Yes, you can cancel your subscription at any time from your Alt Text Pro dashboa
 6. **Mobile Responsive Design** - Fully responsive alt text generator works on all devices
 
 == Changelog ==
+= 1.4.96 =
+* Fix: Prevent duplicate admin JavaScript initialization that could send two generation requests from one click.
+* Fix: Bulk processing now creates a cancellable process before starting billable image batches.
+* Fix: Bulk jobs now mark themselves completed after the final batch instead of continuing to poll.
+
 = 1.4.95 =
 * Growth: Added privacy-conscious funnel events for connect and bulk-processing automation.
 * Docs: Updated WordPress.org setup and pricing copy to match current Lite, Standard, Pro, and pay-as-you-go plans.

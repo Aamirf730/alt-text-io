@@ -968,11 +968,6 @@
         }
     };
 
-    // Initialize when document is ready
-    $(document).ready(function () {
-        AltTextProAdmin.init();
-    });
-
     // Handle media modal events
     $(document).on('DOMNodeInserted', function (e) {
         if ($(e.target).hasClass('media-modal') || $(e.target).find('.media-modal').length) {
@@ -1152,7 +1147,7 @@
             var self = this;
             this.statusInterval = setInterval(function () {
                 self.pollStatus();
-            }, 3000);
+            }, 1000);
         },
 
         pollStatus: function () {

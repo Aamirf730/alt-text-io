@@ -3,7 +3,7 @@
  * Plugin Name: AI Alt Text Pro
  * Plugin URI: https://www.alt-text.pro
  * Description: AI-powered alt text generator that automatically creates image alt tags for better SEO and accessibility. Generate alt text for all your images with one click.
- * Version:           1.4.95
+ * Version:           1.4.96
  * Author: Alt Text Pro
  * Author URI: https://www.alt-text.pro/about
  * License: GPL v2 or later
@@ -20,7 +20,8 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('ALT_TEXT_PRO_VERSION', '1.4.95');
+define('ALT_TEXT_PRO_VERSION', '1.4.96');
+// Version 1.4.96 - Fix: prevent duplicate manual generation requests and make bulk cancel stop before billable batches start.
 // Version 1.4.95 - Growth tracking: add connect, plugin download, and bulk-processing funnel events for onboarding automation.
 // Version 1.4.94 - Brand refresh: align plugin admin colors with the Alt Text Pro logo palette.
 // Version 1.4.93 - Security: stop exposing saved API keys in the admin UI, remove debug/test artifacts from release builds, and reduce production logging.
