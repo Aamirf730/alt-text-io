@@ -20,6 +20,8 @@
         var payload = {
             event_name: eventName,
             source: 'wordpress_plugin',
+            user_id: altTextAI.tracking.userId || undefined,
+            user_email: altTextAI.tracking.userEmail || undefined,
             properties: $.extend({
                 plugin_version: altTextAI.version,
                 site_host: altTextAI.tracking.siteHost || '',
@@ -886,6 +888,10 @@
                         $('#api_key').val(apiKey);
                         $('#onboarding_api_key').val(apiKey);
                         altTextAI.onboarding.show = false;
+                        if (response.data && response.data.user) {
+                            altTextAI.tracking.userEmail = response.data.user.email || altTextAI.tracking.userEmail || '';
+                            altTextAI.tracking.userId = response.data.user.id || altTextAI.tracking.userId || '';
+                        }
 
                         AltTextProAdmin.showNotification('Connected successfully! Your API key has been saved.', 'success');
                         trackMarketingEvent('connect_completed', {
