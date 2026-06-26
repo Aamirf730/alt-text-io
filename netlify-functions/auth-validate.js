@@ -33,7 +33,7 @@ exports.handler = async (event, context) => {
 
   // Rate limiting for auth endpoints
   const clientIp = getClientIp(event);
-  const rateLimit = checkRateLimit(`auth:${clientIp}`, 60);
+  const rateLimit = await checkRateLimit(`auth:${clientIp}`, 60);
   if (!rateLimit.allowed) {
     return rateLimitExceededResponse(headers, rateLimit);
   }
@@ -276,7 +276,8 @@ exports.handler = async (event, context) => {
     };
 
   } catch (error) {
-    console.error('Auth validation error:', error);
+    const { reportError } = require('./utils/error-reporter');
+    reportError(error, { functionName: 'auth-validate', ip: getClientIp(event) });
     return {
       statusCode: 500,
       headers,

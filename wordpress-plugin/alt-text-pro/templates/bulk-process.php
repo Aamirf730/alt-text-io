@@ -12,6 +12,11 @@ $alt_text_pro_current_page = isset($_GET['page']) ? sanitize_text_field(wp_unsla
 ?>
 
 <div class="wrap alt-text-pro-bulk-process">
+    <!-- Notices Container -->
+    <div class="alt-text-pro-notices-container">
+        <?php do_action('alt_text_pro_render_notices'); ?>
+    </div>
+
     <!-- Header & Navigation -->
     <div class="alt-text-pro-header">
         <div class="alt-text-pro-logo">

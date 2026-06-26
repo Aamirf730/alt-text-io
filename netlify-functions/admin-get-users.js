@@ -32,7 +32,7 @@ exports.handler = async (event, context) => {
 
   // Rate limiting for admin endpoint (stricter)
   const clientIp = getClientIp(event);
-  const rateLimit = checkRateLimit(`admin:${clientIp}`, ADMIN_RATE_LIMIT);
+  const rateLimit = await checkRateLimit(`admin:${clientIp}`, ADMIN_RATE_LIMIT);
   if (!rateLimit.allowed) {
     console.warn('Rate limit exceeded for admin endpoint:', clientIp);
     return rateLimitExceededResponse(headers, rateLimit);
@@ -290,11 +290,8 @@ exports.handler = async (event, context) => {
     };
 
   } catch (error) {
-    console.error('=== UNEXPECTED ERROR ===');
-    console.error('Error message:', error.message);
-    console.error('Error stack:', error.stack);
-    console.error('Error name:', error.name);
-    console.error('Full error object:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
+    const { reportError } = require('./utils/error-reporter');
+    reportError(error, { functionName: 'admin-get-users', ip: getClientIp(event) });
 
     return {
       statusCode: 500,

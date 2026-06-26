@@ -1,7 +1,7 @@
 [build]
   base = "."
   publish = "frontend-next/.next"
-  command = "cd netlify-functions && npm install && cd ../frontend-next && npm install --legacy-peer-deps && npm run build"
+  command = "cd wordpress-plugin && ./build-plugin.sh && cd ../netlify-functions && npm install && cd ../frontend-next && npm install && npm run build"
   functions = "netlify-functions"
 
 [dev]
@@ -16,6 +16,14 @@
   # NEXT_PUBLIC_SUPABASE_URL
   # NEXT_PUBLIC_SUPABASE_ANON_KEY
   # NEXT_PUBLIC_PAYPAL_CLIENT_ID
+
+[functions."daily-funnel-report"]
+  # Runs daily at 08:30 Asia/Kolkata. Netlify schedules use UTC.
+  schedule = "0 3 * * *"
+
+[functions."lifecycle-automation"]
+  # Runs every two hours. Netlify schedules use UTC.
+  schedule = "0 */2 * * *"
 
 # Specific redirects for legacy Netlify Functions (preserve access for Plugin/Dashboard)
 [[redirects]]
@@ -49,8 +57,18 @@
   status = 200
 
 [[redirects]]
+  from = "/api/track-event"
+  to = "/.netlify/functions/track-event"
+  status = 200
+
+[[redirects]]
   from = "/api/admin-get-users"
   to = "/.netlify/functions/admin-get-users"
+  status = 200
+
+[[redirects]]
+  from = "/api/admin-marketing-funnel"
+  to = "/.netlify/functions/admin-marketing-funnel"
   status = 200
 
 [[redirects]]

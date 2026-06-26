@@ -7,8 +7,8 @@ A **professional, production-ready WordPress plugin** that seamlessly integrates
 ## 📁 Plugin Structure
 
 ```
-wordpress-plugin/alt-text-ai/
-├── alt-text-ai.php                 # Main plugin file
+wordpress-plugin/alt-text-pro/
+├── alt-text-pro.php                # Main plugin file
 ├── readme.txt                      # WordPress.org plugin description
 ├── INSTALLATION.md                 # Detailed installation guide
 ├── includes/                       # Core functionality
@@ -129,8 +129,8 @@ wordpress-plugin/alt-text-ai/
 
 ### For End Users
 1. **Download & Install**: Standard WordPress plugin installation
-2. **Get API Key**: Sign up at your Alt Text Pro dashboard
-3. **Configure Settings**: Enter API key and preferences
+2. **Connect Account**: Click "Connect Account" and sign in or create a free account
+3. **Configure Settings**: Confirm connection status and set processing preferences
 4. **Start Processing**: Begin generating alt-text immediately
 
 ### For Developers

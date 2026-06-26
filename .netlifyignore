@@ -6,4 +6,7 @@ frontend/build/
 *.log
 .env.local
 .DS_Store
-
+netlify-functions/*.test.js
+netlify-functions/vitest.config.js
+netlify-functions/README.md
+netlify-functions/.DS_Store

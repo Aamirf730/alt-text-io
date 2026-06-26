@@ -2,79 +2,83 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --radius: 0.625rem;
+@layer base {
+  :root {
+    --radius: 1rem;
+    --background: 40 18% 97%;
+    --foreground: 210 11% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 210 11% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 11% 11%;
+    --primary: 191 76% 21%;
+    /* #0D4F5E - Alt Text Pro logo navy */
+    --primary-foreground: 210 40% 98%;
+    --secondary: 0 0% 100%;
+    --secondary-foreground: 210 11% 11%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 174 71% 44%;
+    /* #20C0B0 - Alt Text Pro logo teal */
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 210 11% 11% / 0.05;
+    /* Ultra-subtle border */
+    --input: 214 32% 91%;
+    --ring: 191 76% 21%;
+
+    /* Custom Palette for Direct Usage (space-separated HSL for opacity support) */
+    --paper-bg: 40 18% 97%;
+    /* #FAF9F6 */
+    --pearl-surface: 0 0% 100%;
+    /* #FFFFFF */
+    --precision-blue: 191 76% 21%;
+    /* #0D4F5E */
+    --slate-accent: 191 81% 16%;
+    /* #083F4B */
+    --cloud-gray: 210 14% 95%;
+    /* #F1F3F4 */
+    --brand-teal: 174 71% 44%;
+    /* #20C0B0 */
+    --brand-navy: 191 81% 16%;
+    /* #083F4B */
+    --logo-blue-start: #0D4F5E;
+    --logo-blue-gradient: linear-gradient(135deg, #0D4F5E 0%, #20C0B0 100%);
+    --logo-navy-gradient: linear-gradient(135deg, #083F4B 0%, #0D4F5E 100%);
+    --logo-green-gradient: linear-gradient(135deg, #20C0B0 0%, #0D4F5E 100%);
+    --primary-blue: #0D4F5E;
+    --primary-blue-dark: #083F4B;
+    --text-medium: #4b5563;
+    --background-light: #f8fafc;
+    --border-light: #E0E0E0;
+
+    --shadow-notebook: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+    --shadow-notebook-lg: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  }
+}
+
+.dark {
+  /* Neutralize dark mode to enforce bright theme */
   --background: 0 0% 100%;
   --foreground: 0 0% 9%;
   --card: 0 0% 100%;
   --card-foreground: 0 0% 9%;
   --popover: 0 0% 100%;
   --popover-foreground: 0 0% 9%;
-  --primary: 0 0% 9%;
+  --primary: 191 76% 21%;
   --primary-foreground: 0 0% 98%;
   --secondary: 0 0% 96%;
   --secondary-foreground: 0 0% 9%;
   --muted: 0 0% 96%;
   --muted-foreground: 0 0% 45%;
-  --accent: 0 0% 96%;
-  --accent-foreground: 0 0% 9%;
-  --destructive: 0 84% 60%;
+  --accent: 174 71% 44%;
+  --accent-foreground: 0 0% 98%;
+  --destructive: 14 100% 57%;
   --destructive-foreground: 0 0% 98%;
   --border: 0 0% 90%;
   --input: 0 0% 90%;
-  --ring: 0 0% 64%;
-
-  /* Custom Variables */
-  --logo-teal-start: #0D4F5E;
-  --logo-teal-end: #004953;
-  --logo-teal-gradient: linear-gradient(135deg, #0D4F5E 0%, #004953 100%);
-  --logo-navy-start: #162D4E;
-  --logo-navy-end: #223A64;
-  --logo-navy-gradient: linear-gradient(135deg, #162D4E 0%, #223A64 100%);
-  --logo-dark-teal: #003a42;
-  --logo-green-start: #006160;
-  --logo-green-end: #0C7A76;
-  --logo-green-gradient: linear-gradient(135deg, #006160 0%, #0C7A76 100%);
-  --logo-border-light: #F4F4F4;
-  --logo-border-dark: #E0E0E0;
-  --primary-teal: #0D4F5E;
-  --primary-teal-dark: #003a42;
-  --primary-teal-light: #004953;
-  --logo-navy: #162D4E;
-  --logo-cyan: #004953;
-  --logo-cyan-dark: #0D4F5E;
-  --accent-teal: #003a42;
-  --text-dark: #1f2937;
-  --text-medium: #4b5563;
-  --text-light: #6b7280;
-  --background-white: #ffffff;
-  --background-light: #f8fafc;
-  --border-light: #E0E0E0;
-  --shadow-subtle: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
-  --shadow-medium: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  --shadow-large: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-}
-
-.dark {
-  --background: 0 0% 9%;
-  --foreground: 0 0% 98%;
-  --card: 0 0% 12%;
-  --card-foreground: 0 0% 98%;
-  --popover: 0 0% 12%;
-  --popover-foreground: 0 0% 98%;
-  --primary: 0 0% 98%;
-  --primary-foreground: 0 0% 9%;
-  --secondary: 0 0% 15%;
-  --secondary-foreground: 0 0% 98%;
-  --muted: 0 0% 15%;
-  --muted-foreground: 0 0% 64%;
-  --accent: 0 0% 15%;
-  --accent-foreground: 0 0% 98%;
-  --destructive: 0 62% 55%;
-  --destructive-foreground: 0 0% 98%;
-  --border: 0 0% 15%;
-  --input: 0 0% 15%;
-  --ring: 0 0% 45%;
+  --ring: 191 76% 21%;
 }
 
 @layer base {
@@ -89,24 +93,11 @@
 
 /* Custom Utilities */
 .btn-primary {
-  background: var(--logo-teal-gradient);
-  @apply text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg transform hover:-translate-y-0.5;
-  background-image: linear-gradient(135deg, #0D4F5E 0%, #004953 100%);
-}
-
-.btn-primary:hover {
-  background-image: linear-gradient(135deg, #003a42 0%, #0D4F5E 100%);
+  @apply bg-notebook-blue text-white font-semibold py-3 px-8 rounded-full transition-all duration-300 shadow-notebook hover:shadow-notebook-lg transform hover:-translate-y-0.5 active:scale-95;
 }
 
 .btn-secondary {
-  @apply bg-white hover:bg-gray-50 font-semibold py-3 px-6 rounded-lg border-2 transition-all duration-200 hover:shadow-md;
-  color: var(--logo-teal-start);
-  border-color: var(--logo-teal-start);
-}
-
-.btn-secondary:hover {
-  border-color: var(--logo-teal-end);
-  color: var(--logo-teal-end);
+  @apply bg-white hover:bg-notebook-surface text-notebook-blue font-semibold py-3 px-8 rounded-full border border-notebook-blue/20 transition-all duration-300 hover:shadow-notebook;
 }
 
 .btn-ghost {
@@ -119,21 +110,21 @@
 
 .card-hover {
   @apply bg-white rounded-xl shadow-sm border p-6 transition-all duration-200 hover:shadow-lg;
-  border-color: var(--logo-border-light);
+  border-color: var(--border-light);
 }
 
 .card-hover:hover {
-  border-color: rgba(13, 79, 94, 0.4);
+  border-color: rgba(13, 79, 94, 0.24);
 }
 
 .input-field {
   @apply w-full px-4 py-3 border rounded-lg focus:ring-2 transition-all duration-200;
-  border-color: var(--logo-border-dark);
+  border-color: var(--border-light);
 }
 
 .input-field:focus {
-  border-color: var(--logo-teal-start);
-  --tw-ring-color: var(--logo-teal-start);
+  border-color: var(--logo-blue-start);
+  --tw-ring-color: var(--logo-blue-start);
 }
 
 .nav-link {
@@ -142,16 +133,16 @@
 }
 
 .nav-link:hover {
-  color: var(--logo-teal-start);
+  color: var(--logo-blue-start);
 }
 
 .nav-link-active {
-  color: var(--logo-dark-teal);
+  color: var(--logo-blue-start);
   @apply font-semibold;
 }
 
 .hero-section {
-  background: linear-gradient(135deg, rgba(13, 79, 94, 0.05) 0%, rgba(0, 73, 83, 0.05) 100%);
+  background: linear-gradient(135deg, rgba(13, 79, 94, 0.05) 0%, rgba(32, 192, 176, 0.05) 100%);
   @apply py-20 px-4;
 }
 
@@ -168,7 +159,7 @@
 }
 
 .gradient-primary {
-  background: var(--logo-teal-gradient);
+  background: var(--logo-blue-gradient);
 }
 
 .gradient-navy {
@@ -243,8 +234,8 @@
 
 .badge-professional {
   @apply inline-flex items-center px-3 py-1 rounded-full text-sm font-medium;
-  background-color: rgba(11, 79, 94, 0.1);
-  color: var(--logo-dark-teal);
+  background-color: rgba(13,79,94,0.10);
+  color: var(--logo-blue-start);
 }
 
 .badge-success {
@@ -264,13 +255,13 @@
 }
 
 .divider-teal {
-  border-top: 2px solid rgba(13, 79, 94, 0.4);
+  border-top: 2px solid rgba(13,79,94,0.18);
   @apply my-8;
 }
 
 .focus-ring {
   @apply focus:outline-none focus:ring-2 focus:ring-offset-2;
-  --tw-ring-color: var(--logo-teal-start);
+  --tw-ring-color: var(--logo-blue-start);
 }
 
 .hover-lift {
@@ -282,27 +273,27 @@
 }
 
 .text-primary {
-  color: var(--primary-teal);
+  color: var(--primary-blue);
 }
 
 .text-primary-dark {
-  color: var(--primary-teal-dark);
+  color: var(--primary-blue-dark);
 }
 
 .text-accent {
-  color: var(--accent-teal);
+  color: var(--primary-blue);
 }
 
 .bg-primary {
-  background-color: var(--primary-teal);
+  background-color: var(--primary-blue);
 }
 
 .bg-primary-dark {
-  background-color: var(--primary-teal-dark);
+  background-color: var(--primary-blue-dark);
 }
 
 .bg-accent {
-  background-color: var(--accent-teal);
+  background-color: var(--primary-blue);
 }
 
 .bg-light {
@@ -311,7 +302,7 @@
 
 /* From App.css */
 .gradient-text {
-  background: linear-gradient(45deg, #8b5cf6, #a855f7, #c084fc);
+  background: linear-gradient(45deg, #0D4F5E, #20C0B0, #083F4B);
   background-size: 200% 200%;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;

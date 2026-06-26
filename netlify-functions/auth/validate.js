@@ -33,7 +33,7 @@ exports.handler = async (event, context) => {
 
   // Rate limiting for auth endpoints
   const clientIp = getClientIp(event);
-  const rateLimit = checkRateLimit(`auth:${clientIp}`, 60);
+  const rateLimit = await checkRateLimit(`auth:${clientIp}`, 60);
   if (!rateLimit.allowed) {
     return rateLimitExceededResponse(headers, rateLimit);
   }
@@ -49,94 +49,94 @@ exports.handler = async (event, context) => {
       return {
         statusCode: 401,
         headers,
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           success: false,
-          error: 'Authorization header required' 
+          error: 'Authorization header required'
         }),
       };
     }
 
     const token = authHeader.replace('Bearer ', '').trim();
-    
+
     // Validate token format (basic check)
     if (!token) {
       return {
         statusCode: 401,
         headers,
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           success: false,
-          error: 'Authorization token required' 
+          error: 'Authorization token required'
         }),
       };
     }
-    
+
     let authUser = null;
     let userId = null;
-    
+
     // Check if this is an API key (starts with 'alt_')
     if (token.startsWith('alt_')) {
       console.log('Validating API key format:', token.substring(0, 20) + '...');
-      
+
       // Validate API key
       const { data: userIdData, error: apiKeyError } = await supabase
         .rpc('validate_api_key', { p_api_key: token });
-      
+
       console.log('API key validation result:', { userIdData, apiKeyError, hasUserId: !!userIdData });
-      
+
       if (apiKeyError) {
         console.error('API key validation RPC error:', apiKeyError);
         return {
           statusCode: 401,
           headers,
-          body: JSON.stringify({ 
+          body: JSON.stringify({
             success: false,
-            error: `API key validation failed: ${apiKeyError.message || 'Unknown error'}` 
+            error: `API key validation failed: ${apiKeyError.message || 'Unknown error'}`
           }),
         };
       }
-      
+
       if (!userIdData) {
         console.error('API key not found or inactive:', token.substring(0, 20) + '...');
         return {
           statusCode: 401,
           headers,
-          body: JSON.stringify({ 
+          body: JSON.stringify({
             success: false,
-            error: 'Invalid or expired API key' 
+            error: 'Invalid or expired API key'
           }),
         };
       }
-      
+
       userId = userIdData;
       console.log('Found user ID from API key:', userId);
-      
+
       // Get user info using service role
       const { data: userData, error: userError } = await supabase.auth.admin.getUserById(userId);
-      
+
       if (userError) {
         console.error('User lookup error:', userError);
         return {
           statusCode: 401,
           headers,
-          body: JSON.stringify({ 
+          body: JSON.stringify({
             success: false,
-            error: `User lookup failed: ${userError.message}` 
+            error: `User lookup failed: ${userError.message}`
           }),
         };
       }
-      
+
       if (!userData?.user) {
         console.error('User not found for ID:', userId);
         return {
           statusCode: 401,
           headers,
-          body: JSON.stringify({ 
+          body: JSON.stringify({
             success: false,
-            error: 'User not found' 
+            error: 'User not found'
           }),
         };
       }
-      
+
       authUser = userData.user;
       console.log('Successfully validated API key for user:', authUser.email);
     } else {
@@ -147,13 +147,13 @@ exports.handler = async (event, context) => {
         return {
           statusCode: 500,
           headers,
-          body: JSON.stringify({ 
+          body: JSON.stringify({
             success: false,
-            error: 'Server configuration error' 
+            error: 'Server configuration error'
           }),
         };
       }
-      
+
       try {
         // Try using Supabase REST API to get user info
         const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
@@ -164,7 +164,7 @@ exports.handler = async (event, context) => {
             'Content-Type': 'application/json'
           }
         });
-        
+
         if (response.ok) {
           authUser = await response.json();
           userId = authUser.id;
@@ -173,9 +173,9 @@ exports.handler = async (event, context) => {
           return {
             statusCode: 401,
             headers,
-            body: JSON.stringify({ 
+            body: JSON.stringify({
               success: false,
-              error: errorData.message || errorData.error_description || 'Invalid token' 
+              error: errorData.message || errorData.error_description || 'Invalid token'
             }),
           };
         }
@@ -184,21 +184,21 @@ exports.handler = async (event, context) => {
         return {
           statusCode: 401,
           headers,
-          body: JSON.stringify({ 
+          body: JSON.stringify({
             success: false,
-            error: 'Token validation failed' 
+            error: 'Token validation failed'
           }),
         };
       }
     }
-    
+
     if (!authUser) {
       return {
         statusCode: 401,
         headers,
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           success: false,
-          error: 'User not found' 
+          error: 'User not found'
         }),
       };
     }
@@ -214,9 +214,9 @@ exports.handler = async (event, context) => {
       return {
         statusCode: 404,
         headers,
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           success: false,
-          error: 'User profile not found' 
+          error: 'User profile not found'
         }),
       };
     }
@@ -256,13 +256,14 @@ exports.handler = async (event, context) => {
     };
 
   } catch (error) {
-    console.error('Auth validation error:', error);
+    const { reportError } = require('../utils/error-reporter');
+    reportError(error, { functionName: 'auth/validate', ip: getClientIp(event) });
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ 
+      body: JSON.stringify({
         success: false,
-        error: 'Internal server error' 
+        error: 'Internal server error'
       }),
     };
   }

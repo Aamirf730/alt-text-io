@@ -30,7 +30,7 @@ class AltTextPro_Media_Handler
     {
         // Check if it's an image
         $mime_type = get_post_mime_type($attachment_id);
-        if (!str_starts_with($mime_type, 'image/')) {
+        if (strpos((string) $mime_type, 'image/') !== 0) {
             return;
         }
 
@@ -139,7 +139,7 @@ class AltTextPro_Media_Handler
 
         $attachment_id = isset($_POST['attachment_id']) ? intval($_POST['attachment_id']) : 0;
         $context = isset($_POST['context']) ? sanitize_text_field(wp_unslash($_POST['context'])) : '';
-        $force_overwrite = (bool) $_POST['force_overwrite'] ?? false;
+        $force_overwrite = !empty($_POST['force_overwrite']);
 
         if (!$attachment_id) {
             wp_send_json_error(esc_html__('Invalid attachment ID.', 'alt-text-pro'));
@@ -147,7 +147,7 @@ class AltTextPro_Media_Handler
 
         // Check if it's an image
         $mime_type = get_post_mime_type($attachment_id);
-        if (!str_starts_with($mime_type, 'image/')) {
+        if (strpos((string) $mime_type, 'image/') !== 0) {
             wp_send_json_error(esc_html__('File is not an image.', 'alt-text-pro'));
         }
 
@@ -285,7 +285,7 @@ class AltTextPro_Media_Handler
     {
         // Check if it's an image
         $mime_type = get_post_mime_type($attachment_id);
-        if (!str_starts_with($mime_type, 'image/')) {
+        if (strpos((string) $mime_type, 'image/') !== 0) {
             return false;
         }
 

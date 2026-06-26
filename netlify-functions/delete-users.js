@@ -33,7 +33,7 @@ exports.handler = async (event, context) => {
 
   // Stricter rate limiting for delete endpoints
   const clientIp = getClientIp(event);
-  const rateLimit = checkRateLimit(`admin-delete:${clientIp}`, ADMIN_RATE_LIMIT);
+  const rateLimit = await checkRateLimit(`admin-delete:${clientIp}`, ADMIN_RATE_LIMIT);
   if (!rateLimit.allowed) {
     return rateLimitExceededResponse(headers, rateLimit);
   }
@@ -54,10 +54,10 @@ exports.handler = async (event, context) => {
     }
 
     const token = authHeader.replace('Bearer ', '').trim();
-    
+
     // Validate JWT token and get user
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    
+
     if (authError || !user) {
       return {
         statusCode: 401,
@@ -75,27 +75,16 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Parse request body
-    let requestBody;
-    try {
-      requestBody = JSON.parse(event.body);
-    } catch (parseError) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'Invalid JSON in request body' }),
-      };
-    }
+    // Safe JSON parse with validation
+    const { parseJsonBody, validateEmailArray, badRequest } = require('./utils/input-validator');
+    const { data: requestBody, error: parseError } = parseJsonBody(event.body);
+    if (parseError) return badRequest(headers, parseError);
 
-    const emailsToDelete = requestBody.emails || [];
-    
-    if (!Array.isArray(emailsToDelete) || emailsToDelete.length === 0) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'Please provide an array of email addresses to delete' }),
-      };
-    }
+    const { value: emailsToDelete, error: emailsError } = validateEmailArray(
+      requestBody.emails,
+      { maxItems: 50 }
+    );
+    if (emailsError) return badRequest(headers, emailsError);
 
     console.log('Emails to delete:', emailsToDelete);
 
@@ -104,7 +93,7 @@ exports.handler = async (event, context) => {
 
     // Get all users from auth
     const { data: { users: allUsers }, error: listError } = await supabase.auth.admin.listUsers();
-    
+
     if (listError) {
       console.error('Error listing users:', listError);
       return {
@@ -118,10 +107,10 @@ exports.handler = async (event, context) => {
     for (const email of emailsToDelete) {
       try {
         console.log(`Processing deletion for: ${email}`);
-        
+
         // Find user by email
         const authUser = allUsers.find(u => u.email === email);
-        
+
         if (!authUser) {
           console.log(`User not found: ${email}`);
           results.push({
@@ -137,13 +126,13 @@ exports.handler = async (event, context) => {
 
         // Delete related data first (profiles, payments, usage_logs)
         // Note: These should cascade delete, but we'll delete them explicitly to be safe
-        
+
         // Delete usage logs
         const { error: usageError } = await supabase
           .from('usage_logs')
           .delete()
           .eq('user_id', userId);
-        
+
         if (usageError) {
           console.error(`Error deleting usage logs for ${email}:`, usageError);
         } else {
@@ -155,7 +144,7 @@ exports.handler = async (event, context) => {
           .from('payments')
           .delete()
           .eq('user_id', userId);
-        
+
         if (paymentsError) {
           console.error(`Error deleting payments for ${email}:`, paymentsError);
         } else {
@@ -167,7 +156,7 @@ exports.handler = async (event, context) => {
           .from('profiles')
           .delete()
           .eq('id', userId);
-        
+
         if (profileError) {
           console.error(`Error deleting profile for ${email}:`, profileError);
         } else {
@@ -176,7 +165,7 @@ exports.handler = async (event, context) => {
 
         // Finally, delete the auth user
         const { error: deleteError } = await supabase.auth.admin.deleteUser(userId);
-        
+
         if (deleteError) {
           console.error(`Error deleting auth user for ${email}:`, deleteError);
           errors.push({
@@ -213,11 +202,12 @@ exports.handler = async (event, context) => {
     };
 
   } catch (error) {
-    console.error('Unexpected error:', error);
+    const { reportError } = require('./utils/error-reporter');
+    reportError(error, { functionName: 'delete-users', ip: getClientIp(event) });
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ 
+      body: JSON.stringify({
         error: 'Internal server error',
         details: error.message
       }),

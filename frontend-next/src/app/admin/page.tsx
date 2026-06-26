@@ -1,59 +1,33 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from '@/lib/supabase';
 import { getApiBase } from '@/lib/utils';
 import { toast } from "sonner";
-import { RefreshCw, Search, X } from "lucide-react";
+import { Activity, BarChart3, RefreshCw, Search, TrendingDown, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // Admin Dashboard Component
 export default function AdminDashboard() {
     const [user, setUser] = useState<any>(null);
     const [users, setUsers] = useState<any[]>([]);
     const [stats, setStats] = useState<any>(null);
+    const [funnelReport, setFunnelReport] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [isLoadingFunnel, setIsLoadingFunnel] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
     const [filterPlan, setFilterPlan] = useState("all");
     const [filterStatus, setFilterStatus] = useState("all");
+    const [funnelDays, setFunnelDays] = useState("7");
     const [selectedUser, setSelectedUser] = useState<any>(null);
     const router = useRouter();
 
-    useEffect(() => {
-        const checkAuthAndLoadData = async () => {
-            try {
-                const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-
-                if (sessionError || !session) {
-                    toast.error("Please sign in to access the admin dashboard");
-                    router.push("/");
-                    return;
-                }
-
-                setUser({
-                    email: session.user.email,
-                    id: session.user.id,
-                    token: session.access_token
-                });
-
-                await loadUsers(session.access_token);
-            } catch (error) {
-                console.error("Error checking auth:", error);
-                toast.error("Authentication error");
-                router.push("/");
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        checkAuthAndLoadData();
-    }, [router]);
-
-    const loadUsers = async (token: string) => {
+    const loadUsers = useCallback(async (token: string) => {
         try {
             const apiBase = getApiBase();
 
@@ -85,14 +59,93 @@ export default function AdminDashboard() {
             console.error("Error loading users:", error);
             toast.error("Failed to load users. Please try again.");
         }
-    };
+    }, [router]);
+
+    const loadFunnel = useCallback(async (token: string, days: string) => {
+        try {
+            setIsLoadingFunnel(true);
+            const apiBase = getApiBase();
+
+            const response = await fetch(`${apiBase}/admin-marketing-funnel?days=${encodeURIComponent(days)}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (response.status === 403) {
+                toast.error("Access denied. Superuser privileges required.");
+                router.push("/");
+                return;
+            }
+
+            if (!response.ok) {
+                throw new Error(`API returned status ${response.status}`);
+            }
+
+            const result = await response.json();
+            if (result.success && result.data) {
+                setFunnelReport(result.data);
+            } else {
+                throw new Error('Invalid funnel response format');
+            }
+        } catch (error) {
+            console.error("Error loading funnel report:", error);
+            toast.error("Failed to load funnel report.");
+        } finally {
+            setIsLoadingFunnel(false);
+        }
+    }, [router]);
+
+    useEffect(() => {
+        const checkAuthAndLoadData = async () => {
+            try {
+                const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+                if (sessionError || !session) {
+                    toast.error("Please sign in to access the admin dashboard");
+                    router.push("/");
+                    return;
+                }
+
+                setUser({
+                    email: session.user.email,
+                    id: session.user.id,
+                    token: session.access_token
+                });
+
+                await Promise.all([
+                    loadUsers(session.access_token),
+                    loadFunnel(session.access_token, "7"),
+                ]);
+            } catch (error) {
+                console.error("Error checking auth:", error);
+                toast.error("Authentication error");
+                router.push("/");
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        checkAuthAndLoadData();
+    }, [router, loadUsers, loadFunnel]);
 
     const handleRefresh = async () => {
         if (user?.token) {
             setIsLoading(true);
-            await loadUsers(user.token);
+            await Promise.all([
+                loadUsers(user.token),
+                loadFunnel(user.token, funnelDays),
+            ]);
             setIsLoading(false);
-            toast.success("Users refreshed");
+            toast.success("Admin data refreshed");
+        }
+    };
+
+    const handleFunnelDaysChange = async (days: string) => {
+        setFunnelDays(days);
+        if (user?.token) {
+            await loadFunnel(user.token, days);
         }
     };
 
@@ -122,6 +175,18 @@ export default function AdminDashboard() {
             currency: "USD"
         }).format(amount || 0);
     };
+
+    const formatNumber = (value: number | null | undefined) => {
+        return new Intl.NumberFormat("en-US").format(value || 0);
+    };
+
+    const formatPercent = (value: number | null | undefined) => {
+        if (value === null || value === undefined || Number.isNaN(value)) return "N/A";
+        return `${Math.round(value * 1000) / 10}%`;
+    };
+
+    const purchaseStage = funnelReport?.stages?.find((stage: any) => stage.key === "purchase_completed");
+    const visitorStage = funnelReport?.stages?.find((stage: any) => stage.key === "page_viewed");
 
     if (isLoading) {
         return (
@@ -170,6 +235,19 @@ export default function AdminDashboard() {
             </div>
 
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                <Tabs defaultValue="users" className="space-y-6">
+                    <TabsList className="bg-white border border-gray-200">
+                        <TabsTrigger value="users" className="gap-2 px-4">
+                            <Users className="h-4 w-4" />
+                            Users
+                        </TabsTrigger>
+                        <TabsTrigger value="funnel" className="gap-2 px-4">
+                            <BarChart3 className="h-4 w-4" />
+                            Funnel
+                        </TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="users" className="space-y-6">
                 {/* Statistics Cards */}
                 {stats && (
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
@@ -194,7 +272,7 @@ export default function AdminDashboard() {
                                 <CardTitle className="text-sm font-medium text-gray-600">Active Users</CardTitle>
                             </CardHeader>
                             <CardContent>
-                                <div className="text-3xl font-bold text-blue-600">{stats.active_users}</div>
+                                <div className="text-3xl font-bold text-[#0D4F5E]">{stats.active_users}</div>
                             </CardContent>
                         </Card>
                         <Card>
@@ -353,6 +431,215 @@ export default function AdminDashboard() {
                         </div>
                     </CardContent>
                 </Card>
+                    </TabsContent>
+
+                    <TabsContent value="funnel" className="space-y-6">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                            <div>
+                                <h2 className="text-2xl font-bold text-gray-900">Marketing Funnel</h2>
+                                <p className="text-sm text-gray-600">
+                                    Tracks the path from visitor activity to purchase and plugin usage.
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <select
+                                    value={funnelDays}
+                                    onChange={(event) => handleFunnelDaysChange(event.target.value)}
+                                    className="h-10 rounded-md border border-gray-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                                >
+                                    <option value="1">Last 24 hours</option>
+                                    <option value="7">Last 7 days</option>
+                                    <option value="14">Last 14 days</option>
+                                    <option value="30">Last 30 days</option>
+                                    <option value="90">Last 90 days</option>
+                                </select>
+                                <Button
+                                    onClick={() => user?.token && loadFunnel(user.token, funnelDays)}
+                                    variant="outline"
+                                    disabled={isLoadingFunnel}
+                                    className="gap-2"
+                                >
+                                    <RefreshCw className={`h-4 w-4 ${isLoadingFunnel ? "animate-spin" : ""}`} />
+                                    Refresh
+                                </Button>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                            <Card>
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-sm font-medium text-gray-600">Events</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="text-3xl font-bold text-gray-900">
+                                        {formatNumber(funnelReport?.totals?.events)}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                            <Card>
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-sm font-medium text-gray-600">Unique Actors</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="text-3xl font-bold text-[#0D4F5E]">
+                                        {formatNumber(funnelReport?.totals?.unique_actors)}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                            <Card>
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-sm font-medium text-gray-600">Purchases</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="text-3xl font-bold text-green-600">
+                                        {formatNumber(purchaseStage?.unique_actors)}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                            <Card>
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-sm font-medium text-gray-600">Visitor to Purchase</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="text-3xl font-bold text-gray-900">
+                                        {visitorStage?.unique_actors ? formatPercent(purchaseStage?.unique_actors / visitorStage.unique_actors) : "N/A"}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </div>
+
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <Activity className="h-5 w-5 text-[#0D4F5E]" />
+                                    Funnel Stages
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full">
+                                        <thead>
+                                            <tr className="border-b">
+                                                <th className="text-left py-3 px-4 font-semibold text-gray-700">Stage</th>
+                                                <th className="text-right py-3 px-4 font-semibold text-gray-700">Actors</th>
+                                                <th className="text-right py-3 px-4 font-semibold text-gray-700">Events</th>
+                                                <th className="text-right py-3 px-4 font-semibold text-gray-700">From Previous</th>
+                                                <th className="text-right py-3 px-4 font-semibold text-gray-700">From Start</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {(funnelReport?.stages || []).map((stage: any) => (
+                                                <tr key={stage.key} className="border-b hover:bg-gray-50">
+                                                    <td className="py-3 px-4 font-medium text-gray-900">{stage.label}</td>
+                                                    <td className="py-3 px-4 text-right">{formatNumber(stage.unique_actors)}</td>
+                                                    <td className="py-3 px-4 text-right">{formatNumber(stage.events)}</td>
+                                                    <td className="py-3 px-4 text-right">{formatPercent(stage.conversion_from_previous)}</td>
+                                                    <td className="py-3 px-4 text-right">{formatPercent(stage.conversion_from_start)}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <TrendingDown className="h-5 w-5 text-red-600" />
+                                        Dropoffs
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    {(funnelReport?.dropoffs || []).map((dropoff: any) => (
+                                        <div key={dropoff.key} className="rounded-md border border-gray-200 p-4">
+                                            <div className="flex items-center justify-between gap-4">
+                                                <div className="font-medium text-gray-900">{dropoff.label}</div>
+                                                <Badge className="bg-red-50 text-red-700">{formatNumber(dropoff.count)}</Badge>
+                                            </div>
+                                            {dropoff.sample?.length > 0 && (
+                                                <div className="mt-3 space-y-1">
+                                                    {dropoff.sample.slice(0, 3).map((actor: any, index: number) => (
+                                                        <div key={`${dropoff.key}-${index}`} className="text-xs text-gray-500">
+                                                            {actor.email || actor.user_id || actor.anonymous_id || "Unknown actor"} · {formatDate(actor.last_seen_at)}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </CardContent>
+                            </Card>
+
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle>Top Sources</CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-6">
+                                    <div>
+                                        <div className="text-sm font-semibold text-gray-700 mb-2">Sources</div>
+                                        <div className="space-y-2">
+                                            {(funnelReport?.top_sources || []).map((source: any) => (
+                                                <div key={source.label} className="flex justify-between text-sm">
+                                                    <span className="text-gray-600">{source.label}</span>
+                                                    <span className="font-medium">{formatNumber(source.count)}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div className="text-sm font-semibold text-gray-700 mb-2">Pages</div>
+                                        <div className="space-y-2">
+                                            {(funnelReport?.top_pages || []).map((page: any) => (
+                                                <div key={page.label} className="flex justify-between gap-4 text-sm">
+                                                    <span className="truncate text-gray-600">{page.label}</span>
+                                                    <span className="font-medium">{formatNumber(page.count)}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </div>
+
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Daily Event Counts</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full">
+                                        <thead>
+                                            <tr className="border-b">
+                                                <th className="text-left py-3 px-4 font-semibold text-gray-700">Date</th>
+                                                <th className="text-right py-3 px-4 font-semibold text-gray-700">Events</th>
+                                                <th className="text-right py-3 px-4 font-semibold text-gray-700">Actors</th>
+                                                <th className="text-right py-3 px-4 font-semibold text-gray-700">Visitors</th>
+                                                <th className="text-right py-3 px-4 font-semibold text-gray-700">Demos</th>
+                                                <th className="text-right py-3 px-4 font-semibold text-gray-700">Signups</th>
+                                                <th className="text-right py-3 px-4 font-semibold text-gray-700">Purchases</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {(funnelReport?.daily_series || []).map((day: any) => (
+                                                <tr key={day.date} className="border-b hover:bg-gray-50">
+                                                    <td className="py-3 px-4 font-medium text-gray-900">{day.date}</td>
+                                                    <td className="py-3 px-4 text-right">{formatNumber(day.total_events)}</td>
+                                                    <td className="py-3 px-4 text-right">{formatNumber(day.unique_actors)}</td>
+                                                    <td className="py-3 px-4 text-right">{formatNumber(day.events?.page_viewed)}</td>
+                                                    <td className="py-3 px-4 text-right">{formatNumber(day.events?.demo_used)}</td>
+                                                    <td className="py-3 px-4 text-right">{formatNumber(day.events?.signup_created)}</td>
+                                                    <td className="py-3 px-4 text-right">{formatNumber(day.events?.purchase_completed)}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+                </Tabs>
             </div>
 
             {/* User Details Modal */}

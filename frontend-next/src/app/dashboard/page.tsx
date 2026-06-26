@@ -3,8 +3,10 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import NextImage from "next/image";
 import { supabase } from '@/lib/supabase';
-import { getApiBase, PLUGIN_VERSION } from '@/lib/utils';
+import { getApiBase, PLAN_CREDIT_LIMITS, PLUGIN_VERSION } from '@/lib/utils';
+import { trackMarketingEvent } from '@/lib/analytics';
 // Polar.sh product IDs from environment variables
 const POLAR_PRODUCTS = {
     tier1_monthly: process.env.NEXT_PUBLIC_POLAR_TIER1_MONTHLY || '',
@@ -16,10 +18,17 @@ const POLAR_PRODUCTS = {
     small_pack: process.env.NEXT_PUBLIC_POLAR_SMALL_PACK || '',
     credit_pack: process.env.NEXT_PUBLIC_POLAR_CREDIT_PACK || '',
 };
+
+type UsageHistoryItem = {
+    id: string;
+    alt: string;
+    context: string | null;
+    date: string;
+};
 import { toast } from "sonner";
 import {
     Brain, Zap, CheckCircle, Star, ArrowRight, Users, Shield, Rocket,
-    Chrome, Upload, Eye, EyeOff, Download, Check, Search,
+    Chrome, Upload, Eye, EyeOff, Download, Check, Search, History,
     CreditCard, Calendar, TrendingUp, Key, Copy, Info, AlertTriangle,
     RefreshCw, Book, FileText, HelpCircle, Settings, Code, DollarSign,
     Wrench, Globe, LogOut, MessageCircle, Image as ImageIcon, Crown, X
@@ -46,13 +55,15 @@ export default function Dashboard() {
     const [selectedUpgradePlan, setSelectedUpgradePlan] = useState<any>(null);
     const [isGenerating, setIsGenerating] = useState(false);
     const [generatedAltText, setGeneratedAltText] = useState("");
-    const [history, setHistory] = useState<any[]>([]);
+    const [history, setHistory] = useState<UsageHistoryItem[]>([]);
     const [isLoadingHistory, setIsLoadingHistory] = useState(false);
     const [showApiKey, setShowApiKey] = useState(false);
     const [apiKey, setApiKey] = useState<string | null>(null);
     const [isLoadingApiKey, setIsLoadingApiKey] = useState(false);
 
     const router = useRouter();
+    const currentPlan = String(usageStats?.plan || 'free');
+    const currentPlanLimit = PLAN_CREDIT_LIMITS[currentPlan] || PLAN_CREDIT_LIMITS.free;
 
     useEffect(() => {
         loadDashboard();
@@ -148,41 +159,71 @@ export default function Dashboard() {
             checkoutUrl += `&customerEmail=${encodeURIComponent(user.email)}`;
         }
 
+        trackMarketingEvent("checkout_started", {
+            source: "dashboard",
+            userId: user?.id,
+            userEmail: user?.email,
+            properties: {
+                product_id: productId,
+                plan_id: selectedUpgradePlan?.id,
+                plan_name: selectedUpgradePlan?.name,
+                plan_price: selectedUpgradePlan?.price,
+            },
+        });
+
         console.log('Final checkout URL:', checkoutUrl);
         window.location.href = checkoutUrl;
+    };
+
+    const openCustomerPortal = async () => {
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+
+            if (!session?.access_token) {
+                toast.error('Please sign in again to manage billing.');
+                return;
+            }
+
+            const response = await fetch('/api/customer-portal?format=json', {
+                headers: {
+                    'Authorization': `Bearer ${session.access_token}`,
+                    'Accept': 'application/json',
+                },
+            });
+
+            const data = await response.json().catch(() => ({}));
+
+            if (!response.ok || !data.url) {
+                toast.error(data.error || 'Could not open billing portal.');
+                return;
+            }
+
+            window.location.href = data.url;
+        } catch (error) {
+            console.error('Customer portal error:', error);
+            toast.error('Could not open billing portal.');
+        }
     };
 
     // Get the correct Polar product ID based on plan
     const getPolarProductId = (planId: string): string => {
         console.log('Mapping planId to productId:', planId);
-        // For dashboard upgrades, default to monthly plans
-        if (planId === 'tier1') {
-            const id = POLAR_PRODUCTS.tier1_monthly;
-            console.log('Mapped tier1 to:', id);
-            return id;
-        }
-        if (planId === 'tier2') {
-            const id = POLAR_PRODUCTS.tier2_monthly;
-            console.log('Mapped tier2 to:', id);
-            return id;
-        }
-        if (planId === 'tier3') {
-            const id = POLAR_PRODUCTS.tier3_monthly;
-            console.log('Mapped tier3 to:', id);
-            return id;
-        }
-        if (planId === 'small_pack') {
-            const id = POLAR_PRODUCTS.small_pack;
-            console.log('Mapped small_pack to:', id);
-            return id;
-        }
-        if (planId === 'credit_pack') {
-            const id = POLAR_PRODUCTS.credit_pack;
-            console.log('Mapped credit_pack to:', id);
-            return id;
-        }
-        console.warn('Unknown planId:', planId);
-        return '';
+        const productMap: Record<string, string> = {
+            tier1: POLAR_PRODUCTS.tier1_monthly,
+            tier1_monthly: POLAR_PRODUCTS.tier1_monthly,
+            tier1_annual: POLAR_PRODUCTS.tier1_annual,
+            tier2: POLAR_PRODUCTS.tier2_monthly,
+            tier2_monthly: POLAR_PRODUCTS.tier2_monthly,
+            tier2_annual: POLAR_PRODUCTS.tier2_annual,
+            tier3: POLAR_PRODUCTS.tier3_monthly,
+            tier3_monthly: POLAR_PRODUCTS.tier3_monthly,
+            tier3_annual: POLAR_PRODUCTS.tier3_annual,
+            small_pack: POLAR_PRODUCTS.small_pack,
+            credit_pack: POLAR_PRODUCTS.credit_pack,
+        };
+        const id = productMap[planId] || '';
+        console.log('Mapped plan to product:', Boolean(id));
+        return id;
     };
 
     // Load history when user or stats change
@@ -365,7 +406,13 @@ export default function Dashboard() {
             if (error) {
                 console.error('Error loading history:', error);
             } else {
-                setHistory(data || []);
+                const normalizedHistory = (data || []).map((item: any) => ({
+                    id: item.id,
+                    alt: item.alt_text_generated || 'Alt text unavailable',
+                    context: item.image_context || null,
+                    date: item.created_at
+                }));
+                setHistory(normalizedHistory);
             }
         } catch (error) {
             console.error('Error loading history:', error);
@@ -384,6 +431,39 @@ export default function Dashboard() {
                 setGeneratedAltText("");
             };
             reader.readAsDataURL(file);
+        }
+    };
+
+    const rotateApiKey = async () => {
+        if (!user?.id) return;
+
+        if (!confirm("Rotate your API key? Your old key will stop working immediately.")) {
+            return;
+        }
+
+        setIsLoadingApiKey(true);
+        try {
+            // First, deactivate all current keys for this user
+            const { error: deactivateError } = await supabase
+                .from('api_keys')
+                .update({ is_active: false })
+                .eq('user_id', user.id);
+
+            if (deactivateError) throw deactivateError;
+
+            // Then call the RPC to create a fresh one
+            const { data: newKey, error: createError } = await supabase
+                .rpc('get_or_create_api_key', { p_user_id: user.id });
+
+            if (createError) throw createError;
+
+            setApiKey(newKey);
+            toast.success("API Key rotated successfully");
+        } catch (error) {
+            console.error('Error rotating API key:', error);
+            toast.error("Failed to rotate API key");
+        } finally {
+            setIsLoadingApiKey(false);
         }
     };
 
@@ -451,6 +531,8 @@ export default function Dashboard() {
             }
 
             if (apiResponse.ok) {
+                const wasFirstProcessedImage = (usageStats?.total_processed || 0) === 0;
+
                 // Update with real data from API response
                 const result = {
                     alt_text: data.alt_text || data.altText,
@@ -469,6 +551,30 @@ export default function Dashboard() {
 
                 // Update generated alt-text state for display
                 setGeneratedAltText(result.alt_text);
+
+                if (wasFirstProcessedImage) {
+                    trackMarketingEvent("first_image_processed", {
+                        source: "dashboard",
+                        userId: user?.id,
+                        userEmail: user?.email,
+                        properties: {
+                            context: "dashboard_test",
+                            credits_remaining: data.credits_remaining,
+                        },
+                    });
+                }
+
+                if (typeof data.credits_remaining === 'number' && data.credits_remaining <= 5) {
+                    trackMarketingEvent("credits_low", {
+                        source: "dashboard",
+                        userId: user?.id,
+                        userEmail: user?.email,
+                        properties: {
+                            credits_remaining: data.credits_remaining,
+                            trigger: "dashboard_generation",
+                        },
+                    });
+                }
 
                 // Reload history to show new generation
                 loadHistory();
@@ -500,37 +606,39 @@ export default function Dashboard() {
 
     if (isLoading) {
         return (
-            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+            <div className="min-h-screen bg-slate-50 flex items-center justify-center">
                 <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
-                    <p className="text-gray-600">Loading dashboard...</p>
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0D4F5E] mx-auto mb-4"></div>
+                    <p className="text-slate-500">Loading dashboard...</p>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 pb-20">
+        <div className="min-h-screen bg-notebook-paper text-notebook-slate pb-20 font-sans selection:bg-notebook-blue/10 selection:text-notebook-slate">
             {/* Navigation */}
-            <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
+            <nav className="bg-white/80 backdrop-blur-xl border-b border-gray-100 sticky top-0 z-50">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex items-center justify-between h-16">
-                        <Link href="/" className="flex items-center space-x-3">
-                            <img
+                    <div className="flex items-center justify-between h-20">
+                        <Link href="/" className="flex items-center space-x-3 group">
+                            <NextImage
                                 src="/logo-alt-text-pro.png"
                                 alt="Alt Text Pro Logo"
-                                className="h-8 w-8 object-contain"
+                                width={40}
+                                height={40}
+                                className="h-10 w-10 object-contain transition-transform group-hover:rotate-12"
                             />
-                            <span className="text-xl font-bold text-gray-900">Alt Text Pro</span>
+                            <span className="text-2xl font-bold text-notebook-slate tracking-tight font-outfit">Alt Text Pro</span>
                         </Link>
-                        <div className="flex items-center space-x-4">
-                            <div className="hidden md:block text-sm text-gray-500">
-                                Logged in as <span className="font-medium text-gray-900">{user?.email}</span>
+                        <div className="flex items-center space-x-6">
+                            <div className="hidden md:block text-xs text-slate-400 font-medium">
+                                <span className="opacity-70 uppercase tracking-widest">Account:</span> <span className="text-notebook-slate ml-2">{user?.email}</span>
                             </div>
                             <Button
                                 variant="ghost"
                                 size="sm"
-                                className="text-gray-600 hover:text-gray-900"
+                                className="text-slate-500 hover:text-notebook-blue hover:bg-notebook-blue/5 rounded-full px-4 transition-all"
                                 onClick={async () => {
                                     try {
                                         const { error } = await supabase.auth.signOut();
@@ -551,22 +659,34 @@ export default function Dashboard() {
                 </div>
             </nav>
 
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 relative z-10">
                 {/* Header Section */}
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-                    <div>
-                        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-                        <p className="text-gray-500 mt-1">Manage your account, credits, and API keys</p>
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-16">
+                    <div className="space-y-3">
+                        <div className="inline-flex items-center space-x-2 bg-notebook-blue/5 text-notebook-blue px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border border-notebook-blue/10">
+                            <Rocket className="h-3 w-3" />
+                            <span>Dashboard Overview</span>
+                        </div>
+                        <h1 className="text-4xl font-semibold text-notebook-slate tracking-tight font-outfit">Overview</h1>
+                        <p className="text-slate-500 font-medium">Manage your account, credits, and see your recent activity.</p>
                     </div>
-                    <div className="flex items-center gap-3">
-                        <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">Plugin v{PLUGIN_VERSION}</span>
+                    <div className="flex items-center gap-4">
+                        <span className="text-[10px] font-bold text-slate-500 bg-white border border-gray-100 px-4 py-2 rounded-full shadow-sm uppercase tracking-widest">
+                            v{PLUGIN_VERSION}
+                        </span>
                         <a
                             href={`/wordpress-plugin/alt-text-pro-plugin-${PLUGIN_VERSION}.zip`}
                             download={`alt-text-pro-plugin-${PLUGIN_VERSION}.zip`}
-                            className="inline-flex items-center px-4 py-2 text-sm font-medium text-white transition-all rounded-lg shadow-sm hover:shadow hover:-translate-y-0.5"
-                            style={{
-                                background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)'
-                            }}
+                            onClick={() => trackMarketingEvent("plugin_downloaded", {
+                                source: "dashboard",
+                                userId: user?.id,
+                                userEmail: user?.email,
+                                properties: {
+                                    plugin_version: PLUGIN_VERSION,
+                                    location: "dashboard_header",
+                                },
+                            })}
+                            className="inline-flex items-center px-6 py-3 text-sm font-semibold text-white bg-notebook-blue hover:bg-notebook-blue/90 transition-all rounded-full shadow-sm hover:-translate-y-0.5"
                         >
                             <Download className="h-4 w-4 mr-2" />
                             Download Plugin
@@ -575,105 +695,115 @@ export default function Dashboard() {
                 </div>
 
                 {/* Stats Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
                     {/* Credits Card */}
-                    <Card className="border-none shadow-sm hover:shadow-md transition-shadow">
-                        <CardContent className="p-6">
-                            <div className="flex justify-between items-start mb-4">
+                    <Card className="bg-white border-notebook-slate/5 shadow-notebook rounded-[2rem] hover:shadow-notebook-lg transition-all duration-300 group overflow-hidden">
+                        <CardContent className="p-10">
+                            <div className="flex justify-between items-start mb-10">
                                 <div>
-                                    <p className="text-sm font-medium text-gray-500">Available Credits</p>
-                                    <h3 className="text-3xl font-bold text-gray-900 mt-1">{usageStats?.credits_remaining || 0}</h3>
+                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.25em] mb-4">Available Credits</p>
+                                    <h3 className="text-5xl font-medium text-notebook-slate tracking-tighter font-outfit flex items-baseline">
+                                        {usageStats?.credits_remaining || 0}
+                                        <span className="text-xs text-slate-400 font-medium tracking-normal ml-3 font-sans">
+                                            / {currentPlanLimit}
+                                        </span>
+                                    </h3>
                                 </div>
-                                <div className="p-2 bg-teal-50 rounded-lg">
-                                    <Zap className="h-6 w-6 text-teal-600" />
+                                <div className="p-4 bg-notebook-teal/10 text-notebook-blue rounded-3xl group-hover:scale-105 transition-transform duration-500">
+                                    <Zap className="h-7 w-7" />
                                 </div>
                             </div>
-                            <div className="w-full bg-gray-100 rounded-full h-2 mb-2">
+                            <div className="w-full bg-notebook-cloud rounded-full h-1.5 mb-6 overflow-hidden">
                                 <div
-                                    className="bg-teal-500 h-2 rounded-full transition-all duration-500"
-                                    style={{ width: `${Math.min(((usageStats?.credits_remaining || 0) / (({ 'free': 30, 'lite': 150, 'standard': 400, 'pro': 1000 } as Record<string, number>)[String(usageStats?.plan || 'free')] || 50)) * 100, 100)}%` }}
+                                    className="bg-notebook-blue h-full rounded-full transition-all duration-1000 ease-out"
+                                    style={{ width: `${Math.min(((usageStats?.credits_remaining || 0) / currentPlanLimit) * 100, 100)}%` }}
                                 ></div>
                             </div>
-                            <div className="flex justify-between items-center text-xs text-gray-500">
-                                <span>{usageStats?.plan === 'free' ? '30 total' : 'Monthly quota'}</span>
+                            <div className="flex justify-between items-center">
+                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">Usage Limits</span>
                                 <button
                                     onClick={() => handleUpgradePlan('small_pack', 'Small Pack', '$5')}
-                                    className="text-teal-600 font-medium hover:text-teal-700"
+                                    className="text-notebook-blue text-xs font-semibold hover:opacity-80 transition-opacity flex items-center group/btn font-outfit uppercase tracking-[0.15em]"
                                 >
-                                    Top up +
+                                    Top up <ArrowRight className="h-3 w-3 ml-2 transition-transform group-hover/btn:translate-x-1" />
                                 </button>
                             </div>
                         </CardContent>
                     </Card>
 
                     {/* Generated Card */}
-                    <Card className="border-none shadow-sm hover:shadow-md transition-shadow">
-                        <CardContent className="p-6">
-                            <div className="flex justify-between items-start mb-4">
+                    <Card className="bg-white border-notebook-slate/5 shadow-notebook rounded-[2rem] hover:shadow-notebook-lg transition-all duration-300 group overflow-hidden">
+                        <CardContent className="p-10">
+                            <div className="flex justify-between items-start mb-10">
                                 <div>
-                                    <p className="text-sm font-medium text-gray-500">Total Generated</p>
-                                    <h3 className="text-3xl font-bold text-gray-900 mt-1">{usageStats?.total_processed || 0}</h3>
+                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.25em] mb-4">Images Optimized</p>
+                                    <h3 className="text-5xl font-medium text-notebook-slate tracking-tighter font-outfit">{usageStats?.total_processed || 0}</h3>
                                 </div>
-                                <div className="p-2 bg-blue-50 rounded-lg">
-                                    <ImageIcon className="h-6 w-6 text-blue-600" />
+                                <div className="p-4 bg-slate-50 text-notebook-slate rounded-3xl group-hover:scale-105 transition-transform duration-500">
+                                    <ImageIcon className="h-7 w-7" />
                                 </div>
                             </div>
-                            <p className="text-sm text-gray-500">
-                                Images processed successfully
-                            </p>
+                            <div className="mt-8 flex items-center space-x-3">
+                                <div className="flex -space-x-2">
+                                    {[1, 2, 3].map((i) => (
+                                        <div key={i} className="w-8 h-8 rounded-full border-2 border-white bg-notebook-cloud flex items-center justify-center text-[10px] font-bold text-slate-400">
+                                            {i}
+                                        </div>
+                                    ))}
+                                </div>
+                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">Images Processed</p>
+                            </div>
                         </CardContent>
                     </Card>
 
                     {/* Plan Card */}
-                    <Card className="border-none shadow-sm hover:shadow-md transition-shadow">
-                        <CardContent className="p-6">
-                            <div className="flex justify-between items-start mb-4">
+                    <Card className="bg-white border-notebook-slate/5 shadow-notebook rounded-[2rem] hover:shadow-notebook-lg transition-all duration-300 group overflow-hidden">
+                        <CardContent className="p-10">
+                            <div className="flex justify-between items-start mb-10">
                                 <div>
-                                    <p className="text-sm font-medium text-gray-500">Current Plan</p>
-                                    <h3 className="text-3xl font-bold text-gray-900 mt-1 capitalize">{usageStats?.plan || 'Free'}</h3>
+                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.25em] mb-4">Your Current Plan</p>
+                                    <h3 className="text-4xl font-medium text-notebook-slate tracking-tight font-outfit capitalize">{usageStats?.plan || 'Free'}</h3>
                                 </div>
-                                <div className="p-2 bg-purple-50 rounded-lg">
-                                    <Crown className="h-6 w-6 text-purple-600" />
+                                <div className="p-4 bg-orange-50 text-orange-500 rounded-3xl group-hover:scale-105 transition-transform duration-500">
+                                    <Crown className="h-7 w-7" />
                                 </div>
                             </div>
-                            {usageStats?.plan && usageStats.plan !== 'free' ? (
-                                <div className="flex flex-col gap-2">
+                            <div className="mt-7">
+                                {usageStats?.plan && usageStats.plan !== 'free' ? (
+                                    <div className="flex flex-col gap-4">
+                                        {subscriptionData?.subscription?.polar_customer_id ? (
+	                                            <>
+	                                                <button
+	                                                    onClick={openCustomerPortal}
+	                                                    className="text-xs text-notebook-blue font-semibold hover:opacity-80 transition-all flex items-center font-outfit uppercase tracking-[0.15em]"
+	                                                >
+	                                                    Manage Subscription <ArrowRight className="h-4 w-4 ml-2" />
+	                                                </button>
+	                                                <button
+	                                                    onClick={openCustomerPortal}
+	                                                    className="text-[10px] text-slate-500 hover:text-red-500 transition-colors uppercase tracking-[0.2em] font-bold text-left"
+	                                                >
+                                                    Cancel Subscription
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <button
+                                                onClick={() => router.push('/#pricing')}
+                                                className="text-xs text-notebook-blue font-semibold hover:opacity-80 transition-all flex items-center font-outfit uppercase tracking-[0.15em]"
+                                            >
+                                                Plan Details <ArrowRight className="h-4 w-4 ml-2" />
+                                            </button>
+                                        )}
+                                    </div>
+                                ) : (
                                     <button
-                                        onClick={() => {
-                                            const customerId = subscriptionData?.subscription?.polar_customer_id;
-                                            if (customerId) {
-                                                window.location.href = `/api/customer-portal?customerId=${customerId}`;
-                                            } else {
-                                                toast.info("Opening customer portal. Please sign in there if prompted.");
-                                                window.location.href = `/api/customer-portal`;
-                                            }
-                                        }}
-                                        className="text-sm text-purple-600 font-medium hover:text-purple-700 flex items-center"
+                                        onClick={() => setShowUpgradeModal(true)}
+                                        className="text-xs text-notebook-slate font-semibold hover:text-notebook-blue transition-all flex items-center group/btn font-outfit uppercase tracking-[0.15em]"
                                     >
-                                        Manage Subscription <ArrowRight className="h-4 w-4 ml-1" />
+                                        Upgrade Your Plan <ArrowRight className="h-4 w-4 ml-2 transition-transform group-hover/btn:translate-x-1" />
                                     </button>
-                                    <button
-                                        onClick={() => {
-                                            const customerId = subscriptionData?.subscription?.polar_customer_id;
-                                            if (customerId) {
-                                                window.location.href = `/api/customer-portal?customerId=${customerId}`;
-                                            } else {
-                                                window.location.href = `/api/customer-portal`;
-                                            }
-                                        }}
-                                        className="text-xs text-gray-400 hover:text-red-500 transition-colors flex items-center"
-                                    >
-                                        Cancel Subscription
-                                    </button>
-                                </div>
-                            ) : (
-                                <button
-                                    onClick={() => setShowUpgradeModal(true)}
-                                    className="text-sm text-purple-600 font-medium hover:text-purple-700 flex items-center"
-                                >
-                                    Upgrade Plan <ArrowRight className="h-4 w-4 ml-1" />
-                                </button>
-                            )}
+                                )}
+                            </div>
                         </CardContent>
                     </Card>
                 </div>
@@ -682,517 +812,545 @@ export default function Dashboard() {
                     {/* Main Content Area - Left 2/3 */}
                     <div className="lg:col-span-2 space-y-8">
 
-                        {/* Test Alt Text Section */}
-                        <Card className="border-none shadow-sm">
-                            <CardHeader className="border-b border-gray-100 pb-4">
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <CardTitle className="text-lg font-semibold text-gray-900">Quick Test</CardTitle>
-                                        <p className="text-sm text-gray-500">Generate alt-text for an image instantly</p>
+                        {/* Quick Test Section */}
+                        <Card className="bg-white border-notebook-slate/5 shadow-notebook rounded-[2rem] overflow-hidden group">
+                            <CardContent className="p-10">
+                                <div className="flex items-center space-x-4 mb-12">
+                                    <div className="p-3 bg-notebook-teal/10 text-notebook-blue rounded-2xl border border-notebook-teal/20">
+                                        <Brain className="h-6 w-6" />
                                     </div>
-                                    <div className="p-2 bg-gray-50 rounded-full">
-                                        <Brain className="h-5 w-5 text-gray-400" />
+                                    <div>
+                                        <h2 className="text-2xl font-semibold text-notebook-slate tracking-tight font-outfit">Quick Generate</h2>
+                                        <p className="text-xs font-medium text-slate-500 uppercase tracking-widest mt-1">Create Alt Text in One Click</p>
                                     </div>
                                 </div>
-                            </CardHeader>
-                            <CardContent className="p-6">
-                                {!testImage ? (
-                                    <div
-                                        className="border-2 border-dashed border-gray-200 rounded-xl p-8 text-center cursor-pointer hover:border-teal-400 hover:bg-teal-50/50 transition-all duration-200"
-                                        onClick={() => document.getElementById('image-upload-input')?.click()}
-                                        onDragOver={(e) => {
-                                            e.preventDefault();
-                                            e.currentTarget.classList.add('border-teal-500', 'bg-teal-50');
-                                        }}
-                                        onDragLeave={(e) => {
-                                            e.preventDefault();
-                                            e.currentTarget.classList.remove('border-teal-500', 'bg-teal-50');
-                                        }}
-                                        onDrop={(e) => {
-                                            e.preventDefault();
-                                            e.currentTarget.classList.remove('border-teal-500', 'bg-teal-50');
-                                            const file = e.dataTransfer.files[0];
-                                            if (file && file.type.startsWith('image/')) {
-                                                const reader = new FileReader();
-                                                reader.onload = (event) => {
-                                                    setTestImage(event.target?.result as string);
-                                                    setTestResult(null);
-                                                    setGeneratedAltText("");
-                                                };
-                                                reader.readAsDataURL(file);
-                                            } else {
-                                                toast.error("Please upload an image file");
-                                            }
-                                        }}
-                                    >
-                                        <input
-                                            id="image-upload-input"
-                                            type="file"
-                                            accept="image/*"
-                                            onChange={handleImageUpload}
-                                            className="hidden"
-                                        />
-                                        <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                            <Upload className="h-8 w-8 text-gray-400" />
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                                    <div className="space-y-8">
+                                        <div
+                                            className="border-2 border-dashed border-notebook-cloud rounded-[2rem] p-12 text-center cursor-pointer hover:border-notebook-blue/30 hover:bg-notebook-cloud/30 transition-all duration-500 group/drop bg-notebook-cloud/10"
+                                            onClick={() => document.getElementById('image-upload-input')?.click()}
+                                        >
+                                            <input
+                                                id="image-upload-input"
+                                                type="file"
+                                                className="hidden"
+                                                accept="image/*"
+                                                onChange={handleImageUpload}
+                                            />
+                                            {testImage ? (
+                                                <div className="relative aspect-video rounded-2xl overflow-hidden shadow-sm">
+                                                    <img
+                                                        src={testImage}
+                                                        alt="Upload preview"
+                                                        className="w-full h-full object-cover"
+                                                    />
+                                                    <div className="absolute inset-0 bg-notebook-slate/20 opacity-0 group-hover/drop:opacity-100 transition-opacity flex items-center justify-center">
+                                                        <p className="text-white text-xs font-bold uppercase tracking-widest">Change Image</p>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="py-6 flex flex-col items-center">
+                                                    <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-6 shadow-sm border border-gray-50 group-hover/drop:scale-110 transition-transform duration-500">
+                                                        <Upload className="h-6 w-6 text-notebook-blue" />
+                                                    </div>
+                                                    <p className="text-sm font-semibold text-notebook-slate mb-2">Drop image here</p>
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">or click to browse filesystem</p>
+                                                </div>
+                                            )}
                                         </div>
-                                        <h4 className="text-gray-900 font-medium mb-1">Click to upload or drag and drop</h4>
-                                        <p className="text-sm text-gray-500">
-                                            PNG, JPG, GIF up to 10MB
-                                        </p>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-6">
-                                        <div className="flex gap-6">
-                                            <div className="w-1/3 relative group">
-                                                <img
-                                                    src={testImage}
-                                                    alt="Test"
-                                                    className="w-full h-48 object-cover rounded-lg shadow-sm"
-                                                />
-                                                <button
-                                                    onClick={() => {
-                                                        setTestImage(null);
-                                                        setTestResult(null);
-                                                        setGeneratedAltText("");
-                                                    }}
-                                                    className="absolute top-2 right-2 bg-white/90 p-1.5 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white"
-                                                >
-                                                    <X className="h-4 w-4 text-gray-600" />
-                                                </button>
-                                            </div>
-                                            <div className="w-2/3 space-y-4">
-                                                <div className="bg-gray-50 rounded-lg p-4 h-full border border-gray-100">
-                                                    {isGenerating ? (
-                                                        <div className="h-full flex flex-col items-center justify-center text-gray-500 space-y-3">
-                                                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div>
-                                                            <p className="text-sm font-medium">Analyzing image...</p>
-                                                        </div>
-                                                    ) : generatedAltText ? (
-                                                        <div className="space-y-3">
-                                                            <div className="flex items-center justify-between">
-                                                                <span className="text-xs font-semibold text-teal-600 uppercase tracking-wider">Generated Result</span>
-                                                                <Button
-                                                                    variant="ghost"
-                                                                    size="sm"
-                                                                    className="h-6 w-6 p-0"
-                                                                    onClick={() => {
-                                                                        navigator.clipboard.writeText(generatedAltText);
-                                                                        toast.success("Copied to clipboard");
-                                                                    }}
-                                                                >
-                                                                    <Copy className="h-3 w-3 text-gray-500" />
-                                                                </Button>
-                                                            </div>
-                                                            <p className="text-gray-800 text-sm leading-relaxed">{generatedAltText}</p>
-                                                            <div className="pt-2 flex items-center gap-2 text-xs text-gray-400">
-                                                                <CheckCircle className="h-3 w-3 text-green-500" />
-                                                                <span>SEO Optimized</span>
-                                                            </div>
-                                                        </div>
-                                                    ) : (
-                                                        <div className="h-full flex flex-col items-center justify-center text-gray-400 space-y-2">
-                                                            <Brain className="h-8 w-8 opacity-20" />
-                                                            <p className="text-sm">Ready to generate</p>
-                                                        </div>
-                                                    )}
+
+                                        <div className="flex items-center justify-between p-6 bg-notebook-cloud/20 rounded-3xl border border-notebook-cloud/50">
+                                            <div className="flex items-center space-x-4">
+                                                <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm border border-notebook-slate/5">
+                                                    <Settings className="h-5 w-5 text-slate-400" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs font-bold text-notebook-slate uppercase tracking-widest">Optimization Model</p>
+                                                    <p className="text-[10px] font-medium text-slate-500 font-outfit">Advanced AI Model</p>
                                                 </div>
                                             </div>
+                                            <div className="flex items-center space-x-2">
+                                                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Live</span>
+                                            </div>
                                         </div>
-                                        {!generatedAltText && (
-                                            <Button
-                                                onClick={generateTestAltText}
-                                                disabled={isGenerating}
-                                                className="w-full"
-                                                style={{
-                                                    background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)'
-                                                }}
-                                            >
-                                                {isGenerating ? 'Generating...' : 'Generate Alt Text'}
-                                            </Button>
-                                        )}
                                     </div>
-                                )}
+
+                                    <div className="flex flex-col h-full">
+                                        <div className="flex-1 bg-notebook-cloud/10 rounded-[2rem] p-8 border border-notebook-cloud/50 relative overflow-hidden group/result">
+                                            {isGenerating ? (
+                                                <div className="h-full flex flex-col items-center justify-center space-y-6">
+                                                    <div className="relative w-16 h-16">
+                                                        <div className="absolute inset-0 border-4 border-notebook-blue/10 rounded-full"></div>
+                                                        <div className="absolute inset-0 border-4 border-t-notebook-blue rounded-full animate-spin"></div>
+                                                    </div>
+                                                    <div className="text-center">
+                                                        <p className="text-sm font-semibold text-notebook-slate mb-1">Analyzing image...</p>
+                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Understanding image data</p>
+                                                    </div>
+                                                </div>
+                                            ) : generatedAltText ? (
+                                                <div className="h-full flex flex-col">
+                                                    <div className="flex items-center justify-between mb-6">
+                                                        <span className="text-[10px] font-bold text-notebook-blue uppercase tracking-widest bg-notebook-teal/10 px-3 py-1 rounded-full">Ready to Use</span>
+                                                        <button
+                                                            onClick={() => {
+                                                                navigator.clipboard.writeText(generatedAltText);
+                                                                toast.success("Copied to clipboard");
+                                                            }}
+                                                            className="p-2 hover:bg-white rounded-xl transition-colors shadow-none hover:shadow-sm border-transparent hover:border-gray-100 border text-slate-400 hover:text-notebook-blue"
+                                                        >
+                                                            <Copy className="h-4 w-4" />
+                                                        </button>
+                                                    </div>
+                                                    <div className="flex-1 text-notebook-slate text-sm font-medium leading-relaxed bg-white/50 rounded-2xl p-6 border border-white">
+                                                        {generatedAltText}
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="h-full flex flex-col items-center justify-center text-center opacity-40">
+                                                    <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center mb-4 shadow-sm">
+                                                        <FileText className="h-5 w-5 text-slate-300" />
+                                                    </div>
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Waiting for image</p>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <button
+                                            onClick={generateTestAltText}
+                                            disabled={!testImage || isGenerating}
+                                            className="mt-6 w-full py-4 bg-notebook-slate text-white rounded-2xl font-semibold text-sm hover:bg-notebook-slate/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md uppercase tracking-[0.2em] font-outfit"
+                                        >
+                                            {isGenerating ? 'Generating...' : 'Start Analysis'}
+                                        </button>
+                                    </div>
+                                </div>
                             </CardContent>
                         </Card>
 
                         {/* Recent History */}
-                        <Card className="border-none shadow-sm">
-                            <CardHeader className="border-b border-gray-100 pb-4">
-                                <div className="flex items-center justify-between">
-                                    <CardTitle className="text-lg font-semibold text-gray-900">Recent History</CardTitle>
-                                    <Button variant="ghost" size="sm" className="text-teal-600 hover:text-teal-700 hover:bg-teal-50">
-                                        View All
-                                    </Button>
-                                </div>
-                            </CardHeader>
-                            <CardContent className="p-0">
-                                {isLoadingHistory ? (
-                                    <div className="p-8 text-center text-gray-500">Loading history...</div>
-                                ) : history.length === 0 ? (
-                                    <div className="p-8 text-center text-gray-500">
-                                        <p>No history yet. Generate your first alt-text!</p>
+                        <Card className="bg-white border-notebook-slate/5 shadow-notebook rounded-[2rem] overflow-hidden">
+                            <CardContent className="p-10">
+                                <div className="flex items-center justify-between mb-12">
+                                    <div className="flex items-center space-x-4">
+                                        <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl border border-indigo-100">
+                                            <History className="h-6 w-6" />
+                                        </div>
+                                        <div>
+                                            <h2 className="text-2xl font-semibold text-notebook-slate tracking-tight font-outfit">Recent Activity</h2>
+                                            <p className="text-xs font-medium text-slate-500 uppercase tracking-widest mt-1">Your Generated Alt Text</p>
+                                        </div>
                                     </div>
-                                ) : (
-                                    <div className="divide-y divide-gray-100">
-                                        {history.map((item: any) => (
-                                            <div key={item.id} className="p-4 hover:bg-gray-50 transition-colors flex items-start gap-4">
-                                                <div className="p-2 bg-gray-100 rounded-lg shrink-0">
-                                                    <ImageIcon className="h-5 w-5 text-gray-500" />
+                                    <Button variant="ghost" size="sm" className="text-slate-500 hover:text-notebook-blue font-bold uppercase tracking-widest text-[10px]">Archive View</Button>
+                                </div>
+
+                                <div className="space-y-6">
+                                    {isLoadingHistory ? (
+                                        <div className="text-center py-20 bg-notebook-cloud/10 rounded-[2rem] border border-dashed border-notebook-cloud">
+                                            <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm">
+                                                <RefreshCw className="h-6 w-6 text-slate-200 animate-spin" />
+                                            </div>
+                                            <p className="text-sm font-semibold text-slate-400">Loading activity</p>
+                                        </div>
+                                    ) : history.length > 0 ? (
+                                        history.map((item, index) => (
+                                            <div key={item.id || index} className="flex items-center space-x-6 p-6 rounded-[1.5rem] hover:bg-notebook-cloud/30 transition-all group border border-transparent hover:border-notebook-cloud/50">
+                                                <div className="h-16 w-16 rounded-xl bg-notebook-cloud/50 overflow-hidden flex-shrink-0 border border-notebook-cloud group-hover:scale-105 transition-transform flex items-center justify-center">
+                                                    <ImageIcon className="h-6 w-6 text-slate-300" />
                                                 </div>
                                                 <div className="flex-1 min-w-0">
-                                                    <p className="text-sm text-gray-900 font-medium truncate">{item.alt_text_generated}</p>
-                                                    <p className="text-xs text-gray-500 mt-1">
-                                                        {new Date(item.created_at).toLocaleDateString()} • {item.image_context || 'No context'}
-                                                    </p>
+                                                    <p className="text-sm font-medium text-notebook-slate line-clamp-2 leading-relaxed italic">"{item.alt}"</p>
+                                                    {item.context && (
+                                                        <p className="text-xs text-slate-400 mt-1 line-clamp-1">{item.context}</p>
+                                                    )}
+                                                    <p className="text-[10px] text-slate-400 mt-2 uppercase tracking-widest font-bold font-outfit">{new Date(item.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</p>
                                                 </div>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
+                                                <button
                                                     onClick={() => {
-                                                        navigator.clipboard.writeText(item.alt_text_generated);
+                                                        navigator.clipboard.writeText(item.alt);
                                                         toast.success("Copied to clipboard");
                                                     }}
+                                                    className="p-3 text-slate-300 hover:text-notebook-blue hover:bg-white rounded-xl transition-all shadow-none hover:shadow-sm"
                                                 >
-                                                    <Copy className="h-4 w-4 text-gray-400" />
-                                                </Button>
+                                                    <Copy className="h-4 w-4" />
+                                                </button>
                                             </div>
-                                        ))}
-                                    </div>
-                                )}
+                                        ))
+                                    ) : (
+                                        <div className="text-center py-20 bg-notebook-cloud/10 rounded-[2rem] border border-dashed border-notebook-cloud">
+                                            <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm">
+                                                <ImageIcon className="h-6 w-6 text-slate-200" />
+                                            </div>
+                                            <p className="text-sm font-semibold text-slate-400">Activity log is currently empty</p>
+                                            <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest mt-2">Start generating alt text above</p>
+                                        </div>
+                                    )}
+                                </div>
                             </CardContent>
                         </Card>
                     </div>
 
-                    {/* Sidebar - Right 1/3 */}
+                    {/* Sidebar Area */}
                     <div className="space-y-8">
                         {/* API Key Section */}
-                        <Card className="border-none shadow-sm bg-gray-900 text-white overflow-hidden relative">
-                            <div className="absolute top-0 right-0 p-32 bg-teal-500/10 rounded-full blur-3xl -mr-16 -mt-16"></div>
-                            <CardHeader className="relative z-10">
-                                <CardTitle className="flex items-center gap-2 text-white">
-                                    <Key className="h-5 w-5 text-teal-400" />
-                                    API Key
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent className="relative z-10">
-                                <p className="text-gray-400 text-sm mb-4">
-                                    Use this key to authenticate your requests in the WordPress plugin.
-                                </p>
-                                <div className="bg-gray-800 rounded-lg p-3 flex items-center justify-between mb-4 border border-gray-700">
-                                    <code className="text-teal-400 font-mono text-sm truncate mr-2">
-                                        {isLoadingApiKey ? 'Loading...' : (showApiKey ? (apiKey || 'No API Key found') : '•'.repeat(24))}
-                                    </code>
-                                    <div className="flex gap-1">
-                                        <button
-                                            onClick={() => setShowApiKey(!showApiKey)}
-                                            className="p-1.5 hover:bg-gray-700 rounded-md transition-colors"
-                                        >
-                                            {showApiKey ? <EyeOff className="h-4 w-4 text-gray-400" /> : <Eye className="h-4 w-4 text-gray-400" />}
-                                        </button>
-                                        <button
-                                            onClick={() => {
-                                                if (apiKey) {
-                                                    navigator.clipboard.writeText(apiKey);
-                                                    toast.success("API key copied");
-                                                } else {
-                                                    toast.error("No API key to copy");
-                                                }
-                                            }}
-                                            className="p-1.5 hover:bg-gray-700 rounded-md transition-colors"
-                                        >
-                                            <Copy className="h-4 w-4 text-gray-400" />
-                                        </button>
+                        <Card className="bg-white border-notebook-slate/5 shadow-notebook relative overflow-hidden group rounded-[2rem]">
+                            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-teal-500/20 to-teal-500 group-hover:h-2 transition-all"></div>
+                            <CardContent className="p-8">
+                                <div className="flex items-center space-x-4 mb-10">
+                                    <div className="p-3 bg-teal-50 text-teal-600 rounded-2xl border border-teal-100">
+                                        <Key className="h-6 w-6" />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-xl font-semibold text-notebook-slate tracking-tight font-outfit">API Settings</h2>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Your API Key</p>
                                     </div>
                                 </div>
-                                <div className="flex gap-2">
+
+                                <div className="space-y-6">
+                                    <div className="relative group/key">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 block">
+                                            Secret API Key
+                                        </label>
+                                        <div className="flex items-center bg-notebook-cloud/20 border border-notebook-cloud rounded-2xl overflow-hidden focus-within:ring-2 focus-within:ring-teal-500/20 focus-within:border-teal-500/50 transition-all">
+                                            <div className="pl-5 py-4 flex-1 overflow-hidden">
+                                                {isLoadingApiKey ? (
+                                                    <div className="h-4 w-3/4 bg-slate-200 animate-pulse rounded"></div>
+                                                ) : (
+                                                    <span className="text-xs font-mono text-notebook-slate/70 truncate block">
+                                                        {showApiKey ? apiKey : '••••••••••••••••••••••••••••••'}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <button
+                                                onClick={() => setShowApiKey(!showApiKey)}
+                                                className="p-4 text-slate-300 hover:text-notebook-slate transition-colors"
+                                                title={showApiKey ? "Hide Key" : "Show Key"}
+                                            >
+                                                {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                            </button>
+                                            <div className="w-px h-10 bg-notebook-cloud"></div>
+                                            <button
+                                                onClick={() => {
+                                                    if (apiKey) {
+                                                        navigator.clipboard.writeText(apiKey);
+                                                        toast.success("API key copied to clipboard");
+                                                    }
+                                                }}
+                                                className="p-4 text-slate-300 hover:text-teal-600 hover:bg-white transition-colors"
+                                                title="Copy to Clipboard"
+                                            >
+                                                <Copy className="h-4 w-4" />
+                                            </button>
+                                        </div>
+                                    </div>
+
                                     <Button
                                         variant="outline"
-                                        size="sm"
-                                        className="w-full border-gray-700 text-gray-300 hover:bg-gray-800 hover:text-white"
-                                        onClick={() => router.push('/docs')}
+                                        className="w-full h-12 border-notebook-cloud text-notebook-slate hover:bg-notebook-cloud/30 hover:border-notebook-cloud font-semibold text-xs uppercase tracking-widest font-outfit transition-all"
+                                        onClick={rotateApiKey}
+                                        disabled={isLoadingApiKey}
                                     >
-                                        <Book className="h-4 w-4 mr-2" />
-                                        Docs
+                                        <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingApiKey ? 'animate-spin' : ''}`} />
+                                        {isLoadingApiKey ? 'Generating...' : 'Generate New Key'}
                                     </Button>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="w-full border-gray-700 text-gray-300 hover:bg-gray-800 hover:text-white"
-                                        onClick={loadApiKey}
-                                    >
-                                        <RefreshCw className="h-4 w-4 mr-2" />
-                                        Regenerate
-                                    </Button>
+
+                                    <div className="p-5 bg-orange-50/50 border border-orange-100 rounded-[1.5rem] flex items-start space-x-4">
+                                        <AlertTriangle className="h-5 w-5 text-orange-400 shrink-0 mt-0.5" />
+                                        <p className="text-[10px] text-orange-800/70 leading-relaxed font-medium">
+                                            This key gives access to your account. Change it immediately if you think someone else has it.
+                                        </p>
+                                    </div>
                                 </div>
                             </CardContent>
                         </Card>
 
-                        {/* Support Card */}
-                        <Card className="border-none shadow-sm">
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                    <HelpCircle className="h-5 w-5 text-purple-500" />
-                                    Need Help?
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="space-y-3">
-                                    <Link
-                                        href="/docs"
-                                        className="flex items-center p-3 rounded-lg hover:bg-gray-50 transition-colors group"
-                                    >
-                                        <div className="p-2 bg-purple-50 rounded-md group-hover:bg-purple-100 transition-colors">
-                                            <FileText className="h-4 w-4 text-purple-600" />
+                        {/* Help & Support */}
+                        <Card className="bg-white border-notebook-slate/5 shadow-notebook relative overflow-hidden group rounded-[2rem]">
+                            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-notebook-teal/20 to-notebook-blue group-hover:h-2 transition-all"></div>
+                            <CardContent className="p-8">
+                                <div className="flex items-center space-x-4 mb-10">
+                                    <div className="p-3 bg-notebook-teal/10 text-notebook-blue rounded-2xl border border-notebook-teal/20">
+                                        <HelpCircle className="h-6 w-6" />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-xl font-semibold text-notebook-slate tracking-tight font-outfit">Help & Support</h2>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Knowledge & Support</p>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-4">
+                                    <Link href="/docs" className="flex items-center justify-between p-5 rounded-2xl border border-notebook-cloud hover:border-notebook-blue/30 hover:bg-notebook-teal/10 transition-all group/link">
+                                        <div className="flex items-center space-x-4">
+                                            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm border border-notebook-slate/5">
+                                                <Book className="h-5 w-5 text-slate-400 group-hover/link:text-notebook-blue transition-colors" />
+                                            </div>
+                                            <span className="font-semibold text-notebook-slate group-hover/link:text-notebook-slate">Documentation</span>
                                         </div>
-                                        <div className="ml-3">
-                                            <p className="text-sm font-medium text-gray-900">Documentation</p>
-                                            <p className="text-xs text-gray-500">Read the guides</p>
-                                        </div>
-                                        <ArrowRight className="h-4 w-4 ml-auto text-gray-400 group-hover:text-purple-500" />
+                                        <ArrowRight className="h-4 w-4 text-slate-300 group-hover/link:text-notebook-blue group-hover/link:translate-x-1 transition-all" />
                                     </Link>
-                                    <Link
-                                        href="/contact"
-                                        className="flex items-center p-3 rounded-lg hover:bg-gray-50 transition-colors group"
-                                    >
-                                        <div className="p-2 bg-blue-50 rounded-md group-hover:bg-blue-100 transition-colors">
-                                            <MessageCircle className="h-4 w-4 text-blue-600" />
+
+                                    <Link href="/contact" className="flex items-center justify-between p-5 rounded-2xl border border-notebook-cloud hover:border-notebook-blue/30 hover:bg-notebook-teal/10 transition-all group/link">
+                                        <div className="flex items-center space-x-4">
+                                            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm border border-notebook-slate/5">
+                                                <MessageCircle className="h-5 w-5 text-slate-400 group-hover/link:text-notebook-blue transition-colors" />
+                                            </div>
+                                            <span className="font-semibold text-notebook-slate group-hover/link:text-notebook-slate">Contact Support</span>
                                         </div>
-                                        <div className="ml-3">
-                                            <p className="text-sm font-medium text-gray-900">Contact Support</p>
-                                            <p className="text-xs text-gray-500">Get in touch</p>
-                                        </div>
-                                        <ArrowRight className="h-4 w-4 ml-auto text-gray-400 group-hover:text-blue-500" />
+                                        <ArrowRight className="h-4 w-4 text-slate-300 group-hover/link:text-notebook-blue group-hover/link:translate-x-1 transition-all" />
                                     </Link>
                                 </div>
                             </CardContent>
                         </Card>
                     </div>
                 </div>
-            </div>
 
+                {/* Footer */}
+                <div className="mt-20 text-center pb-12 border-t border-notebook-cloud pt-12">
+                    <p className="text-slate-400 text-[10px] font-bold uppercase tracking-[0.3em]">
+                        Alt Text Pro System v{PLUGIN_VERSION} • System Status: <span className="text-green-500">Active</span>
+                    </p>
+                    <p className="text-[10px] text-slate-300 mt-4 font-medium">© 2026 ALT Text Pro. All rights reserved.</p>
+                </div>
+            </div>
             {/* Upgrade Modal */}
             {showUpgradeModal && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
-                        <div className="p-6 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white z-10">
-                            <div>
-                                <h2 className="text-2xl font-bold text-gray-900">Upgrade Your Plan</h2>
-                                <p className="text-gray-500 mt-1">Choose the perfect plan for your needs</p>
-                            </div>
+                <div className="fixed inset-0 bg-[#1A1C1E]/40 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-in fade-in duration-300">
+                    <div className="bg-white border border-[#F1F3F4] rounded-[2.5rem] max-w-5xl w-full max-h-[90vh] overflow-hidden shadow-2xl flex flex-col">
+                        {/* Modal Header */}
+                        <div className="relative p-10 border-b border-[#F1F3F4] shrink-0 bg-[#FAF9F6]">
                             <button
-                                onClick={() => {
-                                    setShowUpgradeModal(false);
-                                    setSelectedUpgradePlan(null);
-                                }}
-                                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                                onClick={() => setShowUpgradeModal(false)}
+                                className="absolute top-8 right-8 p-2 rounded-full hover:bg-[#F1F3F4] text-[#5F6368] transition-colors z-10"
                             >
-                                <X className="h-6 w-6 text-gray-500" />
+                                <X className="h-5 w-5" />
                             </button>
+
+                            <div className="relative z-10 max-w-2xl">
+                                <div className="inline-flex items-center space-x-2 bg-notebook-teal/10 text-[#0D4F5E] px-4 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-widest mb-6 border border-notebook-teal/20">
+                                    <Crown className="h-3.5 w-3.5" />
+                                    <span>Plan Management</span>
+                                </div>
+                                <h2 className="text-4xl font-semibold text-[#1A1C1E] mb-4 tracking-tight font-outfit">
+                                    Choose a <span className="text-[#0D4F5E]">Plan</span>
+                                </h2>
+                                <p className="text-[#5F6368] text-lg font-inter">
+                                    Choose the best plan for your needs and generate more alt text.
+                                </p>
+                            </div>
                         </div>
 
-                        <div className="p-8">
+                        {/* Modal Content - Scrollable */}
+                        <div className="p-10 overflow-y-auto bg-white">
                             {selectedUpgradePlan ? (
                                 <div className="max-w-md mx-auto">
-                                    <div className="text-center mb-8">
-                                        <div className="w-16 h-16 bg-teal-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                                            <Crown className="h-8 w-8 text-teal-600" />
+                                    <div className="bg-[#FAF9F6] border border-[#F1F3F4] rounded-[2rem] p-10 mb-8 shadow-sm text-center">
+                                        <div className="w-20 h-20 bg-notebook-teal/10 rounded-[1.5rem] flex items-center justify-center mx-auto mb-8">
+                                            <Crown className="h-10 w-10 text-[#0D4F5E]" />
                                         </div>
-                                        <h3 className="text-xl font-bold text-gray-900">Complete Purchase</h3>
-                                        <p className="text-gray-500 mt-2">
-                                            You are upgrading to <span className="font-semibold text-gray-900">{selectedUpgradePlan.name}</span>
-                                        </p>
-                                        <div className="mt-4 text-3xl font-bold text-teal-600">
-                                            {selectedUpgradePlan.price}
-                                            {selectedUpgradePlan.id !== 'pay_as_go' && <span className="text-sm text-gray-500 font-normal">/month</span>}
+                                        <h3 className="text-2xl font-semibold text-[#1A1C1E] mb-2 font-outfit">
+                                            {selectedUpgradePlan.name} Plan
+                                        </h3>
+                                        <div className="text-5xl font-semibold text-[#1A1C1E] mb-8 font-outfit">
+                                            {selectedUpgradePlan.price}<span className="text-xl text-[#5F6368] font-normal font-inter">/{selectedUpgradePlan.id.includes('pack') ? 'one-time' : 'mo'}</span>
                                         </div>
+                                        <div className="space-y-5 text-left mb-10 pt-8 border-t border-[#F1F3F4] font-inter">
+                                            <div className="flex items-center text-[#5F6368]">
+                                                <div className="w-5 h-5 rounded-full bg-notebook-teal/10 flex items-center justify-center mr-4 shrink-0">
+                                                    <Check className="h-3 w-3 text-[#0D4F5E]" />
+                                                </div>
+                                                <span>Better AI analysis</span>
+                                            </div>
+                                            <div className="flex items-center text-[#5F6368]">
+                                                <div className="w-5 h-5 rounded-full bg-notebook-teal/10 flex items-center justify-center mr-4 shrink-0">
+                                                    <Check className="h-3 w-3 text-[#0D4F5E]" />
+                                                </div>
+                                                <span>Full API Access</span>
+                                            </div>
+                                            <div className="flex items-center text-[#5F6368]">
+                                                <div className="w-5 h-5 rounded-full bg-notebook-teal/10 flex items-center justify-center mr-4 shrink-0">
+                                                    <Check className="h-3 w-3 text-[#0D4F5E]" />
+                                                </div>
+                                                <span>Priority Support</span>
+                                            </div>
+                                        </div>
+
+                                        <Button
+                                            onClick={() => {
+                                                const productId = getPolarProductId(selectedUpgradePlan.id);
+                                                redirectToCheckout(productId);
+                                            }}
+                                            className="w-full h-14 bg-[#0D4F5E] hover:bg-[#083F4B] text-white font-semibold text-lg rounded-xl transition-all shadow-[0_10px_24px_rgba(13,79,94,0.18)]"
+                                        >
+                                            Upgrade Now
+                                            <ArrowRight className="h-5 w-5 ml-2" />
+                                        </Button>
+
+                                        <button
+                                            onClick={() => setSelectedUpgradePlan(null)}
+                                            className="w-full mt-6 text-[#5F6368] hover:text-[#1A1C1E] text-sm font-medium transition-colors p-2"
+                                        >
+                                            Back to Plans
+                                        </button>
                                     </div>
-
-                                    <div className="bg-gray-50 rounded-xl p-6 mb-8">
-                                        <h4 className="font-medium text-gray-900 mb-4">Order Summary</h4>
-                                        <div className="flex justify-between items-center mb-2">
-                                            <span className="text-gray-600">{selectedUpgradePlan.name}</span>
-                                            <span className="font-medium">{selectedUpgradePlan.price}</span>
-                                        </div>
-                                        <Separator className="my-4" />
-                                        <div className="flex justify-between items-center text-lg font-bold">
-                                            <span>Total</span>
-                                            <span>{selectedUpgradePlan.price}</span>
-                                        </div>
+                                    <div className="text-center text-xs text-[#9AA0A6] flex items-center justify-center gap-2">
+                                        <Shield className="h-3.5 w-3.5" /> Encrypted Transaction via Polar.sh
                                     </div>
-
-                                    {/* Polar.sh Checkout Button */}
-                                    <Button
-                                        onClick={() => {
-                                            const productId = getPolarProductId(selectedUpgradePlan.id);
-                                            redirectToCheckout(productId);
-                                        }}
-                                        className="w-full h-12 text-white font-semibold"
-                                        style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
-                                    >
-                                        Continue to Checkout
-                                    </Button>
-                                    <p className="text-xs text-gray-500 text-center mt-2">
-                                        You will be redirected to our secure payment processor
-                                    </p>
-
-                                    <button
-                                        onClick={() => setSelectedUpgradePlan(null)}
-                                        className="w-full mt-4 text-gray-500 hover:text-gray-900 text-sm font-medium"
-                                    >
-                                        Back to plans
-                                    </button>
                                 </div>
                             ) : (
-                                <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
-                                    {/* Lite */}
-                                    <div className="border border-gray-200 rounded-2xl p-6 hover:border-teal-500 hover:shadow-lg transition-all cursor-pointer relative group">
-                                        <h3 className="text-lg font-bold text-gray-900">Lite</h3>
-                                        <div className="mt-4 mb-6">
-                                            <span className="text-4xl font-bold text-gray-900">$3</span>
-                                            <span className="text-gray-500">/month</span>
+                                <div className="space-y-12">
+                                    <div>
+                                        <h3 className="text-lg font-semibold text-[#1A1C1E] mb-8 font-outfit border-l-4 border-[#0D4F5E] pl-4">Monthly Subscriptions</h3>
+                                        <div className="grid md:grid-cols-3 gap-8">
+                                            {/* Lite */}
+                                            <div className="bg-white border border-[#F1F3F4] rounded-[2rem] p-8 hover:border-[#0D4F5E]/20 hover:shadow-[0_16px_36px_rgba(13,79,94,0.08)] transition-all cursor-pointer group flex flex-col"
+                                                onClick={() => setSelectedUpgradePlan({ id: 'tier1_monthly', name: 'Lite', price: '$3' })}
+                                            >
+                                                <h4 className="text-lg font-semibold text-[#1A1C1E] group-hover:text-[#0D4F5E] transition-colors font-outfit">Lite</h4>
+                                                <div className="mt-4 mb-8">
+                                                    <span className="text-4xl font-semibold text-[#1A1C1E] font-outfit">$3</span>
+                                                    <span className="text-[#5F6368] font-normal ml-1 font-inter">/mo</span>
+                                                </div>
+                                                <ul className="space-y-4 mb-10 flex-1 font-inter">
+                                                    <li className="flex items-start text-sm text-[#5F6368]">
+                                                        <div className="w-5 h-5 rounded-full bg-slate-50 flex items-center justify-center mr-3 mt-0.5 shrink-0">
+                                                            <Check className="h-3 w-3 text-[#0D4F5E]" />
+                                                        </div>
+                                                        <span className="font-medium text-[#1A1C1E] mr-1">150</span> Credits
+                                                    </li>
+                                                    <li className="flex items-start text-sm text-[#5F6368]">
+                                                        <div className="w-5 h-5 rounded-full bg-slate-50 flex items-center justify-center mr-3 mt-0.5 shrink-0">
+                                                            <Check className="h-3 w-3 text-[#0D4F5E]" />
+                                                        </div>
+                                                        Standard Core Model
+                                                    </li>
+                                                </ul>
+                                                <Button className="w-full bg-[#FAF9F6] text-[#1A1C1E] hover:bg-[#F1F3F4] border border-[#F1F3F4] rounded-xl font-medium" variant="secondary">
+                                                    Select Plan
+                                                </Button>
+                                            </div>
+
+                                            {/* Standard - Popular */}
+                                            <div className="bg-white border-2 border-[#0D4F5E] rounded-[2.5rem] p-8 shadow-[0_20px_45px_rgba(13,79,94,0.10)] cursor-pointer relative group flex flex-col transform hover:-translate-y-2 transition-all"
+                                                onClick={() => setSelectedUpgradePlan({ id: 'tier2_monthly', name: 'Standard', price: '$5' })}
+                                            >
+                                                <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-[#0D4F5E] text-white text-[10px] font-bold px-4 py-1.5 rounded-full uppercase tracking-[0.2em] shadow-lg">
+                                                    Optimal Choice
+                                                </div>
+                                                <h4 className="text-lg font-semibold text-[#1A1C1E] font-outfit">Standard</h4>
+                                                <div className="mt-4 mb-8">
+                                                    <span className="text-4xl font-semibold text-[#1A1C1E] font-outfit">$5</span>
+                                                    <span className="text-[#5F6368] font-normal ml-1 font-inter">/mo</span>
+                                                </div>
+                                                <ul className="space-y-4 mb-10 flex-1 font-inter">
+                                                    <li className="flex items-start text-sm text-[#5F6368]">
+                                                        <div className="w-5 h-5 rounded-full bg-notebook-teal/10 flex items-center justify-center mr-3 mt-0.5 shrink-0">
+                                                            <Check className="h-3 w-3 text-[#0D4F5E]" />
+                                                        </div>
+                                                        <span className="font-medium text-[#1A1C1E] mr-1">400</span> Credits
+                                                    </li>
+                                                    <li className="flex items-start text-sm text-[#5F6368]">
+                                                        <div className="w-5 h-5 rounded-full bg-notebook-teal/10 flex items-center justify-center mr-3 mt-0.5 shrink-0">
+                                                            <Check className="h-3 w-3 text-[#0D4F5E]" />
+                                                        </div>
+                                                        Advanced AI Model
+                                                    </li>
+                                                </ul>
+                                                <Button className="w-full bg-[#0D4F5E] text-white hover:bg-[#083F4B] shadow-[0_10px_24px_rgba(13,79,94,0.18)] rounded-xl font-semibold">
+                                                    Select Plan
+                                                </Button>
+                                            </div>
+
+                                            {/* Pro */}
+                                            <div className="bg-white border border-[#F1F3F4] rounded-[2rem] p-8 hover:border-[#0D4F5E]/20 hover:shadow-[0_16px_36px_rgba(13,79,94,0.08)] transition-all cursor-pointer group flex flex-col"
+                                                onClick={() => setSelectedUpgradePlan({ id: 'tier3_monthly', name: 'Pro', price: '$9' })}
+                                            >
+                                                <h4 className="text-lg font-semibold text-[#1A1C1E] group-hover:text-[#0D4F5E] transition-colors font-outfit">Pro</h4>
+                                                <div className="mt-4 mb-8">
+                                                    <span className="text-4xl font-semibold text-[#1A1C1E] font-outfit">$9</span>
+                                                    <span className="text-[#5F6368] font-normal ml-1 font-inter">/mo</span>
+                                                </div>
+                                                <ul className="space-y-4 mb-10 flex-1 font-inter">
+                                                    <li className="flex items-start text-sm text-[#5F6368]">
+                                                        <div className="w-5 h-5 rounded-full bg-slate-50 flex items-center justify-center mr-3 mt-0.5 shrink-0">
+                                                            <Check className="h-3 w-3 text-[#0D4F5E]" />
+                                                        </div>
+                                                        <span className="font-medium text-[#1A1C1E] mr-1">1,000</span> Credits
+                                                    </li>
+                                                    <li className="flex items-start text-sm text-[#5F6368]">
+                                                        <div className="w-5 h-5 rounded-full bg-slate-50 flex items-center justify-center mr-3 mt-0.5 shrink-0">
+                                                            <Check className="h-3 w-3 text-[#0D4F5E]" />
+                                                        </div>
+                                                        Highest Quality Results
+                                                    </li>
+                                                </ul>
+                                                <Button className="w-full bg-[#FAF9F6] text-[#1A1C1E] hover:bg-[#F1F3F4] border border-[#F1F3F4] rounded-xl font-medium" variant="secondary">
+                                                    Select Plan
+                                                </Button>
+                                            </div>
                                         </div>
-                                        <ul className="space-y-3 mb-8">
-                                            <li className="flex items-center text-xs text-gray-600">
-                                                <Check className="h-4 w-4 text-teal-500 mr-2" />
-                                                150 Credits
-                                            </li>
-                                            <li className="flex items-center text-xs text-gray-600">
-                                                <Check className="h-4 w-4 text-teal-500 mr-2" />
-                                                Auto-Describe on Upload
-                                            </li>
-                                            <li className="flex items-center text-xs text-gray-600">
-                                                <Check className="h-4 w-4 text-teal-500 mr-2" />
-                                                High-Accuracy Visual AI
-                                            </li>
-                                        </ul>
-                                        <Button
-                                            className="w-full"
-                                            onClick={() => handleUpgradePlan('tier1', 'Lite', '$3')}
-                                            style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
-                                        >
-                                            Choose Lite
-                                        </Button>
                                     </div>
 
-                                    {/* Standard - Most Popular */}
-                                    <div className="border border-gray-200 rounded-2xl p-6 hover:border-purple-500 hover:shadow-lg transition-all cursor-pointer relative">
-                                        <div className="absolute top-0 right-0 bg-purple-500 text-white text-xs font-bold px-3 py-1 rounded-bl-lg rounded-tr-lg">
-                                            POPULAR
-                                        </div>
-                                        <h3 className="text-lg font-bold text-gray-900">Standard</h3>
-                                        <div className="mt-4 mb-6">
-                                            <span className="text-4xl font-bold text-gray-900">$5</span>
-                                            <span className="text-gray-500">/month</span>
-                                        </div>
-                                        <ul className="space-y-3 mb-8">
-                                            <li className="flex items-center text-xs text-gray-600">
-                                                <Check className="h-4 w-4 text-purple-500 mr-2" />
-                                                400 Credits
-                                            </li>
-                                            <li className="flex items-center text-xs text-gray-600">
-                                                <Check className="h-4 w-4 text-purple-500 mr-2" />
-                                                Bulk One-Click Library Fix
-                                            </li>
-                                            <li className="flex items-center text-xs text-gray-600">
-                                                <Check className="h-4 w-4 text-purple-500 mr-2" />
-                                                Multi-Language AI (130+)
-                                            </li>
-                                        </ul>
-                                        <Button
-                                            className="w-full bg-white text-purple-600 border-2 border-purple-600 hover:bg-purple-50"
-                                            onClick={() => handleUpgradePlan('tier2', 'Standard', '$5')}
-                                        >
-                                            Choose Standard
-                                        </Button>
-                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-semibold text-[#1A1C1E] mb-8 font-outfit border-l-4 border-amber-400 pl-4">Credits (One-Time)</h3>
+                                        <div className="grid md:grid-cols-2 gap-8">
+                                            {/* Small Pack */}
+                                            <div className="bg-[#FAF9F6] border border-[#F1F3F4] rounded-[2rem] p-8 hover:shadow-lg transition-all cursor-pointer group flex flex-col"
+                                                onClick={() => setSelectedUpgradePlan({ id: 'small_pack', name: 'Small Pack', price: '$5' })}
+                                            >
+                                                <h4 className="text-lg font-semibold text-[#1A1C1E] font-outfit">Small Credit Pack</h4>
+                                                <div className="mt-4 mb-8">
+                                                    <span className="text-4xl font-semibold text-[#1A1C1E] font-outfit">$5</span>
+                                                    <span className="text-[#5F6368] font-normal ml-2 font-inter text-sm">one-time purchase</span>
+                                                </div>
+                                                <ul className="space-y-4 mb-10 flex-1 font-inter">
+                                                    <li className="flex items-start text-sm text-[#5F6368]">
+                                                        <div className="w-5 h-5 rounded-full bg-amber-50 flex items-center justify-center mr-3 mt-0.5 shrink-0">
+                                                            <Check className="h-3 w-3 text-amber-600" />
+                                                        </div>
+                                                        <span className="font-medium text-[#1A1C1E] mr-1">100</span> credits
+                                                    </li>
+                                                    <li className="flex items-start text-sm text-[#5F6368]">
+                                                        <div className="w-5 h-5 rounded-full bg-amber-50 flex items-center justify-center mr-3 mt-0.5 shrink-0">
+                                                            <Check className="h-3 w-3 text-amber-600" />
+                                                        </div>
+                                                        Persistent resources (No expiry)
+                                                    </li>
+                                                </ul>
+                                                <Button className="w-full bg-white text-[#1A1C1E] hover:bg-[#F1F3F4] border border-[#F1F3F4] rounded-xl font-medium">
+                                                    Buy Credits
+                                                </Button>
+                                            </div>
 
-                                    {/* Pro */}
-                                    <div className="border border-gray-200 rounded-2xl p-6 hover:border-blue-500 hover:shadow-lg transition-all cursor-pointer relative">
-                                        <h3 className="text-lg font-bold text-gray-900">Pro</h3>
-                                        <div className="mt-4 mb-6">
-                                            <span className="text-4xl font-bold text-gray-900">$9</span>
-                                            <span className="text-gray-500">/month</span>
+                                            {/* Credit Pack */}
+                                            <div className="bg-[#FAF9F6] border border-[#F1F3F4] rounded-[2rem] p-8 hover:shadow-lg transition-all cursor-pointer group flex flex-col"
+                                                onClick={() => setSelectedUpgradePlan({ id: 'credit_pack', name: 'Credit Pack', price: '$10' })}
+                                            >
+                                                <h4 className="text-lg font-semibold text-[#1A1C1E] font-outfit">Priority Support Pack</h4>
+                                                <div className="mt-4 mb-8">
+                                                    <span className="text-4xl font-semibold text-[#1A1C1E] font-outfit">$10</span>
+                                                    <span className="text-[#5F6368] font-normal ml-2 font-inter text-sm">one-time purchase</span>
+                                                </div>
+                                                <ul className="space-y-4 mb-10 flex-1 font-inter">
+                                                    <li className="flex items-start text-sm text-[#5F6368]">
+                                                        <div className="w-5 h-5 rounded-full bg-emerald-50 flex items-center justify-center mr-3 mt-0.5 shrink-0">
+                                                            <Check className="h-3 w-3 text-emerald-600" />
+                                                        </div>
+                                                        <span className="font-medium text-[#1A1C1E] mr-1">250</span> credits
+                                                    </li>
+                                                    <li className="flex items-start text-sm text-[#5F6368]">
+                                                        <div className="w-5 h-5 rounded-full bg-emerald-50 flex items-center justify-center mr-3 mt-0.5 shrink-0">
+                                                            <Check className="h-3 w-3 text-emerald-600" />
+                                                        </div>
+                                                        Faster processing
+                                                    </li>
+                                                </ul>
+                                                <Button className="w-full bg-white text-[#1A1C1E] hover:bg-[#F1F3F4] border border-[#F1F3F4] rounded-xl font-medium">
+                                                    Buy Credits
+                                                </Button>
+                                            </div>
                                         </div>
-                                        <ul className="space-y-3 mb-8">
-                                            <li className="flex items-center text-xs text-gray-600">
-                                                <Check className="h-4 w-4 text-blue-500 mr-2" />
-                                                1,000 Credits
-                                            </li>
-                                            <li className="flex items-center text-xs text-gray-600">
-                                                <Check className="h-4 w-4 text-blue-500 mr-2" />
-                                                Advanced Context-Aware AI
-                                            </li>
-                                            <li className="flex items-center text-xs text-gray-600">
-                                                <Check className="h-4 w-4 text-blue-500 mr-2" />
-                                                Premium 24/7 Support
-                                            </li>
-                                        </ul>
-                                        <Button
-                                            className="w-full bg-blue-600 text-white hover:bg-blue-700"
-                                            onClick={() => handleUpgradePlan('tier3', 'Pro', '$9')}
-                                        >
-                                            Choose Pro
-                                        </Button>
-                                    </div>
-
-                                    {/* Small Pack - $5 for 100 */}
-                                    <div className="border border-gray-200 rounded-2xl p-6 hover:border-amber-500 hover:shadow-lg transition-all cursor-pointer bg-gradient-to-br from-amber-50 to-orange-50">
-                                        <h3 className="text-lg font-bold text-gray-900">Small Pack</h3>
-                                        <div className="mt-4 mb-6">
-                                            <span className="text-4xl font-bold text-gray-900">$5</span>
-                                            <span className="text-gray-500">/pack</span>
-                                        </div>
-                                        <ul className="space-y-3 mb-8">
-                                            <li className="flex items-center text-xs text-gray-600">
-                                                <Check className="h-4 w-4 text-amber-500 mr-2" />
-                                                100 credits (one-time)
-                                            </li>
-                                            <li className="flex items-center text-xs text-gray-600">
-                                                <Check className="h-4 w-4 text-amber-500 mr-2" />
-                                                Smart AI Optimization
-                                            </li>
-                                            <li className="flex items-center text-xs text-gray-600">
-                                                <Check className="h-4 w-4 text-amber-500 mr-2" />
-                                                Never expires
-                                            </li>
-                                        </ul>
-                                        <Button
-                                            className="w-full text-white"
-                                            style={{ background: 'linear-gradient(135deg, #d97706 0%, #b45309 100%)' }}
-                                            onClick={() => handleUpgradePlan('small_pack', 'Small Pack', '$5')}
-                                        >
-                                            Buy 100 Images
-                                        </Button>
-                                    </div>
-
-                                    {/* Credit Pack - $10 for 250 */}
-                                    <div className="border border-gray-200 rounded-2xl p-6 hover:border-green-500 hover:shadow-lg transition-all cursor-pointer bg-gradient-to-br from-green-50 to-emerald-50">
-                                        <h3 className="text-lg font-bold text-gray-900">Credit Pack</h3>
-                                        <div className="mt-4 mb-6">
-                                            <span className="text-4xl font-bold text-gray-900">$10</span>
-                                            <span className="text-gray-500">/pack</span>
-                                        </div>
-                                        <ul className="space-y-3 mb-8">
-                                            <li className="flex items-center text-xs text-gray-600">
-                                                <Check className="h-4 w-4 text-green-500 mr-2" />
-                                                250 credits (one-time)
-                                            </li>
-                                            <li className="flex items-center text-xs text-gray-600">
-                                                <Check className="h-4 w-4 text-green-500 mr-2" />
-                                                Priority Support
-                                            </li>
-                                            <li className="flex items-center text-xs text-gray-600">
-                                                <Check className="h-4 w-4 text-green-500 mr-2" />
-                                                Best Value
-                                            </li>
-                                        </ul>
-                                        <Button
-                                            className="w-full text-white"
-                                            style={{ background: 'linear-gradient(135deg, #059669 0%, #047857 100%)' }}
-                                            onClick={() => handleUpgradePlan('credit_pack', 'Credit Pack', '$10')}
-                                        >
-                                            Buy 250 Images
-                                        </Button>
                                     </div>
                                 </div>
                             )}

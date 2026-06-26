@@ -16,6 +16,11 @@ class AltTextPro_Settings
     private $settings_section = 'alt_text_pro_main_section';
 
     /**
+     * Encryption cipher method
+     */
+    private $cipher = 'aes-256-cbc';
+
+    /**
      * Constructor
      */
     public function __construct()
@@ -34,9 +39,9 @@ class AltTextPro_Settings
             $this->settings_group,
             'alt_text_pro_settings',
             array(
-                'sanitize_callback' => array($this, 'sanitize_settings'),
-                'default' => $this->get_default_settings()
-            )
+            'sanitize_callback' => array($this, 'sanitize_settings'),
+            'default' => $this->get_default_settings()
+        )
         );
 
         add_settings_section(
@@ -113,10 +118,18 @@ class AltTextPro_Settings
      */
     public function sanitize_settings($input)
     {
+        if (!is_array($input)) {
+            $input = array();
+        }
+
         // Get existing settings to preserve values not being updated
         $existing_settings = get_option('alt_text_pro_settings', $this->get_default_settings());
 
-        // Start with existing settings to preserve any fields not in the input
+        if (!is_array($existing_settings)) {
+            $existing_settings = $this->get_default_settings();
+        }
+
+        // Start with existing settings to preserve any fields not in input
         $sanitized = $existing_settings;
 
         // Ensure we have defaults for all fields
@@ -125,50 +138,50 @@ class AltTextPro_Settings
 
         // Sanitize API key if provided
         if (isset($input['api_key'])) {
-            $api_key = sanitize_text_field($input['api_key']);
+            $api_key = trim(sanitize_text_field(wp_unslash($input['api_key'])));
 
-            // Validate API key format only if it's not empty
-            if (!empty($api_key) && !AltTextPro_API_Client::validate_api_key_format($api_key)) {
+            if (!empty($api_key) && AltTextPro_API_Client::validate_api_key_format($api_key)) {
+                // Valid new API key — encrypt and save
+                $encrypted_key = $this->encrypt_api_key($api_key);
+                if (!empty($encrypted_key)) {
+                    $sanitized['api_key'] = $encrypted_key;
+                }
+            }
+            elseif (!empty($api_key) && !AltTextPro_API_Client::validate_api_key_format($api_key)) {
+                // Invalid format — keep existing and show error
                 add_settings_error(
                     'alt_text_pro_settings',
                     'invalid_api_key_format',
                     esc_html__('Invalid API key format. API keys should start with "alt_" or "altai_".', 'alt-text-pro'),
                     'error'
                 );
-                // Don't save invalid API key - keep existing one
-                // $sanitized['api_key'] = $existing_settings['api_key'];
-            } else {
-                // Save the API key (even if empty, as user may want to clear it)
-                $sanitized['api_key'] = $api_key;
+                // Preserve existing key
+                $sanitized['api_key'] = $existing_settings['api_key'];
+            }
+            else {
+                // Empty key - preserve existing key (user didn't change it)
+                $sanitized['api_key'] = $existing_settings['api_key'] ?? '';
             }
         }
 
-        // Sanitize boolean settings
-        if (isset($input['auto_generate'])) {
+        // Checkboxes: if they are present in POST, they are checked. If absent but other settings are present, they are unchecked.
+        // We only do this if we are actually processing form submission containing this option group
+        // (verified by checking for a known field that is always submitted or the fact that this callback ran from HTTP POST).
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $sanitized['auto_generate'] = !empty($input['auto_generate']);
-        }
-
-        if (isset($input['overwrite_existing'])) {
             $sanitized['overwrite_existing'] = !empty($input['overwrite_existing']);
-        }
-
-        if (isset($input['context_enabled'])) {
             $sanitized['context_enabled'] = !empty($input['context_enabled']);
+            $sanitized['show_context_field'] = !empty($input['show_context_field']);
         }
 
         // Sanitize batch size
         if (isset($input['batch_size'])) {
-            $sanitized['batch_size'] = min(50, max(1, intval($input['batch_size'] ?? 2)));
+            $sanitized['batch_size'] = min(50, max(1, intval($input['batch_size'])));
         }
 
         // Sanitize blog context (textarea, max 500 chars)
         if (isset($input['blog_context'])) {
             $sanitized['blog_context'] = sanitize_textarea_field(substr($input['blog_context'], 0, 500));
-        }
-
-        // Sanitize show context field checkbox
-        if (isset($input['show_context_field'])) {
-            $sanitized['show_context_field'] = !empty($input['show_context_field']);
         }
 
         return $sanitized;
@@ -187,27 +200,35 @@ class AltTextPro_Settings
      */
     public function api_key_field_callback()
     {
-        $settings = get_option('alt_text_pro_settings', $this->get_default_settings());
+        $settings = $this->get_settings();
         $api_key = $settings['api_key'];
+        $has_key = !empty($api_key);
+        $placeholder = $has_key
+            ? __('Saved key hidden. Enter a new key to replace it.', 'alt-text-pro')
+            : __('alt_... or altai_...', 'alt-text-pro');
 
         echo '<div class="alt-text-pro-api-key-field">';
-        echo '<input type="password" id="api_key" name="alt_text_pro_settings[api_key]" value="' . esc_attr($api_key) . '" class="regular-text" placeholder="alt_... or altai_..." />';
-        echo '<button type="button" class="button button-secondary" id="toggle-api-key-visibility">';
+        echo '<input type="password" id="api_key" name="alt_text_pro_settings[api_key]" value="" class="regular-text" placeholder="' . esc_attr($placeholder) . '" autocomplete="off" data-has-key="' . esc_attr($has_key ? '1' : '0') . '" />';
+        echo '<button type="button" class="button button-secondary" id="toggle-api-key" aria-label="' . esc_attr__('Show API key', 'alt-text-pro') . '">';
         echo '<span class="dashicons dashicons-visibility"></span>';
         echo '</button>';
-        echo '<button type="button" class="button button-secondary" id="test-api-connection" style="margin-left: 10px;">';
+        echo '<button type="button" class="button button-secondary" id="test-connection" style="margin-left: 10px;">';
         echo '<span class="dashicons dashicons-admin-plugins"></span> ' . esc_html__('Test Connection', 'alt-text-pro');
         echo '</button>';
-        echo '<div id="api-test-result" style="margin-top: 10px;"></div>';
+        echo '<div id="connection-test-result" style="margin-top: 10px;"></div>';
         echo '</div>';
+
+        if ($has_key) {
+            echo '<p class="description">' . esc_html__('An API key is already saved. Leave this blank to keep it, or paste a new key to replace it.', 'alt-text-pro') . '</p>';
+        }
 
         echo '<p class="description">';
         echo wp_kses_post(
             sprintf(
-                // translators: %s: URL to the Alt Text Pro dashboard
-                esc_html__('Enter your Alt Text Pro API key. You can find this in your <a href="%1$s" target="_blank">Alt Text Pro dashboard</a>.', 'alt-text-pro'),
-                esc_url('https://www.alt-text.pro/dashboard')
-            )
+            // translators: %s: URL to Alt Text Pro dashboard
+            esc_html__('Enter your Alt Text Pro API key. You can find this in your <a href="%1$s" target="_blank">Alt Text Pro dashboard</a>.', 'alt-text-pro'),
+            esc_url('https://www.alt-text.pro/dashboard')
+        )
         );
         echo '</p>';
     }
@@ -262,7 +283,7 @@ class AltTextPro_Settings
         echo '</label>';
 
         echo '<p class="description">';
-        echo esc_html__('When enabled, the plugin will try to provide context information (like page title, filename) to improve alt-text quality.', 'alt-text-pro');
+        echo esc_html__('When enabled, plugin will try to provide context information (like page title, filename) to improve alt-text quality.', 'alt-text-pro');
         echo '</p>';
     }
 
@@ -294,6 +315,12 @@ class AltTextPro_Settings
         }
 
         $api_key = isset($_POST['api_key']) ? sanitize_text_field(wp_unslash($_POST['api_key'])) : '';
+        $use_saved_key = !empty($_POST['use_saved_key']);
+
+        if (empty($api_key) && $use_saved_key) {
+            $settings = $this->get_settings();
+            $api_key = $settings['api_key'] ?? '';
+        }
 
         if (empty($api_key)) {
             wp_send_json_error(esc_html__('Please enter an API key first.', 'alt-text-pro'));
@@ -318,7 +345,8 @@ class AltTextPro_Settings
                     'credits_remaining' => $user_data['user']['credits_remaining'] ?? 0
                 )
             ));
-        } else {
+        }
+        else {
             wp_send_json_error($result['message']);
         }
     }
@@ -345,7 +373,24 @@ class AltTextPro_Settings
      */
     public function get_settings()
     {
-        return get_option('alt_text_pro_settings', $this->get_default_settings());
+        $settings = get_option('alt_text_pro_settings', $this->get_default_settings());
+
+        // Decrypt API key when reading from database
+        if (!empty($settings['api_key'])) {
+            $decrypted = $this->decrypt_api_key($settings['api_key']);
+            if ($decrypted !== false) {
+                $settings['api_key'] = $decrypted;
+            }
+            // If decryption fails, value might be stored in plain text (pre-encryption)
+            // Auto-migrate: encrypt it now so it's encrypted next time
+            if ($decrypted === false && AltTextPro_API_Client::validate_api_key_format($settings['api_key'])) {
+                $raw_settings = get_option('alt_text_pro_settings', $this->get_default_settings());
+                $raw_settings['api_key'] = $this->encrypt_api_key($settings['api_key']);
+                update_option('alt_text_pro_settings', $raw_settings);
+            }
+        }
+
+        return $settings;
     }
 
     /**
@@ -415,5 +460,94 @@ class AltTextPro_Settings
         $sanitized_settings = $this->sanitize_settings($imported_settings);
 
         return update_option('alt_text_pro_settings', $sanitized_settings);
+    }
+
+    // ═════════════════════════════════════════════════════════════════
+    // ENCRYPTION / DECRYPTION
+    // ═════════════════════════════════════════════════════════════════
+
+    /**
+     * Get encryption key derived from WordPress AUTH_KEY.
+     * AUTH_KEY is unique per WordPress installation (set in wp-config.php).
+     *
+     * @return string 32-byte key for AES-256
+     */
+    private function get_encryption_key()
+    {
+        $secret = defined('AUTH_KEY') ? AUTH_KEY : 'alt-text-pro-default-key';
+        return hash('sha256', $secret, true); // 32 bytes for AES-256
+    }
+
+    /**
+     * Encrypt an API key before storing in database.
+     *
+     * @param string $plain_text The plain-text API key
+     * @return string Base64-encoded encrypted string (IV:ciphertext)
+     */
+    public function encrypt_api_key($plain_text)
+    {
+        if (empty($plain_text)) {
+            return '';
+        }
+
+        if (!function_exists('openssl_encrypt')) {
+            // OpenSSL not available — store as-is (fallback)
+            return $plain_text;
+        }
+
+        $key = $this->get_encryption_key();
+        $iv_length = openssl_cipher_iv_length($this->cipher);
+        $iv = openssl_random_pseudo_bytes($iv_length);
+
+        $encrypted = openssl_encrypt($plain_text, $this->cipher, $key, OPENSSL_RAW_DATA, $iv);
+
+        if ($encrypted === false) {
+            return $plain_text; // Fallback to plain text on failure
+        }
+
+        // Prefix with 'enc:' marker so we can detect encrypted vs plain values
+        return 'enc:' . base64_encode($iv . $encrypted);
+    }
+
+    /**
+     * Decrypt an API key read from database.
+     *
+     * @param string $encrypted_text The encrypted API key (enc:base64...)
+     * @return string|false The decrypted API key, or false if not encrypted
+     */
+    public function decrypt_api_key($encrypted_text)
+    {
+        if (empty($encrypted_text)) {
+            return '';
+        }
+
+        // Only attempt decryption if value has our 'enc:' prefix
+        if (strpos($encrypted_text, 'enc:') !== 0) {
+            return false; // Not encrypted — return false to signal plain text
+        }
+
+        if (!function_exists('openssl_decrypt')) {
+            return false;
+        }
+
+        $key = $this->get_encryption_key();
+        $data = base64_decode(substr($encrypted_text, 4)); // Remove 'enc:' prefix
+
+        if ($data === false) {
+            return false;
+        }
+
+        $iv_length = openssl_cipher_iv_length($this->cipher);
+
+        if (strlen($data) < $iv_length) {
+            return false;
+        }
+
+        $iv = substr($data, 0, $iv_length);
+        $ciphertext = substr($data, $iv_length);
+
+        $decrypted = openssl_decrypt($ciphertext, $this->cipher, $key, OPENSSL_RAW_DATA, $iv);
+
+        return $decrypted !== false ? $decrypted : false;
     }
 }

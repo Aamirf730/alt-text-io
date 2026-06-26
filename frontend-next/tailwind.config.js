@@ -42,18 +42,33 @@ module.exports = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        notebook: {
+          paper: "hsl(var(--paper-bg))",
+          surface: "hsl(var(--pearl-surface))",
+          blue: "hsl(var(--precision-blue))",
+          teal: "hsl(var(--brand-teal))",
+          slate: "hsl(var(--slate-accent))",
+          cloud: "hsl(var(--cloud-gray))",
+          black: "hsl(var(--brand-navy))",
+          pearl: "hsl(var(--pearl-surface))",
+          orange: "hsl(var(--brand-teal))",
+        }
       },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
+      boxShadow: {
+        'notebook': 'var(--shadow-notebook)',
+        'notebook-lg': 'var(--shadow-notebook-lg)',
+      },
       fontFamily: {
         sans: ["var(--font-inter)", "system-ui", "sans-serif"],
         lato: ["var(--font-lato)", "sans-serif"],
+        outfit: ["Outfit", "sans-serif"],
       },
     },
   },
   plugins: [],
 };
-

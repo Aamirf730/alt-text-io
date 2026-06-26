@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { trackMarketingEvent } from "@/lib/analytics";
 
 // Payment Success Handler Component
 // Works with Polar.sh checkout flow
@@ -18,6 +19,14 @@ export default function PaymentSuccess() {
 
         // Check for Polar's customer session token (indicates successful checkout)
         const customerSessionToken = searchParams.get('customer_session_token');
+
+        trackMarketingEvent("purchase_completed", {
+            source: "web_app",
+            properties: {
+                provider: "polar",
+                has_customer_session_token: Boolean(customerSessionToken),
+            },
+        });
 
         if (customerSessionToken) {
             // Polar checkout was successful - credits will be applied via webhook

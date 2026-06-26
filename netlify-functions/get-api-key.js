@@ -26,7 +26,7 @@ exports.handler = async (event, context) => {
 
   // Rate limiting
   const clientIp = getClientIp(event);
-  const rateLimit = checkRateLimit(clientIp);
+  const rateLimit = await checkRateLimit(clientIp);
   if (!rateLimit.allowed) {
     return rateLimitExceededResponse(headers, rateLimit);
   }
@@ -47,7 +47,7 @@ exports.handler = async (event, context) => {
     }
 
     const token = authHeader.replace('Bearer ', '').trim();
-    
+
     // Verify user authentication
     const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(token);
     if (authError || !authUser) {
@@ -74,19 +74,19 @@ exports.handler = async (event, context) => {
         .eq('is_active', true)
         .order('created_at', { ascending: false })
         .limit(1);
-      
+
       if (keysError) {
         console.error('Error querying api_keys table:', keysError);
         return {
           statusCode: 500,
           headers,
-          body: JSON.stringify({ 
+          body: JSON.stringify({
             error: 'Failed to get API key',
-            details: apiKeyError.message || keysError.message 
+            details: apiKeyError.message || keysError.message
           }),
         };
       }
-      
+
       apiKey = apiKeys && apiKeys[0]?.api_key;
     } else {
       // RPC function returns the key directly as TEXT
@@ -97,7 +97,7 @@ exports.handler = async (event, context) => {
     if (!apiKey) {
       // Generate a simple API key
       const generatedKey = `alt_${authUser.id.substring(0, 8)}_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 10)}`;
-      
+
       const { data: newKeyData, error: insertError } = await supabase
         .from('api_keys')
         .insert({
@@ -108,19 +108,19 @@ exports.handler = async (event, context) => {
         })
         .select('api_key')
         .single();
-      
+
       if (insertError) {
         console.error('Error creating API key:', insertError);
         return {
           statusCode: 500,
           headers,
-          body: JSON.stringify({ 
+          body: JSON.stringify({
             error: 'Failed to create API key',
-            details: insertError.message 
+            details: insertError.message
           }),
         };
       }
-      
+
       apiKey = newKeyData?.api_key || generatedKey;
     }
 
@@ -135,7 +135,8 @@ exports.handler = async (event, context) => {
     };
 
   } catch (error) {
-    console.error('Get API key error:', error);
+    const { reportError } = require('./utils/error-reporter');
+    reportError(error, { functionName: 'get-api-key', ip: getClientIp(event) });
     return {
       statusCode: 500,
       headers,

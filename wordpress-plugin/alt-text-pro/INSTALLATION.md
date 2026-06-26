@@ -24,14 +24,16 @@
 
 ### Configuration
 
-#### Step 1: Get Your API Key
+#### Step 1: Connect Your Account
 1. Visit https://www.alt-text.pro
 2. Sign up for a free account (30 credits included)
-3. Go to your dashboard and copy your API key
+3. In WordPress admin, go to **Alt Text Pro -> Settings**
+4. Click **Connect to Alt Text Pro**
+5. Sign in, then return to WordPress after the plugin saves your key
 
 #### Step 2: Configure the Plugin
-1. In WordPress admin, go to **Alt Text Pro → Settings**
-2. Paste your API key in the **API Key** field
+1. In WordPress admin, go to **Alt Text Pro -> Settings**
+2. Confirm the connection status is active
 3. Click **Test Connection** to verify it works
 4. Configure your preferences:
    - **Auto-generate**: Enable to generate alt-text on upload
@@ -39,6 +41,8 @@
    - **Context-aware**: Enable for better descriptions
    - **Batch size**: Set how many images to process at once
 5. Click **Save Settings**
+
+If your browser blocks the connect popup, copy your API key from the dashboard and paste it manually into the API Key field.
 
 #### Step 3: Start Using
 1. Go to **Alt Text Pro → Dashboard** to see your overview
@@ -135,9 +139,10 @@ You can provide context for better alt-text generation:
 
 ### Credit Management
 - Free trial: 30 credits
-- Starter plan: 500 credits/month
-- Pro plan: 2000 credits/month
-- Pay-as-you-go: $3 for 50 credits
+- Lite: $3/month or $30/year for 150 credits/month
+- Standard: $5/month or $48/year for 400 credits/month
+- Pro: $9/month or $86/year for 1,000 credits/month
+- Pay-as-you-go: $5 for 100 credits or $10 for 250 credits
 
 ### Best Practices
 1. **Review Generated Text**: Always review AI-generated alt-text for accuracy

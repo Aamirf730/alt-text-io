@@ -6,13 +6,15 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { supabase } from '@/lib/supabase';
 import { getApiBase } from '@/lib/utils';
+import { trackMarketingEvent } from '@/lib/analytics';
 import { toast } from "sonner";
 import {
   Brain, Zap, CheckCircle, Star, ArrowRight, Users, Shield, Rocket,
   Chrome, Upload, Eye, EyeOff, Download, Check, X, Search,
   CreditCard, Calendar, TrendingUp, Key, Copy, Info, AlertTriangle,
   RefreshCw, Book, FileText, HelpCircle, Settings, Code, DollarSign,
-  Wrench, Globe, LogOut, MessageCircle, Image as ImageIcon, Crown
+  Wrench, Globe, LogOut, MessageCircle, Image as ImageIcon,
+  Sparkles, Mail, BarChart3, Clock, Layers
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,6 +53,15 @@ export default function LandingPage() {
 
   const router = useRouter();
 
+  useEffect(() => {
+    trackMarketingEvent("page_viewed", {
+      source: "landing_page",
+      properties: {
+        page: "home",
+      },
+    });
+  }, []);
+
   // Check authentication state
   useEffect(() => {
     const checkAuth = async () => {
@@ -88,18 +99,24 @@ export default function LandingPage() {
     };
   }, []);
 
-  // Cleanup blob URLs
-  useEffect(() => {
-    return () => {
-      if (selectedImage && selectedImage.startsWith('blob:')) {
-        URL.revokeObjectURL(selectedImage);
-      }
-    };
-  }, [selectedImage]);
+  const handleDemoImageSelect = (file: File) => {
+    const reader = new FileReader();
 
-  const handleDemoImageSelect = (imageUrl: string) => {
-    setSelectedImage(imageUrl);
-    setGeneratedAltText("");
+    reader.onloadend = () => {
+      if (typeof reader.result !== 'string') {
+        toast.error("Could not read that image. Please try another file.");
+        return;
+      }
+
+      setSelectedImage(reader.result);
+      setGeneratedAltText("");
+    };
+
+    reader.onerror = () => {
+      toast.error("Could not read that image. Please try another file.");
+    };
+
+    reader.readAsDataURL(file);
   };
 
   const generateDemoAltText = async () => {
@@ -111,82 +128,84 @@ export default function LandingPage() {
     setIsGenerating(true);
 
     try {
-      const response = await fetch(selectedImage);
-      const blob = await response.blob();
+      const base64Data = selectedImage.includes(',')
+        ? selectedImage.split(',')[1]
+        : selectedImage;
 
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const base64Data = (reader.result as string).split(',')[1];
+      if (!base64Data) {
+        toast.error("Could not process image data. Please try another image.");
+        setIsGenerating(false);
+        return;
+      }
 
-        const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await supabase.auth.getSession();
 
-        if (!session?.access_token) {
-          toast.error("Please sign up or sign in to generate alt text");
+      if (!session?.access_token) {
+        toast.error("Please sign up or sign in to generate alt text");
+        setIsGenerating(false);
+        setShowAuthForm(true);
+        return;
+      }
+
+      const apiBase = getApiBase();
+
+      const endpoint = `${apiBase}/generate-alt-text`;
+
+      try {
+        const apiResponse = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({
+            image_base64: base64Data,
+            context: "Landing page demo"
+          })
+        });
+
+        let data;
+        try {
+          const responseText = await apiResponse.text();
+          if (!responseText) throw new Error('Empty response');
+          data = JSON.parse(responseText);
+        } catch (parseError) {
+          console.error('JSON parse error:', parseError);
+          toast.error("Invalid response from server.");
           setIsGenerating(false);
-          setShowAuthForm(true);
           return;
         }
 
-        const apiBase = getApiBase();
-
-        const endpoint = `${apiBase}/generate-alt-text`;
-
-        try {
-          const apiResponse = await fetch(endpoint, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${session.access_token}`
+        if (apiResponse.ok) {
+          setGeneratedAltText(data.alt_text || data.altText);
+          trackMarketingEvent("demo_used", {
+            source: "landing_page",
+            userId: user?.id,
+            userEmail: user?.email,
+            properties: {
+              context: "landing_page_demo",
+              credits_remaining: data.credits_remaining,
             },
-            body: JSON.stringify({
-              image_base64: base64Data,
-              context: "Landing page demo"
-            })
           });
-
-          let data;
-          try {
-            const responseText = await apiResponse.text();
-            if (!responseText) throw new Error('Empty response');
-            data = JSON.parse(responseText);
-          } catch (parseError) {
-            console.error('JSON parse error:', parseError);
-            toast.error("Invalid response from server.");
-            setIsGenerating(false);
-            return;
-          }
-
-          if (apiResponse.ok) {
-            setGeneratedAltText(data.alt_text || data.altText);
-            toast.success("Alt text generated successfully!");
+          toast.success("Alt text generated successfully!");
+        } else {
+          if (apiResponse.status === 401) {
+            toast.error("Session expired. Please sign in again.");
+            setShowAuthForm(true);
+          } else if (apiResponse.status === 402) {
+            toast.error("No credits remaining. Please upgrade your plan.");
           } else {
-            if (apiResponse.status === 401) {
-              toast.error("Session expired. Please sign in again.");
-              setShowAuthForm(true);
-            } else if (apiResponse.status === 402) {
-              toast.error("No credits remaining. Please upgrade your plan.");
-            } else {
-              toast.error(data.error || "Failed to generate alt text.");
-            }
+            toast.error(data.error || "Failed to generate alt text.");
           }
-        } catch (fetchError: any) {
-          console.error("API fetch error:", fetchError);
-          toast.error("Failed to connect to the server.");
         }
-
-        setIsGenerating(false);
-      };
-
-      reader.onerror = () => {
-        toast.error("Failed to process image");
-        setIsGenerating(false);
-      };
-
-      reader.readAsDataURL(blob);
-
+      } catch (fetchError: any) {
+        console.error("API fetch error:", fetchError);
+        toast.error("Failed to connect to the server.");
+      }
     } catch (error) {
       console.error("Error generating alt text:", error);
       toast.error("Failed to generate alt text.");
+    } finally {
       setIsGenerating(false);
     }
   };
@@ -221,6 +240,18 @@ export default function LandingPage() {
       if (result.error) {
         toast.error(result.error.message);
       } else if (result.data.user) {
+        if (!isLogin) {
+          trackMarketingEvent("signup_created", {
+            source: "landing_page",
+            userId: result.data.user.id,
+            userEmail: result.data.user.email,
+            properties: {
+              signup_method: "email",
+              selected_plan: selectedPlan?.id || "free",
+            },
+          });
+        }
+
         if (!isLogin && !result.data.session) {
           toast.success("Please check your email to confirm your account.");
         } else {
@@ -289,6 +320,17 @@ export default function LandingPage() {
       checkoutUrl += `&customerEmail=${encodeURIComponent(userEmail)}`;
     }
 
+    trackMarketingEvent("checkout_started", {
+      source: "landing_page",
+      userId: user?.id,
+      userEmail: userEmail || user?.email,
+      properties: {
+        product_id: productId,
+        plan_id: selectedPlan?.id,
+        billing_cycle: billingCycle,
+      },
+    });
+
     window.location.href = checkoutUrl;
   };
 
@@ -312,8 +354,29 @@ export default function LandingPage() {
     return '';
   };
 
+  // Handle purchase/upgrade
+  const handlePurchase = async (planId: string) => {
+    setIsLoading(true);
+    try {
+      if (planId === 'free') {
+        setShowPaymentModal(false);
+        setSelectedPlan(null);
+        router.push("/dashboard");
+        return;
+      }
+
+      const productId = getPolarProductId(planId, billingCycle);
+      redirectToCheckout(productId, user?.email);
+    } catch (error) {
+      console.error('Purchase error:', error);
+      toast.error("Failed to start purchase.");
+    } finally {
+      setIsLoading(true); // Keep loading state until redirect
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-notebook-paper">
       <Navbar
         onSignInClick={() => {
           setIsLogin(true);
@@ -324,1186 +387,1158 @@ export default function LandingPage() {
           setShowAuthForm(true);
         }}
       />
+      <div className="relative overflow-hidden">
+        {/* Notebook-style Subtle Background Accents */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-[1400px] h-[600px] bg-gradient-to-b from-notebook-blue/5 to-transparent blur-[120px] opacity-70 select-none pointer-events-none"></div>
 
-      {/* Hero Section */}
-      <section className="py-16" style={{ background: 'linear-gradient(135deg, rgba(13, 79, 94, 0.05) 0%, rgba(0, 73, 83, 0.05) 100%)' }}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid lg:grid-cols-2 gap-12 items-start">
-            {/* Left Side - Content */}
-            <div className="space-y-8">
-              <div className="space-y-6">
-                <div className="text-sm font-medium rounded-full px-3 py-1 inline-block" style={{ color: '#0D4F5E', backgroundColor: 'rgba(13, 79, 94, 0.1)' }}>
-                  World's Best AI Tool Accessibility
-                </div>
-
-                <h1 className="text-6xl lg:text-7xl font-extrabold text-gray-900 leading-tight tracking-tight mb-6">
-                  AI Alt Text Generator
-                </h1>
-
-                <p className="text-xl lg:text-2xl text-gray-600 leading-relaxed max-w-2xl mb-10">
-                  Automatically generate accurate, SEO-optimized alt text for your images in over 130 languages with our advanced AI technology.
-                </p>
-
-                <div className="flex flex-col sm:flex-row gap-4">
-                  <Button
-                    size="lg"
-                    className="text-white px-8 py-4 text-lg font-semibold rounded-lg mb-2 sm:mb-0"
-                    style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #003a42 0%, #0D4F5E 100%)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)'}
-                    onClick={() => {
-                      setIsLogin(false);
-                      setShowAuthForm(true);
-                    }}
-                  >
-                    Start Free Trial
-                  </Button>
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    className="border-gray-300 text-gray-700 hover:bg-gray-50 px-8 py-4 text-lg font-semibold rounded-lg"
-                    asChild
-                  >
-                    <a href="https://wordpress.org/plugins/alt-text-pro/" target="_blank" rel="noopener noreferrer">
-                      Get Plugin
-                    </a>
-                  </Button>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
-                  <div className="flex items-center space-x-1">
-                    <CheckCircle className="h-4 w-4 text-green-500" />
-                    <span>30 free credits</span>
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 z-10">
+          <section className="pt-8 pb-20 lg:pt-12 lg:pb-32">
+            <div className="grid lg:grid-cols-2 gap-16 items-center">
+              {/* Left Side - Content */}
+              <div className="space-y-10 animate-in fade-in slide-in-from-bottom-8 duration-700">
+                <div className="space-y-6">
+                  <div className="inline-flex rounded-full px-4 py-1.5 bg-notebook-blue/5 border border-notebook-blue/10 backdrop-blur-md">
+                    <span className="text-xs font-bold tracking-wider uppercase text-notebook-blue/80">Smart Alt Text for Everyone</span>
                   </div>
-                  <div className="flex items-center space-x-1">
-                    <CheckCircle className="h-4 w-4 text-green-500" />
-                    <span>130+ languages</span>
+
+                  <h1 className="text-6xl lg:text-8xl font-bold font-outfit text-notebook-slate leading-[1.05] tracking-tight mb-6">
+                    Automate Your <br />
+                    <span className="text-notebook-blue italic decoration-notebook-blue/10">Image SEO.</span>
+                  </h1>
+
+                  <p className="text-xl lg:text-2xl text-slate-500 leading-relaxed max-w-2xl mb-10 font-normal">
+                    Optimize your website images automatically. Better accessibility, better rankings, zero effort.
+                  </p>
+
+                  <div className="flex flex-col sm:flex-row gap-5">
+                    <Button
+                      size="lg"
+                      className="h-14 px-10 text-lg font-bold rounded-full bg-notebook-blue hover:bg-notebook-blue/90 text-white shadow-notebook transition-all duration-300 transform hover:-translate-y-1"
+                      onClick={() => {
+                        setIsLogin(false);
+                        setShowAuthForm(true);
+                      }}
+                    >
+                      Start Free Trial
+                    </Button>
+                    <Button
+                      size="lg"
+                      variant="outline"
+                      className="h-14 px-10 text-lg font-semibold rounded-full border-slate-200 bg-white shadow-sm hover:bg-slate-50 hover:text-notebook-blue transition-all duration-300 text-notebook-slate"
+                      asChild
+                    >
+                      <a href="https://wordpress.org/plugins/alt-text-pro/" target="_blank" rel="noopener noreferrer">
+                        Get Plugin
+                      </a>
+                    </Button>
                   </div>
-                  <div className="flex items-center space-x-1">
-                    <CheckCircle className="h-4 w-4 text-green-500" />
-                    <span>Instant results</span>
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    <CheckCircle className="h-4 w-4 text-green-500" />
-                    <span>SEO optimized</span>
+
+                  <div className="flex flex-wrap items-center gap-8 mt-10">
+                    <div className="flex items-center space-x-2.5">
+                      <div className="h-5 w-5 rounded-full bg-notebook-blue/10 flex items-center justify-center">
+                        <Check className="h-3 w-3 text-notebook-blue" strokeWidth={3} />
+                      </div>
+                      <span className="text-sm font-semibold text-slate-400">One-Click WordPress Integration</span>
+                    </div>
+                    <div className="flex items-center space-x-2.5">
+                      <div className="h-5 w-5 rounded-full bg-notebook-blue/10 flex items-center justify-center">
+                        <Check className="h-3 w-3 text-notebook-blue" strokeWidth={3} />
+                      </div>
+                      <span className="text-sm font-semibold text-slate-400">Secure & Private Processing</span>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
 
-            {/* Right Side - Media Upload Card */}
-            <div className="lg:pl-8">
-              <div className="bg-white rounded-2xl shadow-xl p-6 max-w-md mx-auto">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Media Upload</h3>
-
-                {/* Upload Area */}
-                <div
-                  className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer transition-colors mb-4 relative"
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = '#004953';
-                    e.currentTarget.style.backgroundColor = 'rgba(13, 79, 94, 0.05)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = '#d1d5db';
-                    e.currentTarget.style.backgroundColor = 'transparent';
-                  }}
-                  onClick={() => document.getElementById('image-upload')?.click()}
-                >
-                  <input
-                    type="file"
-                    id="image-upload"
-                    className="hidden"
-                    accept="image/*"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        const imageUrl = URL.createObjectURL(file);
-                        handleDemoImageSelect(imageUrl);
-                      }
-                    }}
-                  />
-                  {selectedImage ? (
-                    <div className="relative w-full h-48">
-                      <Image
-                        src={selectedImage}
-                        alt="Selected"
-                        fill
-                        className="object-contain rounded-lg"
-                      />
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedImage(null);
-                          setGeneratedAltText("");
-                        }}
-                        className="absolute top-2 right-2 bg-white rounded-full p-1 shadow-md hover:bg-gray-100"
-                      >
-                        <X className="h-4 w-4 text-gray-600" />
-                      </button>
+              {/* Right Side - Premium Notebook Card */}
+              <div className="lg:pl-8 animate-in fade-in zoom-in-95 duration-1000 delay-150">
+                <div className="bg-white rounded-[2.5rem] p-10 relative z-10 border border-gray-100 shadow-notebook-lg">
+                  <div className="flex items-center justify-between mb-10">
+                    <h3 className="text-2xl font-bold font-outfit text-notebook-slate">
+                      Alt Text Generator
+                    </h3>
+                    <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-notebook-surface border border-gray-100">
+                      <div className="w-1.5 h-1.5 rounded-full bg-notebook-blue animate-pulse" />
+                      <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Online</span>
                     </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <div className="bg-gray-50 rounded-full w-12 h-12 flex items-center justify-center mx-auto mb-3">
-                        <Upload className="h-6 w-6 text-gray-400" />
-                      </div>
-                      <p className="text-sm font-medium text-gray-900">Click to upload image</p>
-                      <p className="text-xs text-gray-500">SVG, PNG, JPG or GIF (max. 800x400px)</p>
-                    </div>
-                  )}
-                </div>
+                  </div>
 
-                {/* Generate Button */}
-                <Button
-                  className="w-full h-12 text-white font-semibold rounded-lg transition-all"
-                  style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
-                  disabled={!selectedImage || isGenerating}
-                  onClick={generateDemoAltText}
-                >
-                  {isGenerating ? (
-                    <>
-                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <Zap className="mr-2 h-5 w-5" />
-                      Generate Alt Text
-                    </>
-                  )}
-                </Button>
-
-                {/* Result Area */}
-                {generatedAltText && (
-                  <div className="mt-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Generated Alt Text</span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0"
-                          onClick={() => {
-                            navigator.clipboard.writeText(generatedAltText);
-                            toast.success("Copied to clipboard!");
+                  {/* Upload Area */}
+                  <div
+                    className="border border-notebook-blue/10 rounded-3xl p-10 text-center cursor-pointer transition-all duration-300 bg-notebook-surface/50 hover:bg-white hover:border-notebook-blue/30 mb-8 relative overflow-hidden group/upload shadow-inner"
+                    onClick={() => document.getElementById('image-upload')?.click()}
+                  >
+                    <input
+                      type="file"
+                      id="image-upload"
+                      className="hidden"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          handleDemoImageSelect(file);
+                        }
+                      }}
+                    />
+                    {selectedImage ? (
+                      <div className="relative w-full h-52">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={selectedImage}
+                          alt="Selected"
+                          className="h-full w-full object-contain rounded-2xl"
+                        />
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedImage(null);
+                            setGeneratedAltText("");
                           }}
+                          className="absolute -top-2 -right-2 bg-white rounded-full p-2 shadow-lg hover:bg-slate-50 border border-gray-100 transition-all hover:scale-110 active:scale-90"
                         >
-                          <Copy className="h-4 w-4 text-gray-500" />
-                        </Button>
+                          <X className="h-4 w-4 text-slate-600" />
+                        </button>
                       </div>
-                      <p className="text-gray-800 text-sm leading-relaxed">{generatedAltText}</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* How It Works - New Visual Design */}
-      <section className="py-20" style={{ background: 'linear-gradient(to bottom, rgba(13, 79, 94, 0.05), white)' }}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-20">
-            <p className="text-sm font-medium mb-2" style={{ color: '#003a42' }}>How It Works .</p>
-            <h2 className="text-4xl lg:text-5xl font-bold text-gray-900 mb-6 tracking-tight">
-              Let AI Write Your Alt Text
-              <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#0D4F5E] to-[#004953]">Automatically.</span>
-            </h2>
-          </div>
-
-          <div className="relative max-w-6xl mx-auto">
-            {/* ===== LOCKED SECTION: Dotted connector images - DO NOT MODIFY POSITIONING ===== */}
-            {/* These images are precisely positioned to connect the steps. Any changes should be made as a group. */}
-            <img
-              src="/dots1.png"
-              alt=""
-              className="hidden lg:block absolute pointer-events-none"
-              style={{
-                top: '12%',
-                left: '33%',
-                width: '20%',
-                height: 'auto',
-                zIndex: 1,
-                objectFit: 'contain'
-              }}
-            />
-            <img
-              src="/dots2.png"
-              alt=""
-              className="hidden lg:block absolute pointer-events-none"
-              style={{
-                top: '47%',
-                left: '22%',
-                width: '35%',
-                height: 'auto',
-                zIndex: 1,
-                objectFit: 'contain'
-              }}
-            />
-            {/* ===== END LOCKED SECTION ===== */}
-
-            <div className="space-y-20">
-              {/* Step 1 - Upload Image: Image Left, Text Right */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start relative">
-                <div className="lg:order-1 relative z-10 flex justify-center lg:justify-end">
-                  <div className="rounded-2xl p-8 border-2 border-dashed relative w-full max-w-sm" style={{ backgroundColor: 'rgba(13, 79, 94, 0.05)', borderColor: 'rgba(13, 79, 94, 0.3)' }}>
-                    <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4" style={{ backgroundColor: 'rgba(13, 79, 94, 0.1)' }}>
-                      <Upload className="h-8 w-8" style={{ color: '#0D4F5E' }} />
-                    </div>
-                    <p className="text-gray-600 text-sm mb-1">Drag your file(s) or <span className="underline" style={{ color: '#0D4F5E' }}>browse</span></p>
-                    <p className="text-xs text-gray-500 mb-4">Max 10 MB files are allowed</p>
-
-                    {/* Blue file badge */}
-                    <div className="absolute -top-3 right-6">
-                      <div className="text-white px-3 py-1 rounded-full text-xs font-medium flex items-center" style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}>
-                        📎 theprojekts-image.jpg
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="lg:order-2 relative z-10 max-w-sm">
-                  {/* Large background number */}
-                  <div className="absolute -top-2 -left-10 font-bold text-gray-300 opacity-70 select-none pointer-events-none z-0" style={{ fontSize: '6rem', lineHeight: '1' }}>
-                    1
-                  </div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-3 relative z-10">Upload Image 📁</h3>
-                  <p className="text-gray-600 text-sm relative z-10">
-                    Use one of our CMS integrations, browser extension, API,
-                    or web interface. Optionally include SEO keywords you
-                    want to use.
-                  </p>
-                </div>
-              </div>
-
-              {/* Step 2 - AI Analysis: Text Left, Image Right */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start relative">
-                <div className="lg:order-1 relative flex justify-center lg:justify-end">
-                  <div className="max-w-sm relative pr-8">
-                    {/* Large background number */}
-                    <div className="absolute -top-2 -left-10 font-bold text-gray-300 opacity-70 select-none pointer-events-none z-0" style={{ fontSize: '6rem', lineHeight: '1' }}>
-                      2
-                    </div>
-                    <h3 className="text-xl font-bold text-gray-900 mb-3 relative z-10">AI Analysis ⚡</h3>
-                    <p className="text-gray-600 text-sm relative z-10">
-                      It only takes a second for our technology to examine the
-                      image and work its magic.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="lg:order-2 flex justify-center lg:justify-start">
-                  {/* Complex AI Circuit Diagram */}
-                  <div className="relative w-full max-w-sm h-60 rounded-2xl p-4" style={{ background: 'linear-gradient(135deg, rgba(13, 79, 94, 0.1) 0%, rgba(0, 73, 83, 0.15) 100%)' }}>
-                    {/* Central AI Chip */}
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="w-24 h-16 bg-white rounded-lg border-2 flex items-center justify-center shadow-sm" style={{ borderColor: 'rgba(13, 79, 94, 0.4)' }}>
-                        <span className="text-xl font-bold" style={{ color: '#003a42' }}>AI</span>
-                      </div>
-                    </div>
-
-                    {/* Circuit board elements */}
-                    {/* Top connections */}
-                    <div className="absolute top-4 left-8 w-3 h-3 rounded-full" style={{ backgroundColor: '#004953' }}></div>
-                    <div className="absolute top-4 left-20 w-3 h-3 rounded-full" style={{ backgroundColor: '#004953' }}></div>
-                    <div className="absolute top-4 right-20 w-3 h-3 rounded-full" style={{ backgroundColor: '#004953' }}></div>
-                    <div className="absolute top-4 right-8 w-3 h-3 rounded-full" style={{ backgroundColor: '#004953' }}></div>
-
-                    {/* Side connections */}
-                    <div className="absolute left-4 top-16 w-3 h-3 rounded-full" style={{ backgroundColor: '#004953' }}></div>
-                    <div className="absolute left-4 bottom-16 w-3 h-3 rounded-full" style={{ backgroundColor: '#004953' }}></div>
-                    <div className="absolute right-4 top-16 w-3 h-3 rounded-full" style={{ backgroundColor: '#004953' }}></div>
-                    <div className="absolute right-4 bottom-16 w-3 h-3 rounded-full" style={{ backgroundColor: '#004953' }}></div>
-
-                    {/* Bottom connections */}
-                    <div className="absolute bottom-4 left-8 w-3 h-3 rounded-full" style={{ backgroundColor: '#004953' }}></div>
-                    <div className="absolute bottom-4 left-20 w-3 h-3 rounded-full" style={{ backgroundColor: '#004953' }}></div>
-                    <div className="absolute bottom-4 right-20 w-3 h-3 rounded-full" style={{ backgroundColor: '#004953' }}></div>
-                    <div className="absolute bottom-4 right-8 w-3 h-3 rounded-full" style={{ backgroundColor: '#004953' }}></div>
-
-                    {/* Circuit lines */}
-                    <div className="absolute top-6 left-11 w-20 h-px" style={{ backgroundColor: '#0D4F5E' }}></div>
-                    <div className="absolute top-6 right-11 w-20 h-px" style={{ backgroundColor: '#0D4F5E' }}></div>
-                    <div className="absolute bottom-6 left-11 w-20 h-px" style={{ backgroundColor: '#0D4F5E' }}></div>
-                    <div className="absolute bottom-6 right-11 w-20 h-px" style={{ backgroundColor: '#0D4F5E' }}></div>
-
-                    {/* Vertical lines */}
-                    <div className="absolute left-6 top-8 w-px h-12" style={{ backgroundColor: '#0D4F5E' }}></div>
-                    <div className="absolute right-6 top-8 w-px h-12" style={{ backgroundColor: '#0D4F5E' }}></div>
-                    <div className="absolute left-6 bottom-8 w-px h-12" style={{ backgroundColor: '#0D4F5E' }}></div>
-                    <div className="absolute right-6 bottom-8 w-px h-12" style={{ backgroundColor: '#0D4F5E' }}></div>
-
-                    {/* Corner elements */}
-                    <div className="absolute top-6 left-6 w-2 h-2 rounded-full" style={{ backgroundColor: '#0D4F5E' }}></div>
-                    <div className="absolute top-6 right-6 w-2 h-2 rounded-full" style={{ backgroundColor: '#0D4F5E' }}></div>
-                    <div className="absolute bottom-6 left-6 w-2 h-2 rounded-full" style={{ backgroundColor: '#0D4F5E' }}></div>
-                    <div className="absolute bottom-6 right-6 w-2 h-2 rounded-full" style={{ backgroundColor: '#0D4F5E' }}></div>
-
-                    {/* Small icons around the chip */}
-                    <div className="absolute top-2 left-16">
-                      <div className="w-6 h-6 rounded flex items-center justify-center" style={{ backgroundColor: 'rgba(13, 79, 94, 0.2)' }}>
-                        <span className="text-xs" style={{ color: '#003a42' }}>G</span>
-                      </div>
-                    </div>
-                    <div className="absolute bottom-2 right-16">
-                      <div className="w-6 h-6 rounded flex items-center justify-center" style={{ backgroundColor: 'rgba(13, 79, 94, 0.2)' }}>
-                        <span className="text-xs" style={{ color: '#003a42' }}>AWS</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Step 3 - Get Alt Text: Image Left, Text Right */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start relative">
-                <div className="lg:order-1 flex justify-center lg:justify-end">
-                  {/* Image with mountain scene */}
-                  <div className="bg-white rounded-xl border-2 p-4 w-full max-w-sm" style={{ borderColor: 'rgba(13, 79, 94, 0.3)' }}>
-                    <div className="w-full h-32 rounded-lg flex items-end justify-center mb-3 relative overflow-hidden" style={{ background: 'linear-gradient(to bottom, rgba(13, 79, 94, 0.3), rgba(0, 73, 83, 0.15), rgba(34, 197, 94, 0.15))' }}>
-                      {/* Simple mountain silhouette */}
-                      <div className="absolute bottom-0 left-0 w-full h-16 bg-green-200"></div>
-                      <div className="absolute bottom-8 left-8 w-20 h-12 bg-gray-400 transform -skew-x-12"></div>
-                      <div className="absolute bottom-8 right-8 w-16 h-8 bg-gray-300 transform skew-x-12"></div>
-                    </div>
-
-                    {/* Alt text tooltip */}
-                    <div className="bg-black text-white px-3 py-2 rounded text-xs relative mb-4">
-                      &lt;img ...alt = "alternative text" /&gt;
-                      <div className="absolute -top-1 left-6 w-2 h-2 bg-black transform rotate-45"></div>
-                    </div>
-
-                    {/* Three options with proper spacing */}
-                    <div className="grid grid-cols-3 gap-3">
-                      <div className="rounded-lg p-3 text-center border" style={{ backgroundColor: 'rgba(13, 79, 94, 0.05)', borderColor: 'rgba(13, 79, 94, 0.3)' }}>
-                        <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center mx-auto mb-2 border" style={{ borderColor: 'rgba(13, 79, 94, 0.4)' }}>
-                          <Eye className="h-4 w-4" style={{ color: '#003a42' }} />
+                    ) : (
+                      <div className="space-y-4 relative z-10">
+                        <div className="bg-white rounded-2xl w-16 h-16 flex items-center justify-center mx-auto mb-4 group-hover/upload:scale-110 transition-transform duration-500 shadow-notebook border border-gray-100">
+                          <Upload className="h-8 w-8 text-notebook-blue" />
                         </div>
-                        <p className="text-xs font-medium text-gray-700">Screen readers</p>
-                      </div>
-
-                      <div className="rounded-lg p-3 text-center border" style={{ backgroundColor: 'rgba(13, 79, 94, 0.05)', borderColor: 'rgba(13, 79, 94, 0.3)' }}>
-                        <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center mx-auto mb-2 border" style={{ borderColor: 'rgba(13, 79, 94, 0.4)' }}>
-                          <Search className="h-4 w-4" style={{ color: '#003a42' }} />
+                        <div>
+                          <p className="text-lg font-bold text-notebook-slate font-outfit">Optimize an image</p>
+                          <p className="text-sm text-gray-400 font-normal">Drag & drop or <span className="text-notebook-blue hover:underline">browse files</span></p>
                         </div>
-                        <p className="text-xs font-medium text-gray-700">Search engines</p>
                       </div>
+                    )}
+                  </div>
 
-                      <div className="rounded-lg p-3 text-center border" style={{ backgroundColor: 'rgba(13, 79, 94, 0.05)', borderColor: 'rgba(13, 79, 94, 0.3)' }}>
-                        <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center mx-auto mb-2 border" style={{ borderColor: 'rgba(13, 79, 94, 0.4)' }}>
-                          <X className="h-4 w-4" style={{ color: '#003a42' }} />
+                  {/* Generate Button */}
+                  <Button
+                    className="w-full h-14 text-white font-bold rounded-2xl transition-all duration-300 bg-notebook-blue hover:bg-notebook-blue/90 shadow-notebook group/btn"
+                    disabled={!selectedImage || isGenerating}
+                    onClick={generateDemoAltText}
+                  >
+                    {isGenerating ? (
+                      <div className="flex items-center gap-3">
+                        <div className="animate-spin rounded-full h-5 w-5 border-2 border-white/30 border-t-white"></div>
+                        <span className="font-outfit text-sm">Analyzing Image...</span>
+                      </div>
+                    ) : (
+                      <span className="font-outfit uppercase tracking-wider text-xs">Get Alt Text</span>
+                    )}
+                  </Button>
+
+                  {/* Result Area */}
+                  {generatedAltText && (
+                    <div className="mt-8 animate-in fade-in slide-in-from-bottom-6 duration-700">
+                      <div className="bg-notebook-surface rounded-2xl p-6 border border-gray-100 relative group/result">
+                        <div className="flex items-center justify-between mb-4">
+                          <span className="text-[10px] font-bold text-notebook-blue uppercase tracking-widest font-outfit">
+                            Smart Alt Text
+                          </span>
+                          <button
+                            className="text-gray-400 hover:text-notebook-blue transition-colors"
+                            onClick={() => {
+                              navigator.clipboard.writeText(generatedAltText);
+                              toast.success("Copied to clipboard!");
+                            }}
+                          >
+                            <Copy className="h-4 w-4" />
+                          </button>
                         </div>
-                        <p className="text-xs font-medium text-gray-700">Broken images</p>
+                        <p className="text-notebook-slate text-sm leading-relaxed font-normal italic">"{generatedAltText}"</p>
                       </div>
                     </div>
-                  </div>
-                </div>
-
-                <div className="lg:order-2 relative max-w-sm">
-                  {/* Large background number */}
-                  <div className="absolute -top-2 -left-10 font-bold text-gray-300 opacity-70 select-none pointer-events-none z-0" style={{ fontSize: '6rem', lineHeight: '1' }}>
-                    3
-                  </div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-3 relative z-10">Get Alt Text 📋</h3>
-                  <p className="text-gray-600 text-sm relative z-10">
-                    We generate an accurate description of the image, ready to be
-                    used on your site.
-                  </p>
+                  )}
                 </div>
               </div>
             </div>
-          </div>
+          </section>
         </div>
-      </section>
 
-      {/* Why Use Our Alt Text Generator Section */}
-      <section className="py-20 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid lg:grid-cols-2 gap-16 items-center">
-            {/* Left Content */}
-            <div>
-              <h2 className="text-4xl font-bold text-gray-900 mb-6">
-                Why Use Our Alt Text
+        {/* How It Works - Premium Design */}
+        <section className="py-24 bg-white relative">
+          <div className="absolute inset-0 bg-[url('/grid-pattern.svg')] opacity-5 pointer-events-none"></div>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+            <div className="text-center mb-24">
+              <h2 className="text-4xl lg:text-6xl font-bold text-notebook-slate mb-6 tracking-tight font-outfit">
+                Easy Optimization
                 <br />
-                Generator?
+                <span className="text-notebook-blue italic">Made Simple.</span>
               </h2>
-              <p className="text-lg text-gray-600 mb-8 leading-relaxed">
-                Our AI-powered tool ensures your images are accessible to everyone while
-                improving your website's SEO performance. Save time and create better
-                content with our intelligent alt text generation.
+              <p className="text-slate-500 max-w-2xl mx-auto text-xl font-normal">
+                A powerful tool for agencies and teams who need high-quality image optimization at scale.
               </p>
-
-              <div className="space-y-6">
-                <div className="flex items-start space-x-4">
-                  <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <Brain className="h-6 w-6 text-purple-600" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">AI-Powered Alt Text Generation</h3>
-                    <p className="text-gray-600">
-                      Our advanced AI understands your image content and creates
-                      contextually accurate and SEO-optimized descriptions.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start space-x-4">
-                  <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <Eye className="h-6 w-6 text-green-600" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">SEO Optimization</h3>
-                    <p className="text-gray-600">
-                      Boost your search engine rankings with properly optimized alt text
-                      that helps search engines understand your visual content.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start space-x-4">
-                  <div className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(13, 79, 94, 0.1)' }}>
-                    <Zap className="h-6 w-6" style={{ color: '#003a42' }} />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Batch Processing & Automation</h3>
-                    <p className="text-gray-600">
-                      Process multiple images at once and integrate with your
-                      workflow for seamless content creation.
-                    </p>
-                  </div>
-                </div>
-              </div>
             </div>
 
-            {/* Right Content - Demo Image */}
-            <div className="relative">
-              <div className="bg-gray-100 rounded-2xl p-8">
-                <div className="aspect-w-4 aspect-h-3 rounded-lg mb-6 overflow-hidden relative h-64">
-                  <img
-                    src="/red-fox.png"
-                    alt="Red fox standing on sandy beach during golden hour sunset with ocean waves in background"
-                    className="object-cover rounded-lg w-full h-full"
-                  />
+            <div className="relative max-w-6xl mx-auto">
+              {/* ===== LOCKED SECTION: Dotted connector images - DO NOT MODIFY POSITIONING ===== */}
+              {/* These images are precisely positioned to connect the steps. Any changes should be made as a group. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/dots1.png"
+                alt=""
+                className="hidden lg:block absolute pointer-events-none opacity-20 invert"
+                style={{
+                  top: '12%',
+                  left: '33%',
+                  width: '20%',
+                  height: 'auto',
+                  zIndex: 1,
+                  objectFit: 'contain'
+                }}
+              />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/dots2.png"
+                alt=""
+                className="hidden lg:block absolute pointer-events-none opacity-20 invert"
+                style={{
+                  top: '47%',
+                  left: '22%',
+                  width: '35%',
+                  height: 'auto',
+                  zIndex: 1,
+                  objectFit: 'contain'
+                }}
+              />
+              {/* ===== END LOCKED SECTION ===== */}
+
+              <div className="space-y-24">
+                {/* Step 1 - Upload Image: Image Left, Text Right */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start relative">
+                  <div className="lg:order-1 relative z-10 flex justify-center lg:justify-end">
+                    <div className="rounded-3xl p-8 border border-notebook-blue/10 relative w-full max-w-sm bg-notebook-paper shadow-notebook group hover:border-notebook-blue/30 transition-all duration-500">
+                      <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6 bg-notebook-blue/5 border border-notebook-blue/10 group-hover:scale-110 transition-transform duration-500">
+                        <Upload className="h-8 w-8 text-notebook-blue" />
+                      </div>
+                      <p className="text-notebook-black/80 text-sm mb-2 text-center font-outfit font-medium">Drag your file(s) or <span className="text-notebook-blue cursor-pointer hover:underline">browse</span></p>
+                      <p className="text-xs text-notebook-black/40 mb-6 text-center font-light italic">Max 10 MB files are allowed</p>
+
+                      {/* Blue file badge */}
+                      <div className="absolute -top-4 right-6">
+                        <div className="text-white px-4 py-2 rounded-full text-xs font-bold flex items-center bg-notebook-blue shadow-notebook font-outfit whitespace-nowrap">
+                          <ImageIcon className="w-3.5 h-3.5 mr-2" />
+                          marketing-asset-v2.webp
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="lg:order-2 relative z-10 max-w-sm flex items-center h-full">
+                    <div>
+                      {/* Large background number */}
+                      <div className="absolute -top-10 -left-12 font-extrabold text-notebook-blue/5 select-none pointer-events-none z-0 font-outfit" style={{ fontSize: '10rem', lineHeight: '1' }}>
+                        01
+                      </div>
+                      <h3 className="text-2xl font-bold text-notebook-slate mb-4 relative z-10 flex items-center gap-3 font-outfit uppercase tracking-wider">
+                        <div className="w-10 h-10 rounded-2xl bg-notebook-blue/5 flex items-center justify-center border border-notebook-blue/10 text-notebook-blue text-sm font-bold">01</div>
+                        Connect Your Site
+                      </h3>
+                      <p className="text-slate-500 text-lg leading-relaxed relative z-10 font-normal">
+                        Sync with your WordPress media library in one click. Our system gets your images ready for optimization instantly.
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <div className="text-sm text-gray-600 mb-2">Sample Image (fox on the beach):</div>
-                <div className="bg-white p-4 rounded-lg border">
-                  <p className="text-gray-800 italic">
-                    "Young fox standing on sandy beach during golden hour sunset with ocean waves in background"
-                  </p>
+
+                {/* Step 2 - AI Analysis: Text Left, Image Right */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start relative">
+                  <div className="lg:order-1 relative flex justify-center lg:justify-end items-center h-full">
+                    <div className="max-w-sm relative pr-8">
+                      {/* Large background number */}
+                      <div className="absolute -top-10 -left-12 font-extrabold text-notebook-blue/5 select-none pointer-events-none z-0 font-outfit" style={{ fontSize: '10rem', lineHeight: '1' }}>
+                        02
+                      </div>
+                      <h3 className="text-2xl font-bold text-notebook-slate mb-4 relative z-10 flex items-center gap-3 font-outfit uppercase tracking-wider">
+                        <div className="w-10 h-10 rounded-2xl bg-notebook-blue/5 flex items-center justify-center border border-notebook-blue/10 text-notebook-blue text-sm font-bold">02</div>
+                        Smart Analysis
+                      </h3>
+                      <p className="text-slate-500 text-lg leading-relaxed relative z-10 font-normal">
+                        Our vision models perform smart image analysis, identifying objects and context to create the perfect SEO-optimized description.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="lg:order-2 flex justify-center lg:justify-start">
+                    {/* Glassmorphic AI Circuit Diagram */}
+                    <div className="relative w-full max-w-sm h-64 rounded-3xl p-4 bg-notebook-paper border border-notebook-blue/10 shadow-notebook overflow-hidden group">
+                      <div className="absolute inset-0 bg-gradient-to-br from-notebook-blue/5 to-notebook-orange/5 rounded-3xl opacity-50 group-hover:opacity-100 transition-opacity duration-700"></div>
+
+                      {/* Central AI Chip */}
+                      <div className="absolute inset-0 flex items-center justify-center z-10">
+                        <div className="w-28 h-28 bg-white border border-gray-100 rounded-[2rem] flex items-center justify-center shadow-notebook relative overflow-hidden group-hover:border-notebook-blue/30 transition-colors duration-500">
+                          <div className="absolute inset-0 bg-gradient-to-tr from-notebook-blue/5 to-transparent animate-pulse"></div>
+                          <Brain className="w-12 h-12 text-notebook-slate relative z-10" />
+                        </div>
+                      </div>
+
+                      {/* Animated Data Pulses */}
+                      <div className="absolute top-1/2 left-0 w-1/2 h-0.5 bg-gradient-to-r from-transparent to-notebook-blue/30 -translate-y-1/2 flex items-center justify-end pr-14">
+                        <div className="w-2 h-2 rounded-full bg-notebook-blue animate-ping"></div>
+                      </div>
+                      <div className="absolute top-0 left-1/2 w-0.5 h-1/2 bg-gradient-to-b from-transparent to-notebook-orange/30 -translate-x-1/2 flex items-center justify-end pb-14 flex-col">
+                        <div className="w-2 h-2 rounded-full bg-notebook-orange animate-ping" style={{ animationDelay: '0.5s' }}></div>
+                      </div>
+                      <div className="absolute top-1/2 right-0 w-1/2 h-0.5 bg-gradient-to-l from-transparent to-notebook-blue/30 -translate-y-1/2 flex items-center justify-start pl-14">
+                        <div className="w-2 h-2 rounded-full bg-notebook-blue animate-ping" style={{ animationDelay: '1s' }}></div>
+                      </div>
+                      <div className="absolute bottom-0 left-1/2 w-0.5 h-1/2 bg-gradient-to-t from-transparent to-notebook-orange/30 -translate-x-1/2 flex items-center justify-start pt-14 flex-col">
+                        <div className="w-2 h-2 rounded-full bg-notebook-orange animate-ping" style={{ animationDelay: '1.5s' }}></div>
+                      </div>
+
+                      {/* Decorative nodes */}
+                      <div className="absolute top-8 left-8 w-12 h-12 rounded-xl bg-white border border-notebook-blue/5 flex items-center justify-center shadow-sm">
+                        <Search className="w-5 h-5 text-notebook-blue/40" />
+                      </div>
+                      <div className="absolute bottom-8 right-8 w-12 h-12 rounded-xl bg-white border border-notebook-blue/5 flex items-center justify-center shadow-sm">
+                        <BarChart3 className="w-5 h-5 text-notebook-blue/40" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Step 3 - Get Alt Text: Image Left, Text Right */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start relative">
+                  <div className="lg:order-1 flex justify-center lg:justify-end">
+                    {/* Results preview */}
+                    <div className="bg-notebook-paper rounded-3xl border border-notebook-blue/10 p-6 w-full max-w-sm shadow-notebook relative group">
+                      <div className="w-full h-40 rounded-2xl flex items-end justify-center mb-6 relative overflow-hidden bg-notebook-pearl border border-notebook-blue/5">
+                        <Image src="/red-fox.png" alt="Sample" fill sizes="(min-width: 1024px) 384px, 100vw" className="object-cover opacity-80 group-hover:opacity-100 transition-opacity duration-500" />
+                      </div>
+
+                      {/* Generated Result UI */}
+                      <div className="space-y-4 relative z-10">
+                        <div className="bg-white rounded-xl p-4 border border-notebook-blue/5 shadow-sm">
+                          <div className="flex items-center justify-between mb-3">
+                            <span className="text-[10px] font-bold text-notebook-blue uppercase tracking-[0.2em] flex items-center gap-1.5 font-outfit">
+                              <Sparkles className="w-3 h-3 text-notebook-orange" /> Optimized Alt Text
+                            </span>
+                            <div className="h-5 w-5 rounded-full bg-notebook-blue/5 flex items-center justify-center hover:bg-notebook-blue/10 cursor-pointer transition-colors">
+                              <Copy className="w-3 h-3 text-notebook-blue" />
+                            </div>
+                          </div>
+                          <p className="text-notebook-black text-sm font-medium leading-relaxed">
+                            Close-up of a red fox standing on a sandy beach during a golden hour sunset, with calm ocean waves.
+                          </p>
+                        </div>
+
+                        <div className="flex gap-2">
+                          <div className="flex-1 bg-notebook-blue/5 rounded-lg border border-notebook-blue/10 py-2 px-3 flex items-center gap-2">
+                            <CheckCircle className="w-3 h-3 text-notebook-blue" />
+                            <span className="text-[10px] font-bold text-notebook-black/60 font-outfit uppercase">Accessibility Standards</span>
+                          </div>
+                          <div className="flex-1 bg-notebook-orange/5 rounded-lg border border-notebook-orange/10 py-2 px-3 flex items-center gap-2">
+                            <CheckCircle className="w-3 h-3 text-notebook-orange" />
+                            <span className="text-[10px] font-bold text-notebook-black/60 font-outfit uppercase">SEO Rank 1</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="lg:order-2 relative max-w-sm flex items-center h-full">
+                    <div>
+                      {/* Large background number */}
+                      <div className="absolute -top-10 -left-12 font-extrabold text-notebook-blue/5 select-none pointer-events-none z-0 font-outfit" style={{ fontSize: '10rem', lineHeight: '1' }}>
+                        03
+                      </div>
+                      <h3 className="text-2xl font-bold text-notebook-slate mb-4 relative z-10 flex items-center gap-3 font-outfit uppercase tracking-wider">
+                        <div className="w-10 h-10 rounded-2xl bg-notebook-blue/5 flex items-center justify-center border border-notebook-blue/10 text-notebook-blue text-sm font-bold">03</div>
+                        Instant Updates
+                      </h3>
+                      <p className="text-slate-500 text-lg leading-relaxed relative z-10 font-normal">
+                        Update your images directly. Our platform ensures every image is accessible and easy for search engines to find.
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Pricing Section */}
-      <section id="pricing" className="py-20 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">Simple, Transparent Pricing</h2>
-            <p className="text-xl text-gray-600 mb-4">Choose the plan that fits your needs</p>
+        {/* Powerful Features Section */}
+        <section className="py-32 bg-notebook-paper relative overflow-hidden border-y border-notebook-blue/5">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+            <div className="text-center mb-20">
+              <h2 className="text-4xl lg:text-5xl font-bold text-notebook-slate mb-6 font-outfit tracking-tight">
+                Built for Reliability
+              </h2>
+              <p className="text-lg text-slate-500 max-w-2xl mx-auto font-normal">
+                Studio-grade tools for agencies and content teams who demand accessibility compliance with ranking authority.
+              </p>
+            </div>
 
-            {/* Billing Cycle Toggle */}
-            <div className="flex flex-col items-center justify-center mt-6">
-              <div className="flex items-center justify-center gap-4">
-                <span className={`text-sm font-medium transition-colors ${billingCycle === 'monthly' ? 'text-gray-900' : 'text-gray-500'}`}>
-                  Monthly
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setBillingCycle(billingCycle === 'monthly' ? 'annual' : 'monthly')}
-                  className={`relative inline-flex h-8 w-16 items-center rounded-full transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 ${billingCycle === 'annual'
-                    ? 'bg-teal-600 focus:ring-teal-400'
-                    : 'bg-gray-300 focus:ring-gray-400'
-                    }`}
-                  style={billingCycle === 'annual'
-                    ? { background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }
-                    : {}
-                  }
-                  role="switch"
-                  aria-checked={billingCycle === 'annual'}
-                >
-                  <span
-                    className={`inline-block h-6 w-6 transform rounded-full bg-white shadow-lg transition-transform duration-300 ${billingCycle === 'annual' ? 'translate-x-9' : 'translate-x-1'
-                      }`}
-                  />
-                </button>
-                <div className="relative">
-                  <span className={`text-sm font-medium transition-colors ${billingCycle === 'annual' ? 'text-gray-900' : 'text-gray-500'}`}>
-                    Annual
-                  </span>
-                  <span className={`absolute left-full ml-2 top-1/2 -translate-y-1/2 text-xs text-green-600 font-semibold bg-green-50 px-2 py-1 rounded transition-opacity duration-300 whitespace-nowrap text-center ${billingCycle === 'annual' ? 'opacity-100' : 'opacity-0'
-                    }`}>
-                    Save ~20%
-                  </span>
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {/* Feature 1 */}
+              <div className="bg-white border border-gray-100 rounded-[2.5rem] p-10 hover:border-notebook-blue/20 transition-all duration-500 group shadow-sm hover:shadow-notebook">
+                <div className="w-14 h-14 bg-notebook-blue/5 border border-notebook-blue/10 rounded-2xl flex items-center justify-center mb-10 group-hover:scale-110 transition-transform duration-500">
+                  <Brain className="h-7 w-7 text-notebook-blue" />
                 </div>
+                <h3 className="text-sm font-bold text-notebook-slate mb-4 font-outfit uppercase tracking-widest">Advanced Technology</h3>
+                <p className="text-slate-500 leading-relaxed font-normal text-sm">
+                  Smart AI that understands your images. We don't just describe photos; we create SEO-friendly descriptions that rank.
+                </p>
               </div>
-              <p className="text-xs text-gray-500 mt-4 italic">1 Credit = 1 AI-Optimized Alt Text</p>
+
+              {/* Feature 2 */}
+              <div className="bg-white border border-gray-100 rounded-[2.5rem] p-10 hover:border-notebook-blue/20 transition-all duration-500 group shadow-sm hover:shadow-notebook">
+                <div className="w-14 h-14 bg-notebook-blue/5 border border-notebook-blue/10 rounded-2xl flex items-center justify-center mb-10 group-hover:scale-110 transition-transform duration-500">
+                  <Globe className="h-7 w-7 text-notebook-blue" />
+                </div>
+                <h3 className="text-sm font-bold text-notebook-slate mb-4 font-outfit uppercase tracking-widest">Global Reach</h3>
+                <p className="text-slate-500 leading-relaxed font-normal text-sm">
+                  Deploy accessibility in 130+ languages. Our AI maintains semantic precision across borders, ensuring global compliance.
+                </p>
+              </div>
+
+              {/* Feature 3 */}
+              <div className="bg-white border border-gray-100 rounded-[2.5rem] p-10 hover:border-notebook-blue/20 transition-all duration-500 group shadow-sm hover:shadow-notebook">
+                <div className="w-14 h-14 bg-notebook-blue/5 border border-notebook-blue/10 rounded-2xl flex items-center justify-center mb-10 group-hover:scale-110 transition-transform duration-500">
+                  <BarChart3 className="h-7 w-7 text-notebook-blue" />
+                </div>
+                <h3 className="text-sm font-bold text-notebook-slate mb-4 font-outfit uppercase tracking-widest">Library Audit</h3>
+                <p className="text-slate-500 leading-relaxed font-normal text-sm">
+                  Live analytics on your media accessibility. Identify coverage gaps and monitor SEO performance gains in real-time.
+                </p>
+              </div>
+
+              {/* Feature 4 */}
+              <div className="bg-white border border-gray-100 rounded-[2.5rem] p-10 hover:border-notebook-blue/20 transition-all duration-500 group shadow-sm hover:shadow-notebook">
+                <div className="w-14 h-14 bg-notebook-blue/5 border border-notebook-blue/10 rounded-2xl flex items-center justify-center mb-10 group-hover:scale-110 transition-transform duration-500">
+                  <Zap className="h-7 w-7 text-notebook-blue" />
+                </div>
+                <h3 className="text-sm font-bold text-notebook-slate mb-4 font-outfit uppercase tracking-widest">Bulk Generation</h3>
+                <p className="text-slate-500 leading-relaxed font-normal text-sm">
+                  Automate thousands of descriptions in minutes. Designed for massive media libraries needing rapid, consistent optimization.
+                </p>
+              </div>
             </div>
           </div>
+        </section >
 
-          <div className="grid md:grid-cols-4 gap-6 max-w-7xl mx-auto">
-            {/* Free Plan */}
-            <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-100 transition-colors"
-              onMouseEnter={(e) => e.currentTarget.style.borderColor = 'rgba(13, 79, 94, 0.3)'}
-              onMouseLeave={(e) => e.currentTarget.style.borderColor = '#f3f4f6'}>
-              <div className="text-center">
-                <h3 className="text-2xl font-bold text-gray-900 mb-2">Free</h3>
-                <div className="text-3xl font-bold mb-6" style={{ color: '#003a42' }}>
-                  $0
-                  <span className="text-xs text-gray-500 font-normal ml-1">
-                    {billingCycle === 'monthly' ? 'per Month' : 'per Year'}
-                  </span>
+        {/* Social Proof Section */}
+        <section className="py-24 bg-white border-t border-notebook-blue/5 relative overflow-hidden">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+            <div className="text-center mb-16">
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-notebook-blue/5 border border-notebook-blue/10 mb-6">
+                <div className="w-1.5 h-1.5 rounded-full bg-notebook-blue animate-pulse" />
+                <span className="text-[10px] font-bold text-notebook-blue uppercase tracking-widest font-outfit">Customer Love</span>
+              </div>
+              <h2 className="text-3xl lg:text-5xl font-bold text-notebook-slate mb-4 tracking-tight font-outfit">Loved by early adopters</h2>
+              <p className="text-slate-500 text-xl max-w-2xl mx-auto font-normal">Join visionary teams building accessible, SEO-optimized experiences from day one.</p>
+            </div>
+
+            <div className="grid md:grid-cols-3 gap-6">
+              {/* Testimonial 1 */}
+              <div className="bg-notebook-paper border border-notebook-blue/10 p-8 rounded-[2rem] hover:shadow-notebook transition-all duration-300">
+                <div className="flex gap-1 text-notebook-orange mb-6">
+                  {[...Array(5)].map((_, i) => <Star key={i} className="w-4 h-4 fill-current" />)}
+                </div>
+                <p className="text-notebook-black font-medium leading-relaxed mb-8 text-sm italic">
+                  "This completely transformed our workflow. Manually writing alt text used to be a chore we dreaded. The AI generates perfect, SEO-rich descriptions instantly. It's like having an extra pair of hands."
+                </p>
+                <div className="flex items-center gap-4">
+                  <div className="relative w-10 h-10 rounded-full overflow-hidden shadow-sm">
+                    <Image src="/client_avatar_1.png" alt="Clara Vanni" fill sizes="40px" className="object-cover" />
+                  </div>
+                  <div>
+                    <h4 className="text-notebook-black font-bold text-xs uppercase tracking-wider font-outfit">Clara Vanni</h4>
+                    <p className="text-[10px] text-notebook-black/40 font-bold uppercase tracking-widest">Startup Founder</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Testimonial 2 */}
+              <div className="bg-notebook-paper border border-notebook-orange/20 p-8 rounded-[2rem] hover:shadow-notebook transition-all duration-300 relative transform md:-translate-y-4">
+                <div className="absolute -top-3 -right-3 text-4xl text-notebook-orange/20 font-serif">"</div>
+                <div className="flex gap-1 text-notebook-orange mb-6">
+                  {[...Array(5)].map((_, i) => <Star key={i} className="w-4 h-4 fill-current" />)}
+                </div>
+                <p className="text-notebook-black font-medium leading-relaxed mb-8 text-sm italic">
+                  "As a small team, we didn't have the resources to manually tag every image. Alt Text AI integrated seamlessly and handled our entire media library in minutes. A huge time-saver."
+                </p>
+                <div className="flex items-center gap-4">
+                  <div className="relative w-10 h-10 rounded-full overflow-hidden shadow-sm">
+                    <Image src="/client_avatar_2.png" alt="Tariq Hasan" fill sizes="40px" className="object-cover" />
+                  </div>
+                  <div>
+                    <h4 className="text-notebook-black font-bold text-xs uppercase tracking-wider font-outfit">Tariq Hasan</h4>
+                    <p className="text-[10px] text-notebook-black/40 font-bold uppercase tracking-widest">Lead Developer</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Testimonial 3 */}
+              <div className="bg-notebook-paper border border-notebook-blue/10 p-8 rounded-[2rem] hover:shadow-notebook transition-all duration-300">
+                <div className="flex gap-1 text-notebook-orange mb-6">
+                  {[...Array(5)].map((_, i) => <Star key={i} className="w-4 h-4 fill-current" />)}
+                </div>
+                <p className="text-notebook-black font-medium leading-relaxed mb-8 text-sm italic">
+                  "Accessibility matters, but it's hard to make time for it. This tool runs quietly in the background, ensuring our content is inclusive and SEO-friendly without adding to our workload."
+                </p>
+                <div className="flex items-center gap-4">
+                  <div className="relative w-10 h-10 rounded-full overflow-hidden shadow-sm">
+                    <Image src="/client_avatar_3.png" alt="Elena Rostova" fill sizes="40px" className="object-cover" />
+                  </div>
+                  <div>
+                    <h4 className="text-notebook-black font-bold text-xs uppercase tracking-wider font-outfit">Elena Rostova</h4>
+                    <p className="text-[10px] text-notebook-black/40 font-bold uppercase tracking-widest">Content Marketer</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Pricing Section */}
+        <section id="pricing" className="py-32 bg-notebook-paper relative overflow-hidden border-t border-notebook-blue/5">
+          {/* Subtle Background Accent */}
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-[1200px] h-[400px] bg-gradient-to-b from-notebook-blue/5 to-transparent blur-[100px] opacity-60 pointer-events-none"></div>
+
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+            <div className="text-center mb-20 space-y-6">
+              <div className="inline-flex px-4 py-2 rounded-full bg-notebook-blue/5 border border-notebook-blue/10">
+                <span className="text-[10px] font-bold text-notebook-blue uppercase tracking-widest font-outfit">Subscription Management</span>
+              </div>
+              <h2 className="text-4xl lg:text-6xl font-bold text-notebook-slate tracking-tight font-outfit">
+                Simple, High-Trust
+                <br />
+                <span className="text-notebook-blue italic">Pricing Plans.</span>
+              </h2>
+              <p className="text-lg text-slate-500 max-w-2xl mx-auto font-normal">Choose the ideal resource allocation for your accessibility infrastructure.</p>
+
+              {/* Refined Billing Cycle Toggle */}
+              <div className="flex flex-col items-center justify-center mt-12">
+                <div className="flex items-center p-1.5 bg-white border border-gray-100 rounded-2xl shadow-notebook-sm">
+                  <button
+                    className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 font-outfit ${billingCycle === 'monthly' ? 'bg-notebook-blue text-white shadow-notebook' : 'text-gray-400 hover:text-notebook-slate'}`}
+                    onClick={() => setBillingCycle('monthly')}
+                  >
+                    Monthly Access
+                  </button>
+                  <button
+                    className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 font-outfit relative flex items-center gap-2 ${billingCycle === 'annual' ? 'bg-notebook-blue text-white shadow-notebook' : 'text-gray-400 hover:text-notebook-slate'}`}
+                    onClick={() => setBillingCycle('annual')}
+                  >
+                    Annual Billing
+                    <span className={`static ml-1 text-[9px] font-bold px-1.5 py-0.5 rounded-lg bg-notebook-orange/10 text-notebook-orange border border-notebook-orange/20 whitespace-nowrap`}>
+                      -20%
+                    </span>
+                  </button>
+                </div>
+                <p className="text-[10px] font-bold text-gray-400 mt-6 flex items-center gap-1.5 uppercase tracking-widest leading-none">
+                  <Info className="w-3 h-3" /> 1 Credit = 1 AI-Optimized Alt Text
+                </p>
+              </div>
+            </div>
+
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {/* Free Plan */}
+              <div className="bg-white border border-gray-100 rounded-[2.5rem] p-10 flex flex-col relative group hover:shadow-notebook transition-all duration-500">
+                <div className="mb-10">
+                  <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4 font-outfit">Free Plan</h3>
+                  <div className="flex items-baseline gap-1 text-notebook-slate mb-2">
+                    <span className="text-4xl font-bold tracking-tight font-outfit">$0</span>
+                    <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">/mo</span>
+                  </div>
+                  <p className="text-xs text-notebook-blue font-bold font-outfit tracking-wide italic">"Perfect for getting started"</p>
                 </div>
 
-                <div className="space-y-3 mb-8">
-                  <div className="flex items-center">
-                    <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-sm text-gray-700">30 Free SEO Alt Texts</span>
+                <div className="space-y-4 mb-10 flex-1">
+                  <div className="flex items-center gap-3">
+                    <div className="w-5 h-5 rounded-lg bg-notebook-blue/5 flex items-center justify-center border border-notebook-blue/10">
+                      <Check className="h-3 w-3 text-notebook-blue" strokeWidth={3} />
+                    </div>
+                    <span className="text-sm text-slate-500 font-normal">30 AI Alt Texts</span>
                   </div>
-                  <div className="flex items-center">
-                    <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-sm text-gray-700">Full WordPress Plugin</span>
-                  </div>
-                  <div className="flex items-center">
-                    <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-[13px] text-gray-700">Media Library Sync</span>
+                  <div className="flex items-center gap-3">
+                    <div className="w-5 h-5 rounded-lg bg-notebook-blue/5 flex items-center justify-center border border-notebook-blue/10">
+                      <Check className="h-3 w-3 text-notebook-blue" strokeWidth={3} />
+                    </div>
+                    <span className="text-sm text-slate-500 font-normal">WP Plugin Sync</span>
                   </div>
                 </div>
 
                 <Button
                   onClick={() => handlePlanSelection('free', 'Free', '$0')}
-                  className="w-full bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  className="w-full h-12 bg-notebook-paper border border-gray-100 text-notebook-slate hover:bg-white hover:text-notebook-blue hover:shadow-notebook transition-all duration-300 rounded-2xl font-bold font-outfit text-xs uppercase tracking-widest"
                 >
-                  Get Started
+                  Start Free Trial
                 </Button>
               </div>
-            </div>
 
-            {/* Lite */}
-            <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-100 transition-colors relative"
-              onMouseEnter={(e) => e.currentTarget.style.borderColor = 'rgba(13, 79, 94, 0.3)'}
-              onMouseLeave={(e) => e.currentTarget.style.borderColor = '#f3f4f6'}>
-              {billingCycle === 'annual' && (
-                <div className="absolute top-2 right-2">
-                  <Badge variant="secondary" className="bg-green-50 text-green-700 border-none text-[10px] py-0.5 px-2 font-bold shadow-sm">
-                    $2.50/mo
-                  </Badge>
-                </div>
-              )}
-              <div className="text-center">
-                <h3 className="text-2xl font-bold text-gray-900 mb-2">Lite</h3>
-                <div className="text-3xl font-bold mb-6" style={{ color: '#003a42' }}>
-                  ${billingCycle === 'monthly' ? '3' : '30'}
-                  <span className="text-xl text-gray-600 font-normal ml-1">USD</span>
-                  <span className="text-xs text-gray-500 font-normal ml-1">
-                    {billingCycle === 'monthly' ? 'per Month' : 'per Year'}
-                  </span>
+              {/* Lite */}
+              <div className="bg-white border border-gray-100 rounded-[2.5rem] p-10 flex flex-col relative group hover:shadow-notebook transition-all duration-500">
+                {billingCycle === 'annual' && (
+                  <div className="absolute top-6 right-6">
+                    <Badge className="bg-notebook-blue/5 text-notebook-blue border-notebook-blue/10 text-[9px] font-bold px-2 py-0.5 rounded-lg">
+                      BEST FOR SMALL BLOGS
+                    </Badge>
+                  </div>
+                )}
+                <div className="mb-10">
+                  <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4 font-outfit">Lite Plan</h3>
+                  <div className="flex items-baseline gap-1 text-notebook-slate mb-2">
+                    <span className="text-4xl font-bold tracking-tight font-outfit">${billingCycle === 'monthly' ? '3' : '30'}</span>
+                    <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+                      {billingCycle === 'monthly' ? '/mo' : '/yr'}
+                    </span>
+                  </div>
                 </div>
 
-                <div className="space-y-3 mb-8">
-                  <div className="flex items-center">
-                    <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-[13px] text-gray-700">150 Credits{billingCycle === 'annual' ? '/Month' : ''}</span>
-                  </div>
-                  <div className="flex items-center">
-                    <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-[13px] text-gray-700">Auto-Describe on Upload</span>
-                  </div>
-                  <div className="flex items-center">
-                    <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-[13px] text-gray-700">High-Accuracy Visual AI</span>
-                  </div>
-                  <div className="flex items-center">
-                    <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-[13px] text-gray-700">Standard Email Support</span>
-                  </div>
+                <div className="space-y-4 mb-10 flex-1">
+                  {[
+                    `150 Credits${billingCycle === 'annual' ? '/mo' : ''}`,
+                    "Auto-Pilot Analysis",
+                    "High-Fidelity AI",
+                    "Standard Ops Support"
+                  ].map((feature, i) => (
+                    <div key={i} className="flex items-center gap-3">
+                      <div className="w-5 h-5 rounded-lg bg-notebook-blue/5 flex items-center justify-center border border-notebook-blue/10">
+                        <Check className="h-3 w-3 text-notebook-blue" strokeWidth={3} />
+                      </div>
+                      <span className="text-sm text-slate-500 font-normal">{feature}</span>
+                    </div>
+                  ))}
                 </div>
 
                 <Button
                   onClick={() => handlePlanSelection('tier1', 'Lite', billingCycle === 'monthly' ? '$3' : '$30')}
-                  className="w-full text-white"
-                  style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #003a42 0%, #0D4F5E 100%)'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)'}
+                  className="w-full h-12 bg-white border border-gray-100 text-notebook-slate hover:bg-slate-50 hover:text-notebook-blue transition-all duration-300 rounded-2xl font-bold font-outfit text-xs uppercase tracking-widest shadow-sm"
                 >
-                  Choose Plan
+                  Get Lite Plan
                 </Button>
               </div>
-            </div>
 
-            {/* Standard - Most Popular */}
-            <div className="bg-white rounded-2xl shadow-lg p-8 border-2 relative transform scale-105" style={{ borderColor: '#0D4F5E' }}>
-              <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
-                <span className="text-white px-4 py-1 rounded-full text-sm font-medium" style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}>Most Popular</span>
-              </div>
-              {billingCycle === 'annual' && (
-                <div className="absolute top-2 right-2">
-                  <Badge variant="secondary" className="bg-green-50 text-green-700 border-none text-[10px] py-0.5 px-2 font-bold shadow-sm">
-                    $4/mo
-                  </Badge>
-                </div>
-              )}
-              <div className="text-center">
-                <h3 className="text-2xl font-bold text-gray-900 mb-2">Standard</h3>
-                <div className="text-3xl font-bold mb-6" style={{ color: '#003a42' }}>
-                  ${billingCycle === 'monthly' ? '5' : '48'}
-                  <span className="text-xl text-gray-600 font-normal ml-1">USD</span>
-                  <span className="text-xs text-gray-500 font-normal ml-1">
-                    {billingCycle === 'monthly' ? 'per Month' : 'per Year'}
-                  </span>
+              {/* Standard - Most Popular */}
+              <div className="bg-white border-2 border-notebook-blue rounded-[2.5rem] p-10 flex flex-col relative transform lg:-translate-y-4 shadow-notebook-lg z-10 transition-all duration-500">
+                <div className="absolute -top-4 left-1/2 -translate-x-1/2">
+                  <div className="bg-notebook-blue text-white text-[9px] font-bold px-4 py-1.5 rounded-full shadow-notebook flex items-center gap-2 uppercase tracking-[0.2em] font-outfit">
+                    <Star className="w-3 h-3 fill-current text-notebook-orange" /> Most Popular
+                  </div>
                 </div>
 
-                <div className="space-y-3 mb-8">
-                  <div className="flex items-center">
-                    <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-[13px] text-gray-700">400 Credits{billingCycle === 'annual' ? '/Month' : ''}</span>
+                <div className="mb-10 mt-2">
+                  <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4 font-outfit">Standard Plan</h3>
+                  <div className="flex items-baseline gap-1 text-notebook-slate mb-2">
+                    <span className="text-5xl font-bold tracking-tight font-outfit">${billingCycle === 'monthly' ? '5' : '48'}</span>
+                    <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+                      {billingCycle === 'monthly' ? '/mo' : '/yr'}
+                    </span>
                   </div>
-                  <div className="flex items-center">
-                    <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-[13px] text-gray-700">Bulk One-Click Library Fix</span>
-                  </div>
-                  <div className="flex items-center">
-                    <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-[13px] text-gray-700">Multi-Language AI (130+)</span>
-                  </div>
-                  <div className="flex items-center">
-                    <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-[13px] text-gray-700">SEO & WCAG Compliance</span>
-                  </div>
-                  <div className="flex items-center">
-                    <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-[13px] text-gray-700">Priority Support</span>
-                  </div>
+                </div>
+
+                <div className="space-y-4 mb-10 flex-1">
+                  {[
+                    `400 Credits${billingCycle === 'annual' ? '/mo' : ''}`,
+                    "One-Click Bulk Fix",
+                    "130+ Language Pipeline",
+                    "WCAG AA Compliance",
+                    "Priority Ops Access"
+                  ].map((feature, i) => (
+                    <div key={i} className="flex items-center gap-3">
+                      <div className="w-5 h-5 rounded-lg bg-notebook-blue/5 flex items-center justify-center border border-notebook-blue/10">
+                        <Check className="h-3 w-3 text-notebook-blue" strokeWidth={3} />
+                      </div>
+                      <span className={`text-sm font-normal ${i === 4 ? 'text-notebook-slate font-bold' : 'text-slate-500'}`}>{feature}</span>
+                    </div>
+                  ))}
                 </div>
 
                 <Button
                   onClick={() => handlePlanSelection('tier2', 'Standard', billingCycle === 'monthly' ? '$5' : '$48')}
-                  className="w-full text-white"
-                  style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #003a42 0%, #0D4F5E 100%)'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)'}
+                  className="w-full h-14 bg-notebook-blue hover:bg-notebook-blue/90 text-white transition-all duration-300 rounded-2xl font-bold font-outfit text-xs uppercase tracking-[0.2em] shadow-notebook hover:-translate-y-1"
                 >
-                  Choose Plan
+                  Get Standard Plan
                 </Button>
               </div>
-            </div>
 
-            {/* Pro */}
-            <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-100 transition-colors relative"
-              onMouseEnter={(e) => e.currentTarget.style.borderColor = 'rgba(13, 79, 94, 0.3)'}
-              onMouseLeave={(e) => e.currentTarget.style.borderColor = '#f3f4f6'}>
-              {billingCycle === 'annual' && (
-                <div className="absolute top-2 right-2">
-                  <Badge variant="secondary" className="bg-green-50 text-green-700 border-none text-[10px] py-0.5 px-2 font-bold shadow-sm">
-                    $7.17/mo
-                  </Badge>
-                </div>
-              )}
-              <div className="text-center">
-                <h3 className="text-2xl font-bold text-gray-900 mb-2">Pro</h3>
-                <div className="text-3xl font-bold mb-6" style={{ color: '#003a42' }}>
-                  ${billingCycle === 'monthly' ? '9' : '86'}
-                  <span className="text-xl text-gray-600 font-normal ml-1">USD</span>
-                  <span className="text-xs text-gray-500 font-normal ml-1">
-                    {billingCycle === 'monthly' ? 'per Month' : 'per Year'}
-                  </span>
+              {/* Pro */}
+              <div className="bg-white border border-gray-100 rounded-[2.5rem] p-10 flex flex-col relative group hover:shadow-notebook transition-all duration-500">
+                <div className="mb-10">
+                  <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4 font-outfit">Pro Plan</h3>
+                  <div className="flex items-baseline gap-1 text-notebook-slate mb-2">
+                    <span className="text-4xl font-bold tracking-tight font-outfit">${billingCycle === 'monthly' ? '9' : '86'}</span>
+                    <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+                      {billingCycle === 'monthly' ? '/mo' : '/yr'}
+                    </span>
+                  </div>
                 </div>
 
-                <div className="space-y-3 mb-8">
-                  <div className="flex items-center">
-                    <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-[13px] text-gray-700">1,000 Credits{billingCycle === 'annual' ? '/Month' : ''}</span>
-                  </div>
-                  <div className="flex items-center">
-                    <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-[13px] text-gray-700">Advanced Context-Aware AI</span>
-                  </div>
-                  <div className="flex items-center">
-                    <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-[13px] text-gray-700">Full Auto-Pilot Workflow</span>
-                  </div>
-                  <div className="flex items-center">
-                    <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-[13px] text-gray-700">Custom Post Type Support</span>
-                  </div>
-                  <div className="flex items-center">
-                    <Check className="h-5 w-5 text-green-500 mr-3" />
-                    <span className="text-[13px] text-gray-700">Premium 24/7 Support</span>
-                  </div>
+                <div className="space-y-4 mb-10 flex-1">
+                  {[
+                    `1,000 Credits${billingCycle === 'annual' ? '/mo' : ''}`,
+                    "Context-Aware Engines",
+                    "Full Auto-Pilot Suite",
+                    "Custom Type Support",
+                    "24/7 Strategic Support"
+                  ].map((feature, i) => (
+                    <div key={i} className="flex items-center gap-3">
+                      <div className="w-5 h-5 rounded-lg bg-notebook-blue/5 flex items-center justify-center border border-notebook-blue/10">
+                        <Check className="h-3 w-3 text-notebook-blue" strokeWidth={3} />
+                      </div>
+                      <span className="text-sm text-slate-500 font-normal">{feature}</span>
+                    </div>
+                  ))}
                 </div>
 
                 <Button
                   onClick={() => handlePlanSelection('tier3', 'Pro', billingCycle === 'monthly' ? '$9' : '$86')}
-                  className="w-full text-white"
-                  style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #003a42 0%, #0D4F5E 100%)'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)'}
+                  className="w-full h-12 bg-white border border-gray-100 text-notebook-slate hover:bg-slate-50 hover:text-notebook-blue transition-all duration-300 rounded-2xl font-bold font-outfit text-xs uppercase tracking-widest shadow-sm"
                 >
-                  Choose Plan
+                  Get Pro Plan
                 </Button>
               </div>
             </div>
-          </div>
 
-          {/* Pay As You Go Section - Two Options */}
-          <div className="mt-12 max-w-3xl mx-auto">
-            <div className="bg-gradient-to-r from-teal-50 to-cyan-50 rounded-2xl shadow-lg p-8 border-2 border-teal-100">
-              <div className="text-center mb-6">
-                <div className="flex items-center justify-center gap-2 mb-2">
-                  <DollarSign className="h-6 w-6 text-[#0D4F5E]" />
-                  <h3 className="text-2xl font-bold text-gray-900">Pay As You Go</h3>
-                </div>
-                <p className="text-gray-600">Need extra credits? Top up anytime!</p>
-              </div>
+            {/* Pay As You Go Section - Refined */}
+            <div className="mt-20 max-w-4xl mx-auto">
+              <div className="bg-white border border-gray-100 rounded-[2.5rem] p-10 relative overflow-hidden group shadow-sm hover:shadow-notebook transition-all duration-500">
+                <div className="absolute inset-0 bg-gradient-to-br from-notebook-blue/5 to-transparent opacity-50 pointer-events-none"></div>
 
-              <div className="grid md:grid-cols-2 gap-4 mb-4">
-                {/* Small Pack - $5 for 100 */}
-                <div className="bg-white rounded-xl p-4 border border-teal-200">
-                  <div className="flex items-center justify-between mb-3">
-                    <div>
-                      <span className="text-2xl font-bold" style={{ color: '#003a42' }}>$5</span>
-                      <span className="text-gray-500 ml-2">for</span>
-                      <span className="text-xl font-semibold text-[#0D4F5E] ml-2">100 Images</span>
+                <div className="relative z-10 flex flex-col md:flex-row items-center gap-10">
+                  <div className="md:w-1/3 text-center md:text-left space-y-4">
+                    <div className="inline-flex px-3 py-1.5 bg-notebook-orange/10 border border-notebook-orange/20 rounded-full">
+                      <span className="text-[10px] font-bold text-notebook-orange uppercase tracking-widest font-outfit">Pay As You Go</span>
+                    </div>
+                    <h3 className="text-2xl font-bold text-notebook-slate font-outfit italic">Pay As You Go</h3>
+                    <p className="text-sm text-slate-500 leading-relaxed font-normal">Need more credits? Buy them instantly without changing your subscription.</p>
+                  </div>
+
+                  <div className="md:w-2/3 grid sm:grid-cols-2 gap-5 w-full">
+                    {/* Small Pack */}
+                    <div
+                      className="bg-notebook-paper rounded-[2rem] p-6 border border-gray-100 hover:border-notebook-blue/30 transition-all duration-500 group/pack cursor-pointer shadow-sm hover:shadow-notebook-sm"
+                      onClick={() => handlePlanSelection('small_pack', 'Starter Pack', '$5')}
+                    >
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <div className="flex items-baseline gap-1 mb-1">
+                            <span className="text-2xl font-bold text-notebook-slate font-outfit">$5</span>
+                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">ONE-TIME</span>
+                          </div>
+                          <span className="text-[10px] font-bold text-notebook-blue uppercase tracking-widest font-outfit">100 CREDITS</span>
+                        </div>
+                        <div className="w-10 h-10 rounded-2xl bg-white flex items-center justify-center shadow-sm group-hover/pack:scale-110 transition-transform duration-500 border border-gray-100">
+                          <ImageIcon className="w-5 h-5 text-gray-400 group-hover/pack:text-notebook-blue" />
+                        </div>
+                      </div>
+                      <Button variant="ghost" className="w-full text-[10px] font-bold uppercase tracking-widest font-outfit text-gray-500 hover:text-notebook-blue hover:bg-white border border-transparent hover:border-notebook-blue/10">
+                        Buy Credits
+                      </Button>
+                    </div>
+
+                    {/* Credit Pack */}
+                    <div
+                      className="bg-notebook-paper rounded-[2rem] p-6 border border-notebook-orange/20 hover:border-notebook-orange/40 transition-all duration-500 group/pack cursor-pointer shadow-sm hover:shadow-notebook-sm relative"
+                      onClick={() => handlePlanSelection('credit_pack', 'Value Pack', '$10')}
+                    >
+                      <div className="absolute -top-3 right-6 bg-notebook-orange text-white text-[9px] font-bold px-3 py-1 rounded-full shadow-notebook font-outfit uppercase tracking-widest z-10">
+                        Value Pack
+                      </div>
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <div className="flex items-baseline gap-1 mb-1">
+                            <span className="text-2xl font-bold text-notebook-slate font-outfit">$10</span>
+                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">ONE-TIME</span>
+                          </div>
+                          <span className="text-[10px] font-bold text-notebook-blue uppercase tracking-widest font-outfit">250 CREDITS</span>
+                        </div>
+                        <div className="w-10 h-10 rounded-2xl bg-white flex items-center justify-center shadow-sm group-hover/pack:scale-110 transition-transform duration-500 border border-gray-100">
+                          <Rocket className="w-5 h-5 text-gray-400 group-hover/pack:text-notebook-orange" />
+                        </div>
+                      </div>
+                      <Button variant="ghost" className="w-full text-[10px] font-bold uppercase tracking-widest font-outfit text-gray-500 hover:text-notebook-orange hover:bg-white border border-transparent hover:border-notebook-orange/10">
+                        Buy Credits
+                      </Button>
                     </div>
                   </div>
-                  <Button
-                    onClick={() => handlePlanSelection('small_pack', 'Small Pack', '$5')}
-                    className="w-full text-white"
-                    style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
-                  >
-                    Buy 100 Images
-                  </Button>
                 </div>
 
-                {/* Credit Pack - $10 for 250 */}
-                <div className="bg-white rounded-xl p-4 border border-teal-200">
-                  <div className="flex items-center justify-between mb-3">
-                    <div>
-                      <span className="text-2xl font-bold" style={{ color: '#003a42' }}>$10</span>
-                      <span className="text-gray-500 ml-2">for</span>
-                      <span className="text-xl font-semibold text-[#0D4F5E] ml-2">250 Images</span>
-                    </div>
-                  </div>
-                  <Button
-                    onClick={() => handlePlanSelection('credit_pack', 'Credit Pack', '$10')}
-                    className="w-full text-white"
-                    style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
-                  >
-                    Buy 250 Images
-                  </Button>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-2 justify-center">
-                <span className="text-xs bg-teal-100 text-teal-700 px-2 py-1 rounded-full">Never expire</span>
-                <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">Add to existing credits</span>
-                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">Works with any plan</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="text-center mt-12">
-            <p className="text-gray-600">
-              All plans include our advanced AI alt-text generation and multi-language support.
-              <br />
-              Need a custom plan? <Link href="/contact" className="font-medium transition-colors" style={{ color: '#0D4F5E' }} onMouseEnter={(e) => e.currentTarget.style.color = '#003a42'} onMouseLeave={(e) => e.currentTarget.style.color = '#0D4F5E'}>Contact us</Link>
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* Example Alt Text Section */}
-      <section className="py-20 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-gray-900 mb-6">Example Alt Text</h2>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-8">
-            {/* Example 1 */}
-            <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-              <div className="aspect-w-4 aspect-h-3 relative h-48">
-                <img
-                  src="/business-team.jpg"
-                  alt="Business team collaborating around conference table"
-                  className="object-cover w-full h-full"
-                />
-              </div>
-              <div className="p-6">
-                <p className="text-gray-700 text-sm leading-relaxed italic mb-4">
-                  "Business team collaborating around conference table in modern office
-                  with laptops and documents"
-                </p>
-                <div className="flex items-center justify-between">
-                  <Badge variant="secondary" className="bg-green-100 text-green-700">
-                    ✓ Approved
-                  </Badge>
-                  <span className="text-xs text-gray-500">92% Accuracy</span>
+                <div className="flex flex-wrap gap-x-8 gap-y-3 justify-center mt-10 border-t border-gray-100 pt-8">
+                  {[
+                    { icon: Clock, label: "Never expire" },
+                    { icon: Layers, label: "Add to existing pool" },
+                    { icon: CheckCircle, label: "All plan support" }
+                  ].map((item, i) => (
+                    <span key={i} className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                      {/* Simplified labels for space, assuming icons are added to imports if needed, or using check for simplicity */}
+                      <div className="w-1.5 h-1.5 rounded-full bg-notebook-blue/30" />
+                      {item.label}
+                    </span>
+                  ))}
                 </div>
               </div>
             </div>
 
-            {/* Example 2 */}
-            <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-              <div className="aspect-w-4 aspect-h-3 relative h-48">
-                <img
-                  src="/fresh-vegetables.jpg"
-                  alt="Fresh organic vegetables and fruits"
-                  className="object-cover w-full h-full"
-                />
-              </div>
-              <div className="p-6">
-                <p className="text-gray-700 text-sm leading-relaxed italic mb-4">
-                  "Fresh organic vegetables and fruits colorfully arranged at farmers market"
-                </p>
-                <div className="flex items-center justify-between">
-                  <Badge variant="secondary" className="bg-green-100 text-green-700">
-                    ✓ Approved
-                  </Badge>
-                  <span className="text-xs text-gray-500">96% Accuracy</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Example 3 */}
-            <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-              <div className="aspect-w-4 aspect-h-3 relative h-48">
-                <img
-                  src="/mountain-landscape.jpg"
-                  alt="Snow-capped mountain peaks"
-                  className="object-cover w-full h-full"
-                />
-              </div>
-              <div className="p-6">
-                <p className="text-gray-700 text-sm leading-relaxed italic mb-4">
-                  &quot;Snow-capped mountain peaks reflecting in pristine alpine lake during golden hour&quot;
-                </p>
-                <div className="flex items-center justify-between">
-                  <Badge variant="secondary" className="bg-green-100 text-green-700">
-                    ✓ Approved
-                  </Badge>
-                  <span className="text-xs text-gray-500">94% Accuracy</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Call to Action */}
-      <section className="py-20" style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}>
-        <div className="max-w-4xl mx-auto text-center px-4 sm:px-6 lg:px-8">
-          <h2 className="text-4xl font-bold text-white mb-6">
-            Start your free trial today
-          </h2>
-          <p className="text-xl mb-8" style={{ color: 'rgba(255, 255, 255, 0.95)' }}>
-            First 100 images alt text. No credit card required.
-          </p>
-
-          <Button
-            size="lg"
-            className="bg-white hover:bg-gray-50 font-semibold px-8 py-4 text-lg rounded-lg transition-colors"
-            style={{ color: '#003a42' }}
-            onClick={() => {
-              setIsLogin(false);
-              setShowAuthForm(true);
-            }}
-          >
-            Start Free Trial
-          </Button>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <Footer />
-
-      {/* Auth Modal */}
-      {showAuthForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl">
-            <div className="text-center mb-6">
-              <h3 className="text-2xl font-bold text-gray-900 mb-2">
-                {isLogin ? "Sign In" : "Get Started"}
-              </h3>
-              <p className="text-gray-600">
-                {isLogin ? "Welcome back! Sign in to your account" : "Sign up for your free trial"}
+            <div className="text-center mt-16 relative z-10">
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+                All plans include advanced AI alt text generation and multi-language support.
+                <br className="hidden md:block" />
+                <span className="mt-4 inline-block">Need enterprise-grade volume? <Link href="/contact" className="text-notebook-blue hover:underline">Contact Our Sales Team</Link></span>
               </p>
             </div>
+          </div>
+        </section >
 
-            <form onSubmit={handleEmailAuth} className="space-y-4">
-              <div>
-                <Input
-                  type="email"
-                  placeholder="Enter your email address"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="h-12 text-base"
-                  required
-                />
+        {/* Example Showcase Section - Warmer Research Hub Style */}
+        <section id="showcase" className="py-32 bg-white relative overflow-hidden border-t border-notebook-blue/5">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+            <div className="text-center mb-20 space-y-4">
+              <div className="inline-flex px-3 py-1 bg-notebook-blue/5 rounded-full border border-notebook-blue/10">
+                <span className="text-[10px] font-bold text-notebook-blue uppercase tracking-widest font-outfit">Real-time Previews</span>
               </div>
-              <div>
-                <Input
-                  type="password"
-                  placeholder={isLogin ? "Enter your password" : "Create a password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="h-12 text-base"
-                  required
-                  minLength={6}
-                />
+              <h2 className="text-4xl lg:text-6xl font-bold text-notebook-slate tracking-tight font-outfit mb-6">
+                See Results <span className="text-notebook-blue italic">in Action.</span>
+              </h2>
+              <p className="text-slate-500 max-w-2xl mx-auto font-normal">Preview the high-quality, SEO-optimized alt text generated by our AI.</p>
+            </div>
+
+            <div className="grid md:grid-cols-3 gap-8">
+              {/* Research Entry 1 */}
+              <div className="bg-notebook-paper border border-notebook-blue/5 rounded-[2.5rem] overflow-hidden group hover:shadow-notebook transition-all duration-500 flex flex-col">
+                <div className="relative h-64 overflow-hidden">
+                  <Image
+                    src="/business-team.jpg"
+	                    alt="Alt Text Preview"
+	                    fill
+	                    sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
+	                    className="object-cover transition-transform duration-1000 group-hover:scale-110"
+                  />
+                  <div className="absolute inset-0 bg-notebook-slate/10 group-hover:bg-transparent transition-colors duration-500"></div>
+                  <div className="absolute top-4 left-4">
+                    <Badge className="bg-white/90 backdrop-blur-sm text-notebook-slate border-none text-[9px] font-bold px-2 py-1 rounded-lg shadow-sm">ENTRY #1024</Badge>
+                  </div>
+                </div>
+                <div className="p-10 flex-1 flex flex-col">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-2 h-2 rounded-full bg-notebook-blue animate-pulse"></div>
+                    <span className="text-[10px] font-bold text-notebook-blue uppercase tracking-widest font-outfit">SEO Optimized</span>
+                  </div>
+                  <p className="text-notebook-slate font-medium leading-relaxed mb-8 italic text-sm flex-1">
+                    "Group of diverse professionals collaborating around a light-filled office table, emphasizing teamwork and shared digital strategy."
+                  </p>
+                  <div className="pt-6 border-t border-notebook-blue/5 flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <CheckCircle className="w-3.5 h-3.5 text-notebook-blue" />
+                      <span className="text-[10px] font-bold text-notebook-slate uppercase tracking-widest font-outfit">Generated Alt Text</span>
+                    </div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">98% Accuracy</span>
+                  </div>
+                </div>
               </div>
-              <Button
-                type="submit"
-                disabled={isLoading}
-                className="w-full h-12 bg-purple-600 hover:bg-purple-700 text-white font-semibold text-base"
+
+              {/* Research Entry 2 */}
+              <div className="bg-notebook-paper border border-notebook-orange/10 rounded-[2.5rem] overflow-hidden group hover:shadow-notebook transition-all duration-500 flex flex-col md:-translate-y-4">
+                <div className="relative h-64 overflow-hidden">
+                  <Image
+                    src="/fresh-vegetables.jpg"
+	                    alt="Alt Text Preview"
+	                    fill
+	                    sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
+	                    className="object-cover transition-transform duration-1000 group-hover:scale-110"
+                  />
+                  <div className="absolute inset-0 bg-notebook-slate/10 group-hover:bg-transparent transition-colors duration-500"></div>
+                  <div className="absolute top-4 left-4">
+                    <Badge className="bg-white/90 backdrop-blur-sm text-notebook-slate border-none text-[9px] font-bold px-2 py-1 rounded-lg shadow-sm">ENTRY #1025</Badge>
+                  </div>
+                </div>
+                <div className="p-10 flex-1 flex flex-col">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-2 h-2 rounded-full bg-notebook-orange animate-pulse"></div>
+                    <span className="text-[10px] font-bold text-notebook-orange uppercase tracking-widest font-outfit">SEO Optimized</span>
+                  </div>
+                  <p className="text-notebook-slate font-medium leading-relaxed mb-8 italic text-sm flex-1">
+                    "Fresh organic vegetables and fruits colorfully arranged at farmers market, capturing natural textures and vibrant agricultural diversity."
+                  </p>
+                  <div className="pt-6 border-t border-notebook-orange/10 flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <CheckCircle className="w-3.5 h-3.5 text-notebook-orange" />
+                      <span className="text-[10px] font-bold text-notebook-slate uppercase tracking-widest font-outfit">Generated Alt Text</span>
+                    </div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">96% Accuracy</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Research Entry 3 */}
+              <div className="bg-notebook-paper border border-notebook-blue/5 rounded-[2.5rem] overflow-hidden group hover:shadow-notebook transition-all duration-500 flex flex-col">
+                <div className="relative h-64 overflow-hidden">
+                  <Image
+                    src="/mountain-landscape.jpg"
+	                    alt="Alt Text Preview"
+	                    fill
+	                    sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
+	                    className="object-cover transition-transform duration-1000 group-hover:scale-110"
+                  />
+                  <div className="absolute inset-0 bg-notebook-slate/10 group-hover:bg-transparent transition-colors duration-500"></div>
+                  <div className="absolute top-4 left-4">
+                    <Badge className="bg-white/90 backdrop-blur-sm text-notebook-slate border-none text-[9px] font-bold px-2 py-1 rounded-lg shadow-sm">ENTRY #1026</Badge>
+                  </div>
+                </div>
+                <div className="p-10 flex-1 flex flex-col">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-2 h-2 rounded-full bg-notebook-blue animate-pulse"></div>
+                    <span className="text-[10px] font-bold text-notebook-blue uppercase tracking-widest font-outfit">SEO Optimized</span>
+                  </div>
+                  <p className="text-notebook-slate font-medium leading-relaxed mb-8 italic text-sm flex-1">
+                    "Snow-capped mountain peaks reflecting in pristine alpine lake during golden hour, showcasing atmospheric depth and natural clarity."
+                  </p>
+                  <div className="pt-6 border-t border-notebook-blue/5 flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <CheckCircle className="w-3.5 h-3.5 text-notebook-blue" />
+                      <span className="text-[10px] font-bold text-notebook-slate uppercase tracking-widest font-outfit">Generated Alt Text</span>
+                    </div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">94% Accuracy</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* CTA Section - Research Protocol Initiation */}
+        <section className="py-32 bg-notebook-paper relative overflow-hidden border-t border-notebook-blue/5">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+            <div className="bg-white border border-notebook-blue/10 rounded-[3rem] p-12 md:p-20 text-center shadow-notebook-lg relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-notebook-blue/5 blur-[100px] rounded-full pointer-events-none"></div>
+
+              <div className="relative z-10 space-y-10">
+                <div className="inline-flex px-4 py-2 bg-notebook-blue/5 rounded-full">
+                  <span className="text-xs font-bold text-notebook-blue uppercase tracking-widest font-outfit">Immediate Deployment</span>
+                </div>
+                <h2 className="text-4xl md:text-6xl font-bold text-notebook-slate tracking-tight font-outfit leading-[1.1]">
+                  Start Your <br />
+                  <span className="text-notebook-blue italic">Accessibility Journey.</span>
+                </h2>
+                <p className="text-xl text-slate-500 font-normal max-w-2xl mx-auto leading-relaxed">
+                  Get started with 30 free AI-powered alt text generations. No credit card required. Experience effortless image accessibility.
+                </p>
+
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-6 pt-4">
+                  <Button
+                    size="lg"
+                    className="h-16 px-12 bg-notebook-blue hover:bg-notebook-blue/90 text-white rounded-2xl font-bold font-outfit text-sm uppercase tracking-widest shadow-notebook hover:-translate-y-1 transition-all duration-300"
+                    onClick={() => { setIsLogin(false); setShowAuthForm(true); }}
+                  >
+                    Start Free Trial
+                  </Button>
+                  <Link href="#pricing" className="text-xs font-bold text-notebook-slate/60 hover:text-notebook-blue uppercase tracking-widest transition-colors font-outfit group border-b border-transparent hover:border-notebook-blue pb-1">
+                    View Pricing
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Footer */}
+        < Footer />
+
+        {/* Auth Modal - Focused Depth Look */}
+        {showAuthForm && (
+          <div className="fixed inset-0 bg-notebook-slate/60 backdrop-blur-md flex items-center justify-center z-50 p-4 transition-all duration-500">
+            <div className="bg-white rounded-[2rem] sm:rounded-[2.5rem] max-w-md w-full p-6 sm:p-8 shadow-notebook-lg relative overflow-y-auto max-h-[95vh] border border-notebook-blue/5 animate-in fade-in zoom-in-95 duration-300">
+              <button
+                onClick={() => setShowAuthForm(false)}
+                className="absolute top-6 right-6 text-slate-300 hover:text-notebook-slate transition-colors p-2 hover:bg-slate-50 rounded-xl"
               >
-                {isLoading ? (
-                  <>
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                    {isLogin ? "Signing in..." : "Creating account..."}
-                  </>
+                <X className="w-5 h-5" />
+              </button>
+              <div className="text-center mb-5 mt-2">
+                <h3 className="text-2xl font-bold text-notebook-slate tracking-tight font-outfit mb-1.5">
+                  {isLogin ? "Welcome Back" : "Create Your Account"}
+                </h3>
+                <p className="text-sm text-slate-500 font-normal leading-relaxed">
+                  {isLogin ? "Log in to your dashboard." : "Sign up for Alt Text Pro."}
+                </p>
+              </div>
+
+              <form onSubmit={handleEmailAuth} className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-notebook-slate/40 uppercase tracking-widest ml-1">Work Email</label>
+                  <Input
+                    type="email"
+                    placeholder="you@company.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="h-14 bg-notebook-paper border-none text-notebook-slate placeholder:text-slate-300 rounded-2xl focus:ring-2 focus:ring-notebook-blue/20 transition-all font-medium"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-notebook-slate/40 uppercase tracking-widest ml-1">Password</label>
+                  <Input
+                    type="password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="h-14 bg-notebook-paper border-none text-notebook-slate placeholder:text-slate-300 rounded-2xl focus:ring-2 focus:ring-notebook-blue/20 transition-all font-medium"
+                    required
+                    minLength={6}
+                  />
+                </div>
+                <Button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full h-12 bg-notebook-blue hover:bg-notebook-blue/90 text-white font-bold rounded-2xl shadow-notebook transition-all duration-300 hover:-translate-y-1 uppercase tracking-widest text-xs font-outfit"
+                >
+                  {isLoading ? (
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                  ) : (
+                    isLogin ? "Log In" : "Create Account"
+                  )}
+                </Button>
+              </form>
+
+              <div className="relative my-5">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-notebook-blue/5"></div>
+                </div>
+                <div className="relative flex justify-center text-[10px] font-bold uppercase tracking-widest">
+                  <span className="px-4 text-slate-400 bg-white">Google Sign In</span>
+                </div>
+              </div>
+
+              <Button
+                onClick={handleGoogleAuth}
+                disabled={isGoogleLoading}
+                variant="outline"
+                className="w-full h-12 border-notebook-blue/10 bg-notebook-paper hover:bg-white hover:text-notebook-blue text-notebook-slate rounded-2xl transition-all duration-300 flex items-center justify-center gap-3 font-bold font-outfit text-xs uppercase tracking-widest"
+              >
+                {isGoogleLoading ? (
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-notebook-blue"></div>
                 ) : (
-                  isLogin ? "Sign In" : "Start Free Trial"
+                  <>
+                    <Chrome className="w-4 h-4 text-notebook-blue" />
+                    Google Sign In
+                  </>
                 )}
               </Button>
-            </form>
 
-            <div className="relative my-6">
-              <Separator />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="bg-white px-2 text-sm text-gray-500">or</span>
-              </div>
-            </div>
-
-            <Button
-              onClick={handleGoogleAuth}
-              disabled={isGoogleLoading}
-              variant="outline"
-              className="w-full h-12 text-base font-semibold border-2 transition-colors"
-              style={{
-                borderColor: '#003a42',
-                color: '#003a42',
-                backgroundColor: 'transparent'
-              }}
-            >
-              {isGoogleLoading ? (
-                <>
-                  <Chrome className="mr-2 h-5 w-5" style={{ color: '#003a42' }} />
-                  Connecting...
-                </>
-              ) : (
-                <>
-                  <Chrome className="mr-2 h-5 w-5" style={{ color: '#003a42' }} />
-                  Continue with Google
-                </>
-              )}
-            </Button>
-
-            <div className="text-center mt-6 space-y-2">
-              <button
-                type="button"
-                onClick={() => setIsLogin(!isLogin)}
-                className="text-sm font-medium transition-colors"
-                style={{ color: '#0D4F5E' }}
-              >
-                {isLogin
-                  ? "Don't have an account? Sign up"
-                  : "Already have an account? Sign in"}
-              </button>
-              <div className="pt-2">
+              <div className="text-center mt-6 space-y-3">
                 <button
                   type="button"
-                  onClick={() => setShowAuthForm(false)}
-                  className="text-gray-500 hover:text-gray-700 text-sm"
+                  onClick={() => setIsLogin(!isLogin)}
+                  className="text-[10px] font-bold text-notebook-slate/40 hover:text-notebook-blue uppercase tracking-widest transition-colors font-outfit"
                 >
-                  Cancel
+                  {isLogin
+                    ? "Need an account? Sign up here"
+                    : "Already have an account? Log in"}
                 </button>
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAuthForm(false)}
+                    className="text-[10px] font-bold text-slate-300 hover:text-notebook-orange uppercase tracking-widest transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Payment Modal */}
-      {showPaymentModal && selectedPlan && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl">
-            <div className="text-center mb-6">
-              <h3 className="text-2xl font-bold text-gray-900 mb-2">
-                Complete Your Purchase
-              </h3>
-              <p className="text-gray-600 mb-4">
-                You selected: {selectedPlan.name}
-              </p>
-              <div className="text-3xl font-bold mb-4" style={{ color: '#003a42' }}>
-                {selectedPlan.price}
+        {/* Payment Modal - Focused Depth Look */}
+        {showPaymentModal && selectedPlan && (
+          <div className="fixed inset-0 bg-notebook-slate/60 backdrop-blur-md flex items-center justify-center z-50 p-4 transition-all duration-500">
+            <div className="bg-white rounded-[2rem] sm:rounded-[2.5rem] max-w-md w-full p-6 sm:p-8 shadow-notebook-lg relative overflow-y-auto max-h-[95vh] border border-notebook-blue/5 animate-in fade-in zoom-in-95 duration-300">
+              <button
+                onClick={() => { setShowPaymentModal(false); setSelectedPlan(null); }}
+                className="absolute top-6 right-6 text-slate-300 hover:text-notebook-slate transition-colors p-2 hover:bg-slate-50 rounded-xl"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              <div className="text-center mb-5 mt-2">
+                <h3 className="text-2xl font-bold text-notebook-slate tracking-tight font-outfit mb-1.5">
+                  Upgrade Your Subscription
+                </h3>
+                <p className="text-sm text-slate-500 font-normal leading-relaxed">
+                  Selected Plan: <span className="text-notebook-blue font-bold">{selectedPlan.name}</span>
+                </p>
+              </div>
+
+              <div className="bg-notebook-paper rounded-xl p-4 mb-6 text-center border border-notebook-blue/5">
+                <div className="text-3xl font-bold text-notebook-slate font-outfit mb-0.5">
+                  {selectedPlan.price}
+                </div>
                 {selectedPlan.id !== 'free' && selectedPlan.id !== 'pay_as_go' && (
-                  <span className="text-lg text-gray-500">/month</span>
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                    BILLED MONTHLY / ANNUALLY
+                  </div>
                 )}
               </div>
-            </div>
 
-            {selectedPlan.id === 'free' ? (
-              <div className="text-center">
-                <p className="text-gray-600 mb-4">
-                  You already have access to the free plan!
-                </p>
-                <Button
-                  onClick={() => {
-                    setShowPaymentModal(false);
-                    setSelectedPlan(null);
-                    window.location.href = "/dashboard";
-                  }}
-                  className="w-full text-white"
-                  style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
-                >
-                  Go to Dashboard
-                </Button>
-              </div>
-            ) : (
-              <div>
-                <div className="mb-6">
-                  <h4 className="font-semibold text-gray-900 mb-3">Plan includes:</h4>
-                  <div className="space-y-2">
-                    {selectedPlan.id === 'tier1' && (
-                      <>
-                        <div className="flex items-center">
-                          <Check className="h-4 w-4 text-green-500 mr-2" />
-                          <span className="text-[13px] text-gray-700">150 Credits/month</span>
+              {selectedPlan.id === 'free' ? (
+                <div className="text-center">
+                  <p className="text-sm text-slate-500 mb-6 font-normal">
+                    You are currently on the free plan.
+                  </p>
+                  <Button
+                    onClick={() => { setShowPaymentModal(false); setSelectedPlan(null); window.location.href = "/dashboard"; }}
+                    className="w-full h-12 bg-notebook-blue hover:bg-notebook-blue/90 text-white font-bold rounded-2xl shadow-notebook transition-all duration-300 uppercase tracking-widest text-xs font-outfit"
+                  >
+                    Return to Dashboard
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  <div className="space-y-3">
+                    <h4 className="text-[10px] font-bold text-notebook-slate/40 uppercase tracking-widest ml-1">What's Included</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {(selectedPlan.id === 'tier1' ? [
+                        "150 Monthly Credits", "Auto-Pilot Analysis", "High-Fidelity AI", "Standard Support"
+                      ] : selectedPlan.id === 'tier2' ? [
+                        "400 Monthly Credits", "Bulk Library Optimization", "Multi-Language (130+)", "SEO Compliance", "Priority Support"
+                      ] : selectedPlan.id === 'tier3' ? [
+                        "1,000 Monthly Credits", "Context-Aware Generation", "Full Auto-Pilot Suite", "Custom API Access", "24/7 Strategic Support"
+                      ] : selectedPlan.id === 'small_pack' ? [
+                        "100 Credit Injection", "On-Demand Resource", "Never Expires", "Immediate Utility"
+                      ] : [
+                        "250 Credit Injection", "Efficiency Pack Bonus", "Never Expires", "Strategic Utility"
+                      ]).map((item, i) => (
+                        <div key={i} className="flex items-center gap-2 bg-notebook-paper/50 px-3 py-2 rounded-xl border border-notebook-blue/5">
+                          <Check className="h-3.5 w-3.5 text-notebook-blue" />
+                          <span className="text-[10px] font-bold text-notebook-slate/80 uppercase tracking-widest">{item}</span>
                         </div>
-                        <div className="flex items-center">
-                          <Check className="h-4 w-4 text-green-500 mr-2" />
-                          <span className="text-[13px] text-gray-700">Auto-Describe on Upload</span>
-                        </div>
-                        <div className="flex items-center">
-                          <Check className="h-4 w-4 text-green-500 mr-2" />
-                          <span className="text-[13px] text-gray-700">High-Accuracy Visual AI</span>
-                        </div>
-                        <div className="flex items-center">
-                          <Check className="h-4 w-4 text-green-500 mr-2" />
-                          <span className="text-[13px] text-gray-700">Standard Email Support</span>
-                        </div>
-                      </>
-                    )}
-                    {selectedPlan.id === 'tier2' && (
-                      <>
-                        <div className="flex items-center">
-                          <Check className="h-4 w-4 text-green-500 mr-2" />
-                          <span className="text-[13px] text-gray-700">400 Credits/month</span>
-                        </div>
-                        <div className="flex items-center">
-                          <Check className="h-4 w-4 text-green-500 mr-2" />
-                          <span className="text-[13px] text-gray-700">Bulk One-Click Library Fix</span>
-                        </div>
-                        <div className="flex items-center">
-                          <Check className="h-4 w-4 text-green-500 mr-2" />
-                          <span className="text-[13px] text-gray-700">Multi-Language AI (130+)</span>
-                        </div>
-                        <div className="flex items-center">
-                          <Check className="h-4 w-4 text-green-500 mr-2" />
-                          <span className="text-[13px] text-gray-700">SEO & WCAG Compliance</span>
-                        </div>
-                        <div className="flex items-center">
-                          <Check className="h-4 w-4 text-green-500 mr-2" />
-                          <span className="text-[13px] text-gray-700">Priority Support</span>
-                        </div>
-                      </>
-                    )}
-                    {selectedPlan.id === 'tier3' && (
-                      <>
-                        <div className="flex items-center">
-                          <Check className="h-4 w-4 text-green-500 mr-2" />
-                          <span className="text-[13px] text-gray-700">1,000 Credits/month</span>
-                        </div>
-                        <div className="flex items-center">
-                          <Check className="h-4 w-4 text-green-500 mr-2" />
-                          <span className="text-[13px] text-gray-700">Advanced Context-Aware AI</span>
-                        </div>
-                        <div className="flex items-center">
-                          <Check className="h-4 w-4 text-green-500 mr-2" />
-                          <span className="text-[13px] text-gray-700">Full Auto-Pilot Workflow</span>
-                        </div>
-                        <div className="flex items-center">
-                          <Check className="h-4 w-4 text-green-500 mr-2" />
-                          <span className="text-[13px] text-gray-700">Custom Post Type Support</span>
-                        </div>
-                        <div className="flex items-center">
-                          <Check className="h-4 w-4 text-green-500 mr-2" />
-                          <span className="text-[13px] text-gray-700">Premium 24/7 Support</span>
-                        </div>
-                      </>
-                    )}
-                    {selectedPlan.id === 'small_pack' && (
-                      <>
-                        <div className="flex items-center">
-                          <Check className="h-4 w-4 text-green-500 mr-2" />
-                          <span className="text-[13px] text-gray-700">100 Credits (one-time)</span>
-                        </div>
-                        <div className="flex items-center">
-                          <Check className="h-4 w-4 text-green-500 mr-2" />
-                          <span className="text-[13px] text-gray-700">No monthly commitment</span>
-                        </div>
-                        <div className="flex items-center">
-                          <Check className="h-4 w-4 text-green-500 mr-2" />
-                          <span className="text-[13px] text-gray-700">Standard support</span>
-                        </div>
-                      </>
-                    )}
-                    {selectedPlan.id === 'credit_pack' && (
-                      <>
-                        <div className="flex items-center">
-                          <Check className="h-4 w-4 text-green-500 mr-2" />
-                          <span className="text-[13px] text-gray-700">250 Credits (one-time)</span>
-                        </div>
-                        <div className="flex items-center">
-                          <Check className="h-4 w-4 text-green-500 mr-2" />
-                          <span className="text-sm text-gray-700">No monthly commitment</span>
-                        </div>
-                        <div className="flex items-center">
-                          <Check className="h-4 w-4 text-green-500 mr-2" />
-                          <span className="text-sm text-gray-700">Standard support</span>
-                        </div>
-                      </>
-                    )}
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <Button
+                      onClick={() => handlePurchase(selectedPlan.id)}
+                      disabled={isLoading}
+                      className="w-full h-12 sm:h-14 bg-notebook-blue hover:bg-notebook-blue/90 text-white font-bold rounded-2xl shadow-notebook transition-all duration-300 hover:-translate-y-1 uppercase tracking-widest text-xs font-outfit"
+                    >
+                      {isLoading ? (
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                      ) : (
+                        `Upgrade to ${selectedPlan.name}`
+                      )}
+                    </Button>
+
+                    <button
+                      onClick={() => { setShowPaymentModal(false); setSelectedPlan(null); }}
+                      className="w-full text-[10px] font-bold text-slate-400 hover:text-notebook-slate uppercase tracking-widest transition-colors py-2"
+                    >
+                      Cancel Upgrade
+                    </button>
+
+                    <div className="text-center flex items-center justify-center gap-2 opacity-40 grayscale group-hover:grayscale-0 transition-all">
+                      <Shield className="h-3 w-3" />
+                      <span className="text-[8px] font-bold uppercase tracking-[0.2em]">Secure checkout by Polar.sh</span>
+                    </div>
                   </div>
                 </div>
-
-                <div className="mb-6">
-                  {/* Polar.sh Checkout Button */}
-                  <Button
-                    onClick={() => {
-                      const productId = getPolarProductId(selectedPlan.id, billingCycle);
-                      redirectToCheckout(productId, user?.email);
-                    }}
-                    className="w-full h-12 text-white font-semibold"
-                    style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
-                  >
-                    Continue to Checkout
-                  </Button>
-                  <p className="text-xs text-gray-500 text-center mt-2">
-                    You will be redirected to our secure payment processor
-                  </p>
-                </div>
-
-                <div className="flex space-x-3">
-                  <Button
-                    onClick={() => {
-                      setShowPaymentModal(false);
-                      setSelectedPlan(null);
-                    }}
-                    variant="outline"
-                    className="flex-1"
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div >
+    </div >
   );
 }

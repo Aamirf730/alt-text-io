@@ -10,6 +10,7 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { PLUGIN_VERSION } from '@/lib/utils';
 
 export default function DocsPage() {
     const [activeSection, setActiveSection] = useState('getting-started');
@@ -138,8 +139,8 @@ export default function DocsPage() {
                                     <div className="bg-teal-50 border-l-4 border-teal-500 p-6 rounded-lg my-6">
                                         <ol className="list-decimal list-inside space-y-3 text-gray-700">
                                             <li><strong>Sign up for free</strong> at <a href="https://www.alt-text.pro" className="text-teal-600 hover:underline">alt-text.pro</a> and get 30 free credits</li>
-                                            <li><strong>Get your API key</strong> from your dashboard</li>
-                                            <li><strong>Install the WordPress plugin</strong> or use our API to start generating alt-text</li>
+                                            <li><strong>Install the WordPress plugin</strong> from your dashboard or WordPress.org</li>
+                                            <li><strong>Click Connect to Alt Text Pro</strong> in WordPress to link your account automatically</li>
                                         </ol>
                                     </div>
                                 </div>
@@ -156,49 +157,56 @@ export default function DocsPage() {
                                     <p className="text-gray-700 mb-4">
                                         Visit <a href="https://www.alt-text.pro" className="text-teal-600 hover:underline">www.alt-text.pro</a> and sign up for a free account. You'll receive 30 credits to get started - no credit card required.
                                     </p>
-                                    <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#003a42' }}>Step 2: Get Your API Key</h3>
-                                    <ol className="list-decimal list-inside space-y-2 text-gray-700 mb-4">
-                                        <li>Log in to your dashboard at <a href="https://www.alt-text.pro/dashboard" className="text-teal-600 hover:underline">alt-text.pro/dashboard</a></li>
-                                        <li>Your API key is displayed on the dashboard</li>
-                                        <li>Click the copy button to copy your API key</li>
-                                        <li>Keep your API key secure - treat it like a password</li>
-                                    </ol>
-                                    <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#003a42' }}>Step 3: Install WordPress Plugin</h3>
+                                    <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#003a42' }}>Step 2: Install WordPress Plugin</h3>
                                     <div className="bg-gray-50 p-6 rounded-lg my-4">
-                                        <h4 className="font-semibold mb-3">Method 1: Download from Dashboard (Recommended)</h4>
+                                        <h4 className="font-semibold mb-3">Method 1: WordPress.org Directory</h4>
                                         <ol className="list-decimal list-inside space-y-2 text-gray-700">
-                                            <li>Go to your dashboard and click "Download Plugin"</li>
-                                            <li>In WordPress admin, go to <strong>Plugins → Add New → Upload Plugin</strong></li>
-                                            <li>Choose the downloaded zip file and click "Install Now"</li>
-                                            <li>Activate the plugin after installation</li>
+                                            <li>In WordPress admin, go to <strong>Plugins -&gt; Add New</strong></li>
+                                            <li>Search for <strong>AI Alt Text Pro</strong></li>
+                                            <li>Click <strong>Install Now</strong>, then <strong>Activate</strong></li>
                                         </ol>
                                     </div>
                                     <div className="bg-gray-50 p-6 rounded-lg my-4">
-                                        <h4 className="font-semibold mb-3">Method 2: Manual Installation</h4>
+                                        <h4 className="font-semibold mb-3">Method 2: Download from Dashboard</h4>
                                         <ol className="list-decimal list-inside space-y-2 text-gray-700">
-                                            <li>Download the plugin from <a href="https://www.alt-text.pro/wordpress-plugin/alt-text-pro-plugin-1.4.76.zip" className="text-teal-600 hover:underline">alt-text.pro/wordpress-plugin/alt-text-pro-plugin-1.4.76.zip</a></li>
-                                            <li>Extract the zip file</li>
-                                            <li>Upload the <code className="bg-gray-200 px-2 py-1 rounded">alt-text-pro</code> folder to <code className="bg-gray-200 px-2 py-1 rounded">/wp-content/plugins/</code></li>
-                                            <li>Go to <strong>Plugins</strong> in WordPress admin and activate <strong>Alt Text Pro</strong></li>
+                                            <li>Go to your dashboard and click <strong>Download Plugin</strong></li>
+                                            <li>In WordPress admin, go to <strong>Plugins -&gt; Add New -&gt; Upload Plugin</strong></li>
+                                            <li>Choose the downloaded zip file and click <strong>Install Now</strong></li>
+                                            <li>Activate the plugin after installation</li>
+                                        </ol>
+                                    </div>
+                                    <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#003a42' }}>Step 3: Connect Your Site</h3>
+                                    <ol className="list-decimal list-inside space-y-2 text-gray-700 mb-4">
+                                        <li>In WordPress admin, go to <strong>Alt Text Pro</strong></li>
+                                        <li>Click <strong>Connect to Alt Text Pro</strong></li>
+                                        <li>Sign in or create your free account</li>
+                                        <li>The plugin saves your API key automatically and returns you to WordPress</li>
+                                    </ol>
+                                    <div className="bg-gray-50 p-6 rounded-lg my-4">
+                                        <h4 className="font-semibold mb-3">Manual API Key Fallback</h4>
+                                        <ol className="list-decimal list-inside space-y-2 text-gray-700">
+                                            <li>Log in to your dashboard at <a href="https://www.alt-text.pro/dashboard" className="text-teal-600 hover:underline">alt-text.pro/dashboard</a></li>
+                                            <li>Copy your API key from the API Key section</li>
+                                            <li>Paste it into <strong>Alt Text Pro -&gt; Settings</strong> in WordPress</li>
+                                            <li>Click <strong>Test Connection</strong> before running bulk processing</li>
                                         </ol>
                                     </div>
                                     <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#003a42' }}>Step 4: Configure the Plugin</h3>
                                     <ol className="list-decimal list-inside space-y-2 text-gray-700 mb-4">
                                         <li>In WordPress admin, go to <strong>Alt Text Pro → Settings</strong></li>
-                                        <li>Paste your API key in the <strong>API Key</strong> field</li>
-                                        <li>Click <strong>Test Connection</strong> to verify it works</li>
+                                        <li>Confirm the connection status is active</li>
                                         <li>Configure your preferences:
                                             <ul className="list-disc list-inside ml-6 mt-2 space-y-1">
                                                 <li><strong>Auto-generate:</strong> Enable to generate alt-text automatically when uploading images</li>
                                                 <li><strong>Overwrite existing:</strong> Choose whether to replace existing alt-text</li>
                                                 <li><strong>Context-aware:</strong> Enable for better descriptions using page context</li>
-                                                <li><strong>Batch size:</strong> Set how many images to process at once (default: 10)</li>
+                                                <li><strong>Batch size:</strong> Set how many images to process at once (default: 2)</li>
                                             </ul>
                                         </li>
                                         <li>Click <strong>Save Settings</strong></li>
                                     </ol>
-                                    <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-lg my-4">
-                                        <p className="text-blue-800"><strong>Note:</strong> The plugin requires WordPress 5.0+ and PHP 7.4+.</p>
+                                    <div className="bg-notebook-teal/10 border-l-4 border-[#0D4F5E] p-4 rounded-lg my-4">
+                                        <p className="text-[#0D4F5E]"><strong>Note:</strong> The plugin requires WordPress 5.0+ and PHP 7.4+.</p>
                                     </div>
                                 </div>
                             </section>
@@ -281,7 +289,7 @@ export default function DocsPage() {
                                                 <li><strong>Process selected images:</strong> Choose specific images from media library</li>
                                             </ul>
                                         </li>
-                                        <li>Set batch size (recommended: 10-20 for best performance)</li>
+                                        <li>Use the saved batch size from Settings; lower values are more reliable on shared hosting</li>
                                         <li>Click <strong>Start Processing</strong> and monitor progress</li>
                                         <li>Review generated alt-text and edit as needed</li>
                                     </ol>
@@ -369,7 +377,7 @@ export default function DocsPage() {
                                 </h2>
                                 <div className="prose max-w-none">
                                     <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#003a42' }}>Pricing Plans</h3>
-                                    <div className="grid md:grid-cols-3 gap-6 my-6">
+                                    <div className="grid md:grid-cols-4 gap-6 my-6">
                                         <Card className="p-6 border-2">
                                             <h4 className="text-xl font-bold mb-2">Free</h4>
                                             <div className="text-3xl font-bold mb-4" style={{ color: '#003a42' }}>$0</div>
@@ -377,6 +385,15 @@ export default function DocsPage() {
                                                 <li className="flex items-center text-sm"><Check className="h-4 w-4 mr-2 text-green-500" /> 30 Free SEO Alt Texts</li>
                                                 <li className="flex items-center text-sm"><Check className="h-4 w-4 mr-2 text-green-500" /> Full WordPress Plugin</li>
                                                 <li className="flex items-center text-sm"><Check className="h-4 w-4 mr-2 text-green-500" /> Media Library Sync</li>
+                                            </ul>
+                                        </Card>
+                                        <Card className="p-6 border-2">
+                                            <h4 className="text-xl font-bold mb-2">Lite</h4>
+                                            <div className="text-3xl font-bold mb-4" style={{ color: '#003a42' }}>$3<span className="text-sm text-gray-500">/mo</span></div>
+                                            <ul className="space-y-2 text-gray-700 mb-4">
+                                                <li className="flex items-center text-sm"><Check className="h-4 w-4 mr-2 text-green-500" /> 150 Credits</li>
+                                                <li className="flex items-center text-sm"><Check className="h-4 w-4 mr-2 text-green-500" /> Auto-generate on upload</li>
+                                                <li className="flex items-center text-sm"><Check className="h-4 w-4 mr-2 text-green-500" /> Standard support</li>
                                             </ul>
                                         </Card>
                                         <Card className="p-6 border-2 border-teal-500">
@@ -399,6 +416,7 @@ export default function DocsPage() {
                                             </ul>
                                         </Card>
                                     </div>
+                                    <p className="text-gray-700 mb-4">Annual billing is available at $30/year for Lite, $48/year for Standard, and $86/year for Pro. One-time credit packs are also available: $5 for 100 credits or $10 for 250 credits.</p>
                                     <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#003a42' }}>Credit System</h3>
                                     <p className="text-gray-700 mb-4">Each alt-text generation consumes <strong>1 credit</strong>. Credits are used when:</p>
                                     <ul className="list-disc list-inside space-y-2 text-gray-700 mb-4">
@@ -406,8 +424,8 @@ export default function DocsPage() {
                                         <li>Regenerating alt-text for an existing image (if overwrite is enabled)</li>
                                         <li>Using the API to generate alt-text</li>
                                     </ul>
-                                    <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-lg my-4">
-                                        <p className="text-blue-800"><strong>Note:</strong> Failed generations (due to errors) do not consume credits.</p>
+                                    <div className="bg-notebook-teal/10 border-l-4 border-[#0D4F5E] p-4 rounded-lg my-4">
+                                        <p className="text-[#0D4F5E]"><strong>Note:</strong> Failed generations (due to errors) do not consume credits.</p>
                                     </div>
                                     <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#003a42' }}>Upgrading Your Plan</h3>
                                     <ol className="list-decimal list-inside space-y-2 text-gray-700 mb-4">

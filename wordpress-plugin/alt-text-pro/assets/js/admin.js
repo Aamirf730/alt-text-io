@@ -5,12 +5,47 @@
 
 (function ($) {
     'use strict';
-    console.log('Alt Text Pro: admin.js loading...');
+
+    function debugLog() {
+        if (window.altTextAI && window.altTextAI.debug && window.console && window.console.log) {
+            window.console.log.apply(window.console, arguments);
+        }
+    }
+
+    function trackMarketingEvent(eventName, properties) {
+        if (!window.altTextAI || !altTextAI.tracking || !altTextAI.tracking.analyticsUrl) {
+            return;
+        }
+
+        var payload = {
+            event_name: eventName,
+            source: 'wordpress_plugin',
+            properties: $.extend({
+                plugin_version: altTextAI.version,
+                site_host: altTextAI.tracking.siteHost || '',
+                wp_admin_path: window.location.pathname
+            }, properties || {}),
+            occurred_at: new Date().toISOString()
+        };
+
+        try {
+            fetch(altTextAI.tracking.analyticsUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+                keepalive: true
+            }).catch(function () {});
+        } catch (error) {
+            debugLog('Alt Text Pro: tracking failed', error);
+        }
+    }
+
+    debugLog('Alt Text Pro: admin.js loading...');
 
     // Main Admin Object
     window.AltTextProAdmin = {
 
-        // Initialize the admin interface
+        // Initialize admin interface
         init: function () {
             this.bindEvents();
             this.initTooltips();
@@ -68,7 +103,7 @@
             // Settings form validation
             $(document).on('submit', '.alt-text-pro-settings-form', this.validateSettingsForm);
 
-            // Onboarding save
+            // Onboarding save (manual key entry)
             $(document).on('click', '#onboarding-save', this.handleOnboardingSave);
             $(document).on('keydown', '#onboarding_api_key', function (e) {
                 if (e.key === 'Enter') {
@@ -76,6 +111,38 @@
                     AltTextProAdmin.handleOnboardingSave(e);
                 }
             });
+
+            // Auto-connect button (opens popup)
+            $(document).on('click', '#auto-connect-btn', this.handleAutoConnect);
+
+            // Listen for postMessage from the connect popup
+            window.addEventListener('message', function (event) {
+                var expectedOrigin = '';
+                if (altTextAI.onboarding && altTextAI.onboarding.connectUrl) {
+                    try {
+                        expectedOrigin = new URL(altTextAI.onboarding.connectUrl).origin;
+                    } catch (urlError) {
+                        expectedOrigin = '';
+                    }
+                }
+
+                if (expectedOrigin && event.origin && event.origin !== expectedOrigin) {
+                    return;
+                }
+
+                if (event.data && event.data.type === 'ALT_TEXT_PRO_CONNECTED' && event.data.api_key) {
+                    var storedState = sessionStorage.getItem('alt_text_pro_connect_state');
+                    if (event.data.state && storedState && event.data.state !== storedState) {
+                        console.warn('Alt Text Pro: state mismatch, ignoring postMessage callback');
+                        return;
+                    }
+
+                    AltTextProAdmin.handleConnectCallback(event.data.api_key);
+                }
+            });
+
+            // Check if we're receiving a callback via URL params (redirect flow)
+            this.checkConnectCallback();
         },
 
 
@@ -147,7 +214,7 @@
             }
             context = context || '';
 
-            console.log('Alt Text Pro: Generating with context:', context);
+            debugLog('Alt Text Pro: Generating with context:', context);
 
             if (!attachmentId) {
                 AltTextProAdmin.showError('Invalid attachment ID', $container);
@@ -197,7 +264,7 @@
             var $container = $button.closest('.alt-text-pro-media-field');
             var altText = $button.data('alt-text');
 
-            // Update the WordPress alt-text field
+            // Update WordPress alt-text field
             var $altField = $('input[name*="[alt]"], textarea[name*="[alt]"]').first();
             if ($altField.length) {
                 $altField.val(altText).trigger('change');
@@ -277,16 +344,19 @@
 
             var $button = $(this);
             var $result = $('#connection-test-result');
-            var apiKey = $('#api_key').val();
+            var $input = $('#api_key');
+            var apiKey = $.trim($input.val());
+            var hasStoredKey = String($input.data('has-key')) === '1';
+            var useSavedKey = !apiKey && hasStoredKey;
 
-            if (!apiKey) {
+            if (!apiKey && !useSavedKey) {
                 $result.html('<div class="notice notice-error"><p>Please enter an API key first.</p></div>');
                 return;
             }
 
             var originalHtml = $button.html();
             $button.html('<span class="dashicons dashicons-update rotating"></span> Testing...').prop('disabled', true);
-            $result.html('<div class="notice notice-info"><p>Testing connection...</p></div>');
+            $result.html('<div class="notice notice-info"><p>' + (useSavedKey ? 'Testing saved connection...' : 'Testing connection...') + '</p></div>');
 
             $.ajax({
                 url: altTextAI.ajaxUrl,
@@ -294,6 +364,7 @@
                 data: {
                     action: 'alt_text_pro_test_connection',
                     api_key: apiKey,
+                    use_saved_key: useSavedKey ? 1 : 0,
                     nonce: altTextAI.nonce
                 },
                 success: function (response) {
@@ -319,12 +390,19 @@
 
         // Validate settings form before submission
         validateSettingsForm: function (e) {
-            var apiKey = $('#api_key').val();
+            var $input = $('#api_key');
+            var apiKey = $.trim($input.val());
+            $input.val(apiKey);
 
-            if (apiKey && !AltTextProAdmin.validateAPIKeyFormat(apiKey)) {
+            // Empty is OK (will preserve existing)
+            if (apiKey === '') {
+                return true;
+            }
+
+            if (!AltTextProAdmin.validateAPIKeyFormat(apiKey)) {
                 e.preventDefault();
                 AltTextProAdmin.showNotification('Invalid API key format. API keys should start with "alt_" or "altai_".', 'error');
-                $('#api_key').focus();
+                $input.focus();
                 return false;
             }
 
@@ -367,7 +445,7 @@
 
         // Show loading state
         showLoading: function ($container) {
-            // Show the result container first, then show loading
+            // Show result container first, then show loading
             $container.find('.alt-text-pro-result').css('display', 'block').show();
             $container.find('.alt-text-pro-loading').css('display', 'block').show();
             $container.find('.alt-text-pro-success, .alt-text-pro-error').hide();
@@ -721,6 +799,142 @@
             });
         },
 
+        // Auto-connect: open popup to alt-text.pro/connect
+        handleAutoConnect: function (e) {
+            if (e) e.preventDefault();
+
+            var connectUrl = (altTextAI.onboarding && altTextAI.onboarding.connectUrl)
+                ? altTextAI.onboarding.connectUrl
+                : 'https://www.alt-text.pro/connect';
+            var settingsUrl = (altTextAI.onboarding && altTextAI.onboarding.settingsUrl)
+                ? altTextAI.onboarding.settingsUrl
+                : window.location.href;
+
+            // Generate a random state for CSRF protection
+            var state = 'atp_' + Math.random().toString(36).substring(2, 15);
+            sessionStorage.setItem('alt_text_pro_connect_state', state);
+
+            // Build connect URL with callback
+            var url = connectUrl
+                + '?callback_url=' + encodeURIComponent(settingsUrl)
+                + '&state=' + encodeURIComponent(state)
+                + '&source=wordpress_plugin'
+                + '&plugin_version=' + encodeURIComponent(altTextAI.version || '');
+
+            // Update button state
+            var $btn = $('#auto-connect-btn');
+            $btn.prop('disabled', true).text('Connecting...');
+            $('#auto-connect-status').show().html(
+                '<span style="color: var(--text-secondary);">&#8987; Waiting for you to sign in...</span>'
+            );
+
+            // Open popup
+            var w = 500, h = 700;
+            var left = (screen.width / 2) - (w / 2);
+            var top = (screen.height / 2) - (h / 2);
+            var popup = window.open(
+                url,
+                'alt_text_pro_connect',
+                'width=' + w + ',height=' + h + ',left=' + left + ',top=' + top + ',scrollbars=yes,resizable=yes'
+            );
+
+            // Poll to detect if popup was closed without completing
+            var pollTimer = setInterval(function () {
+                if (popup && popup.closed) {
+                    clearInterval(pollTimer);
+                    $btn.prop('disabled', false).html(
+                        '<span class="dashicons dashicons-admin-links" style="margin-right: 6px; line-height: inherit;"></span> Connect Account'
+                    );
+                    // Only show "cancelled" if we didn't get a key
+                    var storedState = sessionStorage.getItem('alt_text_pro_connect_state');
+                    if (storedState) {
+                        $('#auto-connect-status').html(
+                            '<span style="color: var(--text-secondary);">Popup closed. Try again or use manual entry.</span>'
+                        );
+                    }
+                }
+            }, 1000);
+        },
+
+        // Handle API key received from connect popup or redirect
+        handleConnectCallback: function (apiKey) {
+            if (!apiKey) return;
+
+            // Clear state
+            sessionStorage.removeItem('alt_text_pro_connect_state');
+
+            // Show connecting status
+            $('#auto-connect-status').show().html(
+                '<span style="color: var(--primary-color);">&#10003; Key received! Saving...</span>'
+            );
+
+            // Save via AJAX (reuses existing validate_key action)
+            $.ajax({
+                url: altTextAI.ajaxUrl,
+                type: 'POST',
+                data: {
+                    action: 'alt_text_pro_validate_key',
+                    api_key: apiKey,
+                    nonce: altTextAI.nonce
+                },
+                success: function (response) {
+                    if (response.success) {
+                        $('#auto-connect-status').html(
+                            '<span style="color: var(--success-color, #16a34a); font-weight: 600;">&#10003; Connected successfully!</span>'
+                        );
+                        // Mirror into settings field
+                        $('#api_key').val(apiKey);
+                        $('#onboarding_api_key').val(apiKey);
+                        altTextAI.onboarding.show = false;
+
+                        AltTextProAdmin.showNotification('Connected successfully! Your API key has been saved.', 'success');
+                        trackMarketingEvent('connect_completed', {
+                            location: 'plugin_admin',
+                            stored_in_wordpress: true
+                        });
+
+                        setTimeout(function () {
+                            $('.modal').removeClass('active');
+                            $('body').removeClass('modal-open');
+                            location.reload();
+                        }, 1500);
+                    } else {
+                        $('#auto-connect-status').html(
+                            '<span style="color: var(--error-color, #dc2626);">&#10007; ' + (response.data || 'Invalid API key') + '</span>'
+                        );
+                    }
+                },
+                error: function () {
+                    $('#auto-connect-status').html(
+                        '<span style="color: var(--error-color, #dc2626);">&#10007; Failed to save. Please try manual entry.</span>'
+                    );
+                }
+            });
+        },
+
+        // Check URL for callback params (redirect flow fallback)
+        checkConnectCallback: function () {
+            var urlParams = new URLSearchParams(window.location.search);
+            var apiKey = urlParams.get('alt_text_pro_api_key');
+            var state = urlParams.get('state');
+
+            if (!apiKey) return;
+
+            // Verify CSRF state
+            var storedState = sessionStorage.getItem('alt_text_pro_connect_state');
+            if (state && storedState && state !== storedState) {
+                console.warn('Alt Text Pro: state mismatch, ignoring callback');
+                return;
+            }
+
+            // Clean URL (remove API key from address bar)
+            var cleanUrl = window.location.href.split('?')[0] + '?page=alt-text-pro-settings';
+            window.history.replaceState({}, document.title, cleanUrl);
+
+            // Process the key
+            this.handleConnectCallback(apiKey);
+        },
+
         // Utility function to format numbers
         formatNumber: function (num) {
             return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
@@ -785,7 +999,7 @@
         notificationsShown: {},
 
         init: function () {
-            console.log('Alt Text Pro: Initializing bulk processor');
+            debugLog('Alt Text Pro: Initializing bulk processor');
         },
 
         startProcessing: function () {
@@ -807,7 +1021,13 @@
                 }
             }
 
-            console.log('Alt Text Pro: Starting bulk process', { type: processType, overwrite: overwriteExisting });
+            debugLog('Alt Text Pro: Starting bulk process', { type: processType, overwrite: overwriteExisting });
+            trackMarketingEvent('bulk_started', {
+                process_type: processType,
+                selected_count: selectedImages.length,
+                overwrite_existing: overwriteExisting,
+                batch_size: altTextAI.settings.batch_size || 2
+            });
 
             this.isProcessing = true;
             this.cancelRequested = false;
@@ -876,7 +1096,7 @@
         cancelProcessing: function () {
             if (!this.isProcessing || this.cancelRequested) return;
 
-            console.log('Alt Text Pro: Cancel requested');
+            debugLog('Alt Text Pro: Cancel requested');
             this.cancelRequested = true;
             this.pendingCancel = true;
 
@@ -968,11 +1188,11 @@
             var self = this;
             if (this.cancelRequested) return;
 
-            // Prevent duplicate requests for the same offset
+            // Prevent duplicate requests for same offset
             if (this.processingBatches[offset]) return;
             this.processingBatches[offset] = true;
 
-            console.log('Alt Text Pro: Triggering batch at offset ' + offset);
+            debugLog('Alt Text Pro: Triggering batch at offset ' + offset);
 
             var batchReq = $.ajax({
                 url: altTextAI.ajaxUrl,
@@ -984,6 +1204,11 @@
                     nonce: altTextAI.nonce
                 },
                 success: function (response) {
+                    // Remove from pending list
+                    var idx = self.pendingBatchRequests.indexOf(batchReq);
+                    if (idx > -1) self.pendingBatchRequests.splice(idx, 1);
+                    delete self.processingBatches[offset];
+
                     if (response.success && response.data && response.data.batch_results) {
                         self.appendBatchResults(response.data.batch_results);
                     }
@@ -992,7 +1217,8 @@
                 },
                 complete: function () {
                     // Remove from pending list
-                    self.pendingBatchRequests = self.pendingBatchRequests.filter(function (r) { return r !== batchReq; });
+                    var idx = self.pendingBatchRequests.indexOf(batchReq);
+                    if (idx > -1) self.pendingBatchRequests.splice(idx, 1);
                 }
             });
 
@@ -1066,6 +1292,13 @@
             var processed = data.processed_count !== undefined ? data.processed_count : (data.processed || 0);
             var successful = data.successful_count !== undefined ? data.successful_count : (data.successful || 0);
             var errors = data.error_count !== undefined ? data.error_count : (data.errors ? data.errors.length : 0);
+            trackMarketingEvent('bulk_completed', {
+                process_id: this.processId || '',
+                status: data.status || (data.success ? 'completed' : 'error'),
+                processed: processed,
+                successful: successful,
+                errors: errors
+            });
 
             if (data.success || data.status === 'completed') {
                 $('#progress-status').text('Completed').removeClass('warning error').addClass('success');
@@ -1078,7 +1311,6 @@
                 $('#process-summary-container').show();
                 $('#process-summary-text').text('Process Cancelled');
                 $('#process-summary-details').text('Processed ' + processed + ' images (' + successful + ' successful, ' + errors + ' errors) before stopping.');
-
                 $('#progress-log').append('<div style="color: var(--danger-color); font-weight: bold;">Bulk optimization cancelled by user.</div>');
             } else {
                 $('#progress-status').text('Error').removeClass('warning success').addClass('error');
@@ -1106,6 +1338,28 @@
         }
     };
 
-    console.log('Alt Text Pro: admin.js loaded fully');
-})(jQuery);
+    debugLog('Alt Text Pro: admin.js loaded fully');
 
+    // Initialize admin interface when DOM is ready
+    jQuery(document).ready(function () {
+        if (typeof AltTextProAdmin !== 'undefined' && typeof AltTextProAdmin.init === 'function') {
+            AltTextProAdmin.init();
+        }
+
+        // Safety-net: relocate any stray admin notices into our dedicated container.
+        // This catches notices that escaped PHP suppression (e.g., late-hooked or AJAX-injected notices).
+        var $container = $('.alt-text-pro-notices-container');
+        if ($container.length) {
+            // Find notices that are direct children of .wrap or siblings of .wrap
+            var $wrap = $container.closest('.wrap');
+            $wrap.children('.notice, .updated, .error, .update-nag').not($container.find('*')).each(function () {
+                $container.append($(this));
+            });
+
+            // Also check for notices injected by WordPress before .wrap (siblings above)
+            $wrap.prevAll('.notice, .updated, .error, .update-nag').each(function () {
+                $container.append($(this));
+            });
+        }
+    });
+})(jQuery);

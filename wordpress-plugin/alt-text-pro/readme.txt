@@ -1,10 +1,10 @@
-=== Alt Text Pro – AI Alt Text Generator for Image SEO & Accessibility ===
+=== AI Alt Text Pro ===
 Contributors: aamirfaiz
 Tags: alt text generator, image seo, accessibility, ai alt text, automatic alt text
 Requires at least: 5.0
-Tested up to: 6.4
+Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 1.4.79
+Stable tag: 1.4.95
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -30,7 +30,7 @@ Stop wasting hours writing alt text manually. Let our **automatic alt text gener
 
 ### How Our AI Alt Text Generator Works
 
-1. **Connect Your Account**: Get your API key from Alt Text Pro dashboard
+1. **Connect Your Account**: Click "Connect to Alt Text Pro" and sign in or create a free account
 2. **Configure Settings**: Set up automatic alt text generation preferences
 3. **Generate Alt Text**: Process images individually or use bulk alt text generation
 4. **Review & Edit**: Fine-tune generated alt tags and alt attributes as needed
@@ -46,9 +46,10 @@ Stop wasting hours writing alt text manually. Let our **automatic alt text gener
 ### Pricing Plans
 
 * **Free Trial**: 30 credits to try our alt text generator
-* **Starter Plan**: 500 credits/month for small sites
-* **Pro Plan**: 2000 credits/month for busy sites
-* **Pay-as-you-go**: $3 for 50 credits when you need more
+* **Lite**: $3/month or $30/year for 150 credits per month
+* **Standard**: $5/month or $48/year for 400 credits per month
+* **Pro**: $9/month or $86/year for 1,000 credits per month
+* **Pay-as-you-go**: $5 for 100 credits or $10 for 250 credits when you need more
 
 Each alt text generation uses 1 credit.
 
@@ -74,25 +75,27 @@ Each alt text generation uses 1 credit.
 ### Automatic Installation
 
 1. Go to your WordPress admin dashboard
-2. Navigate to Plugins → Add New
+2. Navigate to Plugins -> Add New
 3. Search for "Alt Text Pro"
 4. Click "Install Now" and then "Activate"
 
 ### Manual Installation
 
 1. Download the plugin zip file
-2. Go to Plugins → Add New → Upload Plugin
+2. Go to Plugins -> Add New -> Upload Plugin
 3. Choose the zip file and click "Install Now"
 4. Activate the plugin
 
 ### Setup
 
-1. Go to Alt Text Pro → Settings in your WordPress admin
-2. Sign up for a free account at [Alt Text Pro](https://www.alt-text.pro)
-3. Copy your API key from the dashboard
-4. Paste it into the plugin settings and save
+1. Go to Alt Text Pro -> Settings in your WordPress admin
+2. Click "Connect to Alt Text Pro"
+3. Sign in or create a free account
+4. The plugin saves your API key automatically
 5. Test the connection to ensure everything works
 6. Start generating alt text for your images!
+
+Manual API key setup is still available from the settings page if your browser blocks the connect popup.
 
 == Frequently Asked Questions ==
 
@@ -166,6 +169,51 @@ Yes, you can cancel your subscription at any time from your Alt Text Pro dashboa
 6. **Mobile Responsive Design** - Fully responsive alt text generator works on all devices
 
 == Changelog ==
+= 1.4.95 =
+* Growth: Added privacy-conscious funnel events for connect and bulk-processing automation.
+* Docs: Updated WordPress.org setup and pricing copy to match current Lite, Standard, Pro, and pay-as-you-go plans.
+
+= 1.4.94 =
+* Brand refresh: Plugin admin colors now align with the Alt Text Pro logo palette.
+
+= 1.4.93 =
+* Security: Saved API keys are no longer exposed in admin HTML, browser logs, or settings sanitization logs.
+* Fix: Release packaging now excludes standalone test PHP files and reduces production API response logging.
+
+= 1.4.92 =
+* Fix: /connect now restores callback state after OAuth and always keeps a redirect fallback for WordPress.
+* Fix: API key onboarding now verifies the key can be read back after save before reporting success.
+
+= 1.4.91 =
+* Fix: Decrypt API key before use in API client (resolved "Invalid Key" after setup).
+* Fix: Documentation cleanup and non-ASCII character removal.
+
+= 1.4.90 =
+* Fix: Improved credit balance display logic in dashboard.
+* Fix: Performance optimizations for media library integration.
+
+= 1.4.89 =
+* Added: Better error handling for API connection timeouts.
+
+= 1.4.85 =
+* Fix: Onboarding modal now appears on Dashboard page for first-time users.
+* Fix: Bulletproof admin notice suppression on plugin pages (PHP + CSS + JS).
+
+
+= 1.4.83 =
+* Fix: Onboarding modal now auto-opens on first install when no API key is set.
+* Fix: Ensured admin interface initialization when DOM is ready.
+
+= 1.4.82 =
+* Fix: Suppress global WordPress admin notices from cluttering the plugin UI.
+* Added: Dedicated notices container for redirected admin messages.
+
+= 1.4.81 =
+* Fix: Resolved critical syntax errors in PHP and JavaScript modules.
+
+= 1.4.80 =
+* Added: Seamless "Connect to Alt Text Pro" button for easier account linking.
+* Added: New `/connect` onboarding flow.
 
 = 1.4.79 =
 * Fix: Alt text for content images now updates the post HTML, not just attachment metadata.

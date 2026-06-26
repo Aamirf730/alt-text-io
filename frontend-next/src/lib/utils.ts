@@ -5,22 +5,49 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export const PLUGIN_VERSION = "1.4.79";
+export const PLUGIN_VERSION = "1.4.95";
+
+export const PLAN_CREDIT_LIMITS: Record<string, number> = {
+  free: 30,
+  lite: 150,
+  standard: 400,
+  pro: 1000,
+  tier1: 150,
+  tier2: 400,
+  tier3: 1000,
+};
 
 /**
  * Returns the correct API base URL for Netlify functions.
  * Uses localhost dev server in development, relative path in production.
+ *
+ * PRODUCTION SAFETY: Even if NEXT_PUBLIC_API_BASE is accidentally set to
+ * a localhost URL in production, we ignore it and use the relative path.
  */
 export function getApiBase(): string {
+  // Server-side rendering always uses the relative path
   if (typeof window === "undefined") return "/.netlify/functions";
-  if (
+
+  const isLocal =
     window.location.hostname === "localhost" ||
-    window.location.hostname === "127.0.0.1"
-  ) {
+    window.location.hostname === "127.0.0.1";
+
+  if (isLocal) {
     return (
       process.env.NEXT_PUBLIC_API_BASE ||
       "http://localhost:9999/.netlify/functions"
     );
   }
-  return "/.netlify/functions";
+
+  // PRODUCTION: Always use relative path, ignore any env var containing localhost
+  const envBase = process.env.NEXT_PUBLIC_API_BASE;
+  if (envBase && envBase.includes("localhost")) {
+    console.warn(
+      "[getApiBase] NEXT_PUBLIC_API_BASE contains localhost in production — ignoring. " +
+      "Set NEXT_PUBLIC_API_BASE=/.netlify/functions in Netlify environment variables."
+    );
+    return "/.netlify/functions";
+  }
+
+  return envBase || "/.netlify/functions";
 }

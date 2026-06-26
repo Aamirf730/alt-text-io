@@ -60,17 +60,35 @@ const ALLOWED_ORIGINS = [
   'http://127.0.0.1:9999',
 ];
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// IN-MEMORY RATE LIMITING
-// See documentation above for limitations and production alternatives
-// ═══════════════════════════════════════════════════════════════════════════════
-const rateLimitStore = new Map();
-const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
-const RATE_LIMIT_MAX_REQUESTS = 100; // 100 requests per minute per IP
+// Allowed Netlify preview deploy prefixes.
+// Only these specific deploy prefixes (e.g., "deploy-preview-42--alt-text-ai")
+// will be accepted. Set ALLOWED_PREVIEW_DOMAINS in Netlify env vars as a
+// comma-separated list to add more (e.g., "alt-text-ai,alt-text-staging").
+// Falls back to the main deploy name if not configured.
+const ALLOWED_PREVIEW_PREFIXES = (
+  process.env.ALLOWED_PREVIEW_DOMAINS || 'alt-text-ai'
+).split(',').map(d => d.trim()).filter(Boolean);
 
-// Track function instance for debugging
-const INSTANCE_ID = Math.random().toString(36).substring(2, 8);
-let instanceRequestCount = 0;
+// ═══════════════════════════════════════════════════════════════════════════════
+// RATE LIMITING — delegated to rate-limiter.js
+// Uses Upstash Redis when configured, falls back to in-memory.
+// See rate-limiter.js for setup instructions.
+// ═══════════════════════════════════════════════════════════════════════════════
+const { checkRateLimit: distributedRateLimit, checkStrictRateLimit, getRateLimitInfo, INSTANCE_ID } = require('./rate-limiter');
+
+/**
+ * Check rate limit for a client IP.
+ * NOW ASYNC — delegates to distributed rate limiter (Upstash Redis)
+ * with in-memory fallback.
+ *
+ * @param {string} clientIp - Client IP address
+ * @param {number} maxRequests - Maximum requests allowed (default: 60)
+ * @param {number} windowMs - Time window in ms (default: 60000)
+ * @returns {Promise<Object>} - { allowed, remaining, resetAt, backend }
+ */
+async function checkRateLimit(clientIp, maxRequests = 60, windowMs = 60000) {
+  return distributedRateLimit(clientIp, maxRequests, windowMs);
+}
 
 /**
  * Get the validated origin or null if not allowed
@@ -91,9 +109,16 @@ function getValidatedOrigin(headers) {
     return origin;
   }
 
-  // Check for Netlify preview deploys (*.netlify.app)
+  // Check for allowed Netlify preview deploys only (not any .netlify.app domain)
   if (origin.endsWith('.netlify.app')) {
-    return origin;
+    const isAllowedPreview = ALLOWED_PREVIEW_PREFIXES.some(prefix =>
+      origin.includes(prefix)
+    );
+    if (isAllowedPreview) {
+      return origin;
+    }
+    console.warn('CORS: Rejected unknown Netlify preview origin:', origin);
+    return null;
   }
 
   console.warn('CORS: Rejected origin:', origin);
@@ -155,76 +180,6 @@ function getClientIp(event) {
 }
 
 /**
- * Check rate limit for a client IP
- * 
- * NOTE: This is in-memory rate limiting with known limitations.
- * See documentation at the top of this file for production alternatives.
- * 
- * @param {string} clientIp - Client IP address
- * @param {number} maxRequests - Maximum requests allowed (default: 100)
- * @param {number} windowMs - Time window in ms (default: 60000)
- * @returns {Object} - { allowed: boolean, remaining: number, resetAt: Date, instanceId: string }
- */
-function checkRateLimit(clientIp, maxRequests = RATE_LIMIT_MAX_REQUESTS, windowMs = RATE_LIMIT_WINDOW_MS) {
-  const now = Date.now();
-  const key = clientIp;
-
-  // Track total requests to this instance (for debugging/monitoring)
-  instanceRequestCount++;
-
-  // Get or create rate limit entry
-  let entry = rateLimitStore.get(key);
-
-  if (!entry || entry.windowStart + windowMs < now) {
-    // New window - log when starting fresh (helps identify cold starts)
-    if (!entry) {
-      // First time seeing this IP on this instance
-      // This could be normal traffic or a cold start scenario
-    }
-    entry = {
-      windowStart: now,
-      count: 0,
-    };
-  }
-
-  entry.count++;
-  rateLimitStore.set(key, entry);
-
-  const remaining = Math.max(0, maxRequests - entry.count);
-  const resetAt = new Date(entry.windowStart + windowMs);
-  const allowed = entry.count <= maxRequests;
-
-  // Log rate limit violations (helps identify attacks)
-  if (!allowed) {
-    console.warn(`[RATE_LIMIT] IP ${clientIp} exceeded limit (${entry.count}/${maxRequests}) on instance ${INSTANCE_ID}`);
-  }
-
-  // Clean up old entries periodically (every 1000 entries or when store gets large)
-  if (rateLimitStore.size > 5000 || (instanceRequestCount % 1000 === 0 && rateLimitStore.size > 100)) {
-    const cutoff = now - windowMs;
-    let cleaned = 0;
-    for (const [k, v] of rateLimitStore) {
-      if (v.windowStart < cutoff) {
-        rateLimitStore.delete(k);
-        cleaned++;
-      }
-    }
-    if (cleaned > 0) {
-      console.log(`[RATE_LIMIT] Cleaned ${cleaned} expired entries, ${rateLimitStore.size} remaining`);
-    }
-  }
-
-  return {
-    allowed,
-    remaining,
-    resetAt,
-    count: entry.count,
-    instanceId: INSTANCE_ID, // Include for debugging distributed rate limiting issues
-    instanceRequests: instanceRequestCount,
-  };
-}
-
-/**
  * Create rate limit exceeded response
  * @param {Object} headers - CORS headers
  * @param {Object} rateLimitInfo - Rate limit info from checkRateLimit
@@ -232,13 +187,16 @@ function checkRateLimit(clientIp, maxRequests = RATE_LIMIT_MAX_REQUESTS, windowM
  */
 function rateLimitExceededResponse(headers, rateLimitInfo) {
   const retryAfter = Math.max(1, Math.ceil((rateLimitInfo.resetAt - Date.now()) / 1000));
+  const limit = Number.isFinite(rateLimitInfo.limit)
+    ? rateLimitInfo.limit
+    : Math.max(rateLimitInfo.count || 0, (rateLimitInfo.count || 0) + (rateLimitInfo.remaining || 0), 1);
 
   return {
     statusCode: 429,
     headers: {
       ...headers,
       'Retry-After': retryAfter.toString(),
-      'X-RateLimit-Limit': RATE_LIMIT_MAX_REQUESTS.toString(),
+      'X-RateLimit-Limit': limit.toString(),
       'X-RateLimit-Remaining': '0',
       'X-RateLimit-Reset': rateLimitInfo.resetAt.toISOString(),
       // Include instance ID for debugging distributed rate limiting
@@ -332,15 +290,7 @@ function methodNotAllowedResponse(headers) {
  * @returns {Object} - Rate limiting stats
  */
 function getRateLimitStats() {
-  return {
-    instanceId: INSTANCE_ID,
-    instanceRequests: instanceRequestCount,
-    trackedIPs: rateLimitStore.size,
-    windowMs: RATE_LIMIT_WINDOW_MS,
-    defaultMaxRequests: RATE_LIMIT_MAX_REQUESTS,
-    // Note: This is per-instance, not global
-    warning: 'Rate limiting is in-memory and per-instance. See docs for production alternatives.',
-  };
+  return getRateLimitInfo();
 }
 
 module.exports = {
@@ -358,4 +308,3 @@ module.exports = {
   getRateLimitStats,
   INSTANCE_ID,
 };
-

@@ -1,12 +1,16 @@
 import type { Metadata } from "next";
-import { Inter, Lato } from "next/font/google";
+import { Inter, Lato, Outfit } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
-import TawkToWidget from "@/components/TawkToWidget";
 import "./globals.css";
 
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
+});
+
+const outfit = Outfit({
+  subsets: ["latin"],
+  variable: "--font-outfit",
 });
 
 const lato = Lato({
@@ -34,11 +38,10 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${inter.variable} ${lato.variable} antialiased font-sans`}
+        className={`${inter.variable} ${outfit.variable} ${lato.variable} antialiased font-sans bg-notebook-paper selection:bg-notebook-blue/10`}
       >
         {children}
         <Toaster />
-        <TawkToWidget />
       </body>
     </html>
   );

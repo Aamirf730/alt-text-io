@@ -14,7 +14,13 @@ if (!supabaseUrl || !supabaseServiceKey) {
   console.error('CRITICAL: Supabase credentials not configured');
 }
 
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+const supabase = supabaseUrl && supabaseServiceKey
+  ? createClient(supabaseUrl, supabaseServiceKey)
+  : null;
+
+function isSupabaseConfigured() {
+  return Boolean(supabase);
+}
 
 /**
  * Validate API key and return user information from profiles table
@@ -22,6 +28,11 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
  * @returns {Object|null} - User object if valid, null if invalid
  */
 async function validateApiKey(apiKey) {
+  if (!supabase) {
+    console.error('❌ [validateApiKey] Supabase credentials not configured');
+    return null;
+  }
+
   // Validate API key format (accepts both altai_ and alt_ formats)
   if (!apiKey || (!apiKey.startsWith('altai_') && !apiKey.startsWith('alt_'))) {
     console.log('❌ [validateApiKey] API key format invalid:', apiKey ? apiKey.substring(0, 10) + '...' : 'empty');
@@ -121,6 +132,14 @@ function deductCredits(user, creditsToDeduct = 1) {
  * @returns {Object} - { success: boolean, credits_remaining: number, total_processed: number, error?: string }
  */
 async function updateUserCredits(userId, creditsToDeduct = 1, altText = null, context = null) {
+  if (!supabase) {
+    return {
+      success: false,
+      error: 'Supabase credentials not configured',
+      requiresConfiguration: true
+    };
+  }
+
   if (!userId) {
     return { success: false, error: 'User ID is required' };
   }
@@ -264,6 +283,10 @@ async function updateUserCredits(userId, creditsToDeduct = 1, altText = null, co
  * @returns {Object|null} - User profile or null
  */
 async function getUserProfile(userId) {
+  if (!supabase) {
+    return null;
+  }
+
   try {
     const { data: profile, error } = await supabase
       .from('profiles')
@@ -288,6 +311,10 @@ async function getUserProfile(userId) {
  * @returns {Object} - Statistics about users and credits
  */
 async function getCreditStoreStats() {
+  if (!supabase) {
+    return { error: 'Supabase credentials not configured' };
+  }
+
   try {
     const { data: profiles, error } = await supabase
       .from('profiles')
@@ -329,5 +356,6 @@ module.exports = {
   deductCredits,
   updateUserCredits,
   getUserProfile,
-  getCreditStoreStats
+  getCreditStoreStats,
+  isSupabaseConfigured
 };

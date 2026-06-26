@@ -42,7 +42,7 @@ class AltTextPro_Bulk_Processor
         // Get images to process based on process type
         if ($process_type === 'selected' && !empty($selected_images)) {
             // Process only selected images. For selected images, we always include them regardless of alt-text
-            // unless the user explicitly wants to filter them (not currently exposed in UI for selected)
+            // unless user explicitly wants to filter them (not currently exposed in UI for selected)
             $images_to_process = $this->get_selected_images($selected_images, true);
         } elseif ($process_type === 'all') {
             // Process all images (regardless of alt-text status)
@@ -173,7 +173,7 @@ class AltTextPro_Bulk_Processor
             wp_send_json_error(esc_html__('Process ID is required.', 'alt-text-pro'));
         }
 
-        // Process the batch
+        // Process batch
         $batch_results = $this->process_batch_sync($process_id, $batch_offset);
 
         // Get updated status
@@ -201,7 +201,7 @@ class AltTextPro_Bulk_Processor
         $process_id = isset($_POST['process_id']) ? sanitize_text_field(wp_unslash($_POST['process_id'])) : '';
         $this->cancel_bulk_process($process_id);
 
-        // Get updated data to return for the summary
+        // Get updated data to return for summary
         $process_data = get_transient('alt_text_pro_bulk_' . $process_id);
 
         wp_send_json_success($process_data);
@@ -242,7 +242,7 @@ class AltTextPro_Bulk_Processor
 
         foreach ($images as $image_id) {
             // Check if process was cancelled - MUST clear cache to get fresh value!
-            // Without this, the cached transient might not reflect the cancel request
+            // Without this, cached transient might not reflect cancel request
             wp_cache_delete('alt_text_pro_bulk_' . $process_id, 'transient');
             wp_cache_delete('_transient_alt_text_pro_bulk_' . $process_id, 'options');
             $current_process = get_transient('alt_text_pro_bulk_' . $process_id);
@@ -370,7 +370,7 @@ class AltTextPro_Bulk_Processor
                 // Update attachment alt text
                 update_post_meta($image_id, '_wp_attachment_image_alt', $result['alt_text']);
 
-                // Log the generation (only if alt_text exists)
+                // Log generation (only if alt_text exists)
                 if (!empty($result['alt_text'])) {
                     $this->log_generation($image_id, $result['alt_text'], $result['credits_used'] ?? 1);
                 }
@@ -418,7 +418,7 @@ class AltTextPro_Bulk_Processor
                 $processed++;
             }
 
-            // Small delay to prevent overwhelming the API
+            // Small delay to prevent overwhelming API
             usleep(500000); // 0.5 seconds
         }
 
@@ -447,7 +447,7 @@ class AltTextPro_Bulk_Processor
         $all_errors = array_merge($existing_errors, $errors);
 
         // Update process data with current progress BEFORE calling update_bulk_process_progress
-        // This ensures we have the latest data when updating
+        // This ensures we have latest data when updating
         $process_data['processed'] = $total_processed;
         $process_data['successful'] = $total_successful; // Store successful count (unique images)
         $process_data['successful_image_ids'] = $all_successful_ids; // Store successful image IDs
@@ -648,20 +648,20 @@ class AltTextPro_Bulk_Processor
         if (isset($process_data['successful'])) {
             $successful = intval($process_data['successful']);
         } elseif (isset($process_data['successful_image_ids']) && is_array($process_data['successful_image_ids'])) {
-            // Fallback: count the successful image IDs array
+            // Fallback: count successful image IDs array
             $successful = count($process_data['successful_image_ids']);
         } else {
             // Last resort: calculate from processed minus errors
             $successful = max(0, $processed - $error_count);
         }
 
-        // Ensure successful count matches the actual successful_image_ids count
+        // Ensure successful count matches actual successful_image_ids count
         if (isset($process_data['successful_image_ids']) && is_array($process_data['successful_image_ids'])) {
             $actual_successful_count = count($process_data['successful_image_ids']);
             if ($actual_successful_count !== $successful) {
-                // Fix the discrepancy - use the actual count from the array
+                // Fix discrepancy - use actual count from array
                 $successful = $actual_successful_count;
-                // Update the stored value for consistency
+                // Update stored value for consistency
                 $process_data['successful'] = $successful;
                 set_transient('alt_text_pro_bulk_' . $process_id, $process_data, DAY_IN_SECONDS * 2);
             }
@@ -781,7 +781,7 @@ class AltTextPro_Bulk_Processor
                 $subject = esc_html__('Alt Text Pro: Bulk Processing Stopped - No Credits', 'alt-text-pro');
                 $message = sprintf(
                     // translators: %1$d: Total images, %2$d: Processed images, %3$d: Successfully processed images, %4$d: Error count, %5$s: Stopped reason
-                    esc_html__("Your bulk alt-text generation process has stopped due to insufficient credits.\n\nResults:\n- Total images: %1\$d\n- Processed: %2\$d\n- Successfully processed: %3\$d\n- Errors: %4\$d\n\nReason: %5\$s\n\nPlease upgrade your plan to continue processing remaining images.\n\nYou can view the detailed results in your WordPress admin dashboard.", 'alt-text-pro'),
+                    esc_html__("Your bulk alt-text generation process has stopped due to insufficient credits.\n\nResults:\n- Total images: %1\$d\n- Processed: %2\$d\n- Successfully processed: %3\$d\n- Errors: %4\$d\n\nReason: %5\$s\n\nPlease upgrade your plan to continue processing remaining images.\n\nYou can view detailed results in your WordPress admin dashboard.", 'alt-text-pro'),
                     $process_data['total_images'],
                     $process_data['processed'] ?? 0,
                     $process_data['successful'] ?? 0,
@@ -792,7 +792,7 @@ class AltTextPro_Bulk_Processor
                 $subject = esc_html__('Alt Text Pro: Bulk Processing Complete', 'alt-text-pro');
                 $message = sprintf(
                     // translators: %1$d: Total images, %2$d: Successfully processed images, %3$d: Error count
-                    esc_html__("Your bulk alt-text generation process has completed.\n\nResults:\n- Total images: %1\$d\n- Successfully processed: %2\$d\n- Errors: %3\$d\n\nYou can view the detailed results in your WordPress admin dashboard.", 'alt-text-pro'),
+                    esc_html__("Your bulk alt-text generation process has completed.\n\nResults:\n- Total images: %1\$d\n- Successfully processed: %2\$d\n- Errors: %3\$d\n\nYou can view detailed results in your WordPress admin dashboard.", 'alt-text-pro'),
                     $process_data['total_images'],
                     $process_data['successful'] ?? 0,
                     count($process_data['errors'] ?? array())
@@ -879,7 +879,7 @@ class AltTextPro_Bulk_Processor
         $transients = wp_cache_get('alt_text_pro_bulk_history');
 
         if (!$transients) {
-            // This is a simplified version - in production you might want to store this in the database
+            // This is a simplified version - in production you might want to store this in database
             $transients = array();
         }
 

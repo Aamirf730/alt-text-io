@@ -61,24 +61,25 @@ exports.handler = async (event, context) => {
       };
     }
 
-    const { name, email, subject, message } = JSON.parse(event.body);
-
-    // Validate required fields
-    if (!name || !email || !message) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: 'Name, email, and message are required' }),
-      };
+    // Safe JSON parse with size limit
+    const { parseJsonBody, validateString, validateEmail, badRequest, LIMITS } = require('./utils/input-validator');
+    const { data: body, error: parseError } = parseJsonBody(event.body);
+    if (parseError) {
+      return { statusCode: 400, body: JSON.stringify({ error: parseError }) };
     }
 
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: 'Invalid email format' }),
-      };
-    }
+    // Validate and sanitize fields
+    const { value: name, error: nameErr } = validateString(body.name, 'Name', { required: true, maxLength: LIMITS.MAX_NAME_LENGTH });
+    if (nameErr) return { statusCode: 400, body: JSON.stringify({ error: nameErr }) };
+
+    const { value: email, error: emailErr } = validateEmail(body.email, { required: true });
+    if (emailErr) return { statusCode: 400, body: JSON.stringify({ error: emailErr }) };
+
+    const { value: subject, error: subjectErr } = validateString(body.subject, 'Subject', { maxLength: LIMITS.MAX_SUBJECT_LENGTH });
+    if (subjectErr) return { statusCode: 400, body: JSON.stringify({ error: subjectErr }) };
+
+    const { value: message, error: messageErr } = validateString(body.message, 'Message', { required: true, maxLength: LIMITS.MAX_MESSAGE_LENGTH });
+    if (messageErr) return { statusCode: 400, body: JSON.stringify({ error: messageErr }) };
 
     const transporter = createTransporter();
 
@@ -145,13 +146,13 @@ ${message}
       }),
     };
   } catch (error) {
-    console.error('Error sending email:', error);
-    console.error('Error stack:', error.stack);
-    console.error('Environment check:', {
-      hasUser: !!process.env.EMAIL_USER,
-      hasPassword: !!process.env.EMAIL_PASSWORD,
-      hasService: !!process.env.EMAIL_SERVICE,
-      userEmail: process.env.EMAIL_USER
+    const { reportError } = require('./utils/error-reporter');
+    reportError(error, {
+      functionName: 'send-contact-email',
+      extra: {
+        hasUser: !!process.env.EMAIL_USER,
+        hasPassword: !!process.env.EMAIL_PASSWORD,
+      },
     });
 
     // Return more detailed error for debugging (but don't expose sensitive info)

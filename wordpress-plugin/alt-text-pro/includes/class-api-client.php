@@ -21,8 +21,9 @@ class AltTextPro_API_Client
     public function __construct()
     {
         $this->api_base = ALT_TEXT_PRO_API_BASE;
-        $settings = get_option('alt_text_pro_settings', array());
-        $this->api_key = $settings['api_key'] ?? '';
+        $settings_handler = new AltTextPro_Settings();
+        $decrypted_settings = $settings_handler->get_settings();
+        $this->api_key = $decrypted_settings['api_key'] ?? '';
     }
 
     /**
@@ -52,10 +53,10 @@ class AltTextPro_API_Client
                 return array(
                     'success' => false,
                     'message' => sprintf(
-                        // translators: %s: File size in human-readable format
-                        esc_html__('Image file is too large (%1$s). Maximum size is 15MB.', 'alt-text-pro'),
-                        esc_html(size_format($file_size))
-                    )
+                    // translators: %s: File size in human-readable format
+                    esc_html__('Image file is too large (%1$s). Maximum size is 15MB.', 'alt-text-pro'),
+                    esc_html(size_format($file_size))
+                )
                 );
             }
 
@@ -89,12 +90,14 @@ class AltTextPro_API_Client
                 $alt_text = $response['data']['alt_text'];
                 $credits_used = $response['data']['credits_used'] ?? 1;
                 $credits_remaining = $response['data']['credits_remaining'] ?? 0;
-            } elseif (isset($response['full_response']['alt_text'])) {
+            }
+            elseif (isset($response['full_response']['alt_text'])) {
                 // Format 2: In full_response (when API returns direct object)
                 $alt_text = $response['full_response']['alt_text'];
                 $credits_used = $response['full_response']['credits_used'] ?? 1;
                 $credits_remaining = $response['full_response']['credits_remaining'] ?? 0;
-            } elseif (isset($response['data']) && is_array($response['data'])) {
+            }
+            elseif (isset($response['data']) && is_array($response['data'])) {
                 // Format 3: Check if data is the direct response object (Netlify format)
                 // Netlify returns: { alt_text: "...", credits_used: 1, ... }
                 // make_request wraps it as: { success: true, data: { alt_text: "...", ... } }
@@ -114,9 +117,10 @@ class AltTextPro_API_Client
                 );
             }
 
-            // Log for debugging if we have success but no alt_text
-            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log, WordPress.PHP.DevelopmentFunctions.error_log_print_r
-            error_log('Alt Text Pro API: Success response but alt_text not found. Response structure: ' . print_r($response, true));
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log, WordPress.PHP.DevelopmentFunctions.error_log_print_r
+                error_log('Alt Text Pro API: Success response but alt_text not found. Response structure: ' . print_r($response, true));
+            }
         }
 
         // Return error response with proper message
@@ -185,7 +189,7 @@ class AltTextPro_API_Client
 
         // Check if it's an image
         $mime_type = get_post_mime_type($attachment_id);
-        if (!str_starts_with($mime_type, 'image/')) {
+        if (strpos((string) $mime_type, 'image/') !== 0) {
             // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
             error_log(sprintf('Alt Text Pro: Invalid mime type for attachment %d: %s', $attachment_id, $mime_type));
             return false;
@@ -255,15 +259,18 @@ class AltTextPro_API_Client
             $args['body'] = json_encode($data);
         }
 
-        // Debug logging (always log for troubleshooting)
-        // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-        error_log(sprintf(
-            'Alt Text Pro API Request: %s %s | Endpoint: %s | Base: %s',
-            $method,
-            $url,
-            $endpoint,
-            $this->api_base
-        ));
+        $debug_enabled = defined('WP_DEBUG') && WP_DEBUG;
+
+        if ($debug_enabled) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+            error_log(sprintf(
+                'Alt Text Pro API Request: %s %s | Endpoint: %s | Base: %s',
+                $method,
+                $url,
+                $endpoint,
+                $this->api_base
+            ));
+        }
 
         $response = wp_remote_request($url, $args);
 
@@ -272,10 +279,10 @@ class AltTextPro_API_Client
             return array(
                 'success' => false,
                 'message' => sprintf(
-                    // translators: %s: Error message
-                    esc_html__('Request failed: %1$s', 'alt-text-pro'),
-                    esc_html($response->get_error_message())
-                )
+                // translators: %s: Error message
+                esc_html__('Request failed: %1$s', 'alt-text-pro'),
+                esc_html($response->get_error_message())
+            )
             );
         }
 
@@ -283,21 +290,16 @@ class AltTextPro_API_Client
         $body = wp_remote_retrieve_body($response);
         $decoded_body = json_decode($body, true);
 
-        // Always log response for troubleshooting (with sanitized API key)
-        $log_data = array(
-            'full_url' => $url,
-            'endpoint_called' => $endpoint,
-            'api_base' => $this->api_base,
-            'method' => $method,
-            'status_code' => $status_code,
-            'body_length' => strlen($body),
-            'body_preview' => substr($body, 0, 500), // First 500 chars
-            'is_html_404' => (strpos($body, '<!DOCTYPE html>') !== false && $status_code === 404),
-            'decoded' => $decoded_body,
-            'json_error' => json_last_error() !== JSON_ERROR_NONE ? json_last_error_msg() : null
-        );
-        // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log, WordPress.PHP.DevelopmentFunctions.error_log_print_r
-        error_log('Alt Text Pro API Response: ' . print_r($log_data, true));
+        if ($debug_enabled) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+            error_log(sprintf(
+                'Alt Text Pro API Response: endpoint=%s status=%d body_length=%d json_error=%s',
+                $endpoint,
+                $status_code,
+                strlen($body),
+                json_last_error() !== JSON_ERROR_NONE ? json_last_error_msg() : 'none'
+            ));
+        }
 
         // Handle API errors
         if ($status_code >= 400) {
@@ -381,10 +383,10 @@ class AltTextPro_API_Client
             return array(
                 'success' => false,
                 'message' => sprintf(
-                    // translators: %s: First 100 characters of the response body
-                    esc_html__('Invalid API response format. Raw response: %1$s', 'alt-text-pro'),
-                    esc_html(substr($body, 0, 100))
-                ),
+                // translators: %s: First 100 characters of the response body
+                esc_html__('Invalid API response format. Raw response: %1$s', 'alt-text-pro'),
+                esc_html(substr($body, 0, 100))
+            ),
                 'status_code' => $status_code
             );
         }

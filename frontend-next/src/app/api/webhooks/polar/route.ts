@@ -44,6 +44,38 @@ const MONTHLY_CREDITS_MAP: Record<string, number> = {
     tier3: 1000,
 };
 
+function logWebhookReceived(eventName: string, data: any) {
+    console.log(`${eventName} webhook received`, {
+        id: data?.id,
+        status: data?.status,
+        product: data?.product?.name,
+        hasCustomerEmail: Boolean(data?.customer?.email),
+        customerId: data?.customer?.id,
+    });
+}
+
+async function recordMarketingEvent(
+    eventName: string,
+    userId: string,
+    userEmail: string | null,
+    properties: Record<string, string | number | boolean | null | undefined>
+) {
+    const { error } = await getSupabase()
+        .from("marketing_events")
+        .insert({
+            event_name: eventName,
+            source: "polar_webhook",
+            user_id: userId,
+            user_email: userEmail,
+            properties,
+            occurred_at: new Date().toISOString(),
+        });
+
+    if (error) {
+        console.warn(`Could not record marketing event ${eventName}:`, error.message);
+    }
+}
+
 // Helper to get credits from product name or metadata
 function getCreditsForProduct(
     productName: string,
@@ -154,10 +186,9 @@ export const POST = Webhooks({
     // Handle successful order payment (one-time purchases ONLY)
     // Note: Subscriptions are handled by onSubscriptionActive to prevent double allocation
     onOrderPaid: async (payload) => {
-        console.log("Order paid webhook received:", JSON.stringify(payload, null, 2));
-
         try {
             const order = payload.data;
+            logWebhookReceived("Order paid", order);
             const customerEmail = order.customer?.email;
 
             if (!customerEmail) {
@@ -234,6 +265,16 @@ export const POST = Webhooks({
                 console.log(`✓ Recorded payment of ${currency} ${paymentAmount} for user ${userId} (Order ID: ${order.id})`);
             }
 
+            await recordMarketingEvent("purchase_completed", userId, customerEmail, {
+                provider: "polar",
+                product_name: productName,
+                plan_id: planId,
+                amount: paymentAmount,
+                currency,
+                order_id: order.id,
+                is_subscription: isSubscription,
+            });
+
             // Save customer ID if available
             if (order.customer?.id) {
                 await getSupabase()
@@ -276,10 +317,9 @@ export const POST = Webhooks({
 
     // Handle subscription activation
     onSubscriptionActive: async (payload) => {
-        console.log("Subscription active webhook received:", JSON.stringify(payload, null, 2));
-
         try {
             const subscription = payload.data;
+            logWebhookReceived("Subscription active", subscription);
             const customerEmail = subscription.customer?.email;
 
             if (!customerEmail) {
@@ -363,10 +403,9 @@ export const POST = Webhooks({
 
     // Handle subscription cancellation
     onSubscriptionCanceled: async (payload) => {
-        console.log("Subscription canceled webhook received:", JSON.stringify(payload, null, 2));
-
         try {
             const subscription = payload.data;
+            logWebhookReceived("Subscription canceled", subscription);
             const customerEmail = subscription.customer?.email;
 
             if (!customerEmail) {
@@ -405,6 +444,12 @@ export const POST = Webhooks({
                 })
                 .eq("id", userId);
 
+            await recordMarketingEvent("subscription_canceled", userId, customerEmail, {
+                provider: "polar",
+                subscription_id: subscription.id,
+                product_name: subscription.product?.name || "",
+            });
+
             console.log(`Subscription cancelled for user ${userId}`);
         } catch (error) {
             console.error("Error processing subscription canceled webhook:", error);
@@ -413,10 +458,9 @@ export const POST = Webhooks({
 
     // Handle subscription updates (renewals)
     onSubscriptionUpdated: async (payload) => {
-        console.log("Subscription updated webhook received:", JSON.stringify(payload, null, 2));
-
         try {
             const subscription = payload.data;
+            logWebhookReceived("Subscription updated", subscription);
 
             // Check if this is a renewal (status is active and we have current period info)
             if (subscription.status === "active") {
@@ -430,7 +474,7 @@ export const POST = Webhooks({
                 // Find user - use subscription_id (not polar_subscription_id which doesn't exist)
                 const { data: users } = await getSupabase()
                     .from("profiles")
-                    .select("id, subscription_id, credits_remaining, credits_last_renewed_at")
+                    .select("id, subscription_id, credits_remaining, credits_last_renewed_at, monthly_credit_allowance")
                     .eq("email", customerEmail);
 
                 if (users && users.length > 0) {
@@ -454,8 +498,12 @@ export const POST = Webhooks({
                     // Billing cycle check
                     const billingCycle = isAnnual ? "annual" : "monthly";
 
+                    // Check for profile-level credit override (for legacy plans like Nedra's $20/2300)
+                    const profileOverride = user.monthly_credit_allowance;
                     // For Monthly Drip, annual renewals only get the monthly portion initially
-                    const creditsToGrant = isAnnual ? (MONTHLY_CREDITS_MAP[planId] || rawCredits) : rawCredits;
+                    const creditsToGrant = (profileOverride && profileOverride > 0)
+                        ? profileOverride
+                        : (isAnnual ? (MONTHLY_CREDITS_MAP[planId] || rawCredits) : rawCredits);
 
                     console.log(`Processing subscription update for ${customerEmail}:`, {
                         productName,

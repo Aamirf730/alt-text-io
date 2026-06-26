@@ -66,6 +66,11 @@ agenthub/agents/youtube/db
 
 # Archive files and large assets
 **/*.zip
+!frontend-next/public/downloads/
+!frontend-next/public/downloads/alt-text-pro.zip
+!frontend-next/public/wordpress-plugin/
+!frontend-next/public/wordpress-plugin/alt-text-pro-plugin.zip
+!frontend-next/public/wordpress-plugin/alt-text-pro-plugin-1.4.95.zip
 **/*.tar.gz
 **/*.tar
 **/*.tgz

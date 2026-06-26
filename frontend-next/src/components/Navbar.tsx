@@ -96,28 +96,26 @@ const Navbar = ({ onSignInClick, onSignUpClick }: NavbarProps) => {
     return (
         <nav className="sticky top-0 z-50 py-4">
             <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="bg-white rounded-full shadow-lg border border-gray-100 px-6 py-3" style={{
-                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05)'
-                }}>
+                <div className="bg-white/95 backdrop-blur-xl rounded-full shadow-lg border border-gray-200 px-6 py-3">
                     <div className="flex items-center justify-between h-12">
                         <div className="flex items-center">
-                            <Link href="/" className="flex items-center space-x-3">
+                            <Link href="/" className="flex items-center space-x-3 group">
                                 <Image
                                     src="/logo-alt-text-pro.png"
                                     alt="Alt Text Pro Logo"
                                     width={40}
                                     height={40}
-                                    className="h-10 w-10 object-contain"
+                                    className="h-10 w-10 object-contain transition-transform group-hover:rotate-12"
                                 />
-                                <span className="text-2xl font-bold text-gray-900">Alt Text Pro</span>
+                                <span className="text-2xl font-bold text-notebook-slate tracking-tight font-outfit">Alt Text Pro</span>
                             </Link>
                         </div>
 
                         {/* Centered Navigation Links */}
                         <div className="hidden lg:flex items-center space-x-12">
-                            <Link href="/#pricing" className="text-gray-700 hover:text-gray-900 font-medium transition-colors">Pricing</Link>
-                            <Link href="/contact" className="text-gray-700 hover:text-gray-900 font-medium transition-colors">Contact</Link>
-                            <Link href="/docs" className="text-gray-700 hover:text-gray-900 font-medium transition-colors">Docs</Link>
+                            <Link href="/#pricing" className="text-gray-600 hover:text-notebook-blue font-medium transition-colors">Pricing</Link>
+                            <Link href="/contact" className="text-gray-600 hover:text-notebook-blue font-medium transition-colors">Contact</Link>
+                            <Link href="/docs" className="text-gray-600 hover:text-notebook-blue font-medium transition-colors">Docs</Link>
                         </div>
 
                         {/* Right Side Buttons */}
@@ -126,10 +124,7 @@ const Navbar = ({ onSignInClick, onSignUpClick }: NavbarProps) => {
                                 <>
                                     <Button
                                         variant="ghost"
-                                        className="text-white font-medium px-6 py-2.5 rounded-full"
-                                        style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
-                                        onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #003a42 0%, #0D4F5E 100%)'}
-                                        onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)'}
+                                        className="text-gray-700 font-medium px-6 py-2.5 rounded-full hover:bg-gray-100 hover:text-notebook-blue transition-all duration-300"
                                         onClick={() => {
                                             router.push("/dashboard");
                                         }}
@@ -137,7 +132,7 @@ const Navbar = ({ onSignInClick, onSignUpClick }: NavbarProps) => {
                                         Dashboard
                                     </Button>
                                     <Button
-                                        className="bg-black hover:bg-gray-800 text-white px-6 py-2.5 rounded-full font-medium"
+                                        className="bg-notebook-blue text-white hover:bg-notebook-blue/90 font-semibold px-6 py-2.5 rounded-full shadow-notebook transition-all duration-300"
                                         onClick={handleSignOut}
                                     >
                                         Sign Out
@@ -147,19 +142,16 @@ const Navbar = ({ onSignInClick, onSignUpClick }: NavbarProps) => {
                                 <>
                                     <Button
                                         variant="ghost"
-                                        className="text-white font-medium px-6 py-2.5 rounded-full"
-                                        style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
-                                        onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #003a42 0%, #0D4F5E 100%)'}
-                                        onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)'}
+                                        className="text-gray-700 font-medium px-6 py-2.5 rounded-full hover:bg-gray-100 hover:text-notebook-blue transition-all duration-300"
                                         onClick={handleSignIn}
                                     >
                                         Sign In
                                     </Button>
                                     <Button
-                                        className="bg-black hover:bg-gray-800 text-white px-6 py-2.5 rounded-full font-medium"
+                                        className="bg-notebook-blue text-white hover:bg-notebook-blue/90 font-semibold px-6 py-2.5 rounded-full shadow-notebook transition-all duration-300 flex items-center gap-2"
                                         onClick={handleSignUp}
                                     >
-                                        Free Trial
+                                        Start Free Trial
                                     </Button>
                                 </>
                             )}
@@ -188,31 +180,31 @@ const Navbar = ({ onSignInClick, onSignUpClick }: NavbarProps) => {
                 <>
                     {/* Backdrop */}
                     <div
-                        className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-40 top-20"
+                        className="lg:hidden fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-40 top-20"
                         onClick={() => setIsMobileMenuOpen(false)}
                     ></div>
                     {/* Menu */}
-                    <div className="lg:hidden fixed inset-x-0 top-20 z-50 bg-white border-b border-gray-200 shadow-lg mobile-menu-container">
+                    <div className="lg:hidden fixed inset-x-4 top-24 z-50 bg-white/95 backdrop-blur-xl border border-gray-200 rounded-2xl shadow-2xl overflow-hidden mobile-menu-container">
                         <div className="px-4 py-6 space-y-4">
                             {/* Navigation Links */}
                             <div className="space-y-3">
                                 <Link
                                     href="/#pricing"
-                                    className="block text-gray-700 hover:text-gray-900 font-medium transition-colors py-2"
+                                    className="block text-gray-700 hover:text-primary font-medium transition-colors py-2"
                                     onClick={() => setIsMobileMenuOpen(false)}
                                 >
                                     Pricing
                                 </Link>
                                 <Link
                                     href="/contact"
-                                    className="block text-gray-700 hover:text-gray-900 font-medium transition-colors py-2"
+                                    className="block text-gray-700 hover:text-primary font-medium transition-colors py-2"
                                     onClick={() => setIsMobileMenuOpen(false)}
                                 >
                                     Contact
                                 </Link>
                                 <Link
                                     href="/docs"
-                                    className="block text-gray-700 hover:text-gray-900 font-medium transition-colors py-2"
+                                    className="block text-gray-700 hover:text-primary font-medium transition-colors py-2"
                                     onClick={() => setIsMobileMenuOpen(false)}
                                 >
                                     Docs
@@ -228,8 +220,7 @@ const Navbar = ({ onSignInClick, onSignUpClick }: NavbarProps) => {
                                     <>
                                         <Button
                                             variant="ghost"
-                                            className="w-full text-white font-medium px-6 py-2.5 rounded-full"
-                                            style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
+                                            className="w-full text-gray-700 font-medium px-6 py-2.5 rounded-full hover:bg-gray-100 hover:text-notebook-blue"
                                             onClick={() => {
                                                 setIsMobileMenuOpen(false);
                                                 router.push("/dashboard");
@@ -238,7 +229,7 @@ const Navbar = ({ onSignInClick, onSignUpClick }: NavbarProps) => {
                                             Dashboard
                                         </Button>
                                         <Button
-                                            className="w-full bg-black hover:bg-gray-800 text-white px-6 py-2.5 rounded-full font-medium"
+                                            className="w-full bg-notebook-blue text-white hover:bg-notebook-blue/90 font-semibold px-6 py-2.5 rounded-full"
                                             onClick={handleSignOut}
                                         >
                                             Sign Out
@@ -248,17 +239,16 @@ const Navbar = ({ onSignInClick, onSignUpClick }: NavbarProps) => {
                                     <>
                                         <Button
                                             variant="ghost"
-                                            className="w-full text-white font-medium px-6 py-2.5 rounded-full"
-                                            style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
+                                            className="w-full text-gray-700 font-medium px-6 py-2.5 rounded-full hover:bg-gray-100 hover:text-notebook-blue"
                                             onClick={handleSignIn}
                                         >
                                             Sign In
                                         </Button>
                                         <Button
-                                            className="w-full bg-black hover:bg-gray-800 text-white px-6 py-2.5 rounded-full font-medium"
+                                            className="w-full bg-notebook-blue text-white hover:bg-notebook-blue/90 font-semibold px-6 py-2.5 rounded-full"
                                             onClick={handleSignUp}
                                         >
-                                            Free Trial
+                                            Start Free Trial
                                         </Button>
                                     </>
                                 )}

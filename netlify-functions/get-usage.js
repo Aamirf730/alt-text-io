@@ -26,7 +26,7 @@ exports.handler = async (event, context) => {
 
   // Rate limiting
   const clientIp = getClientIp(event);
-  const rateLimit = checkRateLimit(clientIp);
+  const rateLimit = await checkRateLimit(clientIp);
   if (!rateLimit.allowed) {
     return rateLimitExceededResponse(headers, rateLimit);
   }
@@ -188,7 +188,8 @@ exports.handler = async (event, context) => {
     };
 
   } catch (error) {
-    console.error('Get usage error:', error);
+    const { reportError } = require('./utils/error-reporter');
+    reportError(error, { functionName: 'get-usage', ip: getClientIp(event) });
     return {
       statusCode: 500,
       headers,

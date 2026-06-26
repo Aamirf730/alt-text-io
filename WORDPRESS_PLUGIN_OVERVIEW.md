@@ -4,8 +4,8 @@ Complete WordPress Plugin Development Guide
 
 I've created a complete, production-ready WordPress plugin for your Alt-Text AI SaaS! Here's what it includes:
 
-alt-text-ai/
-├── alt-text-ai.php              # 🎯 Main plugin file (950+ lines)
+alt-text-pro/
+├── alt-text-pro.php             # 🎯 Main plugin file
 ├── readme.txt                   # 📝 WordPress.org compatible readme
 ├── INSTALLATION.md              # 📖 Complete setup guide
 ├── templates/
@@ -77,26 +77,20 @@ jQuery(document).on('click', '.alttext-ai-generate-btn', function(e) {
 });
 
 🚀 INSTALLATION STEPS
-1. Update API URL
-In alt-text-ai.php, update this line to your deployed Netlify URL:
-
-define('ALTTEXT_AI_API_URL', 'https://YOUR-DOMAIN.netlify.app/.netlify/functions');
-
-
-2. WordPress Installation
+1. WordPress Installation
 
 # Upload plugin to WordPress
-/wp-content/plugins/alt-text-ai/
-├── alt-text-ai.php
+/wp-content/plugins/alt-text-pro/
+├── alt-text-pro.php
 ├── readme.txt
 ├── templates/
 └── assets/
 
-3. Plugin Activation
+2. Plugin Activation
 Go to WordPress Admin → Plugins
-Find "Alt-Text AI" and click Activate
-Go to Settings → Alt-Text AI
-Enter API token from your SaaS dashboard
+Find "AI Alt Text Pro" and click Activate
+Go to Alt Text Pro → Settings
+Click "Connect Account" or paste the API key manually
 Enable auto-generation
 
 🎯 KEY FUNCTIONALITY

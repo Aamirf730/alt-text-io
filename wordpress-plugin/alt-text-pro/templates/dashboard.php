@@ -12,29 +12,40 @@ $alt_text_pro_current_page = isset($_GET['page']) ? sanitize_text_field(wp_unsla
 ?>
 
 <div class="wrap alt-text-pro-dashboard">
+    <!-- Notices Container -->
+    <div class="alt-text-pro-notices-container">
+        <?php do_action('alt_text_pro_render_notices'); ?>
+    </div>
+
     <!-- Header & Navigation -->
     <div class="alt-text-pro-header">
         <div class="alt-text-pro-logo">
-            <img src="<?php echo esc_url(ALT_TEXT_PRO_PLUGIN_URL . 'assets/images/logo-alt-text-pro.png'); ?>" alt="Alt Text Pro" />
+            <img src="<?php echo esc_url(ALT_TEXT_PRO_PLUGIN_URL . 'assets/images/logo-alt-text-pro.png'); ?>"
+                alt="Alt Text Pro" />
             <div>
                 <h1><?php esc_html_e('Alt Text Pro', 'alt-text-pro'); ?></h1>
-                <span style="color: var(--text-secondary); font-size: 13px;">v<?php echo esc_html(ALT_TEXT_PRO_VERSION); ?></span>
+                <span
+                    style="color: var(--text-secondary); font-size: 13px;">v<?php echo esc_html(ALT_TEXT_PRO_VERSION); ?></span>
             </div>
         </div>
         <div class="alt-text-pro-nav">
-            <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-pro')); ?>" class="alt-text-pro-nav-item <?php echo esc_attr($alt_text_pro_current_page === 'alt-text-pro' ? 'active' : ''); ?>">
+            <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-pro')); ?>"
+                class="alt-text-pro-nav-item <?php echo esc_attr($alt_text_pro_current_page === 'alt-text-pro' ? 'active' : ''); ?>">
                 <span class="dashicons dashicons-dashboard"></span>
                 <?php esc_html_e('Dashboard', 'alt-text-pro'); ?>
             </a>
-            <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-pro-bulk')); ?>" class="alt-text-pro-nav-item <?php echo esc_attr($alt_text_pro_current_page === 'alt-text-pro-bulk' ? 'active' : ''); ?>">
+            <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-pro-bulk')); ?>"
+                class="alt-text-pro-nav-item <?php echo esc_attr($alt_text_pro_current_page === 'alt-text-pro-bulk' ? 'active' : ''); ?>">
                 <span class="dashicons dashicons-images-alt2"></span>
                 <?php esc_html_e('Bulk Process', 'alt-text-pro'); ?>
             </a>
-            <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-pro-logs')); ?>" class="alt-text-pro-nav-item <?php echo esc_attr($alt_text_pro_current_page === 'alt-text-pro-logs' ? 'active' : ''); ?>">
+            <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-pro-logs')); ?>"
+                class="alt-text-pro-nav-item <?php echo esc_attr($alt_text_pro_current_page === 'alt-text-pro-logs' ? 'active' : ''); ?>">
                 <span class="dashicons dashicons-list-view"></span>
                 <?php esc_html_e('Logs', 'alt-text-pro'); ?>
             </a>
-            <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-pro-settings')); ?>" class="alt-text-pro-nav-item <?php echo esc_attr($alt_text_pro_current_page === 'alt-text-pro-settings' ? 'active' : ''); ?>">
+            <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-pro-settings')); ?>"
+                class="alt-text-pro-nav-item <?php echo esc_attr($alt_text_pro_current_page === 'alt-text-pro-settings' ? 'active' : ''); ?>">
                 <span class="dashicons dashicons-admin-settings"></span>
                 <?php esc_html_e('Settings', 'alt-text-pro'); ?>
             </a>
@@ -45,39 +56,42 @@ $alt_text_pro_current_page = isset($_GET['page']) ? sanitize_text_field(wp_unsla
         <!-- Setup Card -->
         <div class="alt-text-pro-card">
             <div class="card-content" style="text-align: center; padding: 60px 20px;">
-                <span class="dashicons dashicons-admin-network" style="font-size: 48px; width: 48px; height: 48px; color: var(--primary-color); margin-bottom: 20px;"></span>
+                <span class="dashicons dashicons-admin-network"
+                    style="font-size: 48px; width: 48px; height: 48px; color: var(--primary-color); margin-bottom: 20px;"></span>
                 <h2 style="margin-bottom: 10px;"><?php esc_html_e('Connect to Alt Text Pro', 'alt-text-pro'); ?></h2>
                 <p style="max-width: 500px; margin: 0 auto 30px; color: var(--text-secondary); font-size: 16px;">
                     <?php esc_html_e('Get accurate alt text for your images automatically using AI. Connect your account to get started.', 'alt-text-pro'); ?>
                 </p>
-                
+
                 <div style="display: flex; gap: 16px; justify-content: center;">
                     <a href="https://www.alt-text.pro/dashboard" target="_blank" class="button-secondary-custom">
                         <?php esc_html_e('Get API Key', 'alt-text-pro'); ?>
                         <span class="dashicons dashicons-external"></span>
                     </a>
-                    <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-pro-settings')); ?>" class="button-primary-custom">
+                    <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-pro-settings')); ?>"
+                        class="button-primary-custom">
                         <?php esc_html_e('Configure Settings', 'alt-text-pro'); ?>
                         <span class="dashicons dashicons-arrow-right-alt"></span>
                     </a>
                 </div>
             </div>
         </div>
-    <?php else: ?>
-        
+    <?php
+else: ?>
+
         <!-- Status & Credits -->
         <div class="stats-grid">
-            <?php 
-            // Calculate credits logic
-            $alt_text_pro_credits_remaining = isset($usage_stats['credits_remaining']) ? intval($usage_stats['credits_remaining']) : 0;
-            $alt_text_pro_total_credits = isset($usage_stats['total_credits']) ? intval($usage_stats['total_credits']) : 100;
-            $alt_text_pro_credits_used = isset($usage_stats['credits_used']) ? intval($usage_stats['credits_used']) : max(0, $alt_text_pro_total_credits - $alt_text_pro_credits_remaining);
-            $alt_text_pro_usage_percentage = $alt_text_pro_total_credits > 0 ? ($alt_text_pro_credits_used / $alt_text_pro_total_credits) * 100 : 0;
-            $alt_text_pro_usage_percentage = min(100, max(0, $alt_text_pro_usage_percentage));
-            
-            $alt_text_pro_plan_id = $usage_stats['subscription_plan'] ?? 'free';
-            ?>
-            
+            <?php
+    // Calculate credits logic
+    $alt_text_pro_credits_remaining = isset($usage_stats['credits_remaining']) ? intval($usage_stats['credits_remaining']) : 0;
+    $alt_text_pro_total_credits = isset($usage_stats['total_credits']) ? intval($usage_stats['total_credits']) : 100;
+    $alt_text_pro_credits_used = isset($usage_stats['credits_used']) ? intval($usage_stats['credits_used']) : max(0, $alt_text_pro_total_credits - $alt_text_pro_credits_remaining);
+    $alt_text_pro_usage_percentage = $alt_text_pro_total_credits > 0 ? ($alt_text_pro_credits_used / $alt_text_pro_total_credits) * 100 : 0;
+    $alt_text_pro_usage_percentage = min(100, max(0, $alt_text_pro_usage_percentage));
+
+    $alt_text_pro_plan_id = $usage_stats['subscription_plan'] ?? 'free';
+?>
+
             <div class="stat-card">
                 <div class="stat-header">
                     <span class="stat-title"><?php esc_html_e('Credits', 'alt-text-pro'); ?></span>
@@ -85,14 +99,17 @@ $alt_text_pro_current_page = isset($_GET['page']) ? sanitize_text_field(wp_unsla
                 </div>
                 <div class="stat-value"><?php echo esc_html(number_format($alt_text_pro_credits_remaining)); ?></div>
                 <div class="stat-desc"><?php esc_html_e('Credits remaining this month', 'alt-text-pro'); ?></div>
-                
+
                 <div class="usage-progress-container">
                     <div class="progress-bar">
-                        <div class="progress-fill" style="width: <?php echo esc_attr($alt_text_pro_usage_percentage); ?>%"></div>
+                        <div class="progress-fill" style="width: <?php echo esc_attr($alt_text_pro_usage_percentage); ?>%">
+                        </div>
                     </div>
                     <div class="progress-label">
-                        <span><?php echo esc_html(number_format($alt_text_pro_credits_used)); ?> <?php esc_html_e('used', 'alt-text-pro'); ?></span>
-                        <span><?php echo esc_html(number_format($alt_text_pro_total_credits)); ?> <?php esc_html_e('total', 'alt-text-pro'); ?></span>
+                        <span><?php echo esc_html(number_format($alt_text_pro_credits_used)); ?>
+                            <?php esc_html_e('used', 'alt-text-pro'); ?></span>
+                        <span><?php echo esc_html(number_format($alt_text_pro_total_credits)); ?>
+                            <?php esc_html_e('total', 'alt-text-pro'); ?></span>
                     </div>
                 </div>
             </div>
@@ -115,7 +132,8 @@ $alt_text_pro_current_page = isset($_GET['page']) ? sanitize_text_field(wp_unsla
                     <?php echo esc_html(str_replace('_', ' ', $alt_text_pro_plan_id)); ?>
                 </div>
                 <div class="stat-desc">
-                    <a href="https://www.alt-text.pro/dashboard" target="_blank" style="text-decoration: none; color: var(--primary-color);">
+                    <a href="https://www.alt-text.pro/dashboard" target="_blank"
+                        style="text-decoration: none; color: var(--primary-color);">
                         <?php esc_html_e('Manage Subscription', 'alt-text-pro'); ?> &rarr;
                     </a>
                 </div>
@@ -150,27 +168,103 @@ $alt_text_pro_current_page = isset($_GET['page']) ? sanitize_text_field(wp_unsla
         </div>
 
         <?php if ($images_without_alt > 0): ?>
-        <div class="alt-text-pro-card" style="border-left: 4px solid var(--warning-color);">
-            <div class="card-content" style="display: flex; justify-content: space-between; align-items: center;">
-                <div>
-                    <h3 style="margin: 0 0 8px 0;"><?php esc_html_e('Optimization Opportunity', 'alt-text-pro'); ?></h3>
-                    <p style="margin: 0; color: var(--text-secondary);">
-                        <?php 
-                        echo wp_kses_post(
-                            sprintf(
-                                // translators: %d: Number of images
-                                __('You have <strong>%1$d images</strong> missing alt text.', 'alt-text-pro'),
-                                esc_html($images_without_alt)
-                            )
-                        ); ?>
+            <div class="alt-text-pro-card" style="border-left: 4px solid var(--warning-color);">
+                <div class="card-content" style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <h3 style="margin: 0 0 8px 0;"><?php esc_html_e('Optimization Opportunity', 'alt-text-pro'); ?></h3>
+                        <p style="margin: 0; color: var(--text-secondary);">
+                            <?php
+        echo wp_kses_post(
+            sprintf(
+            // translators: %d: Number of images
+            __('You have <strong>%1$d images</strong> missing alt text.', 'alt-text-pro'),
+            esc_html($images_without_alt)
+        )
+        ); ?>
+                        </p>
+                    </div>
+                    <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-pro-bulk')); ?>"
+                        class="button-primary-custom">
+                        <?php esc_html_e('Fix Now', 'alt-text-pro'); ?>
+                    </a>
+                </div>
+            </div>
+        <?php
+    endif; ?>
+
+    <?php
+endif; ?>
+</div>
+
+<!-- Onboarding modal (shown on first install when no API key is configured) -->
+<div id="alt-text-pro-onboarding-modal" class="alt-text-pro-modal modal" aria-hidden="true">
+    <div class="modal-overlay close-modal" tabindex="-1"></div>
+    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="alt-text-pro-onboarding-title">
+        <button type="button" class="close-modal modal-close"
+            aria-label="<?php esc_attr_e('Close', 'alt-text-pro'); ?>">&times;</button>
+
+        <div class="modal-header">
+            <h2 id="alt-text-pro-onboarding-title">
+                <span class="dashicons dashicons-admin-network"
+                    style="font-size: 24px; width: 24px; height: 24px; color: var(--primary-color); vertical-align: middle; margin-right: 8px;"></span>
+                <?php esc_html_e('Connect Alt Text Pro', 'alt-text-pro'); ?>
+            </h2>
+            <p class="modal-subtitle">
+                <?php esc_html_e('Connect your account to start generating AI-powered alt text.', 'alt-text-pro'); ?>
+            </p>
+        </div>
+
+        <div class="modal-body">
+            <!-- Connect account (recommended) -->
+            <div class="onboarding-step">
+                <div class="step-label" style="background: var(--primary-color); color: #fff;">
+                    <?php esc_html_e('Recommended', 'alt-text-pro'); ?>
+                </div>
+                <p style="margin-bottom: 12px;">
+                    <?php esc_html_e('Sign in or create a free account to automatically connect your plugin.', 'alt-text-pro'); ?>
+                </p>
+                <button type="button" class="button button-primary-custom wide" id="auto-connect-btn">
+                    <span class="dashicons dashicons-admin-links"
+                        style="margin-right: 6px; line-height: inherit;"></span>
+                    <?php esc_html_e('Connect Account', 'alt-text-pro'); ?>
+                </button>
+                <div id="auto-connect-status" style="margin-top: 10px; display: none;"></div>
+            </div>
+
+            <div class="step-connector">
+                <span><?php esc_html_e('or', 'alt-text-pro'); ?></span>
+            </div>
+
+            <!-- Manual API Key entry (fallback) -->
+            <div class="onboarding-step">
+                <div class="step-label"><?php esc_html_e('Manual', 'alt-text-pro'); ?></div>
+                <div class="onboarding-field">
+                    <label for="onboarding_api_key"><?php esc_html_e('Paste your API key', 'alt-text-pro'); ?></label>
+                    <div class="input-wrapper">
+                        <span class="dashicons dashicons-key input-icon"></span>
+                        <input type="password" id="onboarding_api_key" placeholder="alt_..." autocomplete="off" />
+                    </div>
+                    <p class="description" style="margin-top: 6px; font-size: 12px; color: var(--text-secondary);">
+                        <?php
+echo wp_kses_post(
+    sprintf(
+    // translators: %s: URL to the Alt Text Pro dashboard
+    __('Get your key from the <a href="%1$s" target="_blank">dashboard</a>.', 'alt-text-pro'),
+    esc_url('https://www.alt-text.pro/dashboard')
+)
+); ?>
                     </p>
                 </div>
-                <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-pro-bulk')); ?>" class="button-primary-custom">
-                    <?php esc_html_e('Fix Now', 'alt-text-pro'); ?>
-                </a>
+                <div id="onboarding-message" class="onboarding-message" aria-live="polite"></div>
             </div>
         </div>
-        <?php endif; ?>
 
-    <?php endif; ?>
+        <div class="modal-footer">
+            <button type="button" class="button button-primary-custom wide" id="onboarding-save">
+                <?php esc_html_e('Save API Key', 'alt-text-pro'); ?>
+            </button>
+            <button type="button"
+                class="button button-link close-modal"><?php esc_html_e('I\'ll do this later', 'alt-text-pro'); ?></button>
+        </div>
+    </div>
 </div>

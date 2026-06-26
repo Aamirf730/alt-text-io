@@ -5,8 +5,8 @@ This directory contains the Netlify functions that power the WordPress plugin in
 ## 🚀 Available Endpoints
 
 ### 1. Generate Alt-Text
-**Endpoint:** `/.netlify/functions/generate-alt-text`  
-**Method:** POST  
+**Endpoint:** `/.netlify/functions/generate-alt-text`
+**Method:** POST
 **Purpose:** Generate alt-text for a single image using our AI service
 
 **Headers:**
@@ -34,8 +34,8 @@ Content-Type: application/json
 ```
 
 ### 2. Get Usage Statistics
-**Endpoint:** `/.netlify/functions/get-usage`  
-**Method:** GET  
+**Endpoint:** `/.netlify/functions/get-usage`
+**Method:** GET
 **Purpose:** Retrieve user usage statistics and plan information
 
 **Headers:**
@@ -54,8 +54,8 @@ Authorization: Bearer YOUR_API_KEY
 ```
 
 ### 3. Validate API Token
-**Endpoint:** `/.netlify/functions/auth/validate`  
-**Method:** POST  
+**Endpoint:** `/.netlify/functions/auth/validate`
+**Method:** POST
 **Purpose:** Validate API token and return user information
 
 **Headers:**
@@ -177,6 +177,20 @@ Required environment variables:
 - `SUPABASE_URL` - Your Supabase project URL
 - `SUPABASE_SERVICE_ROLE_KEY` - Supabase service role key
 - `AI_API_KEY` - Our core AI service API key
+- `SUPERUSER_EMAILS` - Comma-separated admin emails allowed to open admin reports
+- `MARKETING_REPORT_EMAILS` - Optional comma-separated recipients for the daily funnel email; falls back to `SUPERUSER_EMAILS`
+- `EMAIL_USER` / `EMAIL_PASSWORD` - SMTP credentials used by contact emails and the scheduled funnel report
+- `LIFECYCLE_AUTOMATION_SECRET` - Optional secret for manually invoking or dry-running the lifecycle automation endpoint. Public HTTP calls that only spoof Netlify's scheduled `next_run` body are blocked.
+- `LIFECYCLE_AUTOMATION_LOOKBACK_DAYS` - Optional event lookback window for lifecycle automation, defaults to `30`
+- `LIFECYCLE_AUTOMATION_MAX_SENDS` - Optional per-run send cap for lifecycle automation, defaults to `25`
+
+### Lifecycle Automation Manual Test
+Manual tests must use `LIFECYCLE_AUTOMATION_SECRET`. Do not use a public scheduled-style request as authorization.
+
+```bash
+curl -sS -X POST "https://www.alt-text.pro/.netlify/functions/lifecycle-automation?dry_run=1" \
+  -H "x-lifecycle-automation-secret: YOUR_SECRET"
+```
 
 ### File Structure
 ```
@@ -252,6 +266,6 @@ Monitor usage and performance through:
 
 ---
 
-**Status:** ✅ Ready for WordPress Plugin Integration  
-**Last Updated:** January 2025  
-**Version:** 1.0.0 
+**Status:** ✅ Ready for WordPress Plugin Integration
+**Last Updated:** January 2025
+**Version:** 1.0.0

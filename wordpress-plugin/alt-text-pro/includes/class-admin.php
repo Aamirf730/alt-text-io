@@ -76,6 +76,12 @@ class AltTextPro_Admin
     }
 
     /**
+     * Whether we are on a plugin page
+     * @var bool
+     */
+    private $is_plugin_page = false;
+
+    /**
      * Admin init
      */
     public function admin_init()
@@ -83,8 +89,34 @@ class AltTextPro_Admin
         // Add settings link to plugins page
         add_filter('plugin_action_links_' . ALT_TEXT_PRO_PLUGIN_BASENAME, array($this, 'add_plugin_action_links'));
 
-        // Add admin notices
-        add_action('admin_notices', array($this, 'admin_notices'));
+        // Determine if we are on a plugin page
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $page = isset($_GET['page']) ? sanitize_text_field(wp_unslash($_GET['page'])) : '';
+        $this->is_plugin_page = (strpos($page, 'alt-text-pro') !== false);
+
+        // Add our admin notice only on NON-plugin pages (plugin pages have the API key field visible)
+        if (!$this->is_plugin_page) {
+            add_action('admin_notices', array($this, 'admin_notices'));
+        }
+
+        // On plugin pages, suppress ALL admin notices so they don't break the custom header layout
+        if ($this->is_plugin_page) {
+            // Remove all third-party and core notice hooks at the earliest opportunity
+            add_action('in_admin_header', array($this, 'suppress_admin_notices'), PHP_INT_MAX);
+        }
+    }
+
+    /**
+     * Suppress all admin notices on plugin pages.
+     * This runs at the end of `in_admin_header`, right before WordPress would render notices.
+     * We remove all callbacks from the notice hooks so nothing renders in the default location.
+     */
+    public function suppress_admin_notices()
+    {
+        remove_all_actions('admin_notices');
+        remove_all_actions('all_admin_notices');
+        remove_all_actions('network_admin_notices');
+        remove_all_actions('user_admin_notices');
     }
 
     /**
@@ -131,9 +163,24 @@ class AltTextPro_Admin
         $usage_stats = null;
         $connection_status = null;
 
-        // Get usage stats if API key is configured
+        // Get usage stats if API key is configured and valid
         $settings = get_option('alt_text_pro_settings', array());
+        $has_valid_key = false;
         if (!empty($settings['api_key'])) {
+            $settings_handler = new AltTextPro_Settings();
+            $decrypted = $settings_handler->decrypt_api_key($settings['api_key']);
+            if ($decrypted !== false && AltTextPro_API_Client::validate_api_key_format($decrypted)) {
+                $has_valid_key = true;
+            } elseif ($decrypted === false && AltTextPro_API_Client::validate_api_key_format($settings['api_key'])) {
+                $has_valid_key = true;
+            }
+        }
+        // Override settings api_key for template: empty string if invalid
+        if (!$has_valid_key) {
+            $settings['api_key'] = '';
+        }
+
+        if ($has_valid_key) {
             $usage_response = $api_client->get_usage_stats();
             if ($usage_response['success']) {
                 $usage_stats = $usage_response['data'];
@@ -241,29 +288,6 @@ class AltTextPro_Admin
      */
     public function settings_page()
     {
-        // Handle form submission
-        if (isset($_POST['submit'])) {
-            // Check nonce
-            if (!isset($_POST['_wpnonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['_wpnonce'])), 'alt_text_pro_settings')) {
-                wp_die(esc_html__('Security check failed.', 'alt-text-pro'));
-            }
-
-            $api_key = isset($_POST['api_key']) ? sanitize_text_field(wp_unslash($_POST['api_key'])) : '';
-            $batch_size = isset($_POST['batch_size']) ? intval($_POST['batch_size']) : 2;
-
-            $settings = array(
-                'api_key' => $api_key,
-                'auto_generate' => isset($_POST['auto_generate']),
-                'overwrite_existing' => isset($_POST['overwrite_existing']),
-                'context_enabled' => isset($_POST['context_enabled']),
-                'batch_size' => min(50, max(1, $batch_size))
-            );
-
-            update_option('alt_text_pro_settings', $settings);
-
-            echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__('Settings saved successfully!', 'alt-text-pro') . '</p></div>';
-        }
-
         $settings = get_option('alt_text_pro_settings', array(
             'api_key' => '',
             'auto_generate' => false,
@@ -328,7 +352,7 @@ class AltTextPro_Admin
      */
     public function add_alt_text_field($form_fields, $post)
     {
-        if (!str_starts_with($post->post_mime_type, 'image/')) {
+        if (strpos((string) $post->post_mime_type, 'image/') !== 0) {
             return $form_fields;
         }
 
@@ -443,7 +467,7 @@ class AltTextPro_Admin
      */
     public function media_meta_box_callback($post)
     {
-        if (!str_starts_with($post->post_mime_type, 'image/')) {
+        if (strpos((string) $post->post_mime_type, 'image/') !== 0) {
             echo '<p>' . esc_html__('Alt-text generation is only available for images.', 'alt-text-pro') . '</p>';
             return;
         }

@@ -2,7 +2,7 @@
 // File: netlify/functions/generate-alt-text.js
 
 const { createClient } = require('@supabase/supabase-js');
-const { validateApiKey, updateUserCredits } = require('./utils/api-key-validator');
+const { validateApiKey, updateUserCredits, isSupabaseConfigured } = require('./utils/api-key-validator');
 const {
   getCorsHeaders,
   handlePreflight,
@@ -15,7 +15,19 @@ const {
 // Initialize Supabase client
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+const supabase = supabaseUrl && supabaseServiceKey
+  ? createClient(supabaseUrl, supabaseServiceKey)
+  : null;
+
+function isMissingSupabaseConfig() {
+  return !supabase || !isSupabaseConfigured();
+}
+
+function sanitizeAiErrorMessage(message = '') {
+  return String(message)
+    .replace(/api_key:[A-Za-z0-9_-]+/g, 'api_key:[redacted]')
+    .replace(/key=[A-Za-z0-9_-]+/g, 'key=[redacted]');
+}
 
 // Helper function to detect image MIME type from base64
 function detectImageMimeType(imageBase64) {
@@ -94,7 +106,7 @@ FORMAT REQUIREMENTS:
       topK: 20, // Limit token choices
     };
 
-    const modelName = process.env.AI_MODEL || 'gemini-2.5-flash';
+    const modelName = process.env.AI_MODEL || process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 
     // Loosen safety filters to prevent "false positive" blocks on landmarks/religious sites
     const safetySettings = [
@@ -620,6 +632,7 @@ FORMAT REQUIREMENTS:
     } else if (typeof error === 'string') {
       errorMessage = error;
     }
+    errorMessage = sanitizeAiErrorMessage(errorMessage);
 
     // Check for specific AI Service errors
     if (errorMessage.includes('leaked') || errorMessage.includes('reported')) {
@@ -641,7 +654,7 @@ exports.handler = async (event, context) => {
 
   // Rate limiting (60 requests per minute for main API)
   const clientIp = getClientIp(event);
-  const rateLimit = checkRateLimit(clientIp, 60);
+  const rateLimit = await checkRateLimit(clientIp, 60);
   if (!rateLimit.allowed) {
     return rateLimitExceededResponse(headers, rateLimit);
   }
@@ -662,6 +675,18 @@ exports.handler = async (event, context) => {
     }
 
     const token = authHeader.replace('Bearer ', '');
+
+    if (isMissingSupabaseConfig()) {
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({
+          success: false,
+          error: 'Server configuration error: Supabase credentials are not configured for local functions.',
+          message: 'Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY before generating alt text locally.'
+        }),
+      };
+    }
 
     let user = null;
     let creditsRemaining = 0;
@@ -737,24 +762,37 @@ exports.handler = async (event, context) => {
     }
     console.log('Credit check PASSED - Proceeding with alt-text generation');
 
-    // Parse request body
-    let requestBody;
-    try {
-      requestBody = JSON.parse(event.body);
-    } catch (parseError) {
+    // Parse request body with size limit (25MB for base64 images)
+    const { parseJsonBody, validateString, LIMITS } = require('./utils/input-validator');
+    const { data: requestBody, error: jsonError } = parseJsonBody(event.body, {
+      maxSize: LIMITS.MAX_JSON_BODY_SIZE,
+    });
+    if (jsonError) {
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ error: 'Invalid JSON in request body' }),
+        body: JSON.stringify({ error: jsonError }),
       };
     }
 
-    const { image_base64, context } = requestBody;
+    const { image_base64 } = requestBody;
     if (!image_base64) {
       return {
         statusCode: 400,
         headers,
         body: JSON.stringify({ error: 'image_base64 is required' }),
+      };
+    }
+
+    // Validate optional context field
+    const { value: context, error: ctxError } = validateString(
+      requestBody.context, 'Context', { maxLength: LIMITS.MAX_CONTEXT_LENGTH }
+    );
+    if (ctxError) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: ctxError }),
       };
     }
 
@@ -921,7 +959,12 @@ exports.handler = async (event, context) => {
     };
 
   } catch (error) {
-    console.error('Function error:', error);
+    const { reportError } = require('./utils/error-reporter');
+    reportError(error, {
+      functionName: 'generate-alt-text',
+      ip: getClientIp(event),
+      extra: { method: event.httpMethod, path: event.path },
+    });
     return {
       statusCode: 500,
       headers,

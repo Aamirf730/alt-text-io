@@ -4,9 +4,11 @@
  */
 
 :root {
-    --primary-color: #2563EB;
-    /* Modern Blue */
-    --primary-hover: #1D4ED8;
+    --primary-color: #0D4F5E;
+    /* Alt Text Pro logo navy */
+    --primary-hover: #083F4B;
+    --primary-soft: #E7F7F5;
+    --primary-border: #BFEAE6;
     --success-color: #10B981;
     --warning-color: #F59E0B;
     --danger-color: #EF4444;
@@ -39,6 +41,43 @@
 .alt-text-pro-bulk-process *,
 .alt-text-pro-logs * {
     box-sizing: border-box;
+}
+
+/* ===== NOTICES ===== */
+.alt-text-pro-notices-container {
+    margin-bottom: 20px;
+}
+
+.alt-text-pro-notices-container .notice {
+    margin: 5px 0 15px;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+}
+
+/*
+ * Safety-net: hide any admin notices that appear OUTSIDE our dedicated container.
+ * These can leak from third-party plugins/themes or WordPress core despite
+ * the PHP suppression (especially on WP 6.4+ where all_admin_notices was
+ * deprecated). The selectors target notices at common WordPress injection
+ * points while preserving notices inside our own container.
+ */
+.alt-text-pro-dashboard > .notice,
+.alt-text-pro-dashboard > .updated,
+.alt-text-pro-dashboard > .error,
+.alt-text-pro-dashboard > .update-nag,
+.alt-text-pro-settings > .notice,
+.alt-text-pro-settings > .updated,
+.alt-text-pro-settings > .error,
+.alt-text-pro-settings > .update-nag,
+.alt-text-pro-bulk-process > .notice,
+.alt-text-pro-bulk-process > .updated,
+.alt-text-pro-bulk-process > .error,
+.alt-text-pro-bulk-process > .update-nag,
+.alt-text-pro-logs > .notice,
+.alt-text-pro-logs > .updated,
+.alt-text-pro-logs > .error,
+.alt-text-pro-logs > .update-nag {
+    display: none !important;
 }
 
 /* ===== HEADER & NAVIGATION ===== */
@@ -185,7 +224,7 @@
     width: 40px;
     height: 40px;
     border-radius: var(--radius-md);
-    background: #EFF6FF;
+    background: var(--primary-soft);
     color: var(--primary-color);
     display: flex;
     align-items: center;
@@ -329,7 +368,7 @@
 
 .action-btn:hover {
     border-color: var(--primary-color);
-    background: #EFF6FF;
+    background: var(--primary-soft);
     transform: translateY(-2px);
     box-shadow: var(--shadow-sm);
 }
@@ -658,7 +697,7 @@
 }
 
 .alt-text-pro-modal .onboarding-step:hover {
-    border-color: #BFDBFE;
+    border-color: var(--primary-border);
     background: #F8FAFC;
 }
 
@@ -756,7 +795,7 @@
 
 .alt-text-pro-modal .onboarding-field input:focus {
     border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    box-shadow: 0 0 0 3px rgba(13, 79, 94, 0.12);
     outline: none;
 }
 
@@ -840,7 +879,7 @@
     line-height: 1.6 !important;
     border-color: var(--primary-color) !important;
     color: var(--primary-color) !important;
-    background: #EFF6FF !important;
+    background: var(--primary-soft) !important;
     transition: all 0.2s ease;
     cursor: pointer;
     white-space: nowrap;
@@ -865,7 +904,9 @@
 }
 
 @keyframes atp-spin {
-    to { transform: rotate(360deg); }
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 .atp-spin {

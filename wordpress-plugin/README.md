@@ -8,9 +8,9 @@ The WordPress plugin is packaged and ready for distribution!
 
 ### For Users
 1. Download the plugin from your dashboard: https://www.alt-text.pro/dashboard
-2. Or download directly: https://www.alt-text.pro/wordpress-plugin/alt-text-ai-plugin.zip
-3. Install in WordPress: Plugins → Add New → Upload Plugin
-4. Activate and configure with your API key
+2. Or download directly: https://www.alt-text.pro/wordpress-plugin/alt-text-pro-plugin.zip
+3. Install in WordPress: Plugins -> Add New -> Upload Plugin
+4. Activate and click "Connect to Alt Text Pro"
 
 ### For Developers
 
@@ -25,7 +25,7 @@ cd wordpress-plugin
 Or manually:
 ```bash
 cd wordpress-plugin
-zip -r alt-text-ai-plugin.zip alt-text-ai \
+zip -r alt-text-pro-plugin.zip alt-text-pro \
   -x "*.DS_Store" \
   -x "*.git*" \
   -x "*.md" \
@@ -36,17 +36,17 @@ zip -r alt-text-ai-plugin.zip alt-text-ai \
 
 After building, copy to the public folder:
 ```bash
-cp alt-text-ai-plugin.zip ../frontend/public/wordpress-plugin/
+cp alt-text-pro-plugin.zip ../frontend-next/public/wordpress-plugin/
 ```
 
 The file will be accessible at:
-- `https://www.alt-text.pro/wordpress-plugin/alt-text-ai-plugin.zip`
+- `https://www.alt-text.pro/wordpress-plugin/alt-text-pro-plugin.zip`
 
 ## 📁 Plugin Structure
 
 ```
-alt-text-ai/
-├── alt-text-ai.php              # Main plugin file
+alt-text-pro/
+├── alt-text-pro.php             # Main plugin file
 ├── readme.txt                   # WordPress.org readme
 ├── INSTALLATION.md              # Installation guide
 ├── includes/                    # Core classes
@@ -80,8 +80,8 @@ alt-text-ai/
 
 The plugin download link is already integrated in the dashboard:
 - Location: Dashboard → API Key section
-- Link: `/wordpress-plugin/alt-text-ai-plugin.zip`
-- File must be in: `frontend/public/wordpress-plugin/`
+- Link: `/wordpress-plugin/alt-text-pro-plugin.zip`
+- File must be in: `frontend-next/public/wordpress-plugin/`
 
 ## 📝 Version Updates
 
@@ -96,7 +96,6 @@ When updating the plugin:
 - [x] Plugin created and tested
 - [x] ZIP file generated
 - [x] Dashboard link configured
-- [ ] Upload to WordPress.org (optional)
-- [ ] Create plugin screenshots
-- [ ] Add plugin icon design
-
+- [x] Upload to WordPress.org
+- [x] Create WordPress.org screenshot asset set
+- [x] Add plugin icon/banner asset brief
