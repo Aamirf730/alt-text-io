@@ -3,7 +3,7 @@
  * Plugin Name: AI Alt Text Pro
  * Plugin URI: https://www.alt-text.pro
  * Description: AI-powered alt text generator that automatically creates image alt tags for better SEO and accessibility. Generate alt text for all your images with one click.
- * Version:           1.4.98
+ * Version:           1.4.99
  * Author: Alt Text Pro
  * Author URI: https://www.alt-text.pro/about
  * License: GPL v2 or later
@@ -20,7 +20,8 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('ALT_TEXT_PRO_VERSION', '1.4.98');
+define('ALT_TEXT_PRO_VERSION', '1.4.99');
+// Version 1.4.99 - Privacy: remove non-essential WordPress admin marketing event tracking.
 // Version 1.4.98 - Growth tracking: attach validated account identity to WordPress plugin funnel events.
 // Version 1.4.97 - Fix: make bulk cancellation credit-accurate by processing one billable image per request and preserving cancelled state server-side.
 // Version 1.4.96 - Fix: prevent duplicate manual generation requests and make bulk cancel stop before billable batches start.
@@ -169,8 +170,6 @@ class AltTextPro
         if (!get_option('alt_text_pro_settings')) {
             add_option('alt_text_pro_settings', array(
                 'api_key' => '',
-                'account_email' => '',
-                'account_user_id' => '',
                 'auto_generate' => false,
                 'overwrite_existing' => false,
                 'context_enabled' => true,
@@ -304,12 +303,6 @@ class AltTextPro
                 'dashboardUrl' => 'https://www.alt-text.pro/dashboard',
                 'connectUrl' => 'https://www.alt-text.pro/connect',
                 'settingsUrl' => admin_url('admin.php?page=alt-text-pro-settings'),
-            ),
-            'tracking' => array(
-                'analyticsUrl' => 'https://www.alt-text.pro/.netlify/functions/track-event',
-                'siteHost' => wp_parse_url(home_url(), PHP_URL_HOST),
-                'userEmail' => isset($settings['account_email']) ? sanitize_email($settings['account_email']) : '',
-                'userId' => isset($settings['account_user_id']) ? sanitize_text_field($settings['account_user_id']) : '',
             ),
             'strings' => array(
                 'generating' => __('Generating alt-text...', 'alt-text-pro'),
@@ -1100,12 +1093,6 @@ class AltTextPro
             }
             $settings_handler = new AltTextPro_Settings();
             $existing_settings['api_key'] = $settings_handler->encrypt_api_key($api_key);
-            $account_data = is_array($result['data']) ? $result['data'] : array();
-            $account_user = isset($account_data['user']) && is_array($account_data['user']) ? $account_data['user'] : array();
-            $account_email = $account_user['email'] ?? ($account_data['email'] ?? '');
-            $account_user_id = $account_user['id'] ?? ($account_data['user_id'] ?? '');
-            $existing_settings['account_email'] = sanitize_email($account_email);
-            $existing_settings['account_user_id'] = sanitize_text_field($account_user_id);
             update_option('alt_text_pro_settings', $existing_settings);
 
             $verified_settings = $settings_handler->get_settings();
@@ -1115,7 +1102,7 @@ class AltTextPro
                 wp_send_json_error(esc_html__('Your API key was validated, but WordPress could not save it. Please try again or check your site configuration.', 'alt-text-pro'));
             }
 
-            $response_data = $account_data;
+            $response_data = is_array($result['data']) ? $result['data'] : array();
             $response_data['saved'] = true;
             $response_data['message'] = esc_html__('API key validated and saved successfully.', 'alt-text-pro');
 

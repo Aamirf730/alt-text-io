@@ -4,7 +4,7 @@ Tags: alt text generator, image seo, accessibility, ai alt text, automatic alt t
 Requires at least: 5.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 1.4.98
+Stable tag: 1.4.99
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -169,6 +169,10 @@ Yes, you can cancel your subscription at any time from your Alt Text Pro dashboa
 6. **Mobile Responsive Design** - Fully responsive alt text generator works on all devices
 
 == Changelog ==
+= 1.4.99 =
+* Privacy: Removed non-essential WordPress admin marketing event tracking.
+* Privacy: The plugin no longer sends connect or bulk-processing funnel events from wp-admin.
+
 = 1.4.98 =
 * Growth: WordPress plugin funnel events now include the validated Alt Text Pro account identity after connection.
 * Growth: Plugin-originated connect and bulk-processing events can now join lifecycle email automation when an account is connected.

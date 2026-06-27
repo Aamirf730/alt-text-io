@@ -12,36 +12,6 @@
         }
     }
 
-    function trackMarketingEvent(eventName, properties) {
-        if (!window.altTextAI || !altTextAI.tracking || !altTextAI.tracking.analyticsUrl) {
-            return;
-        }
-
-        var payload = {
-            event_name: eventName,
-            source: 'wordpress_plugin',
-            user_id: altTextAI.tracking.userId || undefined,
-            user_email: altTextAI.tracking.userEmail || undefined,
-            properties: $.extend({
-                plugin_version: altTextAI.version,
-                site_host: altTextAI.tracking.siteHost || '',
-                wp_admin_path: window.location.pathname
-            }, properties || {}),
-            occurred_at: new Date().toISOString()
-        };
-
-        try {
-            fetch(altTextAI.tracking.analyticsUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-                keepalive: true
-            }).catch(function () {});
-        } catch (error) {
-            debugLog('Alt Text Pro: tracking failed', error);
-        }
-    }
-
     debugLog('Alt Text Pro: admin.js loading...');
 
     // Main Admin Object
@@ -888,16 +858,8 @@
                         $('#api_key').val(apiKey);
                         $('#onboarding_api_key').val(apiKey);
                         altTextAI.onboarding.show = false;
-                        if (response.data && response.data.user) {
-                            altTextAI.tracking.userEmail = response.data.user.email || altTextAI.tracking.userEmail || '';
-                            altTextAI.tracking.userId = response.data.user.id || altTextAI.tracking.userId || '';
-                        }
 
                         AltTextProAdmin.showNotification('Connected successfully! Your API key has been saved.', 'success');
-                        trackMarketingEvent('connect_completed', {
-                            location: 'plugin_admin',
-                            stored_in_wordpress: true
-                        });
 
                         setTimeout(function () {
                             $('.modal').removeClass('active');
@@ -1027,12 +989,6 @@
             }
 
             debugLog('Alt Text Pro: Starting bulk process', { type: processType, overwrite: overwriteExisting });
-            trackMarketingEvent('bulk_started', {
-                process_type: processType,
-                selected_count: selectedImages.length,
-                overwrite_existing: overwriteExisting,
-                batch_size: batchSize
-            });
 
             this.isProcessing = true;
             this.cancelRequested = false;
@@ -1361,13 +1317,6 @@
             var processed = data.processed_count !== undefined ? data.processed_count : (data.processed || 0);
             var successful = data.successful_count !== undefined ? data.successful_count : (data.successful || 0);
             var errors = data.error_count !== undefined ? data.error_count : (data.errors ? data.errors.length : 0);
-            trackMarketingEvent('bulk_completed', {
-                process_id: this.processId || '',
-                status: data.status || (data.success ? 'completed' : 'error'),
-                processed: processed,
-                successful: successful,
-                errors: errors
-            });
 
             if (data.success || data.status === 'completed') {
                 $('#progress-status').text('Completed').removeClass('warning error').addClass('success');

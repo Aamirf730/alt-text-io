@@ -104,8 +104,6 @@ class AltTextPro_Settings
     {
         return array(
             'api_key' => '',
-            'account_email' => '',
-            'account_user_id' => '',
             'auto_generate' => false,
             'overwrite_existing' => false,
             'context_enabled' => true,
@@ -164,14 +162,6 @@ class AltTextPro_Settings
                 // Empty key - preserve existing key (user didn't change it)
                 $sanitized['api_key'] = $existing_settings['api_key'] ?? '';
             }
-        }
-
-        if (isset($input['account_email'])) {
-            $sanitized['account_email'] = sanitize_email(wp_unslash($input['account_email']));
-        }
-
-        if (isset($input['account_user_id'])) {
-            $sanitized['account_user_id'] = sanitize_text_field(wp_unslash($input['account_user_id']));
         }
 
         // Checkboxes: if they are present in POST, they are checked. If absent but other settings are present, they are unchecked.
