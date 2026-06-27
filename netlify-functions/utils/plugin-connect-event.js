@@ -14,6 +14,7 @@ async function recordPluginConnectCompleted(supabase, {
       .select('id')
       .eq('event_name', 'connect_completed')
       .eq('user_id', userId)
+      .eq('source', 'wordpress_plugin_auth')
       .limit(1);
 
     if (existingError) {

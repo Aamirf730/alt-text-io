@@ -5,7 +5,8 @@ const { recordPluginConnectCompleted } = require('./plugin-connect-event.js');
 function createSupabaseMock({ existingEvents = [], selectError = null, insertError = null } = {}) {
   const insert = vi.fn(() => Promise.resolve({ error: insertError }));
   const limit = vi.fn(() => Promise.resolve({ data: existingEvents, error: selectError }));
-  const secondEq = vi.fn(() => ({ limit }));
+  const thirdEq = vi.fn(() => ({ limit }));
+  const secondEq = vi.fn(() => ({ eq: thirdEq }));
   const firstEq = vi.fn(() => ({ eq: secondEq }));
   const select = vi.fn(() => ({ eq: firstEq }));
   const from = vi.fn(() => ({ select, insert }));
@@ -17,6 +18,7 @@ function createSupabaseMock({ existingEvents = [], selectError = null, insertErr
       select,
       firstEq,
       secondEq,
+      thirdEq,
       limit,
       insert,
     },
@@ -47,7 +49,7 @@ describe('plugin connect event recording', () => {
     });
   });
 
-  it('does not record duplicate connect_completed events for the same user', async () => {
+  it('does not record duplicate plugin-auth connect_completed events for the same user', async () => {
     const { supabase, calls } = createSupabaseMock({
       existingEvents: [{ id: 'existing-event' }],
     });
@@ -58,6 +60,7 @@ describe('plugin connect event recording', () => {
     });
 
     expect(result).toEqual({ recorded: false, reason: 'already_recorded' });
+    expect(calls.thirdEq).toHaveBeenCalledWith('source', 'wordpress_plugin_auth');
     expect(calls.insert).not.toHaveBeenCalled();
   });
 });
