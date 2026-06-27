@@ -63,9 +63,10 @@ export default function PrivacyPage() {
                                             <li>API usage statistics</li>
                                             <li>Subscription plan and status</li>
                                             <li>Website and dashboard events such as page views, demo usage, signup, checkout, purchase, plugin download clicks, first web app image generation, and low-credit notices</li>
+                                            <li>WordPress plugin connection status when an API key is successfully validated by our service</li>
                                         </ul>
                                         <p className="text-slate-600 leading-relaxed mt-4">
-                                            The WordPress plugin does not send non-essential wp-admin marketing or funnel telemetry. It contacts Alt Text Pro only for service functions such as API key validation, alt text generation, credit checks, and subscription-related requests that are required to provide the service.
+                                            The WordPress plugin does not send non-essential wp-admin marketing or funnel telemetry. It contacts Alt Text Pro only for service functions such as API key validation, alt text generation, credit checks, and subscription-related requests that are required to provide the service. When API key validation succeeds, Alt Text Pro may record that the account connected the plugin.
                                         </p>
                                     </div>
 
@@ -206,7 +207,7 @@ export default function PrivacyPage() {
                                     <li>Analyze website and dashboard usage and performance</li>
                                 </ul>
                                 <p className="text-slate-600 leading-relaxed mt-4">
-                                    Website and dashboard events may include an anonymous browser identifier, account email or user ID when you are signed in, page path, referrer, event timestamp, browser user agent, and IP address. These events are used for product analytics, onboarding, lifecycle emails, abuse prevention, and service improvement.
+                                    Website, dashboard, and service-side connection events may include an anonymous browser identifier where applicable, account email or user ID when you are signed in or validating an API key, page path, referrer, event timestamp, browser user agent, and IP address. These events are used for product analytics, onboarding, lifecycle emails, abuse prevention, and service improvement.
                                 </p>
                                 <p className="text-slate-600 leading-relaxed mt-4">
                                     The WordPress plugin itself does not send connect, bulk-processing, or other non-essential wp-admin marketing events.

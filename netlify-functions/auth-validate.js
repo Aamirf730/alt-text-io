@@ -10,6 +10,7 @@ const {
   rateLimitExceededResponse,
   methodNotAllowedResponse,
 } = require('./utils/cors');
+const { recordPluginConnectCompleted } = require('./utils/plugin-connect-event');
 
 // Initialize Supabase clients
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -247,6 +248,12 @@ exports.handler = async (event, context) => {
       .select('*')
       .eq('id', profile.subscription_plan)
       .single();
+
+    await recordPluginConnectCompleted(supabase, {
+      userId: authUser.id,
+      userEmail: authUser.email,
+      endpointName: 'auth-validate',
+    });
 
     return {
       statusCode: 200,
