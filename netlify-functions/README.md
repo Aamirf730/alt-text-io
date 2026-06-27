@@ -189,6 +189,8 @@ Manual tests must use `LIFECYCLE_AUTOMATION_SECRET`. Do not use a public schedul
 
 Lifecycle automation uses website/account events and server-side plugin connection events only. The WordPress plugin does not send non-essential wp-admin marketing or funnel telemetry.
 
+The admin dashboard's Lifecycle tab uses the read-only `admin-lifecycle-status` function. It requires a signed-in Supabase session whose email is listed in `SUPERUSER_EMAILS`, then summarizes profiles, plugin connection events, usage stats, checkout/purchase events, low-credit events, and `marketing_automation_sends` follow-up history.
+
 Active lifecycle rules:
 - `signup_no_connect`: `signup_created` without a later `connect_completed` after 4 hours. Successful plugin API-key validation records `connect_completed` server-side with source `wordpress_plugin_auth`.
 - `connect_no_first_image`: `connect_completed` without a later web app `first_image_processed` after 6 hours.

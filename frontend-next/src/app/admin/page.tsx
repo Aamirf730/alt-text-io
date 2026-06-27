@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from '@/lib/supabase';
 import { getApiBase } from '@/lib/utils';
 import { toast } from "sonner";
-import { Activity, BarChart3, RefreshCw, Search, TrendingDown, Users, X } from "lucide-react";
+import { Activity, BarChart3, Mail, Plug, RefreshCw, Search, TrendingDown, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,12 +18,16 @@ export default function AdminDashboard() {
     const [users, setUsers] = useState<any[]>([]);
     const [stats, setStats] = useState<any>(null);
     const [funnelReport, setFunnelReport] = useState<any>(null);
+    const [lifecycleReport, setLifecycleReport] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isLoadingFunnel, setIsLoadingFunnel] = useState(false);
+    const [isLoadingLifecycle, setIsLoadingLifecycle] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
     const [filterPlan, setFilterPlan] = useState("all");
     const [filterStatus, setFilterStatus] = useState("all");
     const [funnelDays, setFunnelDays] = useState("7");
+    const [lifecycleDays, setLifecycleDays] = useState("30");
+    const [lifecycleFilter, setLifecycleFilter] = useState("all");
     const [selectedUser, setSelectedUser] = useState<any>(null);
     const router = useRouter();
 
@@ -97,6 +101,42 @@ export default function AdminDashboard() {
         }
     }, [router]);
 
+    const loadLifecycle = useCallback(async (token: string, days: string) => {
+        try {
+            setIsLoadingLifecycle(true);
+            const apiBase = getApiBase();
+
+            const response = await fetch(`${apiBase}/admin-lifecycle-status?days=${encodeURIComponent(days)}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (response.status === 403) {
+                toast.error("Access denied. Superuser privileges required.");
+                router.push("/");
+                return;
+            }
+
+            if (!response.ok) {
+                throw new Error(`API returned status ${response.status}`);
+            }
+
+            const result = await response.json();
+            if (result.success && result.data) {
+                setLifecycleReport(result.data);
+            } else {
+                throw new Error('Invalid lifecycle response format');
+            }
+        } catch (error) {
+            console.error("Error loading lifecycle report:", error);
+            toast.error("Failed to load lifecycle report.");
+        } finally {
+            setIsLoadingLifecycle(false);
+        }
+    }, [router]);
+
     useEffect(() => {
         const checkAuthAndLoadData = async () => {
             try {
@@ -117,6 +157,7 @@ export default function AdminDashboard() {
                 await Promise.all([
                     loadUsers(session.access_token),
                     loadFunnel(session.access_token, "7"),
+                    loadLifecycle(session.access_token, "30"),
                 ]);
             } catch (error) {
                 console.error("Error checking auth:", error);
@@ -128,7 +169,7 @@ export default function AdminDashboard() {
         };
 
         checkAuthAndLoadData();
-    }, [router, loadUsers, loadFunnel]);
+    }, [router, loadUsers, loadFunnel, loadLifecycle]);
 
     const handleRefresh = async () => {
         if (user?.token) {
@@ -136,6 +177,7 @@ export default function AdminDashboard() {
             await Promise.all([
                 loadUsers(user.token),
                 loadFunnel(user.token, funnelDays),
+                loadLifecycle(user.token, lifecycleDays),
             ]);
             setIsLoading(false);
             toast.success("Admin data refreshed");
@@ -149,6 +191,13 @@ export default function AdminDashboard() {
         }
     };
 
+    const handleLifecycleDaysChange = async (days: string) => {
+        setLifecycleDays(days);
+        if (user?.token) {
+            await loadLifecycle(user.token, days);
+        }
+    };
+
     const filteredUsers = users.filter(user => {
         const matchesSearch =
             user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -156,6 +205,14 @@ export default function AdminDashboard() {
         const matchesPlan = filterPlan === "all" || user.subscription_plan === filterPlan;
         const matchesStatus = filterStatus === "all" || user.subscription_status === filterStatus;
         return matchesSearch && matchesPlan && matchesStatus;
+    });
+
+    const filteredLifecycleUsers = (lifecycleReport?.users || []).filter((row: any) => {
+        const matchesSearch =
+            row.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            row.user_id?.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesStatus = lifecycleFilter === "all" || row.follow_up_status === lifecycleFilter;
+        return matchesSearch && matchesStatus;
     });
 
     const formatDate = (dateString: string) => {
@@ -244,6 +301,10 @@ export default function AdminDashboard() {
                         <TabsTrigger value="funnel" className="gap-2 px-4">
                             <BarChart3 className="h-4 w-4" />
                             Funnel
+                        </TabsTrigger>
+                        <TabsTrigger value="lifecycle" className="gap-2 px-4">
+                            <Mail className="h-4 w-4" />
+                            Lifecycle
                         </TabsTrigger>
                     </TabsList>
 
@@ -633,6 +694,245 @@ export default function AdminDashboard() {
                                                     <td className="py-3 px-4 text-right">{formatNumber(day.events?.purchase_completed)}</td>
                                                 </tr>
                                             ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+
+                    <TabsContent value="lifecycle" className="space-y-6">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                            <div>
+                                <h2 className="text-2xl font-bold text-gray-900">Lifecycle Visibility</h2>
+                                <p className="text-sm text-gray-600">
+                                    Per-user setup status, plugin connection, first generation, credits, and follow-up history.
+                                </p>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-3">
+                                <select
+                                    value={lifecycleDays}
+                                    onChange={(event) => handleLifecycleDaysChange(event.target.value)}
+                                    className="h-10 rounded-md border border-gray-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                                >
+                                    <option value="7">Last 7 days</option>
+                                    <option value="30">Last 30 days</option>
+                                    <option value="60">Last 60 days</option>
+                                    <option value="90">Last 90 days</option>
+                                    <option value="180">Last 180 days</option>
+                                </select>
+                                <select
+                                    value={lifecycleFilter}
+                                    onChange={(event) => setLifecycleFilter(event.target.value)}
+                                    className="h-10 rounded-md border border-gray-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                                >
+                                    <option value="all">All follow-up statuses</option>
+                                    <option value="Needs plugin reminder">Needs plugin reminder</option>
+                                    <option value="Needs first generation reminder">Needs first generation reminder</option>
+                                    <option value="Low credits">Low credits</option>
+                                    <option value="Checkout recovery">Checkout recovery</option>
+                                    <option value="Active">Active</option>
+                                </select>
+                                <Button
+                                    onClick={() => user?.token && loadLifecycle(user.token, lifecycleDays)}
+                                    variant="outline"
+                                    disabled={isLoadingLifecycle}
+                                    className="gap-2"
+                                >
+                                    <RefreshCw className={`h-4 w-4 ${isLoadingLifecycle ? "animate-spin" : ""}`} />
+                                    Refresh
+                                </Button>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                            <Card>
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-sm font-medium text-gray-600">Users</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="text-3xl font-bold text-gray-900">
+                                        {formatNumber(lifecycleReport?.summary?.total_users)}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                            <Card>
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-sm font-medium text-gray-600">Plugin Connected</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="text-3xl font-bold text-[#0D4F5E]">
+                                        {formatNumber(lifecycleReport?.summary?.plugin_connected)}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                            <Card>
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-sm font-medium text-gray-600">First Generation</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="text-3xl font-bold text-green-600">
+                                        {formatNumber(lifecycleReport?.summary?.first_generation)}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                            <Card>
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-sm font-medium text-gray-600">Needs Follow-up</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="text-3xl font-bold text-amber-600">
+                                        {formatNumber(
+                                            (lifecycleReport?.summary?.needs_plugin_reminder || 0) +
+                                            (lifecycleReport?.summary?.needs_first_generation_reminder || 0) +
+                                            (lifecycleReport?.summary?.low_credits || 0) +
+                                            (lifecycleReport?.summary?.checkout_recovery || 0)
+                                        )}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                            <Card>
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-sm font-medium text-gray-600">Need Plugin Reminder</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="text-2xl font-bold text-amber-700">
+                                        {formatNumber(lifecycleReport?.summary?.needs_plugin_reminder)}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                            <Card>
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-sm font-medium text-gray-600">Need First Generation</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="text-2xl font-bold text-amber-700">
+                                        {formatNumber(lifecycleReport?.summary?.needs_first_generation_reminder)}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                            <Card>
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-sm font-medium text-gray-600">Low Credits</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="text-2xl font-bold text-red-600">
+                                        {formatNumber(lifecycleReport?.summary?.low_credits)}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                            <Card>
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-sm font-medium text-gray-600">Checkout Recovery</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="text-2xl font-bold text-blue-600">
+                                        {formatNumber(lifecycleReport?.summary?.checkout_recovery)}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </div>
+
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <Plug className="h-5 w-5 text-[#0D4F5E]" />
+                                    User Lifecycle Status ({filteredLifecycleUsers.length})
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full">
+                                        <thead>
+                                            <tr className="border-b">
+                                                <th className="text-left py-3 px-4 font-semibold text-gray-700">User</th>
+                                                <th className="text-left py-3 px-4 font-semibold text-gray-700">Plan</th>
+                                                <th className="text-left py-3 px-4 font-semibold text-gray-700">Plugin</th>
+                                                <th className="text-left py-3 px-4 font-semibold text-gray-700">First Generation</th>
+                                                <th className="text-left py-3 px-4 font-semibold text-gray-700">Credits</th>
+                                                <th className="text-left py-3 px-4 font-semibold text-gray-700">Follow-up Status</th>
+                                                <th className="text-left py-3 px-4 font-semibold text-gray-700">Latest Email</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {filteredLifecycleUsers.length === 0 ? (
+                                                <tr>
+                                                    <td colSpan={7} className="text-center py-8 text-gray-500">
+                                                        No lifecycle users found
+                                                    </td>
+                                                </tr>
+                                            ) : (
+                                                filteredLifecycleUsers.map((row: any) => (
+                                                    <tr key={row.user_id} className="border-b hover:bg-gray-50 align-top">
+                                                        <td className="py-3 px-4">
+                                                            <div className="font-medium text-gray-900">{row.email}</div>
+                                                            <div className="text-xs text-gray-500 font-mono">{row.user_id?.substring(0, 8)}...</div>
+                                                            <div className="text-xs text-gray-500">Signup: {formatDate(row.signup_at)}</div>
+                                                        </td>
+                                                        <td className="py-3 px-4">
+                                                            <Badge className="bg-purple-100 text-purple-700">{row.plan}</Badge>
+                                                            <div className="text-xs text-gray-500 mt-1">{row.status}</div>
+                                                        </td>
+                                                        <td className="py-3 px-4">
+                                                            {row.plugin_connected_at ? (
+                                                                <>
+                                                                    <Badge className="bg-green-100 text-green-700">Connected</Badge>
+                                                                    <div className="text-xs text-gray-500 mt-1">{formatDate(row.plugin_connected_at)}</div>
+                                                                    <div className="text-xs text-gray-400">{row.plugin_connection_source}</div>
+                                                                </>
+                                                            ) : (
+                                                                <Badge className="bg-amber-100 text-amber-700">Not connected</Badge>
+                                                            )}
+                                                        </td>
+                                                        <td className="py-3 px-4">
+                                                            {row.first_generation_at ? (
+                                                                <>
+                                                                    <Badge className="bg-green-100 text-green-700">Generated</Badge>
+                                                                    <div className="text-xs text-gray-500 mt-1">{formatDate(row.first_generation_at)}</div>
+                                                                    <div className="text-xs text-gray-500">Used: {formatNumber(row.total_credits_used)} credits</div>
+                                                                </>
+                                                            ) : (
+                                                                <Badge className="bg-gray-100 text-gray-700">No generation</Badge>
+                                                            )}
+                                                        </td>
+                                                        <td className="py-3 px-4">
+                                                            <div className="font-semibold">{formatNumber(row.credits_remaining)}</div>
+                                                            <div className="text-xs text-gray-500">Processed: {formatNumber(row.total_processed)}</div>
+                                                        </td>
+                                                        <td className="py-3 px-4">
+                                                            <Badge
+                                                                className={
+                                                                    row.follow_up_status === "Active"
+                                                                        ? "bg-green-100 text-green-700"
+                                                                        : row.follow_up_status === "Low credits"
+                                                                            ? "bg-red-100 text-red-700"
+                                                                            : "bg-amber-100 text-amber-700"
+                                                                }
+                                                            >
+                                                                {row.follow_up_status}
+                                                            </Badge>
+                                                        </td>
+                                                        <td className="py-3 px-4">
+                                                            {row.latest_follow_up ? (
+                                                                <div className="text-sm">
+                                                                    <div className="font-medium text-gray-900">{row.latest_follow_up.automation_key}</div>
+                                                                    <div className="text-xs text-gray-500">
+                                                                        {row.latest_follow_up.status} · {formatDate(row.latest_follow_up.sent_at || row.latest_follow_up.created_at)}
+                                                                    </div>
+                                                                    <div className="text-xs text-gray-500">
+                                                                        Sent: {formatNumber(row.follow_ups_sent)} · Failed: {formatNumber(row.follow_ups_failed)}
+                                                                    </div>
+                                                                </div>
+                                                            ) : (
+                                                                <span className="text-sm text-gray-500">No email sent</span>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                ))
+                                            )}
                                         </tbody>
                                     </table>
                                 </div>
