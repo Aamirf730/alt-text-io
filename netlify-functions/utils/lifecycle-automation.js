@@ -14,7 +14,7 @@ const LIFECYCLE_RULES = [
   {
     key: 'connect_no_first_image',
     trigger: 'connect_completed',
-    missingAfterTrigger: ['first_image_processed', 'bulk_started', 'bulk_completed'],
+    missingAfterTrigger: ['first_image_processed'],
     delayHours: 6,
     subject: 'Generate your first image alt text',
     preview: 'Your WordPress site is connected. The next step is processing your first image.',

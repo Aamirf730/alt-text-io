@@ -17,7 +17,7 @@ export default function PrivacyPage() {
 
                     <div className="relative z-10">
                         <h1 className="text-4xl md:text-5xl font-bold text-slate-900 mb-4 tracking-tight">Privacy Policy</h1>
-                        <p className="text-slate-500 mb-12 font-medium tracking-wide">Last updated: November 2024</p>
+                        <p className="text-slate-500 mb-12 font-medium tracking-wide">Last updated: June 27, 2026</p>
 
                         <div className="prose prose-slate max-w-none space-y-12">
                             <section>
@@ -62,8 +62,11 @@ export default function PrivacyPage() {
                                             <li>Credits used and remaining</li>
                                             <li>API usage statistics</li>
                                             <li>Subscription plan and status</li>
-                                            <li>Feature usage patterns</li>
+                                            <li>Website and dashboard events such as page views, demo usage, signup, checkout, purchase, plugin download clicks, first web app image generation, and low-credit notices</li>
                                         </ul>
+                                        <p className="text-slate-600 leading-relaxed mt-4">
+                                            The WordPress plugin does not send non-essential wp-admin marketing or funnel telemetry. It contacts Alt Text Pro only for service functions such as API key validation, alt text generation, credit checks, and subscription-related requests that are required to provide the service.
+                                        </p>
                                     </div>
 
                                     <div>
@@ -89,6 +92,7 @@ export default function PrivacyPage() {
                                     <li>Send service-related communications (account updates, billing notices)</li>
                                     <li>Respond to your inquiries and provide customer support</li>
                                     <li>Monitor and analyze usage patterns to improve our Service</li>
+                                    <li>Send lifecycle and onboarding emails related to account setup, checkout recovery, purchases, and credit status</li>
                                     <li>Detect, prevent, and address technical issues or security threats</li>
                                     <li>Comply with legal obligations</li>
                                 </ul>
@@ -199,8 +203,14 @@ export default function PrivacyPage() {
                                 <ul className="list-disc list-inside text-slate-600 space-y-2 ml-4">
                                     <li>Maintain your login session</li>
                                     <li>Remember your preferences</li>
-                                    <li>Analyze Service usage and performance</li>
+                                    <li>Analyze website and dashboard usage and performance</li>
                                 </ul>
+                                <p className="text-slate-600 leading-relaxed mt-4">
+                                    Website and dashboard events may include an anonymous browser identifier, account email or user ID when you are signed in, page path, referrer, event timestamp, browser user agent, and IP address. These events are used for product analytics, onboarding, lifecycle emails, abuse prevention, and service improvement.
+                                </p>
+                                <p className="text-slate-600 leading-relaxed mt-4">
+                                    The WordPress plugin itself does not send connect, bulk-processing, or other non-essential wp-admin marketing events.
+                                </p>
                                 <p className="text-slate-600 leading-relaxed mt-4">
                                     You can control cookies through your browser settings. However, disabling cookies may limit your ability to use certain features of our Service.
                                 </p>

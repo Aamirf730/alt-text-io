@@ -8,8 +8,6 @@ export type MarketingEventName =
   | "connect_started"
   | "connect_completed"
   | "first_image_processed"
-  | "bulk_started"
-  | "bulk_completed"
   | "credits_low"
   | "checkout_started"
   | "purchase_completed"

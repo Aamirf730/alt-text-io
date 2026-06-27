@@ -187,6 +187,15 @@ Required environment variables:
 ### Lifecycle Automation Manual Test
 Manual tests must use `LIFECYCLE_AUTOMATION_SECRET`. Do not use a public scheduled-style request as authorization.
 
+Lifecycle automation uses website/account events only. The WordPress plugin does not send non-essential wp-admin marketing or funnel telemetry.
+
+Active lifecycle rules:
+- `signup_no_connect`: `signup_created` without a later `connect_completed` after 4 hours.
+- `connect_no_first_image`: `connect_completed` without a later web app `first_image_processed` after 6 hours.
+- `checkout_no_purchase`: `checkout_started` without a later `purchase_completed` after 1 hour.
+- `purchase_onboarding`: `purchase_completed`.
+- `credits_low_no_purchase`: `credits_low` without a later `purchase_completed`.
+
 ```bash
 curl -sS -X POST "https://www.alt-text.pro/.netlify/functions/lifecycle-automation?dry_run=1" \
   -H "x-lifecycle-automation-secret: YOUR_SECRET"

@@ -30,9 +30,9 @@ const DROPOFFS = [
   },
   {
     key: 'plugin_no_first_image',
-    label: 'Plugin downloaded but no first image',
+    label: 'Plugin downloaded but no web app image generation',
     has: ['plugin_downloaded'],
-    missing: ['first_image_processed', 'bulk_started', 'bulk_completed'],
+    missing: ['first_image_processed'],
   },
   {
     key: 'credits_low_no_purchase',
