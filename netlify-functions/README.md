@@ -180,18 +180,18 @@ Required environment variables:
 - `SUPERUSER_EMAILS` - Comma-separated admin emails allowed to open admin reports
 - `MARKETING_REPORT_EMAILS` - Optional comma-separated recipients for the daily funnel email; falls back to `SUPERUSER_EMAILS`
 - `EMAIL_USER` / `EMAIL_PASSWORD` - SMTP credentials used by contact emails and the scheduled funnel report
-- `LIFECYCLE_AUTOMATION_SECRET` - Optional secret for manually invoking or dry-running the lifecycle automation endpoint. Public HTTP calls that only spoof Netlify's scheduled `next_run` body are blocked.
+- `LIFECYCLE_AUTOMATION_SECRET` - Optional legacy secret for manually invoking the scheduled lifecycle automation endpoint. Prefer the Admin Lifecycle tab for controlled one-recipient tests.
 - `LIFECYCLE_AUTOMATION_LOOKBACK_DAYS` - Optional event lookback window for lifecycle automation, defaults to `30`
 - `LIFECYCLE_AUTOMATION_MAX_SENDS` - Optional per-run send cap for lifecycle automation, defaults to `25`
 
-### Lifecycle Automation Manual Test
-Manual tests must use `LIFECYCLE_AUTOMATION_SECRET`. Do not use a public scheduled-style request as authorization.
+### Lifecycle Automation Testing
+Use the Admin dashboard Lifecycle tab for controlled one-recipient dry-runs and test sends. The scheduled `lifecycle-automation` endpoint is for Netlify scheduled runs; do not use public scheduled-style requests as authorization.
 
 Lifecycle automation uses website/account events and server-side plugin connection events only. The WordPress plugin does not send non-essential wp-admin marketing or funnel telemetry.
 
 The admin dashboard's Lifecycle tab uses the read-only `admin-lifecycle-status` function. It requires a signed-in Supabase session whose email is listed in `SUPERUSER_EMAILS`, then summarizes profiles, plugin connection events, usage stats, checkout/purchase events, low-credit events, and `marketing_automation_sends` follow-up history.
 
-The Lifecycle tab can also call `admin-lifecycle-test-send` for one-recipient dry-runs and test sends. This endpoint requires the same signed-in superuser session, accepts a single `email` plus `automation_key`, blocks duplicate reservations, and never sends to more than the one matching lifecycle candidate.
+The Lifecycle tab can also call `admin-lifecycle-test-send` for one-recipient dry-runs and test sends. This endpoint requires the same signed-in superuser session, accepts a single `email` plus `automation_key`, blocks duplicate reservations, derives the current user candidate from profile/events/usage data, and never sends to more than the one matching lifecycle candidate.
 
 Active lifecycle rules:
 - `signup_no_connect`: `signup_created` without a later `connect_completed` after 4 hours. Successful plugin API-key validation records `connect_completed` server-side with source `wordpress_plugin_auth`.
@@ -200,10 +200,7 @@ Active lifecycle rules:
 - `purchase_onboarding`: `purchase_completed`.
 - `credits_low_no_purchase`: `credits_low` without a later `purchase_completed`.
 
-```bash
-curl -sS -X POST "https://www.alt-text.pro/.netlify/functions/lifecycle-automation?dry_run=1" \
-  -H "x-lifecycle-automation-secret: YOUR_SECRET"
-```
+Recommended manual test flow: open `/admin`, go to Lifecycle, choose an eligible row, click Dry Run, then Send Test only after the dry-run matches the expected rule.
 
 ### File Structure
 ```
