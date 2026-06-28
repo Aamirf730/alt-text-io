@@ -20,8 +20,8 @@ const lato = Lato({
 });
 
 export const metadata: Metadata = {
-  title: "Alt Text Generator",
-  description: "Generate alt text for your images automatically.",
+  title: "Alt Text Pro | AI Alt Text Generator for WordPress",
+  description: "Generate AI alt text for WordPress images, bulk-fix missing media-library alt text, and improve accessibility with 30 free credits.",
 };
 
 export default function RootLayout({

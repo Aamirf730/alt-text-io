@@ -151,7 +151,7 @@ const Navbar = ({ onSignInClick, onSignUpClick }: NavbarProps) => {
                                         className="bg-notebook-blue text-white hover:bg-notebook-blue/90 font-semibold px-6 py-2.5 rounded-full shadow-notebook transition-all duration-300 flex items-center gap-2"
                                         onClick={handleSignUp}
                                     >
-                                        Start Free Trial
+                                        Get 30 Free Credits
                                     </Button>
                                 </>
                             )}
@@ -248,7 +248,7 @@ const Navbar = ({ onSignInClick, onSignUpClick }: NavbarProps) => {
                                             className="w-full bg-notebook-blue text-white hover:bg-notebook-blue/90 font-semibold px-6 py-2.5 rounded-full"
                                             onClick={handleSignUp}
                                         >
-                                            Start Free Trial
+                                            Get 30 Free Credits
                                         </Button>
                                     </>
                                 )}

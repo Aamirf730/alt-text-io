@@ -398,16 +398,16 @@ export default function LandingPage() {
               <div className="space-y-10 animate-in fade-in slide-in-from-bottom-8 duration-700">
                 <div className="space-y-6">
                   <div className="inline-flex rounded-full px-4 py-1.5 bg-notebook-blue/5 border border-notebook-blue/10 backdrop-blur-md">
-                    <span className="text-xs font-bold tracking-wider uppercase text-notebook-blue/80">Smart Alt Text for Everyone</span>
+                    <span className="text-xs font-bold tracking-wider uppercase text-notebook-blue/80">WordPress Alt Text in Minutes</span>
                   </div>
 
                   <h1 className="text-6xl lg:text-8xl font-bold font-outfit text-notebook-slate leading-[1.05] tracking-tight mb-6">
-                    Automate Your <br />
-                    <span className="text-notebook-blue italic decoration-notebook-blue/10">Image SEO.</span>
+                    Generate WordPress <br />
+                    <span className="text-notebook-blue italic decoration-notebook-blue/10">Alt Text.</span>
                   </h1>
 
                   <p className="text-xl lg:text-2xl text-slate-500 leading-relaxed max-w-2xl mb-10 font-normal">
-                    Optimize your website images automatically. Better accessibility, better rankings, zero effort.
+                    Install the plugin, connect your account, and generate accurate AI alt text for media-library, post, and product images.
                   </p>
 
                   <div className="flex flex-col sm:flex-row gap-5">
@@ -419,7 +419,7 @@ export default function LandingPage() {
                         setShowAuthForm(true);
                       }}
                     >
-                      Start Free Trial
+                      Get 30 Free Credits
                     </Button>
                     <Button
                       size="lg"
@@ -428,7 +428,7 @@ export default function LandingPage() {
                       asChild
                     >
                       <a href="https://wordpress.org/plugins/alt-text-pro/" target="_blank" rel="noopener noreferrer">
-                        Get Plugin
+                        Install WordPress Plugin
                       </a>
                     </Button>
                   </div>
@@ -445,6 +445,12 @@ export default function LandingPage() {
                         <Check className="h-3 w-3 text-notebook-blue" strokeWidth={3} />
                       </div>
                       <span className="text-sm font-semibold text-slate-400">Secure & Private Processing</span>
+                    </div>
+                    <div className="flex items-center space-x-2.5">
+                      <div className="h-5 w-5 rounded-full bg-notebook-blue/10 flex items-center justify-center">
+                        <Check className="h-3 w-3 text-notebook-blue" strokeWidth={3} />
+                      </div>
+                      <span className="text-sm font-semibold text-slate-400">No Credit Card Required</span>
                     </div>
                   </div>
                 </div>
@@ -562,12 +568,12 @@ export default function LandingPage() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
             <div className="text-center mb-24">
               <h2 className="text-4xl lg:text-6xl font-bold text-notebook-slate mb-6 tracking-tight font-outfit">
-                Easy Optimization
+                First Alt Text
                 <br />
-                <span className="text-notebook-blue italic">Made Simple.</span>
+                <span className="text-notebook-blue italic">Without Guesswork.</span>
               </h2>
               <p className="text-slate-500 max-w-2xl mx-auto text-xl font-normal">
-                A powerful tool for agencies and teams who need high-quality image optimization at scale.
+                The setup path is built around one outcome: connect WordPress and generate your first useful image description fast.
               </p>
             </div>
 
@@ -633,10 +639,10 @@ export default function LandingPage() {
                       </div>
                       <h3 className="text-2xl font-bold text-notebook-slate mb-4 relative z-10 flex items-center gap-3 font-outfit uppercase tracking-wider">
                         <div className="w-10 h-10 rounded-2xl bg-notebook-blue/5 flex items-center justify-center border border-notebook-blue/10 text-notebook-blue text-sm font-bold">01</div>
-                        Connect Your Site
+                        Install + Connect
                       </h3>
                       <p className="text-slate-500 text-lg leading-relaxed relative z-10 font-normal">
-                        Sync with your WordPress media library in one click. Our system gets your images ready for optimization instantly.
+                        Create a free account, install the WordPress plugin, and click Connect to save your API key automatically.
                       </p>
                     </div>
                   </div>
@@ -652,10 +658,10 @@ export default function LandingPage() {
                       </div>
                       <h3 className="text-2xl font-bold text-notebook-slate mb-4 relative z-10 flex items-center gap-3 font-outfit uppercase tracking-wider">
                         <div className="w-10 h-10 rounded-2xl bg-notebook-blue/5 flex items-center justify-center border border-notebook-blue/10 text-notebook-blue text-sm font-bold">02</div>
-                        Smart Analysis
+                        Generate With Context
                       </h3>
                       <p className="text-slate-500 text-lg leading-relaxed relative z-10 font-normal">
-                        Our vision models perform smart image analysis, identifying objects and context to create the perfect SEO-optimized description.
+                        Generate one image first, then use page context or bulk processing when you are ready to fix more of the media library.
                       </p>
                     </div>
                   </div>
@@ -745,10 +751,10 @@ export default function LandingPage() {
                       </div>
                       <h3 className="text-2xl font-bold text-notebook-slate mb-4 relative z-10 flex items-center gap-3 font-outfit uppercase tracking-wider">
                         <div className="w-10 h-10 rounded-2xl bg-notebook-blue/5 flex items-center justify-center border border-notebook-blue/10 text-notebook-blue text-sm font-bold">03</div>
-                        Instant Updates
+                        Review + Save
                       </h3>
                       <p className="text-slate-500 text-lg leading-relaxed relative z-10 font-normal">
-                        Update your images directly. Our platform ensures every image is accessible and easy for search engines to find.
+                        Review the generated text, edit when the page needs more context, and save it directly into WordPress.
                       </p>
                     </div>
                   </div>
@@ -903,11 +909,13 @@ export default function LandingPage() {
                 <span className="text-[10px] font-bold text-notebook-blue uppercase tracking-widest font-outfit">Subscription Management</span>
               </div>
               <h2 className="text-4xl lg:text-6xl font-bold text-notebook-slate tracking-tight font-outfit">
-                Simple, High-Trust
+                Start Free, Then
                 <br />
-                <span className="text-notebook-blue italic">Pricing Plans.</span>
+                <span className="text-notebook-blue italic">Scale Credits.</span>
               </h2>
-              <p className="text-lg text-slate-500 max-w-2xl mx-auto font-normal">Choose the ideal resource allocation for your accessibility infrastructure.</p>
+              <p className="text-lg text-slate-500 max-w-2xl mx-auto font-normal">
+                Try the full WordPress flow with 30 free generations. Upgrade only when you are ready to process more images.
+              </p>
 
               {/* Refined Billing Cycle Toggle */}
               <div className="flex flex-col items-center justify-center mt-12">
@@ -943,7 +951,7 @@ export default function LandingPage() {
                     <span className="text-4xl font-bold tracking-tight font-outfit">$0</span>
                     <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">/mo</span>
                   </div>
-                  <p className="text-xs text-notebook-blue font-bold font-outfit tracking-wide italic">"Perfect for getting started"</p>
+                  <p className="text-xs text-notebook-blue font-bold font-outfit tracking-wide italic">"Connect WordPress and test the workflow"</p>
                 </div>
 
                 <div className="space-y-4 mb-10 flex-1">
@@ -951,13 +959,19 @@ export default function LandingPage() {
                     <div className="w-5 h-5 rounded-lg bg-notebook-blue/5 flex items-center justify-center border border-notebook-blue/10">
                       <Check className="h-3 w-3 text-notebook-blue" strokeWidth={3} />
                     </div>
-                    <span className="text-sm text-slate-500 font-normal">30 AI Alt Texts</span>
+                    <span className="text-sm text-slate-500 font-normal">30 free generations</span>
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="w-5 h-5 rounded-lg bg-notebook-blue/5 flex items-center justify-center border border-notebook-blue/10">
                       <Check className="h-3 w-3 text-notebook-blue" strokeWidth={3} />
                     </div>
-                    <span className="text-sm text-slate-500 font-normal">WP Plugin Sync</span>
+                    <span className="text-sm text-slate-500 font-normal">WordPress plugin included</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="w-5 h-5 rounded-lg bg-notebook-blue/5 flex items-center justify-center border border-notebook-blue/10">
+                      <Check className="h-3 w-3 text-notebook-blue" strokeWidth={3} />
+                    </div>
+                    <span className="text-sm text-slate-500 font-normal">No credit card required</span>
                   </div>
                 </div>
 
@@ -965,7 +979,7 @@ export default function LandingPage() {
                   onClick={() => handlePlanSelection('free', 'Free', '$0')}
                   className="w-full h-12 bg-notebook-paper border border-gray-100 text-notebook-slate hover:bg-white hover:text-notebook-blue hover:shadow-notebook transition-all duration-300 rounded-2xl font-bold font-outfit text-xs uppercase tracking-widest"
                 >
-                  Start Free Trial
+                  Start with 30 Credits
                 </Button>
               </div>
 
@@ -990,10 +1004,10 @@ export default function LandingPage() {
 
                 <div className="space-y-4 mb-10 flex-1">
                   {[
-                    `150 Credits${billingCycle === 'annual' ? '/mo' : ''}`,
-                    "Auto-Pilot Analysis",
-                    "High-Fidelity AI",
-                    "Standard Ops Support"
+                    `150 credits${billingCycle === 'annual' ? '/mo' : ''}`,
+                    "Auto-generate on upload",
+                    "Single image generation",
+                    "Standard support"
                   ].map((feature, i) => (
                     <div key={i} className="flex items-center gap-3">
                       <div className="w-5 h-5 rounded-lg bg-notebook-blue/5 flex items-center justify-center border border-notebook-blue/10">
@@ -1032,11 +1046,11 @@ export default function LandingPage() {
 
                 <div className="space-y-4 mb-10 flex-1">
                   {[
-                    `400 Credits${billingCycle === 'annual' ? '/mo' : ''}`,
-                    "One-Click Bulk Fix",
-                    "130+ Language Pipeline",
-                    "WCAG AA Compliance",
-                    "Priority Ops Access"
+                    `400 credits${billingCycle === 'annual' ? '/mo' : ''}`,
+                    "Bulk media-library fixes",
+                    "130+ language support",
+                    "Post and page image workflows",
+                    "Priority support"
                   ].map((feature, i) => (
                     <div key={i} className="flex items-center gap-3">
                       <div className="w-5 h-5 rounded-lg bg-notebook-blue/5 flex items-center justify-center border border-notebook-blue/10">
@@ -1069,11 +1083,11 @@ export default function LandingPage() {
 
                 <div className="space-y-4 mb-10 flex-1">
                   {[
-                    `1,000 Credits${billingCycle === 'annual' ? '/mo' : ''}`,
-                    "Context-Aware Engines",
-                    "Full Auto-Pilot Suite",
-                    "Custom Type Support",
-                    "24/7 Strategic Support"
+                    `1,000 credits${billingCycle === 'annual' ? '/mo' : ''}`,
+                    "Context-aware generation",
+                    "Large library processing",
+                    "WooCommerce image workflows",
+                    "Premium support"
                   ].map((feature, i) => (
                     <div key={i} className="flex items-center gap-3">
                       <div className="w-5 h-5 rounded-lg bg-notebook-blue/5 flex items-center justify-center border border-notebook-blue/10">
@@ -1175,9 +1189,9 @@ export default function LandingPage() {
 
             <div className="text-center mt-16 relative z-10">
               <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">
-                All plans include advanced AI alt text generation and multi-language support.
+                Each successful generation uses 1 credit. Failed requests do not consume credits.
                 <br className="hidden md:block" />
-                <span className="mt-4 inline-block">Need enterprise-grade volume? <Link href="/contact" className="text-notebook-blue hover:underline">Contact Our Sales Team</Link></span>
+                <span className="mt-4 inline-block">Need agency or multi-site volume? <Link href="/contact" className="text-notebook-blue hover:underline">Contact us</Link></span>
               </p>
             </div>
           </div>
@@ -1307,14 +1321,14 @@ export default function LandingPage() {
 
               <div className="relative z-10 space-y-10">
                 <div className="inline-flex px-4 py-2 bg-notebook-blue/5 rounded-full">
-                  <span className="text-xs font-bold text-notebook-blue uppercase tracking-widest font-outfit">Immediate Deployment</span>
+                  <span className="text-xs font-bold text-notebook-blue uppercase tracking-widest font-outfit">WordPress Ready</span>
                 </div>
                 <h2 className="text-4xl md:text-6xl font-bold text-notebook-slate tracking-tight font-outfit leading-[1.1]">
-                  Start Your <br />
-                  <span className="text-notebook-blue italic">Accessibility Journey.</span>
+                  Connect Your Site <br />
+                  <span className="text-notebook-blue italic">And Generate One.</span>
                 </h2>
                 <p className="text-xl text-slate-500 font-normal max-w-2xl mx-auto leading-relaxed">
-                  Get started with 30 free AI-powered alt text generations. No credit card required. Experience effortless image accessibility.
+                  Start with 30 free AI-powered alt text generations. No credit card required, and the plugin can connect automatically from WordPress.
                 </p>
 
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-6 pt-4">
@@ -1323,10 +1337,10 @@ export default function LandingPage() {
                     className="h-16 px-12 bg-notebook-blue hover:bg-notebook-blue/90 text-white rounded-2xl font-bold font-outfit text-sm uppercase tracking-widest shadow-notebook hover:-translate-y-1 transition-all duration-300"
                     onClick={() => { setIsLogin(false); setShowAuthForm(true); }}
                   >
-                    Start Free Trial
+                    Get 30 Free Credits
                   </Button>
-                  <Link href="#pricing" className="text-xs font-bold text-notebook-slate/60 hover:text-notebook-blue uppercase tracking-widest transition-colors font-outfit group border-b border-transparent hover:border-notebook-blue pb-1">
-                    View Pricing
+                  <Link href="/docs#installation" className="text-xs font-bold text-notebook-slate/60 hover:text-notebook-blue uppercase tracking-widest transition-colors font-outfit group border-b border-transparent hover:border-notebook-blue pb-1">
+                    View Install Guide
                   </Link>
                 </div>
               </div>

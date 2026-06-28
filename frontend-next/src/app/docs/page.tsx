@@ -137,11 +137,30 @@ export default function DocsPage() {
 
                                     <h2 className="text-2xl font-bold mt-8 mb-4" style={{ color: '#003a42' }}>Quick Start Guide</h2>
                                     <div className="bg-teal-50 border-l-4 border-teal-500 p-6 rounded-lg my-6">
+                                        <p className="text-gray-700 mb-5">
+                                            Use this path if you want the fastest first result: create the account, install the plugin, connect from WordPress, then generate one manual alt text before starting a bulk job.
+                                        </p>
                                         <ol className="list-decimal list-inside space-y-3 text-gray-700">
-                                            <li><strong>Sign up for free</strong> at <a href="https://www.alt-text.pro" className="text-teal-600 hover:underline">alt-text.pro</a> and get 30 free credits</li>
-                                            <li><strong>Install the WordPress plugin</strong> from your dashboard or WordPress.org</li>
-                                            <li><strong>Click Connect to Alt Text Pro</strong> in WordPress to link your account automatically</li>
+                                            <li><strong>Create your free account</strong> and start with 30 credits. No credit card is required.</li>
+                                            <li><strong>Install the WordPress plugin</strong> from WordPress.org or download version {PLUGIN_VERSION} from your dashboard.</li>
+                                            <li><strong>Click Connect to Alt Text Pro</strong> inside WordPress so the plugin can save your API key automatically.</li>
+                                            <li><strong>Generate one image alt text</strong> and review it before using bulk processing.</li>
                                         </ol>
+                                        <div className="flex flex-col sm:flex-row gap-3 mt-6">
+                                            <Link
+                                                href="/dashboard"
+                                                className="inline-flex items-center justify-center rounded-xl bg-[#0D4F5E] px-5 py-3 text-sm font-semibold text-white hover:bg-[#003a42] transition-colors"
+                                            >
+                                                Open Dashboard
+                                            </Link>
+                                            <a
+                                                href={`/wordpress-plugin/alt-text-pro-plugin-${PLUGIN_VERSION}.zip`}
+                                                className="inline-flex items-center justify-center rounded-xl border border-teal-200 bg-white px-5 py-3 text-sm font-semibold text-[#0D4F5E] hover:bg-teal-50 transition-colors"
+                                                download={`alt-text-pro-plugin-${PLUGIN_VERSION}.zip`}
+                                            >
+                                                Download Plugin
+                                            </a>
+                                        </div>
                                     </div>
                                 </div>
                             </section>
@@ -416,7 +435,7 @@ export default function DocsPage() {
                                             </ul>
                                         </Card>
                                     </div>
-                                    <p className="text-gray-700 mb-4">Annual billing is available at $30/year for Lite, $48/year for Standard, and $86/year for Pro. One-time credit packs are also available: $5 for 100 credits or $10 for 250 credits.</p>
+                                    <p className="text-gray-700 mb-4">Annual billing is available at $30/year for Lite, $48/year for Standard, and $86/year for Pro. The listed monthly credit allowance still renews monthly on subscription plans. One-time credit packs are also available: $5 for 100 credits or $10 for 250 credits.</p>
                                     <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#003a42' }}>Credit System</h3>
                                     <p className="text-gray-700 mb-4">Each alt-text generation consumes <strong>1 credit</strong>. Credits are used when:</p>
                                     <ul className="list-disc list-inside space-y-2 text-gray-700 mb-4">

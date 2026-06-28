@@ -64,6 +64,8 @@ export default function Dashboard() {
     const router = useRouter();
     const currentPlan = String(usageStats?.plan || 'free');
     const currentPlanLimit = PLAN_CREDIT_LIMITS[currentPlan] || PLAN_CREDIT_LIMITS.free;
+    const hasApiKeyReady = Boolean(apiKey);
+    const hasGeneratedFirstAltText = Number(usageStats?.total_processed || 0) > 0 || history.length > 0;
 
     useEffect(() => {
         loadDashboard();
@@ -693,6 +695,97 @@ export default function Dashboard() {
                         </a>
                     </div>
                 </div>
+
+                {/* First-run onboarding */}
+                <Card className="bg-white border-notebook-slate/5 shadow-notebook rounded-[2rem] mb-16 overflow-hidden">
+                    <CardContent className="p-8 lg:p-10">
+                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8 mb-8">
+                            <div className="space-y-3">
+                                <div className="inline-flex items-center space-x-2 bg-notebook-teal/10 text-notebook-blue px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border border-notebook-teal/20">
+                                    <CheckCircle className="h-3 w-3" />
+                                    <span>First Alt Text Setup</span>
+                                </div>
+                                <h2 className="text-2xl font-semibold text-notebook-slate tracking-tight font-outfit">
+                                    Connect WordPress, then generate one image.
+                                </h2>
+                                <p className="text-sm text-slate-500 max-w-2xl leading-relaxed">
+                                    The fastest path is to install the plugin, click Connect in WordPress, then run one manual generation before starting a bulk batch.
+                                </p>
+                            </div>
+                            <div className="flex flex-col sm:flex-row gap-3">
+                                <a
+                                    href={`/wordpress-plugin/alt-text-pro-plugin-${PLUGIN_VERSION}.zip`}
+                                    download={`alt-text-pro-plugin-${PLUGIN_VERSION}.zip`}
+                                    onClick={() => trackMarketingEvent("plugin_downloaded", {
+                                        source: "dashboard",
+                                        userId: user?.id,
+                                        userEmail: user?.email,
+                                        properties: {
+                                            plugin_version: PLUGIN_VERSION,
+                                            location: "dashboard_onboarding",
+                                        },
+                                    })}
+                                    className="inline-flex items-center justify-center px-5 py-3 text-xs font-bold text-white bg-notebook-blue hover:bg-notebook-blue/90 transition-all rounded-2xl shadow-sm uppercase tracking-widest font-outfit"
+                                >
+                                    <Download className="h-4 w-4 mr-2" />
+                                    Download Plugin
+                                </a>
+                                <Link
+                                    href="/docs#installation"
+                                    className="inline-flex items-center justify-center px-5 py-3 text-xs font-bold text-notebook-slate bg-notebook-cloud/30 hover:bg-notebook-cloud/60 border border-notebook-cloud transition-all rounded-2xl uppercase tracking-widest font-outfit"
+                                >
+                                    Setup Guide <ArrowRight className="h-4 w-4 ml-2" />
+                                </Link>
+                            </div>
+                        </div>
+
+                        <div className="grid md:grid-cols-3 gap-4">
+                            {[
+                                {
+                                    label: "1. Install plugin",
+                                    body: `Use version ${PLUGIN_VERSION} from this dashboard or WordPress.org.`,
+                                    status: "Ready",
+                                    icon: Chrome,
+                                    complete: true,
+                                },
+                                {
+                                    label: "2. Connect account",
+                                    body: hasApiKeyReady ? "Your API key is ready if the plugin needs manual fallback." : "Open Alt Text Pro in WordPress and click Connect.",
+                                    status: hasApiKeyReady ? "Key ready" : "Next",
+                                    icon: Key,
+                                    complete: hasApiKeyReady,
+                                },
+                                {
+                                    label: "3. Generate one image",
+                                    body: hasGeneratedFirstAltText ? "Your first generation is complete. Bulk processing is safe to try next." : "Generate one manual alt text before running a bulk job.",
+                                    status: hasGeneratedFirstAltText ? "Complete" : "Recommended",
+                                    icon: ImageIcon,
+                                    complete: hasGeneratedFirstAltText,
+                                },
+                            ].map((step) => {
+                                const Icon = step.icon;
+                                return (
+                                    <div key={step.label} className="rounded-3xl border border-notebook-cloud bg-notebook-cloud/10 p-6">
+                                        <div className="flex items-start justify-between gap-4 mb-5">
+                                            <div className="w-11 h-11 bg-white rounded-2xl flex items-center justify-center shadow-sm border border-notebook-slate/5">
+                                                <Icon className="h-5 w-5 text-notebook-blue" />
+                                            </div>
+                                            <span className={`text-[9px] font-bold uppercase tracking-widest rounded-full px-2.5 py-1 ${step.complete ? 'bg-green-50 text-green-700 border border-green-100' : 'bg-white text-slate-500 border border-notebook-cloud'}`}>
+                                                {step.status}
+                                            </span>
+                                        </div>
+                                        <h3 className="text-sm font-bold text-notebook-slate uppercase tracking-widest font-outfit mb-3">
+                                            {step.label}
+                                        </h3>
+                                        <p className="text-sm text-slate-500 leading-relaxed">
+                                            {step.body}
+                                        </p>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </CardContent>
+                </Card>
 
                 {/* Stats Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
