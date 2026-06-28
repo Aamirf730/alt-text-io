@@ -1,6 +1,6 @@
 === AI Alt Text Pro ===
 Contributors: aamirfaiz
-Tags: alt text generator, image seo, accessibility, ai alt text, automatic alt text
+Tags: alt text, accessibility, image seo, ai, media library
 Requires at least: 5.0
 Tested up to: 6.9
 Requires PHP: 7.4
@@ -8,67 +8,56 @@ Stable tag: 1.4.99
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-AI-powered alt text generator for WordPress. Automatically creates SEO-optimized, accessible alt text for images using advanced vision AI.
+Generate accurate AI alt text for WordPress images, improve accessibility, and bulk-fix missing media-library alt text for SEO.
 
 == Description ==
-Because accessibility matters. Alt Text Pro automatically generates SEO-optimized, accessible alt text for your WordPress images using advanced AI (Google Gemini Vision). It works for both new uploads and existing media library images.
+Alt Text Pro helps WordPress site owners write useful image alt text faster. It uses AI vision models to describe images, then saves the result into the WordPress media library so your content is easier to understand for visitors, screen readers, and search engines.
 
-**Alt Text Pro** is the ultimate AI-powered **alt text generator** for WordPress. Automatically generate professional **image alt text** and **alt tags** to boost your **image SEO** and meet accessibility standards. Our advanced AI creates accurate, descriptive alt text that improves your site's search rankings and makes your content accessible to everyone.
+Use it when you are launching a new site, cleaning up an old media library, managing WooCommerce product images, or fixing missing alt text across blog posts and pages.
 
-Stop wasting hours writing alt text manually. Let our **automatic alt text generator** create optimized **alt attributes** for hundreds of images in minutes. Whether you're a blogger, e-commerce store owner, or agency, Alt Text Pro makes **image optimization** effortless.
+### What Alt Text Pro does
 
-### Automatic Alt-Text Generation Features
+* Generates AI alt text for individual images from the WordPress admin
+* Bulk-generates alt text for existing media-library images
+* Adds alt text to images used inside posts and pages
+* Lets you review and edit generated alt text before relying on it
+* Shows credit usage and generation history inside WordPress
+* Connects to your Alt Text Pro account with a guided setup flow
+* Helps improve accessibility basics for content and product images
+* Supports image SEO workflows by filling missing alt attributes
 
-* **AI Alt Text Generator**: Uses advanced AI to create accurate, descriptive alt text automatically
-* **Automatic Alt Tag Creation**: Generate alt tags automatically when uploading images
-* **Bulk Alt Text Processing**: Process hundreds of existing images at once with our bulk alt text generator
-* **Context-Aware Descriptions**: AI understands your content to provide better image alt text
-* **Beautiful Dashboard**: Modern, intuitive admin interface for managing alt text generation
-* **Usage Tracking**: Monitor your API usage and credit consumption
-* **Image SEO Optimization**: Improve search engine rankings with better image alt text descriptions
-* **Accessibility Compliance**: Meet WCAG guidelines for screen reader compatibility with proper alt attributes
+### Why better alt text matters
 
-### How Our AI Alt Text Generator Works
+Alt text gives images a useful text alternative. Good alt text helps screen-reader users understand important visuals, gives search engines more context, and makes your media library easier to maintain.
 
-1. **Connect Your Account**: Click "Connect to Alt Text Pro" and sign in or create a free account
-2. **Configure Settings**: Set up automatic alt text generation preferences
-3. **Generate Alt Text**: Process images individually or use bulk alt text generation
-4. **Review & Edit**: Fine-tune generated alt tags and alt attributes as needed
+Alt Text Pro is designed to speed up the repetitive work while still keeping you in control. The generated text is a strong starting point, and you can edit it whenever your page context needs a more specific description.
 
-### Perfect For Image SEO & Accessibility
+### Useful for
 
-* **Content Creators**: Bloggers, journalists, and content marketers who need alt text fast
-* **E-commerce Sites**: Product catalogs needing automatic alt text for image SEO
-* **Agencies**: Web developers using bulk alt text generation for client sites
-* **Accessibility Advocates**: Organizations focused on inclusive design and alt tag compliance
-* **SEO Professionals**: Improving image SEO optimization with quality alt text
+* Bloggers and publishers with large image libraries
+* WooCommerce stores with product images missing alt text
+* Agencies preparing accessibility and SEO cleanups for client sites
+* Site owners migrating old content into WordPress
+* Editors who want a faster workflow for image descriptions
 
-### Pricing Plans
+### How setup works
 
-* **Free Trial**: 30 credits to try our alt text generator
-* **Lite**: $3/month or $30/year for 150 credits per month
-* **Standard**: $5/month or $48/year for 400 credits per month
-* **Pro**: $9/month or $86/year for 1,000 credits per month
-* **Pay-as-you-go**: $5 for 100 credits or $10 for 250 credits when you need more
+1. Install and activate the plugin.
+2. Open Alt Text Pro in your WordPress admin.
+3. Connect your Alt Text Pro account or paste your API key.
+4. Generate alt text for one image, a post, or a bulk media-library batch.
+5. Review the generated text and edit where needed.
 
-Each alt text generation uses 1 credit.
+### Credits and plans
+
+New accounts include free credits for testing. Each successful alt text generation uses 1 credit. Paid plans and credit packs are available from the Alt Text Pro dashboard.
 
 ### Technical Requirements
 
 * WordPress 5.0 or higher
 * PHP 7.4 or higher
 * Active internet connection for API calls
-* Alt Text Pro account (free signup available)
-
-### Why Choose Alt Text Pro for Image SEO?
-
-* **Accuracy**: Advanced AI trained specifically for alt text and alt tag generation
-* **Speed**: Process hundreds of images in minutes with bulk alt text processing
-* **Quality**: Human-like image alt text descriptions that make sense
-* **Image Optimization**: Boost your image SEO with proper alt attributes
-* **Integration**: Seamless WordPress integration for automatic alt text
-* **Support**: Dedicated customer support team
-* **Privacy**: Your images are processed securely and not stored
+* Alt Text Pro account with available credits
 
 == Installation ==
 
@@ -93,7 +82,7 @@ Each alt text generation uses 1 credit.
 3. Sign in or create a free account
 4. The plugin saves your API key automatically
 5. Test the connection to ensure everything works
-6. Start generating alt text for your images!
+6. Generate alt text for a test image before running a larger batch.
 
 Manual API key setup is still available from the settings page if your browser blocks the connect popup.
 
@@ -101,59 +90,51 @@ Manual API key setup is still available from the settings page if your browser b
 
 = What is alt text and why do I need it? =
 
-Alt text (also called alt tags or alt attributes) is descriptive text added to images that helps search engines understand your images and makes your site accessible to visually impaired users using screen readers. Proper alt text is essential for image SEO and accessibility compliance.
+Alt text is the text alternative saved in an image's alt attribute. It helps screen-reader users understand important visuals and gives search engines more context about the image.
 
-= How does Alt Text Pro improve my image SEO? =
+= Does this guarantee accessibility compliance? =
 
-Alt Text Pro automatically generates descriptive, keyword-relevant alt text for your images. Search engines like Google use alt text to understand and index your images, which can improve your rankings in image search results and boost overall image SEO performance.
+No plugin can guarantee compliance by itself. Alt Text Pro helps you fill missing image descriptions faster, but you should still review generated alt text for accuracy, context, and accessibility quality.
 
-= Can this plugin automatically add alt tags to all my existing images? =
+= Can it process my existing media library? =
 
-Yes! Our bulk alt text generator can process hundreds of existing images that are missing alt tags. Simply go to the Bulk Processing page, select your images, and let the AI generate alt text automatically for all of them.
+Yes. The bulk processor can generate alt text for existing media-library images that are missing alt text.
 
-= Is 'alt text' the same as an alt tag or alt attribute? =
+= Can I generate alt text for images inside posts and pages? =
 
-Yes, these terms refer to the same thing. "Alt text" is the content, while "alt tag" and "alt attribute" refer to the HTML attribute that contains this text. Alt Text Pro generates quality alt text that gets added to your images' alt attributes.
+Yes. Alt Text Pro includes post and page workflows that find images in content and help add alt text where it is missing.
 
-= What makes your AI alt text generator accurate? =
+= Does it work for WooCommerce product images? =
 
-Our AI alt text generator uses advanced AI technology, specifically trained for image description and alt text generation. It analyzes image content, context, and metadata to create accurate, descriptive alt text that sounds natural and helps with image SEO.
+Yes. Product images are a common use case. You should still review the generated text to make sure it matches the product and page context.
 
 = Do I need an Alt Text Pro account? =
 
-Yes, you need a free Alt Text Pro account to use this plugin. You can sign up at https://www.alt-text.pro and get free credits to start generating alt text immediately.
+Yes. The plugin connects to the Alt Text Pro API, so you need an account and available credits. Free credits are available for testing.
 
 = How accurate is the AI-generated alt text? =
 
-Our AI is trained specifically for alt text generation and provides highly accurate descriptions. However, we always recommend reviewing and editing the generated alt text to ensure it fits your specific context perfectly.
+AI-generated alt text is usually a strong starting point, but you should review it. The best alt text depends on the page context and the purpose of the image.
 
 = Can I edit the generated alt text? =
 
-Absolutely! The plugin generates alt text as a starting point. You can always edit, refine, or completely rewrite the alt tags to match your needs.
+Yes. Generated alt text is saved into WordPress and can be edited from the plugin interface, media library, or normal WordPress fields.
 
 = What happens if I run out of credits? =
 
-If you run out of credits, the alt text generator will stop processing new images. You can purchase more credits or upgrade your plan from your Alt Text Pro dashboard.
-
-= Does the bulk alt text generator work with existing images? =
-
-Yes! The bulk processing feature can generate alt text for all your existing images that don't have alt attributes yet, making image optimization fast and easy.
+New generations stop until you add credits or upgrade your plan. Existing alt text remains in your WordPress site.
 
 = Is my data secure? =
 
-Yes, we take security seriously. Images are processed securely via encrypted connections and are not stored on our servers after processing.
+Images are sent securely to the Alt Text Pro service for AI processing. The plugin is designed for service calls such as API key validation, generation, credit checks, and subscription-related requests.
 
-= Can I use this alt text generator for e-commerce products? =
+= Does the plugin send marketing tracking from wp-admin? =
 
-Definitely! The plugin works great for product images and image SEO for online stores. You can even provide context like "product photo" to get more relevant alt text descriptions.
-
-= Does proper alt text really help with SEO? =
-
-Absolutely! Proper alt text is a key factor in image SEO. It helps search engines understand your images, improves image search rankings, and can drive significant traffic through Google Images. Our alt text generator creates SEO-optimized descriptions.
+No. The plugin does not send non-essential wp-admin marketing or funnel events. When an API key validates successfully, the Alt Text Pro service may record that the account connected the plugin so onboarding can work correctly.
 
 = What image formats are supported? =
 
-The alt text generator supports all standard web image formats including JPEG, PNG, GIF, and WebP.
+Alt Text Pro supports standard WordPress web image formats such as JPEG, PNG, GIF, and WebP.
 
 = Can I cancel my subscription anytime? =
 
@@ -161,12 +142,12 @@ Yes, you can cancel your subscription at any time from your Alt Text Pro dashboa
 
 == Screenshots ==
 
-1. **Alt Text Generator Dashboard** - AI-powered alt text generator dashboard showing usage stats and one-click generation
-2. **Alt Text Settings** - Configure automatic alt text generation, API settings, and image SEO preferences
-3. **Bulk Alt Text Generator** - Process hundreds of images with our bulk alt text processor and progress tracking
-4. **Media Library Alt Text Integration** - Generate alt text and alt tags directly from the WordPress media library
-5. **Alt Text Generation Logs** - Track all your alt text and alt tag generations with detailed usage logs
-6. **Mobile Responsive Design** - Fully responsive alt text generator works on all devices
+1. Alt Text Pro dashboard with credits, usage, and generation shortcuts.
+2. Settings screen for connecting your Alt Text Pro account and validating your API key.
+3. Bulk processor for generating alt text across missing media-library images.
+4. Media-library integration for generating alt text on individual images.
+5. Generation history showing recent alt text activity and credit usage.
+6. Responsive admin interface for managing alt text from different screen sizes.
 
 == Changelog ==
 = 1.4.99 =

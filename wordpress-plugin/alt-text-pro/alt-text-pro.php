@@ -2,7 +2,7 @@
 /**
  * Plugin Name: AI Alt Text Pro
  * Plugin URI: https://www.alt-text.pro
- * Description: AI-powered alt text generator that automatically creates image alt tags for better SEO and accessibility. Generate alt text for all your images with one click.
+ * Description: Generate accurate AI alt text for WordPress images, improve accessibility, and bulk-fix missing media-library alt text for SEO.
  * Version:           1.4.99
  * Author: Alt Text Pro
  * Author URI: https://www.alt-text.pro/about
