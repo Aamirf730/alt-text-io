@@ -20,6 +20,7 @@ const lato = Lato({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://www.alt-text.pro"),
   title: "Alt Text Pro | AI Alt Text Generator for WordPress",
   description: "Generate AI alt text for WordPress images, bulk-fix missing media-library alt text, and improve accessibility with 30 free credits.",
 };

@@ -18,13 +18,14 @@ Use this file as the shared source of truth for acquisition and lifecycle work a
    - Tighten homepage CTA, pricing copy, plugin install flow, dashboard onboarding, and docs.
    - Goal: move new users faster from landing page to plugin connected to first alt text generation.
    - Suggested deliverables: clearer homepage CTA, "install plugin" section, pricing clarity, dashboard next-step prompts, docs quick-start cleanup.
-   - Status: implemented locally; needs production deploy after approval.
+   - Status: completed and deployed.
 
 3. SEO content foundation
    - Publish 2-3 targeted pages or posts.
-   - Target page: AI alt text generator for WordPress. Status: implemented locally at `/ai-alt-text-generator-for-wordpress`; needs production deploy after approval.
-   - Target page: WooCommerce product image alt text.
-   - Target page: How to bulk generate alt text in WordPress.
+   - Target page: AI alt text generator for WordPress. Status: completed and deployed at `/ai-alt-text-generator-for-wordpress`.
+   - Target page: WooCommerce product image alt text. Status: prepared locally at `/woocommerce-product-image-alt-text`; needs production deploy after approval.
+   - Target page: How to bulk generate alt text in WordPress. Status: prepared locally at `/bulk-generate-alt-text-wordpress`; needs production deploy after approval.
+   - Technical SEO: sitemap, robots, metadata base, and footer links. Status: prepared locally; needs production deploy after approval.
 
 4. Lifecycle email templates
    - Improve the 5 lifecycle emails before scheduled automation reaches real users regularly.
