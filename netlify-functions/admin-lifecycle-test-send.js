@@ -191,6 +191,144 @@ function safeCandidate(candidate) {
   };
 }
 
+function latestEvent(events, eventName) {
+  return [...events]
+    .filter(event => event.event_name === eventName)
+    .sort((a, b) => new Date(b.occurred_at || b.created_at || 0) - new Date(a.occurred_at || a.created_at || 0))[0] || null;
+}
+
+function hasEventAfter(events, eventName, occurredAt) {
+  const threshold = new Date(occurredAt).getTime();
+  return events.some(event =>
+    event.event_name === eventName &&
+    new Date(event.occurred_at || event.created_at || 0).getTime() >= threshold
+  );
+}
+
+function isMature(occurredAt, delayHours) {
+  return Date.now() - new Date(occurredAt).getTime() >= delayHours * 60 * 60 * 1000;
+}
+
+async function buildSingleUserCandidate(email, automationKey) {
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('id,email,subscription_plan,credits_remaining,created_at')
+    .eq('email', email)
+    .maybeSingle();
+
+  if (profileError) {
+    throw new Error(`Failed to fetch target profile: ${profileError.message}`);
+  }
+
+  if (!profile) return null;
+
+  const { data: events, error: eventsError } = await supabase
+    .from('marketing_events')
+    .select('id,event_name,source,user_id,user_email,anonymous_id,occurred_at,created_at')
+    .or(`user_id.eq.${profile.id},user_email.eq.${email}`)
+    .order('occurred_at', { ascending: true });
+
+  if (eventsError) {
+    throw new Error(`Failed to fetch target lifecycle events: ${eventsError.message}`);
+  }
+
+  const { data: usage, error: usageError } = await supabase
+    .from('user_usage_stats')
+    .select('total_usage_count,total_credits_used,last_usage_at')
+    .eq('user_id', profile.id)
+    .maybeSingle();
+
+  if (usageError) {
+    throw new Error(`Failed to fetch target usage stats: ${usageError.message}`);
+  }
+
+  const targetEvents = events || [];
+  const totalUsageCount = Number(usage?.total_usage_count || 0);
+  const actorKey = `user:${profile.id}`;
+
+  if (automationKey === 'connect_no_first_image') {
+    const connectEvent = latestEvent(targetEvents, 'connect_completed');
+    if (!connectEvent || !isMature(connectEvent.occurred_at || connectEvent.created_at, 6)) return null;
+    if (totalUsageCount > 0 || hasEventAfter(targetEvents, 'first_image_processed', connectEvent.occurred_at || connectEvent.created_at)) return null;
+
+    return {
+      automation_key: 'connect_no_first_image',
+      actor_key: actorKey,
+      user_id: profile.id,
+      user_email: email,
+      source_event_id: connectEvent.id,
+      trigger_event_name: 'connect_completed',
+      trigger_occurred_at: new Date(connectEvent.occurred_at || connectEvent.created_at).toISOString(),
+      subject: 'Generate your first image alt text',
+      preview: 'Your WordPress site is connected. The next step is processing your first image.',
+      cta_text: 'Open Dashboard',
+      cta_url: 'https://www.alt-text.pro/dashboard',
+    };
+  }
+
+  if (automationKey === 'signup_no_connect') {
+    const signupEvent = latestEvent(targetEvents, 'signup_created');
+    if (!signupEvent || !isMature(signupEvent.occurred_at || signupEvent.created_at, 4)) return null;
+    if (hasEventAfter(targetEvents, 'connect_completed', signupEvent.occurred_at || signupEvent.created_at)) return null;
+
+    return {
+      automation_key: 'signup_no_connect',
+      actor_key: actorKey,
+      user_id: profile.id,
+      user_email: email,
+      source_event_id: signupEvent.id,
+      trigger_event_name: 'signup_created',
+      trigger_occurred_at: new Date(signupEvent.occurred_at || signupEvent.created_at).toISOString(),
+      subject: 'Connect Alt Text Pro to your WordPress site',
+      preview: 'Your account is ready. Connect the plugin to start generating alt text from WordPress.',
+      cta_text: 'Connect WordPress',
+      cta_url: 'https://www.alt-text.pro/connect',
+    };
+  }
+
+  if (automationKey === 'checkout_no_purchase') {
+    const checkoutEvent = latestEvent(targetEvents, 'checkout_started');
+    if (!checkoutEvent || !isMature(checkoutEvent.occurred_at || checkoutEvent.created_at, 1)) return null;
+    if (hasEventAfter(targetEvents, 'purchase_completed', checkoutEvent.occurred_at || checkoutEvent.created_at)) return null;
+
+    return {
+      automation_key: 'checkout_no_purchase',
+      actor_key: actorKey,
+      user_id: profile.id,
+      user_email: email,
+      source_event_id: checkoutEvent.id,
+      trigger_event_name: 'checkout_started',
+      trigger_occurred_at: new Date(checkoutEvent.occurred_at || checkoutEvent.created_at).toISOString(),
+      subject: 'Need help finishing your Alt Text Pro checkout?',
+      preview: 'You started checkout but did not finish. Your selected plan is still available.',
+      cta_text: 'View Plans',
+      cta_url: 'https://www.alt-text.pro/#pricing',
+    };
+  }
+
+  if (automationKey === 'credits_low_no_purchase') {
+    const lowCreditEvent = latestEvent(targetEvents, 'credits_low');
+    if (!lowCreditEvent) return null;
+    if (hasEventAfter(targetEvents, 'purchase_completed', lowCreditEvent.occurred_at || lowCreditEvent.created_at)) return null;
+
+    return {
+      automation_key: 'credits_low_no_purchase',
+      actor_key: actorKey,
+      user_id: profile.id,
+      user_email: email,
+      source_event_id: lowCreditEvent.id,
+      trigger_event_name: 'credits_low',
+      trigger_occurred_at: new Date(lowCreditEvent.occurred_at || lowCreditEvent.created_at).toISOString(),
+      subject: 'Your Alt Text Pro credits are running low',
+      preview: 'Add credits or upgrade your plan before your image workflow slows down.',
+      cta_text: 'Add Credits',
+      cta_url: 'https://www.alt-text.pro/dashboard',
+    };
+  }
+
+  return null;
+}
+
 exports.handler = async (event) => {
   const headers = getCorsHeaders(event.headers, ['POST', 'OPTIONS']);
   const preflightResponse = handlePreflight(event);
@@ -258,10 +396,15 @@ exports.handler = async (event) => {
 
     const events = await fetchRecentMarketingEvents(supabase, { days: 90 });
     const candidates = buildLifecycleCandidates(events);
-    const matches = candidates.filter(candidate =>
+    let matches = candidates.filter(candidate =>
       normalizeEmail(candidate.user_email) === email &&
       candidate.automation_key === automationKey
     );
+
+    if (matches.length === 0) {
+      const singleUserCandidate = await buildSingleUserCandidate(email, automationKey);
+      matches = singleUserCandidate ? [singleUserCandidate] : [];
+    }
 
     if (matches.length !== 1) {
       return {
