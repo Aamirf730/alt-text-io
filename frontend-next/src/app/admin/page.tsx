@@ -28,6 +28,7 @@ export default function AdminDashboard() {
     const [funnelDays, setFunnelDays] = useState("7");
     const [lifecycleDays, setLifecycleDays] = useState("30");
     const [lifecycleFilter, setLifecycleFilter] = useState("all");
+    const [lifecycleActionKey, setLifecycleActionKey] = useState("");
     const [selectedUser, setSelectedUser] = useState<any>(null);
     const router = useRouter();
 
@@ -195,6 +196,59 @@ export default function AdminDashboard() {
         setLifecycleDays(days);
         if (user?.token) {
             await loadLifecycle(user.token, days);
+        }
+    };
+
+    const getLifecycleRuleForStatus = (status: string) => {
+        if (status === "Needs plugin reminder") return "signup_no_connect";
+        if (status === "Needs first generation reminder") return "connect_no_first_image";
+        if (status === "Low credits") return "credits_low_no_purchase";
+        if (status === "Checkout recovery") return "checkout_no_purchase";
+        return null;
+    };
+
+    const runLifecycleTestSend = async (row: any, dryRun: boolean) => {
+        const automationKey = getLifecycleRuleForStatus(row.follow_up_status);
+        if (!user?.token || !automationKey) {
+            toast.error("This row is not eligible for a lifecycle test email.");
+            return;
+        }
+
+        const actionKey = `${row.user_id}:${automationKey}:${dryRun ? "dry" : "send"}`;
+        setLifecycleActionKey(actionKey);
+
+        try {
+            const apiBase = getApiBase();
+            const response = await fetch(`${apiBase}/admin-lifecycle-test-send`, {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${user.token}`,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    email: row.email,
+                    automation_key: automationKey,
+                    dry_run: dryRun,
+                }),
+            });
+
+            const result = await response.json().catch(() => ({}));
+
+            if (!response.ok || !result.success) {
+                throw new Error(result.reason || result.error || `API returned status ${response.status}`);
+            }
+
+            if (dryRun) {
+                toast.success(`Dry-run matched ${result.candidate?.automation_key || automationKey}`);
+            } else {
+                toast.success(`Test email sent to ${row.email}`);
+                await loadLifecycle(user.token, lifecycleDays);
+            }
+        } catch (error: any) {
+            console.error("Lifecycle test send failed:", error);
+            toast.error(error?.message || "Lifecycle test send failed.");
+        } finally {
+            setLifecycleActionKey("");
         }
     };
 
@@ -855,12 +909,13 @@ export default function AdminDashboard() {
                                                 <th className="text-left py-3 px-4 font-semibold text-gray-700">Credits</th>
                                                 <th className="text-left py-3 px-4 font-semibold text-gray-700">Follow-up Status</th>
                                                 <th className="text-left py-3 px-4 font-semibold text-gray-700">Latest Email</th>
+                                                <th className="text-left py-3 px-4 font-semibold text-gray-700">Test</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             {filteredLifecycleUsers.length === 0 ? (
                                                 <tr>
-                                                    <td colSpan={7} className="text-center py-8 text-gray-500">
+                                                    <td colSpan={8} className="text-center py-8 text-gray-500">
                                                         No lifecycle users found
                                                     </td>
                                                 </tr>
@@ -928,6 +983,34 @@ export default function AdminDashboard() {
                                                                 </div>
                                                             ) : (
                                                                 <span className="text-sm text-gray-500">No email sent</span>
+                                                            )}
+                                                        </td>
+                                                        <td className="py-3 px-4">
+                                                            {getLifecycleRuleForStatus(row.follow_up_status) ? (
+                                                                <div className="flex flex-col gap-2">
+                                                                    <Button
+                                                                        variant="outline"
+                                                                        size="sm"
+                                                                        disabled={Boolean(lifecycleActionKey)}
+                                                                        onClick={() => runLifecycleTestSend(row, true)}
+                                                                    >
+                                                                        {lifecycleActionKey === `${row.user_id}:${getLifecycleRuleForStatus(row.follow_up_status)}:dry`
+                                                                            ? "Checking..."
+                                                                            : "Dry Run"}
+                                                                    </Button>
+                                                                    <Button
+                                                                        variant="outline"
+                                                                        size="sm"
+                                                                        disabled={Boolean(lifecycleActionKey)}
+                                                                        onClick={() => runLifecycleTestSend(row, false)}
+                                                                    >
+                                                                        {lifecycleActionKey === `${row.user_id}:${getLifecycleRuleForStatus(row.follow_up_status)}:send`
+                                                                            ? "Sending..."
+                                                                            : "Send Test"}
+                                                                    </Button>
+                                                                </div>
+                                                            ) : (
+                                                                <span className="text-sm text-gray-400">Not eligible</span>
                                                             )}
                                                         </td>
                                                     </tr>

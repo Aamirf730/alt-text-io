@@ -191,6 +191,8 @@ Lifecycle automation uses website/account events and server-side plugin connecti
 
 The admin dashboard's Lifecycle tab uses the read-only `admin-lifecycle-status` function. It requires a signed-in Supabase session whose email is listed in `SUPERUSER_EMAILS`, then summarizes profiles, plugin connection events, usage stats, checkout/purchase events, low-credit events, and `marketing_automation_sends` follow-up history.
 
+The Lifecycle tab can also call `admin-lifecycle-test-send` for one-recipient dry-runs and test sends. This endpoint requires the same signed-in superuser session, accepts a single `email` plus `automation_key`, blocks duplicate reservations, and never sends to more than the one matching lifecycle candidate.
+
 Active lifecycle rules:
 - `signup_no_connect`: `signup_created` without a later `connect_completed` after 4 hours. Successful plugin API-key validation records `connect_completed` server-side with source `wordpress_plugin_auth`.
 - `connect_no_first_image`: `connect_completed` without a later web app `first_image_processed` after 6 hours.
