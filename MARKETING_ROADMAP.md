@@ -22,7 +22,7 @@ Use this file as the shared source of truth for acquisition and lifecycle work a
 
 3. SEO content foundation
    - Publish 2-3 targeted pages or posts.
-   - Target page: AI alt text generator for WordPress.
+   - Target page: AI alt text generator for WordPress. Status: implemented locally at `/ai-alt-text-generator-for-wordpress`; needs production deploy after approval.
    - Target page: WooCommerce product image alt text.
    - Target page: How to bulk generate alt text in WordPress.
 

@@ -59,6 +59,7 @@ const Footer = () => {
 
                     {/* Links */}
                     <div className="flex flex-wrap justify-center gap-x-12 gap-y-6 text-base font-medium text-gray-500">
+                        <Link href="/ai-alt-text-generator-for-wordpress" className="hover:text-notebook-blue transition-colors">AI Alt Text Guide</Link>
                         <a href="https://wordpress.org/plugins/alt-text-pro/" target="_blank" rel="noopener noreferrer" className="hover:text-notebook-blue transition-colors">WordPress Plugin</a>
                         <Link href="/contact" className="hover:text-notebook-blue transition-colors">Contact</Link>
                         <Link href="/alt-text-simulator" className="hover:text-notebook-blue transition-colors">Simulator</Link>
