@@ -421,6 +421,20 @@ exports.handler = async (event) => {
     }
 
     const candidate = matches[0];
+
+    if (dryRun) {
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          success: true,
+          dry_run: true,
+          sent: false,
+          candidate: safeCandidate(candidate),
+        }),
+      };
+    }
+
     const existingSend = await getExistingSend(candidate);
     if (existingSend) {
       return {
@@ -432,19 +446,6 @@ exports.handler = async (event) => {
           reason: 'already_sent_or_reserved',
           candidate: safeCandidate(candidate),
           existing_send: existingSend,
-        }),
-      };
-    }
-
-    if (dryRun) {
-      return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify({
-          success: true,
-          dry_run: true,
-          sent: false,
-          candidate: safeCandidate(candidate),
         }),
       };
     }
