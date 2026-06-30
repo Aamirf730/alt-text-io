@@ -36,6 +36,7 @@ const ALLOWED_TEST_RULES = new Set([
   'purchase_onboarding',
   'credits_low_no_purchase',
 ]);
+const LOW_CREDIT_THRESHOLD = 5;
 
 function normalizeEmail(email) {
   return String(email || '').trim().toLowerCase();
@@ -309,17 +310,40 @@ async function buildSingleUserCandidate(email, automationKey) {
 
   if (automationKey === 'credits_low_no_purchase') {
     const lowCreditEvent = latestEvent(targetEvents, 'credits_low');
-    if (!lowCreditEvent) return null;
-    if (hasEventAfter(targetEvents, 'purchase_completed', lowCreditEvent.occurred_at || lowCreditEvent.created_at)) return null;
+    if (lowCreditEvent) {
+      if (hasEventAfter(targetEvents, 'purchase_completed', lowCreditEvent.occurred_at || lowCreditEvent.created_at)) return null;
+
+      return {
+        automation_key: 'credits_low_no_purchase',
+        actor_key: actorKey,
+        user_id: profile.id,
+        user_email: email,
+        source_event_id: lowCreditEvent.id,
+        trigger_event_name: 'credits_low',
+        trigger_occurred_at: new Date(lowCreditEvent.occurred_at || lowCreditEvent.created_at).toISOString(),
+        subject: 'Your Alt Text Pro credits are running low',
+        preview: 'Add credits or upgrade your plan before your image workflow slows down.',
+        cta_text: 'Add Credits',
+        cta_url: 'https://www.alt-text.pro/dashboard',
+      };
+    }
+
+    const creditsRemaining = Number(profile.credits_remaining || 0);
+    const isLowCredits = creditsRemaining <= LOW_CREDIT_THRESHOLD;
+    const hasPaidPlan = String(profile.subscription_plan || 'free') !== 'free';
+    const fallbackOccurredAt = usage?.last_usage_at || profile.created_at;
+
+    if (!isLowCredits || hasPaidPlan || !fallbackOccurredAt || totalUsageCount <= 0) return null;
+    if (hasEventAfter(targetEvents, 'purchase_completed', fallbackOccurredAt)) return null;
 
     return {
       automation_key: 'credits_low_no_purchase',
       actor_key: actorKey,
       user_id: profile.id,
       user_email: email,
-      source_event_id: lowCreditEvent.id,
+      source_event_id: null,
       trigger_event_name: 'credits_low',
-      trigger_occurred_at: new Date(lowCreditEvent.occurred_at || lowCreditEvent.created_at).toISOString(),
+      trigger_occurred_at: new Date(fallbackOccurredAt).toISOString(),
       subject: 'Your Alt Text Pro credits are running low',
       preview: 'Add credits or upgrade your plan before your image workflow slows down.',
       cta_text: 'Add Credits',
