@@ -2,6 +2,7 @@
 
 const nodemailer = require('nodemailer');
 const { createClient } = require('@supabase/supabase-js');
+const { getEmailFrom } = require('./utils/email-config');
 const {
   getMarketingFunnelReport,
   renderFunnelReportHtml,
@@ -80,7 +81,7 @@ exports.handler = async () => {
     const date = report.range.end_at.slice(0, 10);
 
     await transporter.sendMail({
-      from: process.env.EMAIL_USER,
+      from: getEmailFrom(),
       to: recipients.join(','),
       subject: `Alt Text Pro daily funnel report - ${date}`,
       text: renderFunnelReportText(report),

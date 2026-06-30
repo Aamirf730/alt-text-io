@@ -3,6 +3,7 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const { validateApiKey, updateUserCredits, isSupabaseConfigured } = require('./utils/api-key-validator');
+const { recordCreditsLowEvent } = require('./utils/credits-low-event');
 const {
   getCorsHeaders,
   handlePreflight,
@@ -647,6 +648,7 @@ FORMAT REQUIREMENTS:
 exports.handler = async (event, context) => {
   // Get secure CORS headers (origin-validated)
   const headers = getCorsHeaders(event.headers, ['POST', 'OPTIONS']);
+  let isApiKeyAuth = false;
 
   // Handle preflight OPTIONS request
   const preflightResponse = handlePreflight(event);
@@ -692,7 +694,9 @@ exports.handler = async (event, context) => {
     let creditsRemaining = 0;
 
     // Check if token is a Supabase auth token or API key (accepts both altai_ and alt_ formats)
-    if (token.startsWith('altai_') || token.startsWith('alt_')) {
+    isApiKeyAuth = token.startsWith('altai_') || token.startsWith('alt_');
+
+    if (isApiKeyAuth) {
       // API key authentication
       user = await validateApiKey(token);
       if (!user) {
@@ -823,7 +827,7 @@ exports.handler = async (event, context) => {
     // CRITICAL: Re-check credits RIGHT BEFORE generation to prevent race conditions
     // This ensures we don't generate alt-text if credits were exhausted by another request
     let finalCreditCheck;
-    if (token.startsWith('altai_') || token.startsWith('alt_')) {
+    if (isApiKeyAuth) {
       // API key method - re-validate user
       const recheckUser = await validateApiKey(token);
       if (!recheckUser || recheckUser.credits_remaining <= 0) {
@@ -946,6 +950,14 @@ exports.handler = async (event, context) => {
       credits_remaining: newCreditsRemaining,
       total_processed: newTotalProcessed
     });
+
+    if (isApiKeyAuth && newCreditsRemaining <= 5) {
+      await recordCreditsLowEvent(supabase, {
+        userId: user.id,
+        userEmail: user.email,
+        creditsRemaining: newCreditsRemaining,
+      });
+    }
 
     return {
       statusCode: 200,

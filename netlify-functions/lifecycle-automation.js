@@ -2,6 +2,7 @@
 
 const nodemailer = require('nodemailer');
 const { createClient } = require('@supabase/supabase-js');
+const { getEmailFrom } = require('./utils/email-config');
 const {
   buildLifecycleCandidates,
   fetchRecentMarketingEvents,
@@ -171,7 +172,7 @@ async function markSend(id, patch) {
 async function sendLifecycleEmail(transporter, candidate) {
   const { html, text } = renderLifecycleEmail(candidate);
   return transporter.sendMail({
-    from: process.env.EMAIL_USER,
+    from: getEmailFrom(),
     to: candidate.user_email,
     subject: candidate.subject,
     text,

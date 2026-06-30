@@ -179,7 +179,9 @@ Required environment variables:
 - `AI_API_KEY` - Our core AI service API key
 - `SUPERUSER_EMAILS` - Comma-separated admin emails allowed to open admin reports
 - `MARKETING_REPORT_EMAILS` - Optional comma-separated recipients for the daily funnel email; falls back to `SUPERUSER_EMAILS`
-- `EMAIL_USER` / `EMAIL_PASSWORD` - SMTP credentials used by contact emails and the scheduled funnel report
+- `EMAIL_USER` / `EMAIL_PASSWORD` - SMTP credentials used to authenticate outbound mail
+- `EMAIL_FROM` - Optional visible sender address for outbound mail; defaults to `EMAIL_USER`
+- `SUPPORT_EMAIL` - Optional support inbox address used by the contact form recipient; defaults to `EMAIL_FROM`
 - `LIFECYCLE_AUTOMATION_SECRET` - Optional legacy secret for manually invoking the scheduled lifecycle automation endpoint. Prefer the Admin Lifecycle tab for controlled one-recipient tests.
 - `LIFECYCLE_AUTOMATION_LOOKBACK_DAYS` - Optional event lookback window for lifecycle automation, defaults to `30`
 - `LIFECYCLE_AUTOMATION_MAX_SENDS` - Optional per-run send cap for lifecycle automation, defaults to `25`

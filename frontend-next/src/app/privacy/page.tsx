@@ -177,7 +177,7 @@ export default function PrivacyPage() {
                                     <li><strong>Restriction:</strong> Request restriction of processing in certain circumstances</li>
                                 </ul>
                                 <p className="text-slate-600 leading-relaxed mt-4">
-                                    To exercise these rights, please contact us at help@wpgeared.com. We will respond to your request within 30 days.
+                                    To exercise these rights, please contact us at help@alt-text.pro. We will respond to your request within 30 days.
                                 </p>
                             </section>
 
@@ -253,7 +253,7 @@ export default function PrivacyPage() {
                                     <p className="text-slate-600 leading-relaxed mt-6 flex flex-col gap-2">
                                         <span className="flex items-center gap-2">
                                             <strong className="text-slate-900">Email:</strong>
-                                            <a href="mailto:help@wpgeared.com" className="text-slate-900 hover:text-[#0D4F5E] underline underline-offset-4 decoration-slate-300 hover:decoration-slate-400 transition-colors">help@wpgeared.com</a>
+                                            <a href="mailto:help@alt-text.pro" className="text-slate-900 hover:text-[#0D4F5E] underline underline-offset-4 decoration-slate-300 hover:decoration-slate-400 transition-colors">help@alt-text.pro</a>
                                         </span>
                                         <span className="flex items-center gap-2">
                                             <strong className="text-slate-900">Website:</strong>

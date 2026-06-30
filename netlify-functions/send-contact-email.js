@@ -1,5 +1,6 @@
 // Netlify Function for Sending Contact Form Emails
 const nodemailer = require('nodemailer');
+const { getEmailFrom, getSupportEmail } = require('./utils/email-config');
 
 // Create reusable transporter object using SMTP transport
 const createTransporter = () => {
@@ -96,8 +97,8 @@ exports.handler = async (event, context) => {
 
     // Email content
     const mailOptions = {
-      from: process.env.EMAIL_USER || 'help@wpgeared.com',
-      to: 'help@wpgeared.com', // Recipient email address
+      from: getEmailFrom(),
+      to: getSupportEmail(),
       replyTo: email, // Allow replying directly to the sender
       subject: subject || `Contact Form: ${name}`,
       html: `
@@ -177,4 +178,3 @@ ${message}
     };
   }
 };
-

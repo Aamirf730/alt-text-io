@@ -47,7 +47,7 @@ export default function AboutPage() {
                                 We'd love to hear from you. Whether you have questions, feedback, or just want to say hello, please feel free to reach out.
                             </p>
                             <p className="text-gray-700 leading-relaxed mt-4">
-                                <strong>Email:</strong> help@wpgeared.com<br />
+                                <strong>Email:</strong> help@alt-text.pro<br />
                                 <strong>Website:</strong> <Link href="/contact" className="text-teal-600 hover:text-teal-700">www.alt-text.pro/contact</Link>
                             </p>
                         </section>

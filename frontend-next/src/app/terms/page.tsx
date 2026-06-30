@@ -198,7 +198,7 @@ export default function TermsPage() {
                                 If you have any questions about these Terms, please contact us at:
                             </p>
                             <p className="text-gray-700 leading-relaxed mt-2">
-                                <strong>Email:</strong> help@wpgeared.com<br />
+                                <strong>Email:</strong> help@alt-text.pro<br />
                                 <strong>Website:</strong> <Link href="/contact" className="text-teal-600 hover:text-teal-700">www.alt-text.pro/contact</Link>
                             </p>
                         </section>
