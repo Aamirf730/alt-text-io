@@ -1,5 +1,6 @@
 import { Webhooks } from "@polar-sh/nextjs";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { isPolarSubscriptionProduct, resolvePolarPlanId } from "@/lib/polar-plan-mapping";
 
 // Lazy initialization for Supabase client
 let supabaseClient: SupabaseClient | null = null;
@@ -199,19 +200,12 @@ export const POST = Webhooks({
             // Get product details early to check if this is a subscription
             const productName = order.product?.name || "";
 
-            // NEW: Normalize product name for reliable subscription check
-            const normalizedProductName = productName.toLowerCase().replace(/\s+/g, "_");
+            const mergedMetadata = {
+                ...(order.product?.metadata || {}),
+                ...(order.metadata || {}),
+            } as Record<string, string | number | boolean>;
 
-            const isSubscription =
-                normalizedProductName.includes('tier1') ||
-                normalizedProductName.includes('tier2') ||
-                normalizedProductName.includes('tier3') ||
-                normalizedProductName.includes('tier_1') ||
-                normalizedProductName.includes('tier_2') ||
-                normalizedProductName.includes('tier_3') ||
-                normalizedProductName.includes('monthly') ||
-                normalizedProductName.includes('annual') ||
-                order.product?.metadata?.type === 'subscription';
+            const isSubscription = isPolarSubscriptionProduct(productName, mergedMetadata);
 
             // Find user by email
             const { data: users, error: userError } = await getSupabase()
@@ -239,11 +233,7 @@ export const POST = Webhooks({
             const anyOrder = order as any;
             const paymentAmount = (anyOrder.amount || 0) / 100;
             const currency = anyOrder.currency?.toUpperCase() || "USD";
-            const planId = productName.toLowerCase().includes("tier1") ? "tier1" :
-                productName.toLowerCase().includes("tier2") ? "tier2" :
-                    productName.toLowerCase().includes("tier3") ? "tier3" :
-                        productName.toLowerCase().includes("small") ? "small_pack" :
-                            productName.toLowerCase().includes("credit") ? "credit_pack" : "free";
+            const planId = resolvePolarPlanId(productName, mergedMetadata);
 
             const { error: paymentError } = await getSupabase()
                 .from("payments")
@@ -297,11 +287,6 @@ export const POST = Webhooks({
             console.log(`✓ Processing one-time purchase: ${productName}`);
 
             // Prefer product metadata (configured in Polar catalog), allow order metadata to override.
-            const mergedMetadata = {
-                ...(order.product?.metadata || {}),
-                ...(order.metadata || {}),
-            } as Record<string, string | number | boolean>;
-
             const credits = getCreditsForProduct(productName, mergedMetadata);
 
             if (credits > 0) {
@@ -352,15 +337,12 @@ export const POST = Webhooks({
             }
 
             // Determine planId
-            const planId = productName.toLowerCase().includes("tier1") ? "tier1" :
-                productName.toLowerCase().includes("tier2") ? "tier2" :
-                    productName.toLowerCase().includes("tier3") ? "tier3" : "free";
-
             const isAnnual = productName.toLowerCase().includes("annual");
             const mergedMetadata = {
                 ...(subscription.product?.metadata || {}),
                 ...(subscription.metadata || {}),
             } as Record<string, string | number | boolean>;
+            const planId = resolvePolarPlanId(productName, mergedMetadata);
 
             const rawCredits = getCreditsForProduct(productName, mergedMetadata);
 
@@ -491,9 +473,7 @@ export const POST = Webhooks({
                     const rawCredits = getCreditsForProduct(productName, mergedMetadata);
 
                     // Determine planId
-                    const planId = productName.toLowerCase().includes("tier1") ? "tier1" :
-                        productName.toLowerCase().includes("tier2") ? "tier2" :
-                            productName.toLowerCase().includes("tier3") ? "tier3" : "free";
+                    const planId = resolvePolarPlanId(productName, mergedMetadata);
 
                     // Billing cycle check
                     const billingCycle = isAnnual ? "annual" : "monthly";
