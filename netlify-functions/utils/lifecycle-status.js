@@ -57,10 +57,32 @@ function getIdentityRows(grouped, profile) {
   });
 }
 
+function buildActivePluginKeyMap(apiKeys = []) {
+  const activePluginKeys = new Map();
+
+  for (const key of apiKeys) {
+    if (!key?.user_id || !key?.is_active) continue;
+
+    const keyName = String(key.name || '').trim().toLowerCase();
+    if (keyName !== 'wordpress plugin') continue;
+
+    const existing = activePluginKeys.get(key.user_id);
+    const existingTime = existing ? new Date(existing.created_at || 0).getTime() : 0;
+    const currentTime = new Date(key.created_at || 0).getTime();
+
+    if (!existing || currentTime > existingTime) {
+      activePluginKeys.set(key.user_id, key);
+    }
+  }
+
+  return activePluginKeys;
+}
+
 function buildLifecycleStatusReport({
   profiles = [],
   events = [],
   usageStats = [],
+  apiKeys = [],
   automationSends = [],
   generatedAt = new Date().toISOString(),
   days = 30,
@@ -68,6 +90,7 @@ function buildLifecycleStatusReport({
   const eventGroups = groupByIdentity(events, row => row.user_id, row => row.user_email);
   const sendGroups = groupByIdentity(automationSends, row => row.user_id, row => row.user_email);
   const usageByUser = new Map((usageStats || []).map(row => [row.user_id, row]));
+  const activePluginKeysByUser = buildActivePluginKeyMap(apiKeys);
 
   const rows = profiles.map(profile => {
     const profileEvents = getIdentityRows(eventGroups, profile);
@@ -86,6 +109,10 @@ function buildLifecycleStatusReport({
       (eventsByName.get('connect_completed') || [])
         .filter(event => event.source === 'wordpress_plugin_auth' || event.source === 'wordpress_connect')
     );
+    const pluginKeyFallback = activePluginKeysByUser.get(profile.id) || null;
+    const pluginConnectedAt = getEventTime(pluginConnectEvent) || pluginKeyFallback?.created_at || null;
+    const pluginConnectionSource = pluginConnectEvent?.source || (pluginKeyFallback ? 'wordpress_plugin_key' : null);
+    const isPluginConnected = Boolean(pluginConnectEvent || pluginKeyFallback);
     const firstImageEvent = latestByDate(eventsByName.get('first_image_processed') || []);
     const checkoutEvent = latestByDate(eventsByName.get('checkout_started') || []);
     const purchaseEvent = latestByDate(eventsByName.get('purchase_completed') || []);
@@ -100,7 +127,7 @@ function buildLifecycleStatusReport({
     const isLowCredits = creditsRemaining <= LOW_CREDIT_THRESHOLD;
 
     let followUpStatus = 'Active';
-    if (!pluginConnectEvent) {
+    if (!isPluginConnected) {
       followUpStatus = 'Needs plugin reminder';
     } else if (!hasFirstGeneration) {
       followUpStatus = 'Needs first generation reminder';
@@ -120,8 +147,8 @@ function buildLifecycleStatusReport({
       total_usage_count: totalUsageCount,
       total_credits_used: totalCreditsUsed,
       signup_at: getEventTime(signupEvent) || profile.created_at || null,
-      plugin_connected_at: getEventTime(pluginConnectEvent),
-      plugin_connection_source: pluginConnectEvent?.source || null,
+      plugin_connected_at: pluginConnectedAt,
+      plugin_connection_source: pluginConnectionSource,
       first_generation_at: usage.last_usage_at || getEventTime(firstImageEvent),
       checkout_started_at: getEventTime(checkoutEvent),
       purchase_completed_at: getEventTime(purchaseEvent),
@@ -139,7 +166,7 @@ function buildLifecycleStatusReport({
       follow_ups_failed: profileSends.filter(send => send.status === 'failed').length,
       lifecycle_events: {
         signup_created: Boolean(signupEvent),
-        connect_completed: Boolean(pluginConnectEvent),
+        connect_completed: isPluginConnected,
         first_image_processed: hasFirstGeneration,
         checkout_started: Boolean(checkoutEvent),
         purchase_completed: Boolean(purchaseEvent),
@@ -185,7 +212,7 @@ async function fetchLifecycleStatusReport(supabase, { days = 30, limit = 500 } =
   const parsedLimit = parsePositiveInt(limit, 500, 1, 1000);
   const startAt = new Date(Date.now() - parsedDays * 24 * 60 * 60 * 1000).toISOString();
 
-  const [profilesResult, eventsResult, usageResult, sendsResult] = await Promise.all([
+  const [profilesResult, eventsResult, usageResult, apiKeysResult, sendsResult] = await Promise.all([
     supabase
       .from('profiles')
       .select('id,email,subscription_plan,subscription_status,credits_remaining,total_processed,created_at')
@@ -209,6 +236,10 @@ async function fetchLifecycleStatusReport(supabase, { days = 30, limit = 500 } =
       .from('user_usage_stats')
       .select('user_id,total_usage_count,total_credits_used,last_usage_at'),
     supabase
+      .from('api_keys')
+      .select('user_id,name,is_active,created_at')
+      .eq('is_active', true),
+    supabase
       .from('marketing_automation_sends')
       .select('id,automation_key,actor_key,user_id,user_email,status,subject,error_message,sent_at,created_at')
       .order('created_at', { ascending: false })
@@ -219,6 +250,7 @@ async function fetchLifecycleStatusReport(supabase, { days = 30, limit = 500 } =
     ['profiles', profilesResult],
     ['marketing events', eventsResult],
     ['usage stats', usageResult],
+    ['api keys', apiKeysResult],
     ['automation sends', sendsResult],
   ]) {
     if (result.error) {
@@ -230,6 +262,7 @@ async function fetchLifecycleStatusReport(supabase, { days = 30, limit = 500 } =
     profiles: profilesResult.data || [],
     events: eventsResult.data || [],
     usageStats: usageResult.data || [],
+    apiKeys: apiKeysResult.data || [],
     automationSends: sendsResult.data || [],
     days: parsedDays,
   });

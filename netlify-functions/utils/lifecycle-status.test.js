@@ -99,4 +99,38 @@ describe('lifecycle status report', () => {
     expect(report.users[0].follow_ups_sent).toBe(1);
     expect(report.users[0].latest_follow_up.automation_key).toBe('connect_no_first_image');
   });
+
+  it('treats an active WordPress plugin API key as a connection fallback', () => {
+    const report = buildLifecycleStatusReport({
+      profiles: [{
+        id: 'user-1',
+        email: 'legacy@example.com',
+        subscription_plan: 'free',
+        subscription_status: 'active',
+        credits_remaining: 29,
+        total_processed: 1,
+        created_at: '2026-06-27T00:00:00.000Z',
+      }],
+      events: [],
+      usageStats: [{
+        user_id: 'user-1',
+        total_usage_count: 1,
+        total_credits_used: 1,
+        last_usage_at: '2026-06-27T02:00:00.000Z',
+      }],
+      apiKeys: [{
+        user_id: 'user-1',
+        name: 'WordPress Plugin',
+        is_active: true,
+        created_at: '2026-06-27T01:00:00.000Z',
+      }],
+      automationSends: [],
+    });
+
+    expect(report.summary.plugin_connected).toBe(1);
+    expect(report.users[0].plugin_connected_at).toBe('2026-06-27T01:00:00.000Z');
+    expect(report.users[0].plugin_connection_source).toBe('wordpress_plugin_key');
+    expect(report.users[0].follow_up_status).toBe('Active');
+    expect(report.users[0].lifecycle_events.connect_completed).toBe(true);
+  });
 });
