@@ -128,7 +128,10 @@ class AltTextPro_API_Client
             'success' => false,
             'message' => $response['message'] ?? esc_html__('Failed to generate alt-text. Please check your API key and try again.', 'alt-text-pro'),
             'data' => $response['data'] ?? null,
-            'status_code' => $response['status_code'] ?? null
+            'status_code' => $response['status_code'] ?? null,
+            'retryable' => $response['retryable'] ?? false,
+            'retry_after_seconds' => $response['retry_after_seconds'] ?? null,
+            'code' => $response['code'] ?? null
         );
     }
 
@@ -353,7 +356,25 @@ class AltTextPro_API_Client
                     );
                     break;
                 case 429:
-                    $error_message = esc_html__('Rate limit exceeded. Please try again later.', 'alt-text-pro');
+                    $retry_after_seconds = null;
+                    if (is_array($decoded_body) && isset($decoded_body['retry_after_seconds'])) {
+                        $retry_after_seconds = max(1, intval($decoded_body['retry_after_seconds']));
+                    }
+                    $error_message = is_array($decoded_body) && !empty($decoded_body['message'])
+                        ? sanitize_text_field($decoded_body['message'])
+                        : esc_html__('AI generation is temporarily rate limited. The plugin will wait and retry automatically.', 'alt-text-pro');
+
+                    return array(
+                        'success' => false,
+                        'message' => $error_message,
+                        'retryable' => true,
+                        'retry_after_seconds' => $retry_after_seconds,
+                        'code' => is_array($decoded_body) && isset($decoded_body['code']) ? sanitize_key($decoded_body['code']) : 'rate_limited',
+                        'status_code' => 429,
+                        'data' => is_array($decoded_body) ? $decoded_body : null,
+                        'raw_response' => substr($body, 0, 1000),
+                        'url_attempted' => $url
+                    );
                     break;
                 case 500:
                     // Only use generic message if no specific message was returned by the API
@@ -373,6 +394,9 @@ class AltTextPro_API_Client
                 'success' => false,
                 'message' => $error_message,
                 'status_code' => $status_code,
+                'retryable' => is_array($decoded_body) ? (bool) ($decoded_body['retryable'] ?? false) : false,
+                'retry_after_seconds' => is_array($decoded_body) ? ($decoded_body['retry_after_seconds'] ?? null) : null,
+                'code' => is_array($decoded_body) ? ($decoded_body['code'] ?? null) : null,
                 'raw_response' => substr($body, 0, 1000), // Limit size
                 'url_attempted' => $url
             );

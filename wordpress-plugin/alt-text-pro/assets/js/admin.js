@@ -962,7 +962,7 @@
         notificationsShown: {},
         nextBatchTimer: null,
         scheduledBatchOffset: null,
-        batchDelayMs: 1500,
+        batchDelayMs: 15000,
 
         init: function () {
             debugLog('Alt Text Pro: Initializing bulk processor');
@@ -1157,18 +1157,24 @@
 
                         // Schedule the next billable request after the UI has rendered the latest count.
                         if (response.data.needs_next_batch && response.data.next_batch_offset !== null) {
-                            self.scheduleNextBatch(response.data.next_batch_offset);
+                            self.scheduleNextBatch(response.data.next_batch_offset, response.data.retry_after_seconds);
                         }
                     }
                 }
             });
         },
 
-        scheduleNextBatch: function (offset) {
+        scheduleNextBatch: function (offset, retryAfterSeconds) {
             var self = this;
             if (this.cancelRequested || this.pendingCancel || !this.isProcessing || !this.processId) return;
             if (this.processingBatches[offset]) return;
             if (this.nextBatchTimer && this.scheduledBatchOffset === offset) return;
+
+            var delayMs = this.batchDelayMs;
+            if (retryAfterSeconds) {
+                delayMs = Math.max(delayMs, parseInt(retryAfterSeconds, 10) * 1000);
+                $('#progress-status').text('Waiting for AI rate limit reset...');
+            }
 
             this.clearScheduledBatch();
             this.scheduledBatchOffset = offset;
@@ -1178,7 +1184,7 @@
 
                 if (self.cancelRequested || self.pendingCancel || !self.isProcessing) return;
                 self.triggerNextBatch(offset);
-            }, this.batchDelayMs);
+            }, delayMs);
         },
 
         clearScheduledBatch: function () {
@@ -1228,7 +1234,7 @@
                         }
 
                         if (response.data.needs_next_batch && response.data.next_batch_offset !== null) {
-                            self.scheduleNextBatch(response.data.next_batch_offset);
+                            self.scheduleNextBatch(response.data.next_batch_offset, response.data.retry_after_seconds);
                         }
                     } else {
                         self.pollStatus();
@@ -1260,6 +1266,11 @@
             $('#successful-count').text(data.successful_count !== undefined ? data.successful_count : (data.successful || 0));
             $('#error-count').text(data.error_count !== undefined ? data.error_count : (data.errors ? data.errors.length : 0));
 
+            if (data.retry_after_seconds) {
+                $('#progress-status').text('Waiting for AI rate limit reset...');
+                return;
+            }
+
             if (data.status === 'processing' || data.status === 'running') {
                 $('#progress-status').text('Processing...');
             }
@@ -1280,6 +1291,10 @@
                     icon = 'dashicons-no-alt';
                     statusClass = 'error';
                     statusText = 'Failed';
+                } else if (result.status === 'retrying') {
+                    icon = 'dashicons-clock';
+                    statusClass = 'skipped';
+                    statusText = 'Waiting to retry';
                 } else if (result.status === 'skipped') {
                     icon = 'dashicons-warning';
                     statusClass = 'skipped';
@@ -1290,7 +1305,7 @@
                     '<span class="dashicons ' + icon + '"></span>' +
                     '<span class="log-filename" title="' + result.filename + '">' + result.filename + '</span>';
 
-                if (result.status === 'error' && result.error) {
+                if ((result.status === 'error' || result.status === 'retrying') && result.error) {
                     html += '<span class="log-error">' + result.error + '</span>';
                 }
 

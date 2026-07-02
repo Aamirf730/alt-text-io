@@ -307,6 +307,31 @@ class AltTextPro_Bulk_Processor
 
             $result = $api_client->generate_alt_text($image_id, $image_context, $blog_context);
 
+            if (!$result['success'] && !empty($result['retryable'])) {
+                $retry_after = isset($result['retry_after_seconds']) ? max(15, intval($result['retry_after_seconds'])) : 15;
+                $error_message = $result['message'] ?? esc_html__('AI generation is temporarily rate limited. Waiting before retrying.', 'alt-text-pro');
+
+                $batch_results[] = array(
+                    'id' => $image_id,
+                    'filename' => basename(get_attached_file($image_id)),
+                    'status' => 'retrying',
+                    'error' => $error_message,
+                    'retry_after_seconds' => $retry_after
+                );
+
+                $process_data['status'] = 'running';
+                $process_data['needs_next_batch'] = true;
+                $process_data['next_batch_offset'] = $batch_offset;
+                $process_data['retry_after_seconds'] = $retry_after;
+                $process_data['retry_message'] = $error_message;
+                $process_data['last_updated'] = current_time('mysql');
+
+                set_transient('alt_text_pro_bulk_' . $process_id, $process_data, DAY_IN_SECONDS * 2);
+                wp_cache_delete('alt_text_pro_bulk_' . $process_id, 'transient');
+
+                return $batch_results;
+            }
+
             // Check if credits ran out (402 error)
             if (isset($result['no_credits']) && $result['no_credits'] === true) {
                 // Credits exhausted - stop processing immediately
@@ -468,6 +493,7 @@ class AltTextPro_Bulk_Processor
         $process_data['last_updated'] = current_time('mysql');
         $process_data['needs_next_batch'] = false;
         $process_data['next_batch_offset'] = null;
+        unset($process_data['retry_after_seconds'], $process_data['retry_message']);
 
         if ($cancelled_mid_batch) {
             $process_data['status'] = 'cancelled';
@@ -713,7 +739,9 @@ class AltTextPro_Bulk_Processor
             'started_at' => $process_data['started_at'] ?? null,
             'completed_at' => $process_data['completed_at'] ?? null,
             'needs_next_batch' => isset($process_data['needs_next_batch']) ? $process_data['needs_next_batch'] : false,
-            'next_batch_offset' => isset($process_data['next_batch_offset']) ? $process_data['next_batch_offset'] : null
+            'next_batch_offset' => isset($process_data['next_batch_offset']) ? $process_data['next_batch_offset'] : null,
+            'retry_after_seconds' => isset($process_data['retry_after_seconds']) ? intval($process_data['retry_after_seconds']) : null,
+            'retry_message' => isset($process_data['retry_message']) ? $process_data['retry_message'] : null
         );
 
         // Add stopped_reason if process was stopped due to credits
@@ -742,6 +770,7 @@ class AltTextPro_Bulk_Processor
                 $process_data['status'] = 'running';
             }
             $process_data['last_updated'] = current_time('mysql');
+            unset($process_data['retry_after_seconds'], $process_data['retry_message']);
 
             // Update transient with extended expiry
             set_transient('alt_text_pro_bulk_' . $process_id, $process_data, DAY_IN_SECONDS * 2);
@@ -853,8 +882,8 @@ class AltTextPro_Bulk_Processor
      */
     private function estimate_processing_time($image_count)
     {
-        // Estimate 3 seconds per image (including API call and processing)
-        $estimated_seconds = $image_count * 3;
+        // Bulk requests are intentionally spaced to avoid AI provider quota failures.
+        $estimated_seconds = $image_count * 15;
 
         if ($estimated_seconds < 60) {
             return sprintf(

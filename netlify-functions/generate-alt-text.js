@@ -30,6 +30,61 @@ function sanitizeAiErrorMessage(message = '') {
     .replace(/key=[A-Za-z0-9_-]+/g, 'key=[redacted]');
 }
 
+function extractRetryAfterSeconds(message = '') {
+  const text = String(message);
+  const retryDelayMatch = text.match(/"retryDelay"\s*:\s*"(\d+(?:\.\d+)?)s"/i);
+  if (retryDelayMatch) {
+    return Math.max(1, Math.ceil(Number(retryDelayMatch[1])));
+  }
+
+  const retryInMatch = text.match(/retry in\s+(\d+(?:\.\d+)?)s/i);
+  if (retryInMatch) {
+    return Math.max(1, Math.ceil(Number(retryInMatch[1])));
+  }
+
+  return null;
+}
+
+function isAiRateLimitError(message = '') {
+  const text = String(message).toLowerCase();
+  return text.includes('429') ||
+    text.includes('too many requests') ||
+    text.includes('quota exceeded') ||
+    text.includes('rate limit') ||
+    text.includes('generaterequestsperminute');
+}
+
+function createAiRateLimitError(message = '') {
+  const retryAfterSeconds = extractRetryAfterSeconds(message) || 15;
+  const error = new Error(
+    `AI generation is temporarily rate limited. Please wait ${retryAfterSeconds} seconds and try again.`
+  );
+  error.code = 'AI_RATE_LIMITED';
+  error.statusCode = 429;
+  error.retryAfterSeconds = retryAfterSeconds;
+  error.details = sanitizeAiErrorMessage(message);
+  return error;
+}
+
+function aiRateLimitResponse(headers, error) {
+  const retryAfterSeconds = error.retryAfterSeconds || 15;
+  return {
+    statusCode: 429,
+    headers: {
+      ...headers,
+      'Retry-After': String(retryAfterSeconds),
+    },
+    body: JSON.stringify({
+      success: false,
+      code: 'ai_rate_limited',
+      retryable: true,
+      retry_after_seconds: retryAfterSeconds,
+      error: `AI generation is temporarily rate limited. Please wait ${retryAfterSeconds} seconds and retry.`,
+      message: `AI generation is temporarily rate limited. Please wait ${retryAfterSeconds} seconds and retry.`,
+    }),
+  };
+}
+
 // Helper function to detect image MIME type from base64
 function detectImageMimeType(imageBase64) {
   // Check base64 prefix to determine image type
@@ -640,6 +695,10 @@ FORMAT REQUIREMENTS:
       throw new Error('Your AI API key was reported as leaked. Please generate a new API key and update it in Netlify environment variables.');
     }
 
+    if (isAiRateLimitError(errorMessage)) {
+      throw createAiRateLimitError(errorMessage);
+    }
+
     // Throw error so it can be properly handled by the main handler
     throw new Error(`AI service error: ${errorMessage}`);
   }
@@ -879,6 +938,10 @@ exports.handler = async (event, context) => {
 
         // Don't retry on certain errors (auth, invalid input, etc.)
         const errorMessage = aiError.message || '';
+        if (aiError.code === 'AI_RATE_LIMITED' || aiError.statusCode === 429 || isAiRateLimitError(errorMessage)) {
+          return aiRateLimitResponse(headers, aiError.code === 'AI_RATE_LIMITED' ? aiError : createAiRateLimitError(errorMessage));
+        }
+
         if (errorMessage.includes('API key') ||
           errorMessage.includes('invalid') ||
           errorMessage.includes('leaked') ||
@@ -971,6 +1034,10 @@ exports.handler = async (event, context) => {
     };
 
   } catch (error) {
+    if (error.code === 'AI_RATE_LIMITED' || error.statusCode === 429 || isAiRateLimitError(error.message || '')) {
+      return aiRateLimitResponse(headers, error.code === 'AI_RATE_LIMITED' ? error : createAiRateLimitError(error.message || ''));
+    }
+
     const { reportError } = require('./utils/error-reporter');
     reportError(error, {
       functionName: 'generate-alt-text',

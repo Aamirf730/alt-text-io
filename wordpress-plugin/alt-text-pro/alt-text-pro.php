@@ -3,7 +3,7 @@
  * Plugin Name: AI Alt Text Pro
  * Plugin URI: https://www.alt-text.pro
  * Description: Generate accurate AI alt text for WordPress images, improve accessibility, and bulk-fix missing media-library alt text for SEO.
- * Version:           1.4.99
+ * Version:           1.5.0
  * Author: Alt Text Pro
  * Author URI: https://www.alt-text.pro/about
  * License: GPL v2 or later
@@ -20,7 +20,8 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('ALT_TEXT_PRO_VERSION', '1.4.99');
+define('ALT_TEXT_PRO_VERSION', '1.5.0');
+// Version 1.5.0 - Fix: bulk processing now respects AI provider rate limits and retries instead of marking images failed.
 // Version 1.4.99 - Privacy: remove non-essential WordPress admin marketing event tracking.
 // Version 1.4.98 - Growth tracking: attach validated account identity to WordPress plugin funnel events.
 // Version 1.4.97 - Fix: make bulk cancellation credit-accurate by processing one billable image per request and preserving cancelled state server-side.
