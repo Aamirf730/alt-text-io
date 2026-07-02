@@ -5,7 +5,7 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export const PLUGIN_VERSION = "1.4.95";
+export const PLUGIN_VERSION = "1.5.0";
 
 export const PLAN_CREDIT_LIMITS: Record<string, number> = {
   free: 30,
