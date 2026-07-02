@@ -3,14 +3,14 @@
  * Plugin Name: AI Alt Text Pro
  * Plugin URI: https://www.alt-text.pro
  * Description: Generate accurate AI alt text for WordPress images, improve accessibility, and bulk-fix missing media-library alt text for SEO.
- * Version:           1.5.0
+ * Version:           1.5.1
  * Author: Alt Text Pro
  * Author URI: https://www.alt-text.pro/about
  * License: GPL v2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: alt-text-pro
  * Requires at least: 5.0
- * Tested up to: 6.9
+ * Tested up to: 7.0
  * Requires PHP: 7.4
  */
 
@@ -20,7 +20,8 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('ALT_TEXT_PRO_VERSION', '1.5.0');
+define('ALT_TEXT_PRO_VERSION', '1.5.1');
+// Version 1.5.1 - Maintenance: satisfy WordPress.org plugin check and compatibility metadata requirements.
 // Version 1.5.0 - Fix: bulk processing now respects AI provider rate limits and retries instead of marking images failed.
 // Version 1.4.99 - Privacy: remove non-essential WordPress admin marketing event tracking.
 // Version 1.4.98 - Growth tracking: attach validated account identity to WordPress plugin funnel events.
@@ -150,7 +151,8 @@ class AltTextPro
         delete_transient('alt_text_pro_activation_redirect');
 
         // Don't redirect on multisite bulk activation
-        if (is_network_admin() || isset($_GET['activate-multi'])) {
+        $alt_text_pro_bulk_activation = filter_input(INPUT_GET, 'activate-multi', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+        if (is_network_admin() || null !== $alt_text_pro_bulk_activation) {
             return;
         }
 
@@ -330,6 +332,7 @@ class AltTextPro
                 'postGenerating' => __('Generating...', 'alt-text-pro'),
                 'postNoImages' => __('No images found in this post.', 'alt-text-pro'),
                 'postAllDone' => __('All images already have alt-text!', 'alt-text-pro'),
+                // translators: %d: Number of images updated with generated alt text.
                 'postSuccess' => __('Done! %d image(s) updated.', 'alt-text-pro'),
                 'postError' => __('Error generating alt-text.', 'alt-text-pro'),
                 'postAddAltText' => __('Add Alt Text', 'alt-text-pro')
@@ -337,11 +340,6 @@ class AltTextPro
         ));
 
         // Add page-specific inline scripts
-        // Debug: Log the hook to verify page detection
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('Alt Text Pro: enqueue_admin_scripts hook = ' . $hook);
-        }
-
         if ($hook === 'alt-text-pro_page_alt-text-pro-settings') {
             $this->add_settings_inline_script();
         }

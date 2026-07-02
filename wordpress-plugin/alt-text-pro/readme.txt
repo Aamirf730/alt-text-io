@@ -2,9 +2,9 @@
 Contributors: aamirfaiz
 Tags: alt text, accessibility, image seo, ai, media library
 Requires at least: 5.0
-Tested up to: 6.9
+Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.5.0
+Stable tag: 1.5.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -150,6 +150,11 @@ Yes, you can cancel your subscription at any time from your Alt Text Pro dashboa
 6. Responsive admin interface for managing alt text from different screen sizes.
 
 == Changelog ==
+= 1.5.1 =
+* Compatibility: Updated "Tested up to" metadata for current WordPress release.
+* Compliance: Removed unexpected root markdown file from the production plugin package.
+* Compliance: Added missing translators comments and tightened admin/settings sanitization.
+
 = 1.5.0 =
 * Fix: Bulk processing now respects AI provider rate limits and retries the same image instead of marking the remaining queue as failed.
 * Fix: API quota responses now show a clear temporary rate-limit message instead of an empty or blocked response warning.

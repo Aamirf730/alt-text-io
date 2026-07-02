@@ -76,25 +76,24 @@ settings_fields('alt_text_pro_settings');
                     </label>
                     <div style="display: flex; gap: 8px; align-items: center; max-width: 600px;">
                         <?php
-// Check whether a valid API key is already stored without exposing it in the DOM.
-$settings_handler = new AltTextPro_Settings();
-$has_key = false;
-if (!empty($settings['api_key'])) {
-    $decrypted = $settings_handler->decrypt_api_key($settings['api_key']);
-    if ($decrypted !== false && AltTextPro_API_Client::validate_api_key_format($decrypted)) {
-        $has_key = true;
-    }
-    elseif (AltTextPro_API_Client::validate_api_key_format($settings['api_key'])) {
-        $has_key = true;
-    }
-}
-$api_key_placeholder = $has_key
-    ? esc_attr__('Saved key hidden. Enter a new key to replace it.', 'alt-text-pro')
-    : 'alt_...';
-?>
+                        // Check whether a valid API key is already stored without exposing it in the DOM.
+                        $alt_text_pro_settings_handler = new AltTextPro_Settings();
+                        $alt_text_pro_has_key = false;
+                        if (!empty($settings['api_key'])) {
+                            $alt_text_pro_decrypted = $alt_text_pro_settings_handler->decrypt_api_key($settings['api_key']);
+                            if ($alt_text_pro_decrypted !== false && AltTextPro_API_Client::validate_api_key_format($alt_text_pro_decrypted)) {
+                                $alt_text_pro_has_key = true;
+                            } elseif (AltTextPro_API_Client::validate_api_key_format($settings['api_key'])) {
+                                $alt_text_pro_has_key = true;
+                            }
+                        }
+                        $alt_text_pro_api_key_placeholder = $alt_text_pro_has_key
+                            ? esc_attr__('Saved key hidden. Enter a new key to replace it.', 'alt-text-pro')
+                            : 'alt_...';
+                        ?>
                         <input type="password" id="api_key" name="alt_text_pro_settings[api_key]"
-                            value="" placeholder="<?php echo $api_key_placeholder; ?>" autocomplete="off"
-                            data-has-key="<?php echo esc_attr($has_key ? '1' : '0'); ?>" />
+                            value="" placeholder="<?php echo esc_attr($alt_text_pro_api_key_placeholder); ?>" autocomplete="off"
+                            data-has-key="<?php echo esc_attr($alt_text_pro_has_key ? '1' : '0'); ?>" />
 
                         <button type="button" class="button-secondary-custom" id="test-connection">
                             <?php esc_html_e('Test', 'alt-text-pro'); ?>

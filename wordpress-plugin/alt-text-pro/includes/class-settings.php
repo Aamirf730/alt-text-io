@@ -167,7 +167,10 @@ class AltTextPro_Settings
         // Checkboxes: if they are present in POST, they are checked. If absent but other settings are present, they are unchecked.
         // We only do this if we are actually processing form submission containing this option group
         // (verified by checking for a known field that is always submitted or the fact that this callback ran from HTTP POST).
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $alt_text_pro_request_method = isset($_SERVER['REQUEST_METHOD'])
+            ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_METHOD']))
+            : '';
+        if ('POST' === $alt_text_pro_request_method) {
             $sanitized['auto_generate'] = !empty($input['auto_generate']);
             $sanitized['overwrite_existing'] = !empty($input['overwrite_existing']);
             $sanitized['context_enabled'] = !empty($input['context_enabled']);

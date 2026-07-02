@@ -378,6 +378,7 @@ class AltTextPro_API_Client
                     break;
                 case 500:
                     // Only use generic message if no specific message was returned by the API
+                    // translators: %1$d: HTTP status code returned by the remote API.
                     if (empty($error_message) || $error_message === sprintf(esc_html__('API error (Status: %1$d)', 'alt-text-pro'), 500)) {
                         $error_message = esc_html__('Server error. Please try again later.', 'alt-text-pro');
                     }
