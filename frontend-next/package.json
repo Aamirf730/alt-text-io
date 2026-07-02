@@ -4,9 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "prebuild": "node ../scripts/sync-plugin-version.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "pretest": "node ../scripts/sync-plugin-version.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },

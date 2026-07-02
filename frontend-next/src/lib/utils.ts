@@ -1,11 +1,12 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
+import { PLUGIN_VERSION } from "./plugin-version"
+
+export { PLUGIN_VERSION }
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
-
-export const PLUGIN_VERSION = "1.5.0";
 
 export const PLAN_CREDIT_LIMITS: Record<string, number> = {
   free: 30,

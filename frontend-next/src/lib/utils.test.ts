@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
 import { cn, PLUGIN_VERSION, getApiBase } from './utils';
 
 describe('cn (className utility)', () => {
@@ -19,6 +21,14 @@ describe('cn (className utility)', () => {
 describe('PLUGIN_VERSION', () => {
     it('is a valid semver-like string', () => {
         expect(PLUGIN_VERSION).toMatch(/^\d+\.\d+\.\d+$/);
+    });
+
+    it('matches the WordPress plugin header version', () => {
+        const pluginPhpPath = path.resolve(__dirname, '../../../wordpress-plugin/alt-text-pro/alt-text-pro.php');
+        const pluginPhp = fs.readFileSync(pluginPhpPath, 'utf8');
+        const versionMatch = pluginPhp.match(/^\s*\*\s+Version:\s*([0-9]+\.[0-9]+\.[0-9]+)\s*$/m);
+
+        expect(versionMatch?.[1]).toBe(PLUGIN_VERSION);
     });
 });
 
