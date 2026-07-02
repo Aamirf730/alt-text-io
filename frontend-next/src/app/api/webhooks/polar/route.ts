@@ -279,7 +279,7 @@ export const POST = Webhooks({
             // Check if this is a subscription purchase
             // Subscriptions should ONLY be handled by onSubscriptionActive to prevent double allocation
             if (isSubscription) {
-                console.log(`⚠️ Skipping credit allocation in onOrderPaid for subscription "${productName}" (normalized: "${normalizedProductName}") - will be handled by onSubscriptionActive`);
+                console.log(`⚠️ Skipping credit allocation in onOrderPaid for subscription "${productName}" - will be handled by onSubscriptionActive`);
                 return;
             }
 
