@@ -101,6 +101,38 @@ $alt_text_pro_current_page = isset($_GET['page']) ? sanitize_text_field(wp_unsla
             </div>
             <div class="card-content">
                 <form id="bulk-process-form">
+                    <?php
+                    $bulk_display_credits_remaining = $monthly_credits_remaining !== null ? $monthly_credits_remaining : $credits_remaining;
+                    $bulk_display_monthly_limit = $monthly_credit_limit !== null ? $monthly_credit_limit : $monthly_credit_allowance;
+                    ?>
+                    <?php if ($bulk_display_credits_remaining !== null): ?>
+                        <div
+                            style="margin-bottom: 20px; padding: 14px 16px; background: var(--bg-light); border-radius: var(--radius-sm); color: var(--text-secondary); font-size: 14px;">
+                            <?php if ($billing_cycle === 'annual' && !empty($bulk_display_monthly_limit)): ?>
+                                <?php
+                                echo esc_html(
+                                    sprintf(
+                                        /* translators: 1: Credits left this month, 2: Monthly allowance */
+                                        __('You have %1$s credits left this month out of your %2$s monthly allowance.', 'alt-text-pro'),
+                                        number_format_i18n($bulk_display_credits_remaining),
+                                        number_format_i18n($bulk_display_monthly_limit)
+                                    )
+                                );
+                                ?>
+                            <?php else: ?>
+                                <?php
+                                echo esc_html(
+                                    sprintf(
+                                        /* translators: %s: Remaining credits */
+                                        __('You currently have %s credits available for bulk processing.', 'alt-text-pro'),
+                                        number_format_i18n($bulk_display_credits_remaining)
+                                    )
+                                );
+                                ?>
+                            <?php endif; ?>
+                        </div>
+                    <?php endif; ?>
+
                     <div style="margin-bottom: 24px;">
                         <label class="checkbox-group" style="margin-bottom: 12px;">
                             <input type="radio" name="process_type" value="missing" checked>
@@ -177,6 +209,8 @@ $alt_text_pro_current_page = isset($_GET['page']) ? sanitize_text_field(wp_unsla
                         <span id="progress-text">0%</span>
                         <span id="processed-count">0 / 0</span>
                     </div>
+                    <div id="process-limit-note"
+                        style="display: none; margin-top: 10px; color: var(--text-secondary); font-size: 13px;"></div>
                 </div>
 
                 <div id="process-summary-container"

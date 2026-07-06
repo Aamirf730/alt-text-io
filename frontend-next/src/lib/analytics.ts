@@ -25,6 +25,7 @@ type TrackMarketingEventOptions = {
 declare global {
   interface Window {
     dataLayer?: Array<Record<string, unknown>>;
+    fbq?: (...args: unknown[]) => void;
     gtag?: (...args: unknown[]) => void;
     plausible?: (eventName: string, options?: { props?: MarketingEventProperties }) => void;
   }
@@ -49,6 +50,63 @@ function cleanProperties(properties: MarketingEventProperties = {}): MarketingEv
   return Object.fromEntries(
     Object.entries(properties).filter(([, value]) => value !== undefined)
   );
+}
+
+function parseCurrencyValue(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value !== "string") return undefined;
+
+  const parsed = Number(value.replace(/[^0-9.]/g, ""));
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function trackMetaEvent(
+  eventName: MarketingEventName,
+  properties: MarketingEventProperties
+) {
+  if (typeof window.fbq !== "function") return;
+
+  if (eventName === "signup_created") {
+    window.fbq("track", "CompleteRegistration", {
+      content_name: "Alt Text Pro signup",
+      status: "free_account",
+    });
+    return;
+  }
+
+  if (eventName === "checkout_started") {
+    window.fbq("track", "InitiateCheckout", {
+      content_name: properties.plan_id || "Alt Text Pro checkout",
+      currency: "USD",
+    });
+    return;
+  }
+
+  if (eventName === "purchase_completed") {
+    if (properties.has_customer_session_token !== true) return;
+
+    window.fbq("track", "Purchase", {
+      content_name: "Alt Text Pro purchase",
+      currency: "USD",
+      value: parseCurrencyValue(properties.value || properties.amount || properties.plan_price),
+    });
+    return;
+  }
+
+  const customEventNames: Partial<Record<MarketingEventName, string>> = {
+    demo_used: "DemoUsed",
+    plugin_downloaded: "PluginDownloaded",
+    connect_started: "WordPressConnectStarted",
+    connect_completed: "WordPressConnected",
+    first_image_processed: "FirstImageProcessed",
+    credits_low: "CreditsLow",
+    subscription_canceled: "SubscriptionCanceled",
+  };
+
+  const metaEventName = customEventNames[eventName];
+  if (metaEventName) {
+    window.fbq("trackCustom", metaEventName, properties);
+  }
 }
 
 export function trackMarketingEvent(
@@ -77,6 +135,7 @@ export function trackMarketingEvent(
   window.dataLayer?.push({ event: eventName, ...payload });
   window.gtag?.("event", eventName, properties);
   window.plausible?.(eventName, { props: properties });
+  trackMetaEvent(eventName, properties);
 
   fetch(`${getApiBase()}/track-event`, {
     method: "POST",

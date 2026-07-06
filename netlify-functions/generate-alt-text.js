@@ -2,7 +2,7 @@
 // File: netlify/functions/generate-alt-text.js
 
 const { createClient } = require('@supabase/supabase-js');
-const { validateApiKey, updateUserCredits, isSupabaseConfigured } = require('./utils/api-key-validator');
+const { validateApiKey, updateUserCredits, isSupabaseConfigured, getMonthlyCreditState, getCurrentCycleCreditsUsed } = require('./utils/api-key-validator');
 const { recordCreditsLowEvent } = require('./utils/credits-low-event');
 const {
   getCorsHeaders,
@@ -783,7 +783,7 @@ exports.handler = async (event, context) => {
         // Get user profile from profiles table
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
-          .select('credits_remaining, subscription_plan, total_processed, id, email')
+          .select('credits_remaining, subscription_plan, total_processed, id, email, billing_cycle, monthly_credit_allowance, credits_last_renewed_at')
           .eq('id', authUser.id)
           .single();
 
@@ -795,12 +795,17 @@ exports.handler = async (event, context) => {
           };
         }
 
+        const cycleCreditsUsed = await getCurrentCycleCreditsUsed(profile.id, profile.credits_last_renewed_at);
+
         user = {
           id: profile.id,
           email: profile.email || authUser.email,
           credits_remaining: profile.credits_remaining || 0,
-          total_processed: profile.total_processed || 0,
-          plan: profile.subscription_plan || 'free_trial'
+          total_processed: cycleCreditsUsed ?? profile.total_processed ?? 0,
+          plan: profile.subscription_plan || 'free_trial',
+          billing_cycle: profile.billing_cycle || null,
+          monthly_credit_allowance: profile.monthly_credit_allowance || null,
+          credits_last_renewed_at: profile.credits_last_renewed_at || null
         };
         creditsRemaining = profile.credits_remaining || 0;
       } catch (authErr) {
@@ -813,14 +818,15 @@ exports.handler = async (event, context) => {
       }
     }
 
-    // Check if user has sufficient credits
-    console.log('Credit check - User:', user?.email, 'Credits remaining:', creditsRemaining);
-    if (!user || creditsRemaining <= 0) {
-      console.error('Credit check FAILED - User:', user?.email, 'Credits:', creditsRemaining);
+    // Check if user has sufficient credits for this billing cycle.
+    const monthlyCreditState = getMonthlyCreditState(user);
+    console.log('Credit check - User:', user?.email, 'Monthly credits remaining:', monthlyCreditState.monthly_credits_remaining, 'Raw credits:', creditsRemaining);
+    if (!user || monthlyCreditState.monthly_credits_remaining <= 0) {
+      console.error('Credit check FAILED - User:', user?.email, 'Monthly credits:', monthlyCreditState.monthly_credits_remaining, 'Raw credits:', creditsRemaining);
       return {
         statusCode: 402,
         headers,
-        body: JSON.stringify({ error: 'No credits remaining. Please upgrade your plan.' }),
+        body: JSON.stringify({ error: 'No monthly credits remaining. Please upgrade, top up, or wait for your next credit refill.' }),
       };
     }
     console.log('Credit check PASSED - Proceeding with alt-text generation');
@@ -886,36 +892,43 @@ exports.handler = async (event, context) => {
     // CRITICAL: Re-check credits RIGHT BEFORE generation to prevent race conditions
     // This ensures we don't generate alt-text if credits were exhausted by another request
     let finalCreditCheck;
+    let finalMonthlyCreditState;
     if (isApiKeyAuth) {
       // API key method - re-validate user
       const recheckUser = await validateApiKey(token);
-      if (!recheckUser || recheckUser.credits_remaining <= 0) {
+      finalMonthlyCreditState = getMonthlyCreditState(recheckUser);
+      if (!recheckUser || finalMonthlyCreditState.monthly_credits_remaining <= 0) {
         return {
           statusCode: 402,
           headers,
-          body: JSON.stringify({ error: 'No credits remaining. Please upgrade your plan.' }),
+          body: JSON.stringify({ error: 'No monthly credits remaining. Please upgrade, top up, or wait for your next credit refill.' }),
         };
       }
-      finalCreditCheck = recheckUser.credits_remaining;
+      finalCreditCheck = finalMonthlyCreditState.monthly_credits_remaining;
     } else {
       // Supabase auth - re-check credits from database
       const { data: recheckProfile, error: recheckError } = await supabase
         .from('profiles')
-        .select('credits_remaining')
+        .select('credits_remaining, total_processed, subscription_plan, billing_cycle, monthly_credit_allowance, credits_last_renewed_at')
         .eq('id', user.id)
         .single();
 
-      if (recheckError || !recheckProfile || (recheckProfile.credits_remaining || 0) <= 0) {
+      const recheckCycleCreditsUsed = await getCurrentCycleCreditsUsed(user.id, recheckProfile?.credits_last_renewed_at);
+      finalMonthlyCreditState = getMonthlyCreditState({
+        ...recheckProfile,
+        total_processed: recheckCycleCreditsUsed ?? recheckProfile?.total_processed ?? 0,
+      });
+      if (recheckError || !recheckProfile || finalMonthlyCreditState.monthly_credits_remaining <= 0) {
         return {
           statusCode: 402,
           headers,
-          body: JSON.stringify({ error: 'No credits remaining. Please upgrade your plan.' }),
+          body: JSON.stringify({ error: 'No monthly credits remaining. Please upgrade, top up, or wait for your next credit refill.' }),
         };
       }
-      finalCreditCheck = recheckProfile.credits_remaining;
+      finalCreditCheck = finalMonthlyCreditState.monthly_credits_remaining;
     }
 
-    console.log('Pre-generation credit check - Credits remaining:', finalCreditCheck);
+    console.log('Pre-generation credit check - Monthly credits remaining:', finalCreditCheck);
 
     // Generate alt-text using AI with retry logic
     let altText;
@@ -1014,11 +1027,17 @@ exports.handler = async (event, context) => {
       total_processed: newTotalProcessed
     });
 
-    if (isApiKeyAuth && newCreditsRemaining <= 5) {
+    const updatedMonthlyCreditState = getMonthlyCreditState({
+      ...user,
+      credits_remaining: newCreditsRemaining,
+      total_processed: newTotalProcessed,
+    });
+
+    if (isApiKeyAuth && updatedMonthlyCreditState.monthly_credits_remaining <= 5) {
       await recordCreditsLowEvent(supabase, {
         userId: user.id,
         userEmail: user.email,
-        creditsRemaining: newCreditsRemaining,
+        creditsRemaining: updatedMonthlyCreditState.monthly_credits_remaining,
       });
     }
 
@@ -1029,6 +1048,8 @@ exports.handler = async (event, context) => {
         alt_text: altText,
         credits_used: 1,
         credits_remaining: newCreditsRemaining,
+        monthly_credits_remaining: updatedMonthlyCreditState.monthly_credits_remaining,
+        monthly_credit_limit: updatedMonthlyCreditState.monthly_credit_limit,
         total_processed: newTotalProcessed
       }),
     };

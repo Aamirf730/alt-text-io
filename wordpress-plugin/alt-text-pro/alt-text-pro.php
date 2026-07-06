@@ -3,7 +3,7 @@
  * Plugin Name: AI Alt Text Pro
  * Plugin URI: https://www.alt-text.pro
  * Description: Generate accurate AI alt text for WordPress images, improve accessibility, and bulk-fix missing media-library alt text for SEO.
- * Version:           1.5.1
+ * Version:           1.6.0
  * Author: Alt Text Pro
  * Author URI: https://www.alt-text.pro/about
  * License: GPL v2 or later
@@ -20,7 +20,16 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('ALT_TEXT_PRO_VERSION', '1.5.1');
+define('ALT_TEXT_PRO_VERSION', '1.6.0');
+// Version 1.6.0 - UX: refine dashboard credits meta sizing for cleaner visual hierarchy.
+// Version 1.5.9 - UX: simplify plugin dashboard stats and track plugin version in SaaS admin views.
+// Version 1.5.8 - Fix: show and enforce monthly remaining credits instead of hidden annual balance.
+// Version 1.5.7 - UX: clarify account-level credit usage versus site-level generated stats.
+// Version 1.5.6 - UX: split dashboard generated stats into lifetime and this-month counts.
+// Version 1.5.5 - UX: remove internal queue count from bulk progress messaging.
+// Version 1.5.4 - Fix: cap bulk progress and processing by remaining plan credits for the current cycle.
+// Version 1.5.3 - UX: correct dashboard credit stats for annual plans and rollover balances.
+// Version 1.5.2 - UX: clarify annual-plan bulk credit messaging and show credit-limited bulk totals.
 // Version 1.5.1 - Maintenance: satisfy WordPress.org plugin check and compatibility metadata requirements.
 // Version 1.5.0 - Fix: bulk processing now respects AI provider rate limits and retries instead of marking images failed.
 // Version 1.4.99 - Privacy: remove non-essential WordPress admin marketing event tracking.

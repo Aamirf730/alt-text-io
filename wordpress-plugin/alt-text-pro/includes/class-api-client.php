@@ -248,7 +248,8 @@ class AltTextPro_API_Client
 
         $headers = array(
             'Content-Type' => 'application/json',
-            'Authorization' => 'Bearer ' . $this->api_key
+            'Authorization' => 'Bearer ' . $this->api_key,
+            'X-Alt-Text-Pro-Version' => ALT_TEXT_PRO_VERSION
         );
 
         $args = array(

@@ -64,6 +64,31 @@ export default function Dashboard() {
     const router = useRouter();
     const currentPlan = String(usageStats?.plan || 'free');
     const currentPlanLimit = PLAN_CREDIT_LIMITS[currentPlan] || PLAN_CREDIT_LIMITS.free;
+    const billingCycle = String(usageStats?.billing_cycle || subscriptionData?.subscription?.billing_cycle || '');
+    const monthlyCreditAllowance = Number(usageStats?.monthly_credit_allowance || subscriptionData?.subscription?.monthly_credit_allowance || 0);
+    const monthlyCreditLimit = Number(usageStats?.monthly_credit_limit || 0);
+    const planAllowance = monthlyCreditLimit || (billingCycle === 'annual' && monthlyCreditAllowance > 0 ? monthlyCreditAllowance : currentPlanLimit);
+    const creditsUsed = Number(usageStats?.monthly_credits_used ?? usageStats?.total_processed ?? 0);
+    const creditsRemaining = Number(usageStats?.monthly_credits_remaining ?? usageStats?.credits_remaining ?? 0);
+    const creditUsagePercent = planAllowance > 0 ? Math.min((creditsUsed / planAllowance) * 100, 100) : 0;
+    const planLabels: Record<string, string> = {
+        free: 'Free',
+        tier1: 'Lite',
+        tier2: 'Standard',
+        tier3: 'Pro',
+        lite: 'Lite',
+        standard: 'Standard',
+        pro: 'Pro',
+        small_pack: 'Credit Pack',
+        pay_as_go: 'Credit Pack',
+    };
+    const basePlanLabel = planLabels[currentPlan] || currentPlan.replace(/_/g, ' ');
+    const displayPlanLabel = billingCycle && currentPlan !== 'free' && currentPlan !== 'small_pack' && currentPlan !== 'pay_as_go'
+        ? `${basePlanLabel} ${billingCycle === 'annual' ? 'Annual' : 'Monthly'}`
+        : basePlanLabel;
+    const creditCardDescription = billingCycle === 'annual' && monthlyCreditAllowance > 0
+        ? `Credits left this month. Annual plan provides ${planAllowance.toLocaleString()} credits each month.`
+        : 'Credits left this month';
     const hasApiKeyReady = Boolean(apiKey);
     const hasGeneratedFirstAltText = Number(usageStats?.total_processed || 0) > 0 || history.length > 0;
 
@@ -89,7 +114,7 @@ export default function Dashboard() {
                 if (session) {
                     const { data: profile } = await supabase
                         .from('profiles')
-                        .select('subscription_plan, subscription_status, subscription_id, next_billing_date, polar_customer_id')
+                        .select('subscription_plan, subscription_status, subscription_id, next_billing_date, polar_customer_id, billing_cycle, monthly_credit_allowance')
                         .eq('id', session.user.id)
                         .single();
                     setSubscriptionData({
@@ -98,7 +123,9 @@ export default function Dashboard() {
                             status: profile?.subscription_status || 'active',
                             subscription_id: profile?.subscription_id || null,
                             next_billing_date: profile?.next_billing_date || null,
-                            polar_customer_id: profile?.polar_customer_id || null
+                            polar_customer_id: profile?.polar_customer_id || null,
+                            billing_cycle: profile?.billing_cycle || null,
+                            monthly_credit_allowance: profile?.monthly_credit_allowance || null
                         }
                     });
                 }
@@ -312,7 +339,7 @@ export default function Dashboard() {
                 console.log('Using direct Supabase query for localhost');
                 const { data: profile, error: profileError } = await supabase
                     .from('profiles')
-                    .select('credits_remaining, total_processed, subscription_plan, subscription_status, next_billing_date, subscription_id')
+                    .select('credits_remaining, total_processed, subscription_plan, subscription_status, next_billing_date, subscription_id, billing_cycle, monthly_credit_allowance')
                     .eq('id', session.user.id)
                     .single();
 
@@ -327,7 +354,9 @@ export default function Dashboard() {
                     setUsageStats({
                         credits_remaining: profile.credits_remaining || 0,
                         total_processed: profile.total_processed || 0,
-                        plan: profile.subscription_plan || 'free'
+                        plan: profile.subscription_plan || 'free',
+                        billing_cycle: profile.billing_cycle || null,
+                        monthly_credit_allowance: profile.monthly_credit_allowance || null
                     });
                 }
             } else {
@@ -345,8 +374,13 @@ export default function Dashboard() {
                         if (usageData.success && usageData.data) {
                             setUsageStats({
                                 credits_remaining: usageData.data.credits_remaining || 0,
-                                total_processed: usageData.data.total_generated || 0,
-                                plan: usageData.data.subscription_plan || 'free'
+                                monthly_credits_remaining: usageData.data.monthly_credits_remaining,
+                                monthly_credit_limit: usageData.data.monthly_credit_limit,
+                                monthly_credits_used: usageData.data.monthly_credits_used,
+                                total_processed: usageData.data.total_processed || usageData.data.credits_used || 0,
+                                plan: usageData.data.subscription_plan || 'free',
+                                billing_cycle: usageData.data.billing_cycle || null,
+                                monthly_credit_allowance: usageData.data.monthly_credit_allowance || null
                             });
                         } else {
                             throw new Error('Invalid API response format');
@@ -359,7 +393,7 @@ export default function Dashboard() {
                     // Fallback: try direct Supabase query as backup
                     const { data: profile, error: profileError } = await supabase
                         .from('profiles')
-                        .select('credits_remaining, total_processed, subscription_plan, subscription_status, next_billing_date, subscription_id')
+                        .select('credits_remaining, total_processed, subscription_plan, subscription_status, next_billing_date, subscription_id, billing_cycle, monthly_credit_allowance')
                         .eq('id', session.user.id)
                         .single();
 
@@ -374,7 +408,9 @@ export default function Dashboard() {
                         setUsageStats({
                             credits_remaining: profile.credits_remaining || 0,
                             total_processed: profile.total_processed || 0,
-                            plan: profile.subscription_plan || 'free'
+                            plan: profile.subscription_plan || 'free',
+                            billing_cycle: profile.billing_cycle || null,
+                            monthly_credit_allowance: profile.monthly_credit_allowance || null
                         });
                     }
                 }
@@ -796,11 +832,11 @@ export default function Dashboard() {
                                 <div>
                                     <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.25em] mb-4">Available Credits</p>
                                     <h3 className="text-5xl font-medium text-notebook-slate tracking-tighter font-outfit flex items-baseline">
-                                        {usageStats?.credits_remaining || 0}
-                                        <span className="text-xs text-slate-400 font-medium tracking-normal ml-3 font-sans">
-                                            / {currentPlanLimit}
-                                        </span>
+                                        {creditsRemaining.toLocaleString()}
                                     </h3>
+                                    <p className="text-xs text-slate-500 mt-3 leading-relaxed max-w-[260px]">
+                                        {creditCardDescription}
+                                    </p>
                                 </div>
                                 <div className="p-4 bg-notebook-teal/10 text-notebook-blue rounded-3xl group-hover:scale-105 transition-transform duration-500">
                                     <Zap className="h-7 w-7" />
@@ -809,11 +845,18 @@ export default function Dashboard() {
                             <div className="w-full bg-notebook-cloud rounded-full h-1.5 mb-6 overflow-hidden">
                                 <div
                                     className="bg-notebook-blue h-full rounded-full transition-all duration-1000 ease-out"
-                                    style={{ width: `${Math.min(((usageStats?.credits_remaining || 0) / currentPlanLimit) * 100, 100)}%` }}
+                                    style={{ width: `${creditUsagePercent}%` }}
                                 ></div>
                             </div>
                             <div className="flex justify-between items-center">
-                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">Usage Limits</span>
+                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">
+                                    {creditsUsed.toLocaleString()} used
+                                </span>
+                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">
+                                    {planAllowance.toLocaleString()} {billingCycle === 'annual' ? 'monthly allowance' : 'plan credits'}
+                                </span>
+                            </div>
+                            <div className="flex justify-end items-center mt-5">
                                 <button
                                     onClick={() => handleUpgradePlan('small_pack', 'Small Pack', '$5')}
                                     className="text-notebook-blue text-xs font-semibold hover:opacity-80 transition-opacity flex items-center group/btn font-outfit uppercase tracking-[0.15em]"
@@ -855,7 +898,12 @@ export default function Dashboard() {
                             <div className="flex justify-between items-start mb-10">
                                 <div>
                                     <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.25em] mb-4">Your Current Plan</p>
-                                    <h3 className="text-4xl font-medium text-notebook-slate tracking-tight font-outfit capitalize">{usageStats?.plan || 'Free'}</h3>
+                                    <h3 className="text-4xl font-medium text-notebook-slate tracking-tight font-outfit capitalize">{displayPlanLabel}</h3>
+                                    {billingCycle === 'annual' && monthlyCreditAllowance > 0 && (
+                                        <p className="text-xs text-slate-500 mt-3">
+                                            {monthlyCreditAllowance.toLocaleString()} credits added monthly
+                                        </p>
+                                    )}
                                 </div>
                                 <div className="p-4 bg-orange-50 text-orange-500 rounded-3xl group-hover:scale-105 transition-transform duration-500">
                                     <Crown className="h-7 w-7" />

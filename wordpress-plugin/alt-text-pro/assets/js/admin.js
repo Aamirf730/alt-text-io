@@ -1025,10 +1025,21 @@
                 success: function (response) {
                     if (response.success) {
                         self.processId = response.data.process_id;
-                        var total = response.data.total_images;
+                        var total = response.data.total_images || 0;
+                        var queueTotal = response.data.queue_total_images || total;
+                        var processableTotal = response.data.processable_images || total;
+                        var creditsRemaining = response.data.credits_remaining;
 
-                        $('#processed-count').text('0 / ' + total);
-                        $('#progress-log').append('<div>Initialized process #' + self.processId + ' (' + total + ' images)</div>');
+                        $('#processed-count').text('0 / ' + processableTotal);
+                        self.updateProcessLimitNote({
+                            queue_total_images: queueTotal,
+                            processable_images: processableTotal,
+                            credits_remaining: creditsRemaining,
+                            plan_allowance: response.data.plan_allowance,
+                            plan_credits_used_at_start: response.data.plan_credits_used
+                        });
+
+                        $('#progress-log').append('<div>Initialized process #' + self.processId + ' (up to ' + processableTotal + ' images can run with available plan credits)</div>');
 
                         if (total === 0) {
                             self.finishProcess({ success: true, processed: 0, successful: 0, errors: 0 });
@@ -1257,14 +1268,17 @@
 
         updateProgress: function (data) {
             var total = data.total_images || 0;
+            var displayTotal = data.processable_images || total;
             var processed = data.processed_count !== undefined ? data.processed_count : (data.processed || 0);
-            var percent = total > 0 ? Math.round((processed / total) * 100) : 100;
+            var percent = displayTotal > 0 ? Math.round((processed / displayTotal) * 100) : 100;
+            percent = Math.min(percent, 100);
 
             $('#progress-fill').css('width', percent + '%');
             $('#progress-text').text(percent + '%');
-            $('#processed-count').text(processed + ' / ' + total);
+            $('#processed-count').text(processed + ' / ' + displayTotal);
             $('#successful-count').text(data.successful_count !== undefined ? data.successful_count : (data.successful || 0));
             $('#error-count').text(data.error_count !== undefined ? data.error_count : (data.errors ? data.errors.length : 0));
+            this.updateProcessLimitNote(data);
 
             if (data.retry_after_seconds) {
                 $('#progress-status').text('Waiting for AI rate limit reset...');
@@ -1329,6 +1343,8 @@
             $('#start-bulk-process').show();
             $('#cancel-bulk-process').attr('style', 'display: none !important;').hide();
 
+            this.updateProcessLimitNote(data);
+
             var processed = data.processed_count !== undefined ? data.processed_count : (data.processed || 0);
             var successful = data.successful_count !== undefined ? data.successful_count : (data.successful || 0);
             var errors = data.error_count !== undefined ? data.error_count : (data.errors ? data.errors.length : 0);
@@ -1345,6 +1361,13 @@
                 $('#process-summary-text').text('Process Cancelled');
                 $('#process-summary-details').text('Processed ' + processed + ' images (' + successful + ' successful, ' + errors + ' errors) before stopping.');
                 $('#progress-log').append('<div style="color: var(--danger-color); font-weight: bold;">Bulk optimization cancelled by user.</div>');
+            } else if (data.status === 'stopped_no_credits') {
+                $('#progress-status').text('Credits Exhausted').removeClass('warning success').addClass('error');
+                $('#process-progress-container').hide();
+                $('#process-summary-container').show();
+                $('#process-summary-text').text('Credits Used Up');
+                $('#process-summary-details').text(data.stopped_reason || ('Processed ' + processed + ' images before available credits ran out.'));
+                $('#progress-log').append('<div style="color: var(--danger-color); font-weight: bold;">Bulk optimization stopped because the account ran out of credits.</div>');
             } else {
                 $('#progress-status').text('Error').removeClass('warning success').addClass('error');
                 $('#progress-log').append('<div style="color: var(--danger-color);">Process ended with errors or was interrupted.</div>');
@@ -1357,6 +1380,7 @@
             $('#progress-card').hide();
             $('#process-progress-container').show();
             $('#process-summary-container').hide();
+            $('#process-limit-note').hide().text('');
             this.isProcessing = false;
             this.cancelRequested = false;
             this.pendingCancel = false;
@@ -1370,6 +1394,30 @@
 
         showError: function (msg) {
             $('#progress-log').append('<div style="color: var(--danger-color);">Error: ' + msg + '</div>');
+        },
+
+        updateProcessLimitNote: function (data) {
+            var queueTotal = data && data.queue_total_images !== undefined ? parseInt(data.queue_total_images, 10) : NaN;
+            var processableTotal = data && data.processable_images !== undefined ? parseInt(data.processable_images, 10) : NaN;
+            var creditsRemaining = data && data.credits_remaining !== undefined ? parseInt(data.credits_remaining, 10) :
+                (data && data.credits_remaining_at_start !== undefined ? parseInt(data.credits_remaining_at_start, 10) : NaN);
+
+            if (!Number.isFinite(queueTotal) || !Number.isFinite(processableTotal) || queueTotal <= processableTotal) {
+                $('#process-limit-note').hide().text('');
+                return;
+            }
+
+            var planAllowance = data && data.plan_allowance !== undefined ? parseInt(data.plan_allowance, 10) : NaN;
+            var planCreditsUsed = data && data.plan_credits_used_at_start !== undefined ? parseInt(data.plan_credits_used_at_start, 10) : NaN;
+            var note = 'This run can process up to ' + processableTotal + ' images with available plan credits';
+            if (Number.isFinite(planAllowance) && Number.isFinite(planCreditsUsed)) {
+                note += ' (' + planCreditsUsed + ' used of ' + planAllowance + ')';
+            } else if (Number.isFinite(creditsRemaining)) {
+                note += ' (' + creditsRemaining + ' credits at start)';
+            }
+            note += '.';
+
+            $('#process-limit-note').text(note).show();
         }
     };
 

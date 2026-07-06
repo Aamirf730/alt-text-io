@@ -197,6 +197,8 @@ class AltTextPro_Admin
         // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery
         $total_generated = $wpdb->get_var("SELECT COUNT(*) FROM $logs_table");
         // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery
+        $this_month_generated = $wpdb->get_var("SELECT COUNT(*) FROM $logs_table WHERE MONTH(created_at) = MONTH(CURDATE()) AND YEAR(created_at) = YEAR(CURDATE())");
+        // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery
         $total_credits_used = $wpdb->get_var("SELECT SUM(credits_used) FROM $logs_table");
         // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
         $query = "SELECT l.*, p.post_title 
@@ -234,6 +236,11 @@ class AltTextPro_Admin
     public function bulk_process_page()
     {
         global $wpdb;
+        $credits_remaining = null;
+        $billing_cycle = null;
+        $monthly_credit_allowance = null;
+        $monthly_credits_remaining = null;
+        $monthly_credit_limit = null;
 
         // Get images without alt text (using a more reliable query)
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery
@@ -279,6 +286,30 @@ class AltTextPro_Admin
              WHERE post_type = 'attachment' 
              AND post_mime_type LIKE 'image/%'"
         );
+
+        $settings = get_option('alt_text_pro_settings', array());
+        $has_valid_key = false;
+        if (!empty($settings['api_key'])) {
+            $settings_handler = new AltTextPro_Settings();
+            $decrypted = $settings_handler->decrypt_api_key($settings['api_key']);
+            if ($decrypted !== false && AltTextPro_API_Client::validate_api_key_format($decrypted)) {
+                $has_valid_key = true;
+            } elseif ($decrypted === false && AltTextPro_API_Client::validate_api_key_format($settings['api_key'])) {
+                $has_valid_key = true;
+            }
+        }
+
+        if ($has_valid_key) {
+            $api_client = new AltTextPro_API_Client();
+            $usage_response = $api_client->get_usage_stats();
+            if (!empty($usage_response['success'])) {
+                $credits_remaining = isset($usage_response['data']['credits_remaining']) ? intval($usage_response['data']['credits_remaining']) : null;
+                $billing_cycle = isset($usage_response['data']['billing_cycle']) ? sanitize_text_field($usage_response['data']['billing_cycle']) : null;
+                $monthly_credit_allowance = isset($usage_response['data']['monthly_credit_allowance']) ? intval($usage_response['data']['monthly_credit_allowance']) : null;
+                $monthly_credits_remaining = isset($usage_response['data']['monthly_credits_remaining']) ? intval($usage_response['data']['monthly_credits_remaining']) : null;
+                $monthly_credit_limit = isset($usage_response['data']['monthly_credit_limit']) ? intval($usage_response['data']['monthly_credit_limit']) : null;
+            }
+        }
 
         include ALT_TEXT_PRO_PLUGIN_PATH . 'templates/bulk-process.php';
     }

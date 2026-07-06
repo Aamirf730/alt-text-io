@@ -69,6 +69,8 @@ exports.handler = async (event, context) => {
         subscription_id,
         polar_customer_id,
         next_billing_date,
+        billing_cycle,
+        monthly_credit_allowance,
         created_at,
         updated_at
       `)
@@ -132,6 +134,8 @@ exports.handler = async (event, context) => {
           subscription_id: profile.subscription_id,
           polar_customer_id: profile.polar_customer_id,
           next_billing_date: profile.next_billing_date,
+          billing_cycle: profile.billing_cycle,
+          monthly_credit_allowance: profile.monthly_credit_allowance,
           credits_remaining: profile.credits_remaining,
           total_processed: profile.total_processed,
           created_at: profile.created_at,

@@ -244,6 +244,17 @@
     margin-bottom: 4px;
 }
 
+.stat-value .stat-value-meta {
+    display: inline-block;
+    margin-left: 4px;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1;
+    vertical-align: baseline;
+    color: var(--text-secondary);
+    opacity: 0.9;
+}
+
 .stat-desc {
     font-size: 13px;
     color: var(--text-secondary);

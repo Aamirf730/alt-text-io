@@ -46,6 +46,9 @@ describe('lifecycle status report', () => {
         source: 'wordpress_plugin_auth',
         user_id: 'user-1',
         user_email: 'lead@example.com',
+        properties: {
+          plugin_version: '1.5.9',
+        },
         occurred_at: '2026-06-27T01:00:00.000Z',
       }],
       usageStats: [],
@@ -55,6 +58,7 @@ describe('lifecycle status report', () => {
     expect(report.summary.plugin_connected).toBe(1);
     expect(report.summary.needs_first_generation_reminder).toBe(1);
     expect(report.users[0].plugin_connection_source).toBe('wordpress_plugin_auth');
+    expect(report.users[0].plugin_version).toBe('1.5.9');
   });
 
   it('classifies users with usage as active and includes latest follow-up state', () => {

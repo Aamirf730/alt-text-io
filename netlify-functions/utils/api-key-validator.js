@@ -18,6 +18,57 @@ const supabase = supabaseUrl && supabaseServiceKey
   ? createClient(supabaseUrl, supabaseServiceKey)
   : null;
 
+const SUBSCRIPTION_PLAN_CREDITS = {
+  free: 30,
+  tier1: 150,
+  tier2: 400,
+  tier3: 1000,
+  lite: 150,
+  standard: 400,
+  pro: 1000,
+};
+
+function getMonthlyCreditState(profile, planCredits = null) {
+  const creditsRemaining = Number(profile?.credits_remaining || 0);
+  const creditsUsed = Number(profile?.total_processed || 0);
+  const plan = profile?.subscription_plan || profile?.plan || 'free';
+  const explicitAllowance = Number(profile?.monthly_credit_allowance || 0);
+  const resolvedPlanCredits = Number(planCredits || 0) || SUBSCRIPTION_PLAN_CREDITS[plan] || 0;
+  const monthlyCreditLimit = explicitAllowance > 0 ? explicitAllowance : resolvedPlanCredits;
+  const isMonthlyLimited = Boolean(SUBSCRIPTION_PLAN_CREDITS[plan] && monthlyCreditLimit > 0);
+  const monthlyCreditsRemaining = isMonthlyLimited
+    ? Math.max(0, Math.min(creditsRemaining, monthlyCreditLimit - creditsUsed))
+    : creditsRemaining;
+
+  return {
+    monthly_credit_limit: monthlyCreditLimit,
+    monthly_credits_used: isMonthlyLimited ? creditsUsed : null,
+    monthly_credits_remaining: monthlyCreditsRemaining,
+    is_monthly_limited: isMonthlyLimited,
+  };
+}
+
+async function getCurrentCycleCreditsUsed(userId, creditsLastRenewedAt = null) {
+  if (!supabase || !userId) return null;
+
+  const cycleStart = creditsLastRenewedAt
+    ? new Date(creditsLastRenewedAt)
+    : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+
+  const { data: usageLogs, error } = await supabase
+    .from('usage_logs')
+    .select('credits_used, created_at')
+    .eq('user_id', userId)
+    .gte('created_at', cycleStart.toISOString());
+
+  if (error) {
+    console.error('Failed to calculate current-cycle usage:', error.message);
+    return null;
+  }
+
+  return (usageLogs || []).reduce((sum, log) => sum + Number(log.credits_used || 1), 0);
+}
+
 function isSupabaseConfigured() {
   return Boolean(supabase);
 }
@@ -64,7 +115,7 @@ async function validateApiKey(apiKey) {
     // Get user profile from profiles table (single source of truth)
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('id, email, credits_remaining, total_processed, subscription_plan, subscription_status, updated_at')
+      .select('id, email, credits_remaining, total_processed, subscription_plan, subscription_status, billing_cycle, monthly_credit_allowance, credits_last_renewed_at, updated_at')
       .eq('id', apiKeyRecord.user_id)
       .single();
 
@@ -74,13 +125,18 @@ async function validateApiKey(apiKey) {
       return null;
     }
 
+    const cycleCreditsUsed = await getCurrentCycleCreditsUsed(profile.id, profile.credits_last_renewed_at);
+
     return {
       id: profile.id,
       email: profile.email,
       apiKey: apiKeyRecord.api_key,
       credits_remaining: profile.credits_remaining ?? 0,
-      total_processed: profile.total_processed ?? 0,
+      total_processed: cycleCreditsUsed ?? profile.total_processed ?? 0,
       plan: profile.subscription_plan || 'free',
+      billing_cycle: profile.billing_cycle || null,
+      monthly_credit_allowance: profile.monthly_credit_allowance ?? null,
+      credits_last_renewed_at: profile.credits_last_renewed_at || null,
       subscription_status: profile.subscription_status,
       created_at: apiKeyRecord.created_at,
       updated_at: profile.updated_at
@@ -357,5 +413,7 @@ module.exports = {
   updateUserCredits,
   getUserProfile,
   getCreditStoreStats,
+  getMonthlyCreditState,
+  getCurrentCycleCreditsUsed,
   isSupabaseConfigured
 };

@@ -467,6 +467,7 @@ export default function AdminDashboard() {
                                         <th className="text-left py-3 px-4 font-semibold text-gray-700">Email</th>
                                         <th className="text-left py-3 px-4 font-semibold text-gray-700">Plan</th>
                                         <th className="text-left py-3 px-4 font-semibold text-gray-700">Status</th>
+                                        <th className="text-left py-3 px-4 font-semibold text-gray-700">Plugin Ver.</th>
                                         <th className="text-left py-3 px-4 font-semibold text-gray-700">Credits</th>
                                         <th className="text-left py-3 px-4 font-semibold text-gray-700">Processed</th>
                                         <th className="text-left py-3 px-4 font-semibold text-gray-700">Total Paid</th>
@@ -477,7 +478,7 @@ export default function AdminDashboard() {
                                 <tbody>
                                     {filteredUsers.length === 0 ? (
                                         <tr>
-                                            <td colSpan={8} className="text-center py-8 text-gray-500">
+                                            <td colSpan={9} className="text-center py-8 text-gray-500">
                                                 No users found
                                             </td>
                                         </tr>
@@ -505,6 +506,14 @@ export default function AdminDashboard() {
                                                     >
                                                         {userData.subscription_status || "active"}
                                                     </Badge>
+                                                </td>
+                                                <td className="py-3 px-4">
+                                                    <div className="font-semibold text-gray-900">
+                                                        {userData.latest_plugin_version ? `v${userData.latest_plugin_version}` : "--"}
+                                                    </div>
+                                                    <div className="text-xs text-gray-500">
+                                                        {userData.plugin_connected_at ? formatDate(userData.plugin_connected_at) : "Not tracked yet"}
+                                                    </div>
                                                 </td>
                                                 <td className="py-3 px-4">
                                                     <div className="font-semibold">{userData.credits_remaining || 0}</div>
@@ -937,6 +946,9 @@ export default function AdminDashboard() {
                                                                     <Badge className="bg-green-100 text-green-700">Connected</Badge>
                                                                     <div className="text-xs text-gray-500 mt-1">{formatDate(row.plugin_connected_at)}</div>
                                                                     <div className="text-xs text-gray-400">{row.plugin_connection_source}</div>
+                                                                    {row.plugin_version && (
+                                                                        <div className="text-xs font-medium text-gray-700 mt-1">v{row.plugin_version}</div>
+                                                                    )}
                                                                 </>
                                                             ) : (
                                                                 <Badge className="bg-amber-100 text-amber-700">Not connected</Badge>
@@ -1094,6 +1106,20 @@ export default function AdminDashboard() {
                                     <p className="text-gray-900">{selectedUser.total_usage_count || 0}</p>
                                 </div>
                             </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-sm font-medium text-gray-700">Last Seen Plugin Version</label>
+                                    <p className="text-gray-900">{selectedUser.latest_plugin_version ? `v${selectedUser.latest_plugin_version}` : "Not tracked yet"}</p>
+                                </div>
+                                <div>
+                                    <label className="text-sm font-medium text-gray-700">Plugin Connected</label>
+                                    <p className="text-gray-900">
+                                        {selectedUser.plugin_connected_at
+                                            ? `${formatDate(selectedUser.plugin_connected_at)}${selectedUser.plugin_connection_source ? ` (${selectedUser.plugin_connection_source})` : ""}`
+                                            : "Not tracked yet"}
+                                    </p>
+                                </div>
+                            </div>
                             <div>
                                 <label className="text-sm font-medium text-gray-700">Total Paid</label>
                                 <p className="text-2xl font-bold text-green-600">
@@ -1116,6 +1142,18 @@ export default function AdminDashboard() {
                                         <p className="text-sm">
                                             <span className="font-semibold">Plan:</span> {selectedUser.latest_payment.plan_id}
                                         </p>
+                                        {selectedUser.latest_payment.product_name && (
+                                            <p className="text-sm">
+                                                <span className="font-semibold">Product:</span> {selectedUser.latest_payment.product_name}
+                                            </p>
+                                        )}
+                                        {selectedUser.latest_payment.discount_code && (
+                                            <p className="text-sm">
+                                                <span className="font-semibold">Coupon:</span> {selectedUser.latest_payment.discount_code}
+                                                {selectedUser.latest_payment.discount_name ? ` (${selectedUser.latest_payment.discount_name})` : ""}
+                                                {selectedUser.latest_payment.discount_amount ? ` - ${formatCurrency(selectedUser.latest_payment.discount_amount)}` : ""}
+                                            </p>
+                                        )}
                                         <p className="text-sm">
                                             <span className="font-semibold">Date:</span> {formatDate(selectedUser.latest_payment.created_at)}
                                         </p>

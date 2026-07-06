@@ -10,6 +10,9 @@ const {
   rateLimitExceededResponse,
   methodNotAllowedResponse,
 } = require('./utils/cors');
+const { getMonthlyCreditState } = require('./utils/api-key-validator');
+const { recordPluginConnectCompleted } = require('./utils/plugin-connect-event');
+const { extractPluginVersion } = require('./utils/plugin-version');
 
 // Initialize Supabase client
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -47,12 +50,15 @@ exports.handler = async (event, context) => {
     }
 
     const token = authHeader.replace('Bearer ', '').trim();
+    const pluginVersion = extractPluginVersion(event);
 
     let authUser = null;
     let userId = null;
+    let isApiKeyAuth = false;
 
     // Check if this is an API key (starts with 'alt_' or legacy 'altai_')
     if (token.startsWith('alt_') || token.startsWith('altai_')) {
+      isApiKeyAuth = true;
       console.log('🔑 [get-usage] Validating API key:', token.substring(0, 20) + '...');
 
       // First try RPC function
@@ -137,6 +143,15 @@ exports.handler = async (event, context) => {
       };
     }
 
+    if (isApiKeyAuth) {
+      await recordPluginConnectCompleted(supabase, {
+        userId: authUser.id,
+        userEmail: authUser.email,
+        endpointName: 'get-usage',
+        pluginVersion,
+      });
+    }
+
     // Get usage statistics
     const { data: usageLogs, error: usageError } = await supabase
       .from('usage_logs')
@@ -155,11 +170,13 @@ exports.handler = async (event, context) => {
 
     // Calculate statistics
     const totalGenerated = usageLogs ? usageLogs.length : 0;
-
-    // Use total_processed from profile instead of summing all usage_logs
-    // This ensures we only show usage from the current plan period
-    // (total_processed is reset to 0 when upgrading to a subscription plan)
-    const creditsUsed = profile.total_processed || 0;
+    const cycleStart = profile.credits_last_renewed_at
+      ? new Date(profile.credits_last_renewed_at)
+      : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const cycleUsageLogs = usageLogs
+      ? usageLogs.filter((log) => log.created_at && new Date(log.created_at) >= cycleStart)
+      : [];
+    const creditsUsed = cycleUsageLogs.reduce((sum, log) => sum + Number(log.credits_used || 1), 0);
 
     // Get subscription plan details
     const { data: planDetails, error: planError } = await supabase
@@ -169,6 +186,10 @@ exports.handler = async (event, context) => {
       .single();
 
     const totalCredits = planDetails ? planDetails.credits : 100; // Default to 100 if plan not found
+    const monthlyCreditState = getMonthlyCreditState(
+      { ...profile, total_processed: creditsUsed },
+      totalCredits
+    );
 
     return {
       statusCode: 200,
@@ -178,10 +199,17 @@ exports.handler = async (event, context) => {
         data: {
           credits_remaining: profile.credits_remaining || 0,
           credits_used: creditsUsed,
+          total_processed: creditsUsed,
           total_credits: totalCredits,
+          monthly_credit_limit: monthlyCreditState.monthly_credit_limit,
+          monthly_credits_remaining: monthlyCreditState.monthly_credits_remaining,
+          monthly_credits_used: monthlyCreditState.monthly_credits_used,
+          is_monthly_limited: monthlyCreditState.is_monthly_limited,
           total_generated: totalGenerated,
           subscription_plan: profile.subscription_plan || 'free',
           subscription_status: profile.subscription_status || 'active',
+          billing_cycle: profile.billing_cycle || null,
+          monthly_credit_allowance: profile.monthly_credit_allowance || null,
           recent_usage: usageLogs ? usageLogs.slice(0, 10) : [] // Last 10 generations
         }
       }),

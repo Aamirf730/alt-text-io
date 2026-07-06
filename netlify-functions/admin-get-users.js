@@ -10,6 +10,7 @@ const {
   rateLimitExceededResponse,
   methodNotAllowedResponse,
 } = require('./utils/cors');
+const { getEventPluginVersion } = require('./utils/plugin-version');
 
 // Initialize Supabase client with service role key for admin access
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -21,6 +22,28 @@ const SUPERUSER_EMAILS = (process.env.SUPERUSER_EMAILS || '').split(',').map(ema
 
 // Stricter rate limit for admin endpoints (30 requests per minute)
 const ADMIN_RATE_LIMIT = 30;
+
+function normalizeEmail(email) {
+  return String(email || '').trim().toLowerCase();
+}
+
+function buildLatestPluginEventMaps(events = []) {
+  const byUserId = new Map();
+  const byEmail = new Map();
+
+  for (const event of events) {
+    if (event?.user_id && !byUserId.has(event.user_id)) {
+      byUserId.set(event.user_id, event);
+    }
+
+    const email = normalizeEmail(event?.user_email);
+    if (email && !byEmail.has(email)) {
+      byEmail.set(email, event);
+    }
+  }
+
+  return { byUserId, byEmail };
+}
 
 exports.handler = async (event, context) => {
   // Get secure CORS headers (origin-validated)
@@ -228,6 +251,35 @@ exports.handler = async (event, context) => {
       usageError = err;
     }
 
+    console.log('=== FETCHING PLUGIN EVENTS ===');
+    let pluginEvents = [];
+    let pluginEventsError = null;
+
+    try {
+      const { data: pluginEventsData, error: pluginEventsErr } = await supabase
+        .from('marketing_events')
+        .select('user_id,user_email,source,occurred_at,created_at,properties')
+        .eq('event_name', 'connect_completed')
+        .in('source', ['wordpress_plugin_auth', 'wordpress_connect'])
+        .order('occurred_at', { ascending: false })
+        .limit(5000);
+
+      pluginEvents = pluginEventsData || [];
+      pluginEventsError = pluginEventsErr;
+
+      if (pluginEventsError) {
+        console.error('Error fetching plugin events:', pluginEventsError);
+      } else {
+        console.log('Plugin events fetched successfully');
+        console.log('Number of plugin events:', pluginEvents.length);
+      }
+    } catch (err) {
+      console.error('Exception fetching plugin events:', err);
+      pluginEventsError = err;
+    }
+
+    const latestPluginEvents = buildLatestPluginEventMaps(pluginEvents);
+
     // Enrich profiles with additional data
     console.log('=== ENRICHING PROFILES ===');
     const enrichedProfiles = profiles.map(profile => {
@@ -241,6 +293,9 @@ exports.handler = async (event, context) => {
       const userUsage = usageStats?.find(u => u.user_id === profile.id) || {};
       const totalUsageCount = parseInt(userUsage.total_usage_count || 0);
       const totalCreditsUsed = parseInt(userUsage.total_credits_used || 0);
+      const pluginEvent = latestPluginEvents.byUserId.get(profile.id)
+        || latestPluginEvents.byEmail.get(normalizeEmail(profile.email))
+        || null;
 
       // Get latest payment
       const latestPayment = userPayments.length > 0
@@ -252,12 +307,19 @@ exports.handler = async (event, context) => {
         total_paid: totalPaid,
         total_usage_count: totalUsageCount,
         total_credits_used: totalCreditsUsed,
+        latest_plugin_version: getEventPluginVersion(pluginEvent),
+        plugin_connected_at: pluginEvent?.occurred_at || pluginEvent?.created_at || null,
+        plugin_connection_source: pluginEvent?.source || null,
         payment_count: userPayments.length,
         latest_payment: latestPayment ? {
           amount: latestPayment.amount,
           status: latestPayment.status,
           created_at: latestPayment.created_at,
-          plan_id: latestPayment.plan_id
+          plan_id: latestPayment.plan_id,
+          product_name: latestPayment.product_name,
+          discount_code: latestPayment.discount_code,
+          discount_name: latestPayment.discount_name,
+          discount_amount: latestPayment.discount_amount
         } : null
       };
     });
@@ -304,4 +366,3 @@ exports.handler = async (event, context) => {
     };
   }
 };
-

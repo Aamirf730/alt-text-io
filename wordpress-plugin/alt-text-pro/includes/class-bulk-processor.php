@@ -111,24 +111,47 @@ class AltTextPro_Bulk_Processor
         }
 
         $credits_remaining = isset($usage_stats['data']['credits_remaining']) ? intval($usage_stats['data']['credits_remaining']) : 0;
+        $credits_used = isset($usage_stats['data']['credits_used']) ? intval($usage_stats['data']['credits_used']) : 0;
+        $total_credits = isset($usage_stats['data']['total_credits']) ? intval($usage_stats['data']['total_credits']) : 0;
+        $monthly_credit_allowance = isset($usage_stats['data']['monthly_credit_allowance']) ? intval($usage_stats['data']['monthly_credit_allowance']) : 0;
+        $monthly_credit_limit = isset($usage_stats['data']['monthly_credit_limit']) ? intval($usage_stats['data']['monthly_credit_limit']) : 0;
+        $monthly_credits_remaining = isset($usage_stats['data']['monthly_credits_remaining']) ? intval($usage_stats['data']['monthly_credits_remaining']) : null;
+        $monthly_credits_used = isset($usage_stats['data']['monthly_credits_used']) ? intval($usage_stats['data']['monthly_credits_used']) : $credits_used;
+        $subscription_plan = isset($usage_stats['data']['subscription_plan']) ? sanitize_text_field($usage_stats['data']['subscription_plan']) : 'free';
+        $subscription_plans = array('free', 'tier1', 'tier2', 'tier3', 'lite', 'standard', 'pro');
 
         if ($credits_remaining <= 0) {
             wp_send_json_error(esc_html__('No credits remaining. Please upgrade your plan before starting bulk processing.', 'alt-text-pro'));
         }
 
-        // Warn if credits are less than images to process
-        if ($credits_remaining < count($images_to_process)) {
-            // Still allow, but user will run out partway through
+        $total_images = count($images_to_process);
+        $plan_allowance = $monthly_credit_limit > 0 ? $monthly_credit_limit : ($monthly_credit_allowance > 0 ? $monthly_credit_allowance : $total_credits);
+        $plan_remaining = $monthly_credits_remaining !== null
+            ? $monthly_credits_remaining
+            : ($plan_allowance > 0 ? max(0, $plan_allowance - $monthly_credits_used) : $credits_remaining);
+        $credit_limit_for_run = in_array($subscription_plan, $subscription_plans, true)
+            ? min($credits_remaining, $plan_remaining)
+            : $credits_remaining;
+        $processable_images = min($total_images, $credit_limit_for_run);
+
+        if ($processable_images <= 0) {
+            wp_send_json_error(esc_html__('No plan credits remaining for this billing cycle. Please upgrade, top up, or wait for your next credit refill before starting bulk processing.', 'alt-text-pro'));
         }
 
         // Create bulk process record
-        $process_id = $this->create_bulk_process_record($images_to_process, $batch_size, $overwrite_existing);
+        $process_id = $this->create_bulk_process_record($images_to_process, $batch_size, $overwrite_existing, $credits_remaining, $processable_images, $plan_allowance, $monthly_credits_used);
 
         wp_send_json_success(array(
             'process_id' => $process_id,
-            'total_images' => count($images_to_process),
+            'total_images' => $total_images,
+            'queue_total_images' => $total_images,
+            'processable_images' => $processable_images,
+            'credits_remaining' => $credits_remaining,
+            'plan_allowance' => $plan_allowance,
+            'plan_credits_used' => $monthly_credits_used,
+            'plan_credits_remaining' => $credit_limit_for_run,
             'batch_size' => $batch_size,
-            'estimated_time' => $this->estimate_processing_time(count($images_to_process))
+            'estimated_time' => $this->estimate_processing_time($processable_images)
         ));
     }
 
@@ -226,7 +249,20 @@ class AltTextPro_Bulk_Processor
 
         $api_client = new AltTextPro_API_Client();
         $batch_size = $process_data['batch_size'];
-        $images = array_slice($process_data['images'], $batch_offset, $batch_size);
+        $processable_images = isset($process_data['processable_images']) ? intval($process_data['processable_images']) : count($process_data['images']);
+
+        if ($batch_offset >= $processable_images) {
+            $process_data['status'] = 'completed';
+            $process_data['needs_next_batch'] = false;
+            $process_data['next_batch_offset'] = null;
+            set_transient('alt_text_pro_bulk_' . $process_id, $process_data, DAY_IN_SECONDS * 2);
+            wp_cache_delete('alt_text_pro_bulk_' . $process_id, 'transient');
+            $this->complete_bulk_process($process_id);
+            return array();
+        }
+
+        $remaining_processable = max(0, $processable_images - $batch_offset);
+        $images = array_slice($process_data['images'], $batch_offset, min($batch_size, $remaining_processable));
 
         $processed = 0;
         $skipped = 0;
@@ -528,7 +564,8 @@ class AltTextPro_Bulk_Processor
         // Check if there are more batches to process
         // IMPORTANT: No longer using cron. Browser will request next batch based on these flags.
         $next_batch_offset = $batch_offset + count($images);
-        if ($next_batch_offset < count($process_data['images']) && $process_data['status'] === 'running') {
+        $run_limit = isset($process_data['processable_images']) ? intval($process_data['processable_images']) : count($process_data['images']);
+        if ($next_batch_offset < $run_limit && $process_data['status'] === 'running') {
             // Set flag that frontend should request next batch
             $process_data['next_batch_offset'] = $next_batch_offset;
             $process_data['needs_next_batch'] = true;
@@ -658,9 +695,13 @@ class AltTextPro_Bulk_Processor
     /**
      * Create bulk process record
      */
-    private function create_bulk_process_record($images, $batch_size, $overwrite_existing)
+    private function create_bulk_process_record($images, $batch_size, $overwrite_existing, $credits_remaining_at_start = 0, $processable_images = null, $plan_allowance = null, $plan_credits_used = null)
     {
         $process_id = uniqid('bulk_', true);
+        $total_images = count($images);
+        $processable_images = $processable_images === null
+            ? min($total_images, max(0, intval($credits_remaining_at_start)))
+            : min($total_images, max(0, intval($processable_images)));
 
         $process_data = array(
             'id' => $process_id,
@@ -668,7 +709,12 @@ class AltTextPro_Bulk_Processor
             'batch_size' => $batch_size,
             'overwrite_existing' => $overwrite_existing,
             'status' => 'running',
-            'total_images' => count($images),
+            'total_images' => $total_images,
+            'queue_total_images' => $total_images,
+            'processable_images' => $processable_images,
+            'credits_remaining_at_start' => max(0, intval($credits_remaining_at_start)),
+            'plan_allowance' => $plan_allowance === null ? null : max(0, intval($plan_allowance)),
+            'plan_credits_used_at_start' => $plan_credits_used === null ? null : max(0, intval($plan_credits_used)),
             'processed' => 0,
             'successful' => 0, // Track successful generations separately
             'successful_image_ids' => array(), // Track which images were successfully processed to prevent double-counting
@@ -729,6 +775,11 @@ class AltTextPro_Bulk_Processor
             'process_id' => $process_id,
             'status' => ($process_data['status'] ?? 'running') === 'running' ? 'processing' : ($process_data['status'] ?? 'running'),
             'total_images' => isset($process_data['images']) ? count($process_data['images']) : 0,
+            'queue_total_images' => isset($process_data['queue_total_images']) ? intval($process_data['queue_total_images']) : (isset($process_data['images']) ? count($process_data['images']) : 0),
+            'processable_images' => isset($process_data['processable_images']) ? intval($process_data['processable_images']) : (isset($process_data['images']) ? count($process_data['images']) : 0),
+            'credits_remaining_at_start' => isset($process_data['credits_remaining_at_start']) ? intval($process_data['credits_remaining_at_start']) : null,
+            'plan_allowance' => isset($process_data['plan_allowance']) ? intval($process_data['plan_allowance']) : null,
+            'plan_credits_used_at_start' => isset($process_data['plan_credits_used_at_start']) ? intval($process_data['plan_credits_used_at_start']) : null,
             'processed' => $processed,
             'processed_count' => $processed, // Added for JS compatibility
             'successful' => $successful,

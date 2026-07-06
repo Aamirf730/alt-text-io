@@ -1,4 +1,5 @@
 const LOW_CREDIT_THRESHOLD = 5;
+const { getEventPluginVersion } = require('./plugin-version');
 
 function parsePositiveInt(value, fallback, min = 1, max = 180) {
   const parsed = Number.parseInt(String(value ?? ''), 10);
@@ -112,6 +113,7 @@ function buildLifecycleStatusReport({
     const pluginKeyFallback = activePluginKeysByUser.get(profile.id) || null;
     const pluginConnectedAt = getEventTime(pluginConnectEvent) || pluginKeyFallback?.created_at || null;
     const pluginConnectionSource = pluginConnectEvent?.source || (pluginKeyFallback ? 'wordpress_plugin_key' : null);
+    const pluginVersion = getEventPluginVersion(pluginConnectEvent);
     const isPluginConnected = Boolean(pluginConnectEvent || pluginKeyFallback);
     const firstImageEvent = latestByDate(eventsByName.get('first_image_processed') || []);
     const checkoutEvent = latestByDate(eventsByName.get('checkout_started') || []);
@@ -149,6 +151,7 @@ function buildLifecycleStatusReport({
       signup_at: getEventTime(signupEvent) || profile.created_at || null,
       plugin_connected_at: pluginConnectedAt,
       plugin_connection_source: pluginConnectionSource,
+      plugin_version: pluginVersion,
       first_generation_at: usage.last_usage_at || getEventTime(firstImageEvent),
       checkout_started_at: getEventTime(checkoutEvent),
       purchase_completed_at: getEventTime(purchaseEvent),
@@ -220,7 +223,7 @@ async function fetchLifecycleStatusReport(supabase, { days = 30, limit = 500 } =
       .limit(parsedLimit),
     supabase
       .from('marketing_events')
-      .select('id,event_name,source,user_id,user_email,occurred_at,created_at')
+      .select('id,event_name,source,user_id,user_email,occurred_at,created_at,properties')
       .gte('occurred_at', startAt)
       .in('event_name', [
         'signup_created',

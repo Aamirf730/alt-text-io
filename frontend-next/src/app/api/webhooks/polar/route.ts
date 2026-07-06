@@ -1,5 +1,6 @@
 import { Webhooks } from "@polar-sh/nextjs";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { extractPolarBillingSnapshot } from "@/lib/polar-billing";
 import { isPolarSubscriptionProduct, resolvePolarPlanId } from "@/lib/polar-plan-mapping";
 
 // Lazy initialization for Supabase client
@@ -140,6 +141,7 @@ async function updateUserCredits(userId: string, credits: number, isSubscription
             .from("profiles")
             .update({
                 credits_remaining: credits,
+                total_processed: 0,
                 subscription_status: "active",
                 updated_at: new Date().toISOString(),
             })
@@ -206,6 +208,7 @@ export const POST = Webhooks({
             } as Record<string, string | number | boolean>;
 
             const isSubscription = isPolarSubscriptionProduct(productName, mergedMetadata);
+            const billingSnapshot = extractPolarBillingSnapshot(order);
 
             // Find user by email
             const { data: users, error: userError } = await getSupabase()
@@ -229,21 +232,26 @@ export const POST = Webhooks({
             }
 
             // RECORD PAYMENT: Ensure every payment is recorded for admin dashboard stats
-            // Polar amount is in cents
-            const anyOrder = order as any;
-            const paymentAmount = (anyOrder.amount || 0) / 100;
-            const currency = anyOrder.currency?.toUpperCase() || "USD";
+            const paymentAmount = billingSnapshot.paymentAmount;
+            const currency = billingSnapshot.currency;
             const planId = resolvePolarPlanId(productName, mergedMetadata);
+            const subscriptionId = order.subscriptionId || (order as { subscription_id?: string | null }).subscription_id || null;
 
             const { error: paymentError } = await getSupabase()
                 .from("payments")
                 .insert({
                     user_id: userId,
                     payment_id: `polar_ord_${order.id}`,
-                    subscription_id: anyOrder.subscription_id || anyOrder.subscriptionId || null,
+                    subscription_id: subscriptionId,
                     plan_id: planId,
                     amount: paymentAmount,
                     currency: currency,
+                    polar_product_id: billingSnapshot.productId,
+                    product_name: billingSnapshot.productName || productName,
+                    discount_id: billingSnapshot.discountId,
+                    discount_code: billingSnapshot.discountCode,
+                    discount_name: billingSnapshot.discountName,
+                    discount_amount: billingSnapshot.discountAmount,
                     status: "completed",
                     payment_method: "polar",
                     created_at: new Date().toISOString(),
@@ -257,11 +265,16 @@ export const POST = Webhooks({
 
             await recordMarketingEvent("purchase_completed", userId, customerEmail, {
                 provider: "polar",
-                product_name: productName,
+                product_id: billingSnapshot.productId,
+                product_name: billingSnapshot.productName || productName,
                 plan_id: planId,
                 amount: paymentAmount,
                 currency,
                 order_id: order.id,
+                discount_id: billingSnapshot.discountId,
+                discount_code: billingSnapshot.discountCode,
+                discount_name: billingSnapshot.discountName,
+                discount_amount: billingSnapshot.discountAmount,
                 is_subscription: isSubscription,
             });
 
@@ -514,6 +527,7 @@ export const POST = Webhooks({
                             .from("profiles")
                             .update({
                                 credits_remaining: newCredits,
+                                total_processed: 0,
                                 subscription_status: "active",
                                 subscription_id: subscription.id,
                                 next_billing_date: subscription.currentPeriodEnd,
@@ -532,8 +546,7 @@ export const POST = Webhooks({
                         }
 
                         // Record renewal payment
-                        const anySubscription = subscription as any;
-                        const amount = (anySubscription.amount || 0) / 100;
+                        const billingSnapshot = extractPolarBillingSnapshot(subscription);
 
                         await getSupabase()
                             .from("payments")
@@ -542,8 +555,14 @@ export const POST = Webhooks({
                                 payment_id: `polar_renewal_${subscription.id}_${Date.now()}`,
                                 subscription_id: subscription.id,
                                 plan_id: planId,
-                                amount: amount,
-                                currency: anySubscription.currency?.toUpperCase() || "USD",
+                                amount: billingSnapshot.paymentAmount,
+                                currency: billingSnapshot.currency,
+                                polar_product_id: billingSnapshot.productId,
+                                product_name: billingSnapshot.productName || productName,
+                                discount_id: billingSnapshot.discountId,
+                                discount_code: billingSnapshot.discountCode,
+                                discount_name: billingSnapshot.discountName,
+                                discount_amount: billingSnapshot.discountAmount,
                                 status: "completed",
                                 payment_method: "polar",
                                 created_at: new Date().toISOString(),

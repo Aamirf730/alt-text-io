@@ -11,6 +11,7 @@ const {
   methodNotAllowedResponse,
 } = require('./utils/cors');
 const { recordPluginConnectCompleted } = require('./utils/plugin-connect-event');
+const { extractPluginVersion } = require('./utils/plugin-version');
 
 // Initialize Supabase clients
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -58,6 +59,7 @@ exports.handler = async (event, context) => {
     }
 
     const token = authHeader.replace('Bearer ', '').trim();
+    const pluginVersion = extractPluginVersion(event);
 
     // Validate token format (basic check)
     if (!token) {
@@ -253,6 +255,7 @@ exports.handler = async (event, context) => {
       userId: authUser.id,
       userEmail: authUser.email,
       endpointName: 'auth-validate',
+      pluginVersion,
     });
 
     return {

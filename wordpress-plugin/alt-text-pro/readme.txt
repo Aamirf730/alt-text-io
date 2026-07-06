@@ -4,7 +4,7 @@ Tags: alt text, accessibility, image seo, ai, media library
 Requires at least: 5.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.5.1
+Stable tag: 1.6.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -150,6 +150,44 @@ Yes, you can cancel your subscription at any time from your Alt Text Pro dashboa
 6. Responsive admin interface for managing alt text from different screen sizes.
 
 == Changelog ==
+= 1.6.0 =
+* UX: Reduced and softened the credits allowance text so the remaining number stays visually primary.
+
+= 1.5.9 =
+* UX: Simplified the WordPress dashboard credits card to show a compact remaining-versus-allowance value.
+* UX: Removed the duplicate this-month generated line from the WordPress dashboard generated card.
+* Admin: Added last-seen WordPress plugin version visibility to the SaaS admin dashboard and lifecycle view.
+
+= 1.5.8 =
+* Fix: Annual subscriptions now display monthly credits remaining instead of the hidden annual balance.
+* Fix: Bulk and single-image generation now use monthly allowance remaining for subscription plans.
+* Fix: Current-cycle usage is calculated from usage logs since the last credit renewal.
+
+= 1.5.7 =
+* UX: Clarified that credit usage is account-level for the billing cycle.
+* UX: Clarified that generated stats are local to the current WordPress site.
+
+= 1.5.6 =
+* UX: Dashboard generated stats now show lifetime generations as the main number.
+* UX: Added a secondary this-month generation count below the lifetime total.
+
+= 1.5.5 =
+* UX: Removed the internal bulk queue count from progress messaging to avoid confusing it with billable processing.
+* UX: Bulk progress now focuses on the number of images that can run with available plan credits.
+
+= 1.5.4 =
+* Fix: Bulk progress now uses the remaining plan credits for the current cycle instead of the full queued image count.
+* Fix: Bulk processing stops at that same plan-credit limit so the visible progress target matches actual processing.
+
+= 1.5.3 =
+* UX: Corrected dashboard credit labels for annual plans with rollover balances.
+* UX: Dashboard now separates available credits from monthly allowance to avoid misleading "this month" totals.
+* Fix: Usage API now returns billing cycle, monthly allowance, and total processed data for consistent dashboard stats.
+
+= 1.5.2 =
+* UX: Clarified annual-plan bulk credit messaging so available balance and monthly allowance are not confused.
+* UX: Bulk progress now shows the credit-limited processable total instead of implying the full queued cap can run immediately.
+
 = 1.5.1 =
 * Compatibility: Updated "Tested up to" metadata for current WordPress release.
 * Compliance: Removed unexpected root markdown file from the production plugin package.
