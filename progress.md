@@ -2,8 +2,8 @@
 
 ## Current work
 
-- Status: in progress
-- Task: document and verify the external archive and private Git backup workflow.
+- Status: complete
+- Task: external archive and private Git backup workflow documented and verified.
 
 ## Completed baseline
 
@@ -28,8 +28,11 @@
 
 - 2026-07-18: GitHub repository `Aamirf730/alt-text-io` confirmed private.
 - 2026-07-18: `origin/main` and local source both resolved to `1b13f2d` before documentation changes.
+- 2026-07-18: complete containing-folder archive passed `unzip -t`; SHA-256 is `1594b62cc1dfa5797e096a4d1efa5144675d04a3759f57f9fc8b78d1374b0a8f`.
+- 2026-07-18: non-production backup-ledger branch was pushed and remotely verified.
+- 2026-07-18: local project remains present; no files were deleted.
 
 ## Update history
 
 - 2026-07-18: initialized required project documentation and began verified backup work.
-
+- 2026-07-18: completed and recorded external archive and private Git verification.
