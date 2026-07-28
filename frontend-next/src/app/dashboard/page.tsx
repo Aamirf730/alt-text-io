@@ -67,6 +67,7 @@ export default function Dashboard() {
     const billingCycle = String(usageStats?.billing_cycle || subscriptionData?.subscription?.billing_cycle || '');
     const monthlyCreditAllowance = Number(usageStats?.monthly_credit_allowance || subscriptionData?.subscription?.monthly_credit_allowance || 0);
     const monthlyCreditLimit = Number(usageStats?.monthly_credit_limit || 0);
+    const bonusCreditsRemaining = Number(usageStats?.bonus_credits_remaining || 0);
     const planAllowance = monthlyCreditLimit || (billingCycle === 'annual' && monthlyCreditAllowance > 0 ? monthlyCreditAllowance : currentPlanLimit);
     const creditsUsed = Number(usageStats?.monthly_credits_used ?? usageStats?.total_processed ?? 0);
     const creditsRemaining = Number(usageStats?.monthly_credits_remaining ?? usageStats?.credits_remaining ?? 0);
@@ -86,7 +87,9 @@ export default function Dashboard() {
     const displayPlanLabel = billingCycle && currentPlan !== 'free' && currentPlan !== 'small_pack' && currentPlan !== 'pay_as_go'
         ? `${basePlanLabel} ${billingCycle === 'annual' ? 'Annual' : 'Monthly'}`
         : basePlanLabel;
-    const creditCardDescription = billingCycle === 'annual' && monthlyCreditAllowance > 0
+    const creditCardDescription = bonusCreditsRemaining > 0
+        ? `${bonusCreditsRemaining.toLocaleString()} promotional credits remain in addition to your plan allowance.`
+        : billingCycle === 'annual' && monthlyCreditAllowance > 0
         ? `Credits left this month. Annual plan provides ${planAllowance.toLocaleString()} credits each month.`
         : 'Credits left this month';
     const hasApiKeyReady = Boolean(apiKey);
@@ -339,7 +342,7 @@ export default function Dashboard() {
                 console.log('Using direct Supabase query for localhost');
                 const { data: profile, error: profileError } = await supabase
                     .from('profiles')
-                    .select('credits_remaining, total_processed, subscription_plan, subscription_status, next_billing_date, subscription_id, billing_cycle, monthly_credit_allowance')
+                    .select('credits_remaining, bonus_credits_remaining, total_processed, subscription_plan, subscription_status, next_billing_date, subscription_id, billing_cycle, monthly_credit_allowance')
                     .eq('id', session.user.id)
                     .single();
 
@@ -353,6 +356,7 @@ export default function Dashboard() {
                 } else {
                     setUsageStats({
                         credits_remaining: profile.credits_remaining || 0,
+                        bonus_credits_remaining: profile.bonus_credits_remaining || 0,
                         total_processed: profile.total_processed || 0,
                         plan: profile.subscription_plan || 'free',
                         billing_cycle: profile.billing_cycle || null,
@@ -374,6 +378,7 @@ export default function Dashboard() {
                         if (usageData.success && usageData.data) {
                             setUsageStats({
                                 credits_remaining: usageData.data.credits_remaining || 0,
+                                bonus_credits_remaining: usageData.data.bonus_credits_remaining || 0,
                                 monthly_credits_remaining: usageData.data.monthly_credits_remaining,
                                 monthly_credit_limit: usageData.data.monthly_credit_limit,
                                 monthly_credits_used: usageData.data.monthly_credits_used,
@@ -393,7 +398,7 @@ export default function Dashboard() {
                     // Fallback: try direct Supabase query as backup
                     const { data: profile, error: profileError } = await supabase
                         .from('profiles')
-                        .select('credits_remaining, total_processed, subscription_plan, subscription_status, next_billing_date, subscription_id, billing_cycle, monthly_credit_allowance')
+                        .select('credits_remaining, bonus_credits_remaining, total_processed, subscription_plan, subscription_status, next_billing_date, subscription_id, billing_cycle, monthly_credit_allowance')
                         .eq('id', session.user.id)
                         .single();
 
@@ -407,6 +412,7 @@ export default function Dashboard() {
                     } else {
                         setUsageStats({
                             credits_remaining: profile.credits_remaining || 0,
+                            bonus_credits_remaining: profile.bonus_credits_remaining || 0,
                             total_processed: profile.total_processed || 0,
                             plan: profile.subscription_plan || 'free',
                             billing_cycle: profile.billing_cycle || null,

@@ -30,6 +30,7 @@ const SUBSCRIPTION_PLAN_CREDITS = {
 
 function getMonthlyCreditState(profile, planCredits = null) {
   const creditsRemaining = Number(profile?.credits_remaining || 0);
+  const bonusCreditsRemaining = Number(profile?.bonus_credits_remaining || 0);
   const creditsUsed = Number(profile?.total_processed || 0);
   const plan = profile?.subscription_plan || profile?.plan || 'free';
   const explicitAllowance = Number(profile?.monthly_credit_allowance || 0);
@@ -37,13 +38,20 @@ function getMonthlyCreditState(profile, planCredits = null) {
   const monthlyCreditLimit = explicitAllowance > 0 ? explicitAllowance : resolvedPlanCredits;
   const isMonthlyLimited = Boolean(SUBSCRIPTION_PLAN_CREDITS[plan] && monthlyCreditLimit > 0);
   const monthlyCreditsRemaining = isMonthlyLimited
-    ? Math.max(0, Math.min(creditsRemaining, monthlyCreditLimit - creditsUsed))
+    ? Math.max(
+      0,
+      Math.min(
+        creditsRemaining,
+        Math.max(0, monthlyCreditLimit - creditsUsed) + bonusCreditsRemaining
+      )
+    )
     : creditsRemaining;
 
   return {
     monthly_credit_limit: monthlyCreditLimit,
     monthly_credits_used: isMonthlyLimited ? creditsUsed : null,
     monthly_credits_remaining: monthlyCreditsRemaining,
+    bonus_credits_remaining: bonusCreditsRemaining,
     is_monthly_limited: isMonthlyLimited,
   };
 }
@@ -115,7 +123,7 @@ async function validateApiKey(apiKey) {
     // Get user profile from profiles table (single source of truth)
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('id, email, credits_remaining, total_processed, subscription_plan, subscription_status, billing_cycle, monthly_credit_allowance, credits_last_renewed_at, updated_at')
+      .select('id, email, credits_remaining, bonus_credits_remaining, total_processed, subscription_plan, subscription_status, billing_cycle, monthly_credit_allowance, credits_last_renewed_at, updated_at')
       .eq('id', apiKeyRecord.user_id)
       .single();
 
@@ -132,6 +140,7 @@ async function validateApiKey(apiKey) {
       email: profile.email,
       apiKey: apiKeyRecord.api_key,
       credits_remaining: profile.credits_remaining ?? 0,
+      bonus_credits_remaining: profile.bonus_credits_remaining ?? 0,
       total_processed: cycleCreditsUsed ?? profile.total_processed ?? 0,
       plan: profile.subscription_plan || 'free',
       billing_cycle: profile.billing_cycle || null,
