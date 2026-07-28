@@ -136,11 +136,23 @@ async function updateUserCredits(userId: string, credits: number, isSubscription
     console.log(`Updating credits for user ${userId}: +${credits} credits, isSubscription: ${isSubscription}`);
 
     if (isSubscription) {
-        // For subscriptions, reset credits to subscription amount
+        // Reset plan credits while preserving any unspent promotional balance.
+        const { data: profile, error: fetchError } = await getSupabase()
+            .from("profiles")
+            .select("bonus_credits_remaining")
+            .eq("id", userId)
+            .single();
+
+        if (fetchError) {
+            console.error("Error fetching promotional credit balance:", fetchError);
+            throw fetchError;
+        }
+
+        const bonusCredits = Number(profile?.bonus_credits_remaining || 0);
         const { error } = await getSupabase()
             .from("profiles")
             .update({
-                credits_remaining: credits,
+                credits_remaining: credits + bonusCredits,
                 total_processed: 0,
                 subscription_status: "active",
                 updated_at: new Date().toISOString(),

@@ -783,7 +783,7 @@ exports.handler = async (event, context) => {
         // Get user profile from profiles table
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
-          .select('credits_remaining, subscription_plan, total_processed, id, email, billing_cycle, monthly_credit_allowance, credits_last_renewed_at')
+          .select('credits_remaining, bonus_credits_remaining, subscription_plan, total_processed, id, email, billing_cycle, monthly_credit_allowance, credits_last_renewed_at')
           .eq('id', authUser.id)
           .single();
 
@@ -801,6 +801,7 @@ exports.handler = async (event, context) => {
           id: profile.id,
           email: profile.email || authUser.email,
           credits_remaining: profile.credits_remaining || 0,
+          bonus_credits_remaining: profile.bonus_credits_remaining || 0,
           total_processed: cycleCreditsUsed ?? profile.total_processed ?? 0,
           plan: profile.subscription_plan || 'free_trial',
           billing_cycle: profile.billing_cycle || null,
@@ -909,7 +910,7 @@ exports.handler = async (event, context) => {
       // Supabase auth - re-check credits from database
       const { data: recheckProfile, error: recheckError } = await supabase
         .from('profiles')
-        .select('credits_remaining, total_processed, subscription_plan, billing_cycle, monthly_credit_allowance, credits_last_renewed_at')
+        .select('credits_remaining, bonus_credits_remaining, total_processed, subscription_plan, billing_cycle, monthly_credit_allowance, credits_last_renewed_at')
         .eq('id', user.id)
         .single();
 
