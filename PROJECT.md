@@ -9,6 +9,7 @@ Alt Text Pro is a SaaS plus WordPress plugin that generates AI alt text for Word
 ## Current Architecture
 
 - `frontend-next/`: Next.js marketing app, dashboard, checkout, customer portal, Polar webhook, docs, connect flow, public plugin ZIPs.
+- `frontend-next/src/app/customer-offer/`: invitation-only campaign claim experience for eligible legacy WPGeared customers.
 - `netlify-functions/`: legacy/public API used by the WordPress plugin and dashboard: `generate-alt-text`, `get-usage`, `get-plans`, `auth-validate`, `track-event`, lifecycle/funnel automation.
 - `wordpress-plugin/alt-text-pro/`: WordPress plugin source.
 - `wordpress-plugin/build-plugin.sh`: builds plugin ZIP and copies it to `frontend-next/public/wordpress-plugin/` and `frontend-next/public/downloads/`.
@@ -42,7 +43,7 @@ export PATH="/Users/aamirfaiz/.cache/codex-runtimes/codex-primary-runtime/depend
 Frontend tests:
 
 ```bash
-cd frontend-next && ../node_modules/.bin/next build
+cd frontend-next && ./node_modules/.bin/next build
 ./frontend-next/node_modules/.bin/vitest run frontend-next/src
 ```
 
@@ -129,3 +130,12 @@ User reported one manual generation consuming two credits and cancelled bulk con
 - Treat live WordPress/Supabase/Netlify/WordPress.org changes as mutation; do read-only preflight first, then get scoped approval.
 - For Supabase schema changes, use MCP `execute_sql` for inspection/iteration and migration files for committed DDL.
 - Do not re-release a WordPress.org tag without checking remote tag existence.
+
+## Customer Promotion Requirements
+
+- Promotional credit claims must require an authenticated account with a confirmed invited email address.
+- Recipient eligibility must not expose or commit readable customer email addresses; use normalized cryptographic hashes.
+- Each campaign recipient and authenticated account may claim at most once.
+- Credit awards must be atomic, auditable, and performed in the database rather than through a client-controlled profile update.
+- One-time promotional credits must remain usable after the normal monthly allowance is exhausted and must survive free-plan renewals.
+- Public campaign pages must not be indexed and must not reuse the WordPress plugin `/connect` route.

@@ -2,7 +2,7 @@
 
 ## Scope and deliverables
 
-Maintain Supabase schema and migrations, authentication boundaries, shared Netlify function utilities, authorization, billing state, and usage accounting.
+Maintain Supabase schema and migrations, authentication boundaries, shared Netlify function utilities, authorization, billing state, usage accounting, and atomic promotional-credit claims.
 
 ## Dependencies
 
@@ -14,5 +14,4 @@ Run focused unit and integration tests for migrations, auth, authorization, bill
 
 ## Acceptance and exit gate
 
-Schema changes are reversible and reviewed; secrets remain outside Git; authorization and accounting tests pass; downstream API contracts are documented.
-
+Schema changes are reversible and reviewed; secrets and readable campaign recipient lists remain outside Git; one-time claims are authenticated and idempotent; authorization and accounting tests pass; downstream API contracts are documented.

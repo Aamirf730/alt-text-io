@@ -2,7 +2,7 @@
 
 ## Scope and deliverables
 
-Maintain the Next.js application in `frontend-next`, including authentication, onboarding, dashboard, account, billing, and accessible user workflows.
+Maintain the Next.js application in `frontend-next`, including authentication, onboarding, dashboard, account, billing, invitation-only customer offers, and accessible user workflows.
 
 ## Dependencies
 
@@ -14,5 +14,4 @@ Run lint, type checks, focused component or route tests, and a production build 
 
 ## Acceptance and exit gate
 
-Core customer journeys work across supported viewports, error states are clear, accessibility remains intact, and the production build succeeds.
-
+Core customer journeys and invited-offer claim states work across supported viewports, error states are clear, accessibility remains intact, private campaign pages are not indexed, and the production build succeeds.
