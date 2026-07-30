@@ -707,7 +707,6 @@
                 var self = this;
                 setTimeout(function () {
                     self.showModalById(modalId);
-                    $('#onboarding_api_key').trigger('focus');
                 }, 100);
             }
         },
@@ -720,7 +719,11 @@
                 $modal.addClass('active');
                 $('body').addClass('modal-open');
                 // Focus management for accessibility
-                $modal.find('.modal-content').attr('tabindex', '-1').focus();
+                var modalContent = $modal.find('.modal-content').attr('tabindex', '-1').get(0);
+                if (modalContent) {
+                    modalContent.focus({ preventScroll: true });
+                }
+                $modal.scrollTop(0);
             }
         },
 

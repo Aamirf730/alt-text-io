@@ -130,6 +130,7 @@ User reported one manual generation consuming two credits and cancelled bulk con
 - Treat live WordPress/Supabase/Netlify/WordPress.org changes as mutation; do read-only preflight first, then get scoped approval.
 - For Supabase schema changes, use MCP `execute_sql` for inspection/iteration and migration files for committed DDL.
 - Do not re-release a WordPress.org tag without checking remote tag existence.
+- Every WordPress plugin update must increase the public plugin version by `0.0.1` (for example, `1.7.0` becomes `1.7.1`) and keep the plugin header, version constant, readme stable tag, and changelog aligned.
 
 ## Customer Promotion Requirements
 

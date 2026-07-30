@@ -140,7 +140,26 @@ class AltTextPro_Settings
         if (isset($input['api_key'])) {
             $api_key = trim(sanitize_text_field(wp_unslash($input['api_key'])));
 
-            if (!empty($api_key) && AltTextPro_API_Client::validate_api_key_format($api_key)) {
+            // Internal, already-validated saves provide the encrypted value. Keep it
+            // only when it can be decrypted on this WordPress installation and is a
+            // valid Alt Text Pro key. This avoids a second encryption pass while
+            // preserving the same validation standard as the public settings form.
+            if (!empty($api_key) && strpos($api_key, 'enc:') === 0) {
+                $decrypted_key = $this->decrypt_api_key($api_key);
+                if ($decrypted_key !== false && AltTextPro_API_Client::validate_api_key_format($decrypted_key)) {
+                    $sanitized['api_key'] = $api_key;
+                }
+                else {
+                    add_settings_error(
+                        'alt_text_pro_settings',
+                        'invalid_api_key_format',
+                        esc_html__('Invalid API key format. API keys should start with "alt_" or "altai_".', 'alt-text-pro'),
+                        'error'
+                    );
+                    $sanitized['api_key'] = $existing_settings['api_key'];
+                }
+            }
+            elseif (!empty($api_key) && AltTextPro_API_Client::validate_api_key_format($api_key)) {
                 // Valid new API key — encrypt and save
                 $encrypted_key = $this->encrypt_api_key($api_key);
                 if (!empty($encrypted_key)) {

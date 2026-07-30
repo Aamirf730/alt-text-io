@@ -14,5 +14,4 @@ Run PHP syntax checks, plugin-focused tests, API contract tests, and verify the 
 
 ## Acceptance and exit gate
 
-Plugin and backend versions agree, authentication and quota behavior are correct, package integrity is verified, and upgrade paths preserve user settings.
-
+Plugin and backend versions agree, every plugin update increments the public version by `0.0.1`, the header/constant/readme/changelog versions remain aligned, authentication and quota behavior are correct, package integrity is verified, and upgrade paths preserve user settings.

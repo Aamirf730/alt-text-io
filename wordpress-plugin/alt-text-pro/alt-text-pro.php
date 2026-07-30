@@ -3,7 +3,7 @@
  * Plugin Name: AI Alt Text Pro
  * Plugin URI: https://www.alt-text.pro
  * Description: Generate accurate AI alt text for WordPress images, improve accessibility, and bulk-fix missing media-library alt text for SEO.
- * Version:           1.6.0
+ * Version:           1.7.0
  * Author: Alt Text Pro
  * Author URI: https://www.alt-text.pro/about
  * License: GPL v2 or later
@@ -20,7 +20,8 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('ALT_TEXT_PRO_VERSION', '1.6.0');
+define('ALT_TEXT_PRO_VERSION', '1.7.0');
+// Version 1.7.0 - UX: redesigned the account onboarding and fixed automatic verified-key saving.
 // Version 1.6.0 - UX: refine dashboard credits meta sizing for cleaner visual hierarchy.
 // Version 1.5.9 - UX: simplify plugin dashboard stats and track plugin version in SaaS admin views.
 // Version 1.5.8 - Fix: show and enforce monthly remaining credits instead of hidden annual balance.
@@ -1084,7 +1085,7 @@ class AltTextPro
             wp_die(esc_html__('You do not have permission to perform this action.', 'alt-text-pro'));
         }
 
-        $api_key = isset($_POST['api_key']) ? sanitize_text_field(wp_unslash($_POST['api_key'])) : '';
+        $api_key = isset($_POST['api_key']) ? trim(sanitize_text_field(wp_unslash($_POST['api_key']))) : '';
 
         if (empty($api_key) || !AltTextPro_API_Client::validate_api_key_format($api_key)) {
             wp_send_json_error(esc_html__('Invalid API key format. API keys should start with "alt_" or "altai_".', 'alt-text-pro'));
@@ -1100,6 +1101,9 @@ class AltTextPro
                 $existing_settings = array();
             }
             $settings_handler = new AltTextPro_Settings();
+            // Store the authenticated key encrypted. sanitize_settings() explicitly
+            // recognizes a valid encrypted value here, so the key is not discarded
+            // or encrypted again when WordPress applies the option sanitizer.
             $existing_settings['api_key'] = $settings_handler->encrypt_api_key($api_key);
             update_option('alt_text_pro_settings', $existing_settings);
 

@@ -4,7 +4,7 @@ Tags: alt text, accessibility, image seo, ai, media library
 Requires at least: 5.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.6.0
+Stable tag: 1.7.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -150,6 +150,11 @@ Yes, you can cancel your subscription at any time from your Alt Text Pro dashboa
 6. Responsive admin interface for managing alt text from different screen sizes.
 
 == Changelog ==
+= 1.7.0 =
+* UX: Redesigned the account onboarding into a compact, branded automatic/manual connection flow.
+* UX: Improved onboarding button alignment and removed unnecessary icon clutter.
+* Fix: Email-verification and automatic account connections now retain the validated encrypted API key when WordPress saves plugin settings.
+
 = 1.6.0 =
 * UX: Reduced and softened the credits allowance text so the remaining number stays visually primary.
 
