@@ -4,6 +4,8 @@ const LIFECYCLE_RULES = [
   {
     key: 'signup_no_connect',
     trigger: 'signup_created',
+    allowVerifiedIdentity: true,
+    trustedSources: [],
     missingAfterTrigger: ['connect_completed'],
     delayHours: 4,
     subject: 'Connect Alt Text Pro to your WordPress site',
@@ -14,6 +16,8 @@ const LIFECYCLE_RULES = [
   {
     key: 'connect_no_first_image',
     trigger: 'connect_completed',
+    allowVerifiedIdentity: true,
+    trustedSources: ['wordpress_plugin_auth'],
     missingAfterTrigger: ['first_image_processed'],
     delayHours: 6,
     subject: 'Generate your first image alt text',
@@ -24,6 +28,8 @@ const LIFECYCLE_RULES = [
   {
     key: 'checkout_no_purchase',
     trigger: 'checkout_started',
+    allowVerifiedIdentity: true,
+    trustedSources: [],
     missingAfterTrigger: ['purchase_completed'],
     delayHours: 1,
     subject: 'Need help finishing your Alt Text Pro checkout?',
@@ -34,6 +40,8 @@ const LIFECYCLE_RULES = [
   {
     key: 'purchase_onboarding',
     trigger: 'purchase_completed',
+    allowVerifiedIdentity: false,
+    trustedSources: ['polar_webhook'],
     missingAfterTrigger: [],
     delayHours: 0,
     subject: 'Welcome to Alt Text Pro',
@@ -44,6 +52,8 @@ const LIFECYCLE_RULES = [
   {
     key: 'credits_low_no_purchase',
     trigger: 'credits_low',
+    allowVerifiedIdentity: true,
+    trustedSources: ['wordpress_plugin_usage'],
     missingAfterTrigger: ['purchase_completed'],
     delayHours: 0,
     subject: 'Your Alt Text Pro credits are running low',
@@ -133,9 +143,17 @@ function buildLifecycleActors(events) {
   return [...actors.values()];
 }
 
-function getLatestEvent(actor, eventName) {
-  const events = actor.eventsByName.get(eventName) || [];
-  return events[events.length - 1] || null;
+function isTrustedTriggerEvent(event, rule) {
+  const source = String(event.source || '').toLowerCase();
+  if (rule.trustedSources.includes(source)) return true;
+
+  return rule.allowVerifiedIdentity === true
+    && event.properties?.identity_verified === true;
+}
+
+function getLatestTriggerEvent(actor, rule) {
+  const events = actor.eventsByName.get(rule.trigger) || [];
+  return [...events].reverse().find(event => isTrustedTriggerEvent(event, rule)) || null;
 }
 
 function hasAnyEventAfter(actor, eventNames, occurredAt) {
@@ -155,7 +173,7 @@ function buildLifecycleCandidates(events, options = {}) {
     if (!actor.user_email) continue;
 
     for (const rule of LIFECYCLE_RULES) {
-      const triggerEvent = getLatestEvent(actor, rule.trigger);
+      const triggerEvent = getLatestTriggerEvent(actor, rule);
       if (!triggerEvent) continue;
 
       const triggerAt = new Date(triggerEvent.occurred_at || triggerEvent.created_at);
@@ -183,6 +201,41 @@ function buildLifecycleCandidates(events, options = {}) {
   }
 
   return candidates.sort((a, b) => new Date(a.trigger_occurred_at) - new Date(b.trigger_occurred_at));
+}
+
+async function fetchAuthUsers(supabase, { perPage = 1000, maxPages = 100 } = {}) {
+  const users = [];
+
+  for (let page = 1; page <= maxPages + 1; page += 1) {
+    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage });
+    if (error) {
+      throw new Error(`Failed to verify lifecycle recipients: ${error.message}`);
+    }
+
+    const batch = data?.users || [];
+    if (page > maxPages) {
+      if (batch.length === 0) return users;
+      throw new Error('Failed to verify lifecycle recipients: auth user pagination limit reached');
+    }
+
+    users.push(...batch);
+    if (batch.length < perPage) return users;
+  }
+
+  return users;
+}
+
+function filterCandidatesByAuthUsers(candidates, authUsers) {
+  const emailsByUserId = new Map(
+    authUsers
+      .filter(user => user?.id && user?.email && user?.email_confirmed_at)
+      .map(user => [String(user.id), String(user.email).trim().toLowerCase()])
+  );
+
+  return candidates.filter(candidate => {
+    if (!candidate.user_id || !candidate.user_email) return false;
+    return emailsByUserId.get(String(candidate.user_id)) === String(candidate.user_email).trim().toLowerCase();
+  });
 }
 
 function renderLifecycleEmail(candidate) {
@@ -246,6 +299,9 @@ module.exports = {
   LIFECYCLE_RULES,
   buildLifecycleActors,
   buildLifecycleCandidates,
+  fetchAuthUsers,
   fetchRecentMarketingEvents,
+  filterCandidatesByAuthUsers,
+  isTrustedTriggerEvent,
   renderLifecycleEmail,
 };

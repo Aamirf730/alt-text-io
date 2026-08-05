@@ -1,4 +1,5 @@
 import { getApiBase } from "@/lib/utils";
+import { supabase } from "@/lib/supabase";
 
 export type MarketingEventName =
   | "page_viewed"
@@ -32,6 +33,25 @@ declare global {
 }
 
 const ANONYMOUS_ID_KEY = "alt_text_pro_anonymous_id";
+let cachedAccessToken: string | null = null;
+let authTokenCacheInitialized = false;
+
+function ensureAuthTokenCache() {
+  if (typeof window === "undefined" || authTokenCacheInitialized) return;
+
+  authTokenCacheInitialized = true;
+  supabase.auth.onAuthStateChange((_event, session) => {
+    cachedAccessToken = session?.access_token || null;
+  });
+}
+
+async function getAccessToken(): Promise<string | null> {
+  if (cachedAccessToken) return cachedAccessToken;
+
+  const { data: { session } } = await supabase.auth.getSession();
+  cachedAccessToken = session?.access_token || null;
+  return cachedAccessToken;
+}
 
 function getAnonymousId(): string {
   const existing = window.localStorage.getItem(ANONYMOUS_ID_KEY);
@@ -114,6 +134,7 @@ export function trackMarketingEvent(
   options: TrackMarketingEventOptions = {}
 ) {
   if (typeof window === "undefined") return;
+  ensureAuthTokenCache();
 
   const properties = cleanProperties({
     ...options.properties,
@@ -126,8 +147,6 @@ export function trackMarketingEvent(
     event_name: eventName,
     source: options.source || "web_app",
     anonymous_id: getAnonymousId(),
-    user_id: options.userId || undefined,
-    user_email: options.userEmail || undefined,
     properties,
     occurred_at: new Date().toISOString(),
   };
@@ -137,12 +156,30 @@ export function trackMarketingEvent(
   window.plausible?.(eventName, { props: properties });
   trackMetaEvent(eventName, properties);
 
-  fetch(`${getApiBase()}/track-event`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-    keepalive: true,
-  }).catch(() => {
-    // Marketing events must never interrupt the product workflow.
-  });
+  void (async () => {
+    try {
+      // The server verifies this token with Supabase Auth and derives user ID
+      // and email itself. Caller-provided identity is never sent or trusted.
+      let accessToken = cachedAccessToken;
+      if (!accessToken) {
+        accessToken = await getAccessToken();
+      }
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+
+      if (accessToken) {
+        headers.Authorization = `Bearer ${accessToken}`;
+      }
+
+      await fetch(`${getApiBase()}/track-event`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(payload),
+        keepalive: true,
+      });
+    } catch (_) {
+      // Marketing events must never interrupt the product workflow.
+    }
+  })();
 }

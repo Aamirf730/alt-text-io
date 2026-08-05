@@ -7,6 +7,7 @@ from PIL import Image, ImageDraw, ImageFont
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "assets"
 OUT.mkdir(parents=True, exist_ok=True)
+LOGO_SOURCE = ROOT / "alt-text-pro" / "assets" / "images" / "logo-alt-text-pro.png"
 
 COLORS = {
     "ink": "#12343b",
@@ -58,13 +59,8 @@ def logo_mark(draw, x, y, size):
 
 
 def save_icon():
-    img = Image.new("RGB", (256, 256), COLORS["paper"])
-    d = ImageDraw.Draw(img)
-    rounded(d, (24, 24, 232, 232), 52, COLORS["teal"])
-    text(d, (65, 64), "ALT", 46, COLORS["white"], True)
-    text(d, (52, 116), "TEXT", 42, COLORS["white"], True)
-    rounded(d, (58, 178, 198, 194), 8, COLORS["orange"])
-    img.save(OUT / "icon-256x256.png")
+    img = Image.open(LOGO_SOURCE).convert("RGBA")
+    img.resize((256, 256), Image.Resampling.LANCZOS).save(OUT / "icon-256x256.png")
     img.resize((128, 128), Image.Resampling.LANCZOS).save(OUT / "icon-128x128.png")
 
 

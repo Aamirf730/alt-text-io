@@ -191,6 +191,10 @@ Use the Admin dashboard Lifecycle tab for controlled one-recipient dry-runs and 
 
 Lifecycle automation uses website/account events and server-side plugin connection events only. The WordPress plugin does not send non-essential wp-admin marketing or funnel telemetry.
 
+The public `track-event` endpoint accepts identity-free anonymous events only for page views, demo usage, plugin downloads, and connect starts. Account and lifecycle-capable events require a Supabase access token in the `Authorization: Bearer ...` header; the function verifies that token with Supabase Auth and derives the user ID/email from the verified user rather than trusting request fields. Sources reserved for Polar and WordPress server integrations cannot be claimed through this endpoint, `purchase_completed` is server-only because only the verified Polar webhook may create it, and public event timestamps are assigned by the server so clients cannot backdate lifecycle triggers.
+
+Before any scheduled lifecycle email is reserved or sent, its trigger must come from a verified browser identity or its expected server-only source. The candidate user ID and normalized email must also match the same user in Supabase Auth. Recipient-directory verification fails closed: if Auth cannot be checked, the scheduled run sends nothing.
+
 The admin dashboard's Lifecycle tab uses the read-only `admin-lifecycle-status` function. It requires a signed-in Supabase session whose email is listed in `SUPERUSER_EMAILS`, then summarizes profiles, plugin connection events, usage stats, checkout/purchase events, low-credit events, and `marketing_automation_sends` follow-up history.
 
 The Lifecycle tab can also call `admin-lifecycle-test-send` for one-recipient dry-runs and test sends. This endpoint requires the same signed-in superuser session, accepts a single `email` plus `automation_key`, blocks duplicate reservations, derives the current user candidate from profile/events/usage data, and never sends to more than the one matching lifecycle candidate.
@@ -199,7 +203,7 @@ Active lifecycle rules:
 - `signup_no_connect`: `signup_created` without a later `connect_completed` after 4 hours. Successful plugin API-key validation records `connect_completed` server-side with source `wordpress_plugin_auth`.
 - `connect_no_first_image`: `connect_completed` without a later web app `first_image_processed` after 6 hours.
 - `checkout_no_purchase`: `checkout_started` without a later `purchase_completed` after 1 hour.
-- `purchase_onboarding`: `purchase_completed`.
+- `purchase_onboarding`: authoritative Polar-webhook `purchase_completed` only.
 - `credits_low_no_purchase`: `credits_low` without a later `purchase_completed`.
 
 Recommended manual test flow: open `/admin`, go to Lifecycle, choose an eligible row, click Dry Run, then Send Test only after the dry-run matches the expected rule.

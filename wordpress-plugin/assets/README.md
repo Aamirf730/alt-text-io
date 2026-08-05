@@ -7,8 +7,11 @@ Files included:
 
 - `banner-772x250.png`
 - `banner-1544x500.png`
+- `icon-128x128.png`
 - `icon-256x256.png`
 - `screenshot-1.png` through `screenshot-6.png`
+
+The listing icons use the actual Alt Text Pro circular logo from `alt-text-pro/assets/images/logo-alt-text-pro.png` rather than the simplified text-only mark.
 
 Regenerate them with:
 

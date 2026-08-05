@@ -5,7 +5,9 @@ const { createClient } = require('@supabase/supabase-js');
 const { getEmailFrom } = require('./utils/email-config');
 const {
   buildLifecycleCandidates,
+  fetchAuthUsers,
   fetchRecentMarketingEvents,
+  filterCandidatesByAuthUsers,
   renderLifecycleEmail,
 } = require('./utils/lifecycle-automation');
 
@@ -211,8 +213,10 @@ exports.handler = async (event) => {
 
     const events = await fetchRecentMarketingEvents(supabase, { days });
     const candidates = buildLifecycleCandidates(events);
-    const existingSends = await getExistingSendSet(candidates);
-    const unsentCandidates = candidates
+    const authUsers = candidates.length > 0 ? await fetchAuthUsers(supabase) : [];
+    const verifiedCandidates = filterCandidatesByAuthUsers(candidates, authUsers);
+    const existingSends = await getExistingSendSet(verifiedCandidates);
+    const unsentCandidates = verifiedCandidates
       .filter(candidate => !existingSends.has(`${candidate.automation_key}:${candidate.actor_key}`))
       .slice(0, maxPerRun);
 
@@ -225,6 +229,8 @@ exports.handler = async (event) => {
           dry_run: true,
           mode: auth.mode,
           candidates: candidates.length,
+          verified_candidates: verifiedCandidates.length,
+          rejected_recipients: candidates.length - verifiedCandidates.length,
           unsent: unsentCandidates.length,
           preview: includePreview
             ? unsentCandidates.map(candidate => ({
@@ -241,6 +247,7 @@ exports.handler = async (event) => {
     const results = {
       sent: 0,
       skipped: candidates.length - unsentCandidates.length,
+      rejected_recipients: candidates.length - verifiedCandidates.length,
       failed: 0,
     };
 
@@ -270,6 +277,7 @@ exports.handler = async (event) => {
     console.log('lifecycle-automation completed', {
       mode: auth.mode,
       candidates: candidates.length,
+      verified_candidates: verifiedCandidates.length,
       ...results,
     });
 
@@ -279,6 +287,7 @@ exports.handler = async (event) => {
         success: true,
         mode: auth.mode,
         candidates: candidates.length,
+        verified_candidates: verifiedCandidates.length,
         ...results,
       }),
     };

@@ -199,6 +199,7 @@ exports.handler = async (event, context) => {
         data: {
           credits_remaining: profile.credits_remaining || 0,
           bonus_credits_remaining: monthlyCreditState.bonus_credits_remaining,
+          purchased_credits_remaining: monthlyCreditState.purchased_credits_remaining,
           credits_used: creditsUsed,
           total_processed: creditsUsed,
           total_credits: totalCredits,
