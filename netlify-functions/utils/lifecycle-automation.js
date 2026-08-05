@@ -63,6 +63,18 @@ const LIFECYCLE_RULES = [
   },
 ];
 
+// When an account qualifies for multiple lifecycle messages, keep only the
+// message that best reflects its current state. This prevents contradictory
+// emails (for example, "generate your first image" and "credits are low")
+// from being sent to the same customer in one or consecutive scheduled runs.
+const LIFECYCLE_PRIORITY = [
+  'purchase_onboarding',
+  'credits_low_no_purchase',
+  'checkout_no_purchase',
+  'connect_no_first_image',
+  'signup_no_connect',
+];
+
 function getActorAliases(event) {
   const aliases = [];
   if (event.user_id) aliases.push(`user:${event.user_id}`);
@@ -166,6 +178,9 @@ function hasAnyEventAfter(actor, eventNames, occurredAt) {
 
 function buildLifecycleCandidates(events, options = {}) {
   const now = options.now ? new Date(options.now) : new Date();
+  const usageCountsByUserId = options.usageCountsByUserId instanceof Map
+    ? options.usageCountsByUserId
+    : new Map();
   const actors = buildLifecycleActors(events);
   const candidates = [];
 
@@ -179,6 +194,18 @@ function buildLifecycleCandidates(events, options = {}) {
       const triggerAt = new Date(triggerEvent.occurred_at || triggerEvent.created_at);
       const isMature = now.getTime() - triggerAt.getTime() >= rule.delayHours * 60 * 60 * 1000;
       if (!isMature) continue;
+
+      // The WordPress plugin records usage in user_usage_stats but does not
+      // emit the dashboard-only first_image_processed event. Keep scheduled
+      // onboarding consistent with the admin test-send path by suppressing
+      // this reminder once the user has generated any image.
+      if (
+        rule.key === 'connect_no_first_image'
+        && actor.user_id
+        && Number(usageCountsByUserId.get(String(actor.user_id)) || 0) > 0
+      ) {
+        continue;
+      }
 
       if (rule.missingAfterTrigger.length > 0 && hasAnyEventAfter(actor, rule.missingAfterTrigger, triggerAt)) {
         continue;
@@ -201,6 +228,33 @@ function buildLifecycleCandidates(events, options = {}) {
   }
 
   return candidates.sort((a, b) => new Date(a.trigger_occurred_at) - new Date(b.trigger_occurred_at));
+}
+
+function selectLifecycleCandidatePerActor(candidates) {
+  const priorityByAutomation = new Map(
+    LIFECYCLE_PRIORITY.map((automationKey, index) => [automationKey, index])
+  );
+  const selectedByActor = new Map();
+
+  for (const candidate of candidates) {
+    const actorKey = candidate.actor_key || candidate.user_id || candidate.user_email;
+    if (!actorKey) continue;
+
+    const current = selectedByActor.get(actorKey);
+    if (!current) {
+      selectedByActor.set(actorKey, candidate);
+      continue;
+    }
+
+    const candidatePriority = priorityByAutomation.get(candidate.automation_key) ?? Number.MAX_SAFE_INTEGER;
+    const currentPriority = priorityByAutomation.get(current.automation_key) ?? Number.MAX_SAFE_INTEGER;
+    if (candidatePriority < currentPriority) {
+      selectedByActor.set(actorKey, candidate);
+    }
+  }
+
+  return [...selectedByActor.values()]
+    .sort((a, b) => new Date(a.trigger_occurred_at) - new Date(b.trigger_occurred_at));
 }
 
 async function fetchAuthUsers(supabase, { perPage = 1000, maxPages = 100 } = {}) {
@@ -295,13 +349,43 @@ async function fetchRecentMarketingEvents(supabase, { days = 30, maxRows = 10000
   return events;
 }
 
+async function fetchLifecycleUsageCounts(supabase, { maxRows = 10000 } = {}) {
+  const pageSize = 1000;
+  const usageCountsByUserId = new Map();
+
+  for (let from = 0; from < maxRows; from += pageSize) {
+    const to = Math.min(from + pageSize - 1, maxRows - 1);
+    const { data, error } = await supabase
+      .from('user_usage_stats')
+      .select('user_id,total_usage_count')
+      .order('user_id', { ascending: true })
+      .range(from, to);
+
+    if (error) {
+      throw new Error(`Failed to fetch lifecycle usage counts: ${error.message}`);
+    }
+
+    for (const row of data || []) {
+      if (row?.user_id) {
+        usageCountsByUserId.set(String(row.user_id), Number(row.total_usage_count || 0));
+      }
+    }
+
+    if (!data || data.length < pageSize) break;
+  }
+
+  return usageCountsByUserId;
+}
+
 module.exports = {
   LIFECYCLE_RULES,
   buildLifecycleActors,
   buildLifecycleCandidates,
   fetchAuthUsers,
+  fetchLifecycleUsageCounts,
   fetchRecentMarketingEvents,
   filterCandidatesByAuthUsers,
   isTrustedTriggerEvent,
   renderLifecycleEmail,
+  selectLifecycleCandidatePerActor,
 };

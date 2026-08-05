@@ -3,7 +3,9 @@ import { describe, expect, it, vi } from 'vitest';
 const {
   buildLifecycleCandidates,
   fetchAuthUsers,
+  fetchLifecycleUsageCounts,
   filterCandidatesByAuthUsers,
+  selectLifecycleCandidatePerActor,
 } = require('./lifecycle-automation.js');
 
 describe('lifecycle automation candidate selection', () => {
@@ -149,6 +151,66 @@ describe('lifecycle automation candidate selection', () => {
     expect(candidates.some(candidate => candidate.automation_key === 'connect_no_first_image')).toBe(true);
   });
 
+  it('does not remind a connected WordPress user who already has plugin usage', () => {
+    const candidates = buildLifecycleCandidates([
+      {
+        id: 'connect-used',
+        event_name: 'connect_completed',
+        user_id: 'user-used',
+        user_email: 'used@example.com',
+        source: 'wordpress_plugin_auth',
+        occurred_at: '2026-06-25T00:00:00.000Z',
+      },
+    ], {
+      now: '2026-06-25T08:00:00.000Z',
+      usageCountsByUserId: new Map([['user-used', 3]]),
+    });
+
+    expect(candidates.some(candidate => candidate.automation_key === 'connect_no_first_image')).toBe(false);
+  });
+
+  it('keeps only the highest-priority lifecycle message for each account', () => {
+    const selected = selectLifecycleCandidatePerActor([
+      {
+        automation_key: 'connect_no_first_image',
+        actor_key: 'user:user-overlap',
+        trigger_occurred_at: '2026-06-25T00:00:00.000Z',
+      },
+      {
+        automation_key: 'credits_low_no_purchase',
+        actor_key: 'user:user-overlap',
+        trigger_occurred_at: '2026-06-25T02:00:00.000Z',
+      },
+      {
+        automation_key: 'signup_no_connect',
+        actor_key: 'user:user-other',
+        trigger_occurred_at: '2026-06-25T01:00:00.000Z',
+      },
+    ]);
+
+    expect(selected).toHaveLength(2);
+    expect(selected.find(candidate => candidate.actor_key === 'user:user-overlap')?.automation_key)
+      .toBe('credits_low_no_purchase');
+  });
+
+  it('prioritizes purchase onboarding over earlier setup reminders', () => {
+    const selected = selectLifecycleCandidatePerActor([
+      {
+        automation_key: 'connect_no_first_image',
+        actor_key: 'user:buyer',
+        trigger_occurred_at: '2026-06-25T00:00:00.000Z',
+      },
+      {
+        automation_key: 'purchase_onboarding',
+        actor_key: 'user:buyer',
+        trigger_occurred_at: '2026-06-25T03:00:00.000Z',
+      },
+    ]);
+
+    expect(selected).toHaveLength(1);
+    expect(selected[0].automation_key).toBe('purchase_onboarding');
+  });
+
   it('does not create lifecycle candidates from unverified public trigger events', () => {
     const candidates = buildLifecycleCandidates([
       {
@@ -263,5 +325,24 @@ describe('lifecycle automation candidate selection', () => {
 
     expect(users).toHaveLength(2);
     expect(listUsers).toHaveBeenNthCalledWith(2, { page: 2, perPage: 2 });
+  });
+
+  it('loads lifecycle usage counts across pages', async () => {
+    const range = vi.fn(async (from, to) => ({
+      data: from === 0
+        ? [{ user_id: 'user-1', total_usage_count: 4 }]
+        : [],
+      error: null,
+    }));
+    const order = vi.fn(() => ({ range }));
+    const usageCounts = await fetchLifecycleUsageCounts({
+      from: () => ({
+        select: () => ({ order }),
+      }),
+    });
+
+    expect(usageCounts).toEqual(new Map([['user-1', 4]]));
+    expect(order).toHaveBeenCalledWith('user_id', { ascending: true });
+    expect(range).toHaveBeenCalledWith(0, 999);
   });
 });
