@@ -6,8 +6,9 @@
 - Netlify: production deploy `6a730485df0401d83198e2dd` is live at `https://www.alt-text.pro`; the production build passed TypeScript/lint/build checks and packaged 17 functions. The public health endpoint is healthy and the 1.7.12 plugin ZIP is available.
 - Supabase: migration `20260805094230_fix_purchased_credit_pack_ledger` applied to project `qurbdtzrngzfzevgoolp`. The archive contains 2 losing payment rows; remaining duplicate payment rows and Polar/signup event groups are 0; paid-ledger column, grant/use/renew RPCs, indexes, and the non-negative constraint are present; no completed pack payments or grants were found.
 - Polar reconciliation: the production API returned 13 orders, all subscription products; the one-time order query returned 0. There were therefore no unmatched one-time credit-pack orders and no manual credit remediation was performed.
-- WordPress.org: trunk revision `3635163` and tag `1.7.12` revision `3635165` were committed. Remote tag metadata confirms the public name `Alt Text Pro` and version `1.7.12`. The directory API still reported cached 1.7.10 metadata at verification time; propagation is pending.
+- WordPress.org: trunk revision `3635163` and tag `1.7.12` revision `3635165` were committed. Remote tag metadata and the directory API now confirm the public name `Alt Text Pro` and version `1.7.12`; the official 1.7.12 download URL returns HTTP 200.
 - Smoke checks: `/api/health` returned 200/healthy, `/api/track-event` rejected an unauthenticated lifecycle event with 401, the Polar webhook rejected an unsigned request with 403, and the plugin download returned HTTP 200 with the verified build hash.
+- Final local verification: Netlify tests passed 16 files/141 tests and frontend tests passed 4 files/22 tests using the package Vitest/jsdom configuration.
 - Release limitation: no Supabase staging branch or separate database snapshot artifact was available through the configured tooling. Production preflight counts and the archive-first migration safeguard were recorded. R2/T2 first post-deploy lifecycle dry-run counts remain an operational follow-up.
 
 ## 2026-08-05: Authorized all-fixes release preflight started
