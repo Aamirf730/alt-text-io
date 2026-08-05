@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-const { _private } = require('./track-event.js');
+const { _private } = require('../netlify-functions/track-event.js');
 
 function request(body, headers = {}) {
   return {
