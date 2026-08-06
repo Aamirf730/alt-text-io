@@ -1,13 +1,14 @@
 # Progress
 
-## 2026-08-06: 1.7.14 checkbox-setting clobber fixed locally
+## 2026-08-06: WordPress plugin 1.7.14 published
 
 - Baseline correction: the released 1.7.12 reference is `origin/main`/the distribution artifact; it contains no `enc:` sanitizer branch. The dirty working tree's newer branch was not used as the released baseline.
 - Finding: `sanitize_settings()` ran during partial POST connection saves and unconditionally assigned all four checkbox fields from the payload. The absent `context_enabled` field visibly disabled context-aware generation on fresh installs; the other three fields were only safe because their current defaults are false.
 - Fix: all four checkbox fields now change only when explicitly present in the sanitizer input; otherwise their current/default values are preserved. The three form-backed checkboxes now include hidden `value="0"` companions so a real unchecked settings submission remains explicit, while partial connection saves still omit them. The existing 1.7.13 encrypted-key fix remains in the same 1.7.14 source.
 - Release decision: keep version `1.7.14` intentionally; its package includes the validated encrypted-key persistence fix, the connection-modal UI work, and this context-preservation fix.
-- Verification: the POST-style API-key persistence regression covers explicit unchecked form values, hidden template inputs, fresh defaults, and preservation of enabled existing checkboxes; all plugin PHP files pass syntax checks; admin JavaScript passes syntax checks; and the source plus all three distribution ZIPs contain the guards, pass `unzip -t`, and match SHA-256 `28490170b60c9765f36a8a59764ffc8cbdd30d6d9b2e0ee3f72d26c7a737db25`. Nothing was published or deployed.
+- Verification: the POST-style API-key persistence regression covers explicit unchecked form values, hidden template inputs, fresh defaults, and preservation of enabled existing checkboxes; all plugin PHP files pass syntax checks; admin JavaScript passes syntax checks; and the source plus all three distribution ZIPs contain the guards, pass `unzip -t`, and match SHA-256 `28490170b60c9765f36a8a59764ffc8cbdd30d6d9b2e0ee3f72d26c7a737db25`.
 - Manual QA: the local WordPress 7.0.2 settings page was temporarily linked to this worktree after clearing the PHP cache. Each form-backed checkbox was checked and saved, then unchecked and saved; every state persisted through the real `options.php` round-trip. The final local state was restored, `context_enabled` remained true, the original plugin link was restored, the temporary administrator was removed, and the local server was restarted.
+- Release: commit `5ffee10` contains the focused plugin 1.7.14 package and release metadata. WordPress.org trunk revision `3636397` and tag revision `3636399` are live. Netlify production deploy `6a745aa7b7442d42f0e7231f` published the reviewed versioned, stable, and legacy download URLs; all three returned HTTP 200, matched the same SHA-256, and the production health endpoint returned healthy. The unrelated `/connect` changes and unreleased SaaS H1/H2/H3 changes were not included.
 
 ## 2026-08-06: H1 payment identity binding and reconciliation queue fixed locally
 

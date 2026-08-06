@@ -3,18 +3,18 @@
 **Last updated:** 2026-08-06
 **Status:** RELEASED — the approved C1/C2/C3 fix set is live; production evidence and follow-up observations are recorded below.
 
-## Newly queued high-priority fixes — local only
+## Newly queued high-priority fixes — SaaS release remains local
 
-The following fixes are complete locally but intentionally remain unreleased until the user explicitly resumes the release step:
+The H1/H2/H3 SaaS fixes below are complete locally but intentionally remain unreleased until the user explicitly resumes the release step. The independent WordPress plugin 1.7.14 release is recorded as live in the plugin rows and release log.
 
 | Item | Change | Target | Current state | Dependency |
 | --- | --- | --- | --- | --- |
 | H1 | Bind Polar checkouts and webhook events to the authenticated `user_id`, normalize the email fallback, paginate Auth lookup, and retain unmatched payments/subscriptions/refunds in a service-role-only reconciliation queue. | Next.js checkout/webhook, Supabase migration `20260806051721_payment_reconciliation_h1.sql` | Fixed locally; not deployed | Apply the H1 and H2/H3 migrations before the matching app/webhook deploy; review the first queued-event alert and resolution flow. |
 | H3 | Treat `subscription.canceled` as non-renewal, preserve annual drip metadata through the paid period, and downgrade only on `subscription.revoked`. | Supabase migration and Next.js Polar webhook | Fixed locally; not deployed | Apply `20260805202418_fix_subscription_lifecycle_refunds.sql` before the matching webhook. |
 | H2 | Add subscription revocation/uncancellation, order-refund, refund-created, and refund-updated handling with idempotent benefit/credit revocation, plus an audited RPC that writes promotional grants to both credit ledgers. | Supabase migration and Next.js Polar webhook | Fixed locally; not deployed | Reconcile existing cancelled paid profiles and verify Polar refund state after migration. |
-| API-key persistence | Preserve validated encrypted keys through the WordPress settings sanitizer. | WordPress plugin 1.7.14 and website ZIPs | Fixed and packaged locally; not released | Publish the exact 1.7.14 package and repeat save/read-back on an updated WordPress site. |
-| Checkbox setting preservation | Preserve all four checkbox settings during partial connection saves, while hidden form values keep unchecked settings disableable. | WordPress plugin 1.7.14 and website ZIPs | Fixed, packaged, and manually verified locally; not released | Publish the rebuilt 1.7.14 package and verify context-aware generation on a fresh install. |
-| Connection UX | Fix raw automatic-connect fallback styling, mask recovery keys, center the connect logo, and replace stale purple actions with Alt Text Pro teal. | Next.js `/connect` and WordPress onboarding modal | Fixed locally; not deployed | Deploy website and publish plugin 1.7.14, then repeat automatic and manual connection. |
+| API-key persistence | Preserve validated encrypted keys through the WordPress settings sanitizer. | WordPress plugin 1.7.14 and website ZIPs | Released and live | WordPress.org trunk/tag `3636397`/`3636399`; live archives verified at SHA-256 `28490170b60c9765f36a8a59764ffc8cbdd30d6d9b2e0ee3f72d26c7a737db25`. |
+| Checkbox setting preservation | Preserve all four checkbox settings during partial connection saves, while hidden form values keep unchecked settings disableable. | WordPress plugin 1.7.14 and website ZIPs | Released and live | Real local `options.php` round-trips passed; WordPress.org and site downloads are live and verified. |
+| Connection UX | Fix raw automatic-connect fallback styling, mask recovery keys, center the connect logo, and replace stale purple actions with Alt Text Pro teal. | Next.js `/connect` and WordPress onboarding modal | `/connect` fixed locally; plugin modal released in 1.7.14 | Deploy the separate website `/connect` changes, then repeat automatic and manual connection on the released plugin. |
 
 ### H2/H3 pre-deploy data decisions
 
@@ -52,7 +52,7 @@ This file is the release queue for the current round of SaaS and plugin fixes. A
 | T1 | Make per-user `signup_created` deduplication atomic so concurrent authenticated submissions cannot double-count the funnel. | Supabase `marketing_events` and Netlify `track-event` | Released to production | Signup dedup pass and partial unique index applied; endpoint handles `23505` as a duplicate no-op. |
 | T2 | Record the expected temporary funnel-count transition caused by historical Google-OAuth signups and legacy rows lacking verified provenance. | Lifecycle automation operations and funnel reporting | Expected transition documented | Segment `signup_method=authenticated_connect_visit`, record the first dry-run's legacy rejections and candidate counts, and do not compare that baseline to pre-fix totals without this context. |
 | U1 | Remove any signup duplicates that arrive between preflight and migration execution so the full migration cannot abort at the new index. | Supabase migration `20260805094230_fix_purchased_credit_pack_ledger.sql` | Released to production | Ranked delete ran immediately before index creation; duplicate signup count was 0. |
-| Plugin candidate | Package the current local plugin changes with aligned metadata. Current local candidate is `1.7.12`; re-check the published version and increment by `0.0.1` if any further plugin change is made before release. | WordPress test site, WordPress.org, and website download ZIPs | Released as 1.7.12 | SVN trunk revision `3635163`; tag revision `3635165`; website ZIP returns HTTP 200. |
+| Plugin candidate | Package the current local plugin changes with aligned metadata. | WordPress test site, WordPress.org, and website download ZIPs | Released as 1.7.14 | Commit `5ffee10`; SVN trunk revision `3636397`; tag `1.7.14` revision `3636399`; Netlify deploy `6a745aa7b7442d42f0e7231f`; all three website ZIP URLs return HTTP 200. |
 
 ## How to add future issues
 
@@ -75,7 +75,7 @@ An issue is not release-ready merely because its code is fixed locally; its migr
 5. Complete the production backup/preflight required by the project release procedure. The configured tooling did not expose a separate database snapshot artifact; the preflight counts and archive-first migration were recorded.
 6. Apply `20260805094230_fix_purchased_credit_pack_ledger.sql` to production **before** deploying the matching Netlify webhook. The old webhook does not call the new RPC, so migration-first is safe; the new webhook must never go first.
 7. Immediately deploy the matching application/webhook release. Netlify deploy `6a730485df0401d83198e2dd` is live on `www.alt-text.pro`.
-8. Release the tested WordPress plugin package through the approved channel. Keep the plugin version metadata aligned across the PHP header, `ALT_TEXT_PRO_VERSION`, `readme.txt` stable tag/changelog, generated ZIPs, and frontend download metadata. Completed as 1.7.12.
+8. Release the tested WordPress plugin package through the approved channel. Keep the plugin version metadata aligned across the PHP header, `ALT_TEXT_PRO_VERSION`, `readme.txt` stable tag/changelog, generated ZIPs, and frontend download metadata. Completed as 1.7.14; the SaaS H1/H2/H3 release remains separate and unreleased.
 9. Verify production after release and record the evidence below. All available production gates passed; post-deploy lifecycle dry-run counts remain an operational follow-up for R2/T2.
 
 ## Production verification gates
@@ -177,6 +177,7 @@ An issue is not release-ready merely because its code is fixed locally; its migr
 | 2026-08-05 | WordPress.org | Plugin 1.7.12 release | SVN trunk committed at revision `3635163`; tag `1.7.12` committed at revision `3635165`. Remote tag metadata and the directory API confirm `Alt Text Pro`, version `1.7.12`, `ALT_TEXT_PRO_VERSION` `1.7.12`, stable tag `1.7.12`, and the official download URL. | Passed; official download returned HTTP 200 |
 | 2026-08-05 | Production | Post-release smoke verification | Health endpoint returned 200/healthy, plugin ZIP returned HTTP 200 with the verified build hash, unauthenticated lifecycle event returned 401, and unsigned Polar webhook returned 403. | Passed |
 | 2026-08-05 | Local | Final release verification | Netlify function tests: 16 files/141 tests passed. Frontend tests: 4 files/22 tests passed with the package Vitest/jsdom configuration. | Passed |
+| 2026-08-06 | WordPress.org + Production | WordPress plugin 1.7.14 release | Focused commit `5ffee10` was published to WordPress.org trunk revision `3636397` and tag revision `3636399`; Netlify deploy `6a745aa7b7442d42f0e7231f` published the versioned, stable, and legacy download URLs. All three live archives returned HTTP 200, passed `unzip -t`, reported version `1.7.14`, and matched SHA-256 `28490170b60c9765f36a8a59764ffc8cbdd30d6d9b2e0ee3f72d26c7a737db25`. | Passed |
 
 ## Change log
 
@@ -192,3 +193,4 @@ An issue is not release-ready merely because its code is fixed locally; its migr
 - 2026-08-05: added T1/T2 to the queue. Signup-event deduplication is now race-safe locally through a partial unique index and `23505` handling; the expected temporary funnel-count transition from historical Google-OAuth gaps, cross-device connect revisits, and legacy-row rejection is documented. Production remains unchanged.
 - 2026-08-05: added U1 to the queue. The pending migration now removes duplicate per-user signup events deterministically before creating the unique index, eliminating the preflight-to-apply timing dependency. Production remains unchanged.
 - 2026-08-05: completed the approved release. Netlify deploy `6a730485df0401d83198e2dd` is live, Supabase migration `20260805094230_fix_purchased_credit_pack_ledger` applied successfully with archive-first cleanup, Polar reconciliation found no one-time orders, and WordPress.org trunk/tag 1.7.12 were committed at revisions `3635163`/`3635165`.
+- 2026-08-06: published WordPress plugin 1.7.14 independently of the unreleased SaaS H1/H2/H3 changes. The reviewed package is in commit `5ffee10`, WordPress.org trunk/tag revisions are `3636397`/`3636399`, and Netlify deploy `6a745aa7b7442d42f0e7231f` serves all three verified download URLs.
