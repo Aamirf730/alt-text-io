@@ -19,6 +19,8 @@ const mocks = vi.hoisted(() => {
         events: Array<Record<string, unknown>>;
         paymentUpdates: Array<Record<string, unknown>>;
         rpcCalls: Array<{ name: string; args: Record<string, unknown> }>;
+        operations: string[];
+        duplicatePaymentIds: Set<string>;
         reconciliations: Array<Record<string, unknown>>;
         authUsers: Array<{ id: string; email: string | null }>;
         authPageMode: "state" | "always_full";
@@ -28,6 +30,8 @@ const mocks = vi.hoisted(() => {
         events: [],
         paymentUpdates: [],
         rpcCalls: [],
+        operations: [],
+        duplicatePaymentIds: new Set(),
         reconciliations: [],
         authUsers: [],
         authPageMode: "state",
@@ -40,6 +44,13 @@ const mocks = vi.hoisted(() => {
         const caseInsensitiveFilters = new Set<string>();
 
         const execute = () => {
+            if (operation === "insert" && table === "payments") {
+                state.operations.push("payments.insert");
+                if (state.duplicatePaymentIds.has(String(values.payment_id))) {
+                    return { data: null, error: { code: "23505", message: "duplicate payment" } };
+                }
+            }
+
             if (operation === "select") {
                 const rows = state.profiles.filter((profile) =>
                     filters.every(([field, value]) => {
@@ -96,6 +107,7 @@ const mocks = vi.hoisted(() => {
     const client = {
         from: vi.fn((table: string) => createQuery(table)),
         rpc: vi.fn(async (name: string, args: Record<string, unknown>) => {
+            state.operations.push(`rpc:${name}`);
             state.rpcCalls.push({ name, args });
             return { data: { success: true }, error: null };
         }),
@@ -185,6 +197,17 @@ const paidSubscriptionOrder = (overrides: Record<string, unknown> = {}) => ({
     ...overrides,
 });
 
+const paidPackOrder = (overrides: Record<string, unknown> = {}) => ({
+    id: "order_pack_1",
+    subscriptionId: null,
+    totalAmount: 1000,
+    currency: "usd",
+    customer: { id: "cus_1", email: "customer@example.com" },
+    product: { id: "prod_credit_pack", name: "Credit Pack", metadata: {} },
+    metadata: {},
+    ...overrides,
+});
+
 describe("Polar subscription lifecycle handlers", () => {
     beforeEach(() => {
         mocks.state.profiles = [profile()];
@@ -192,6 +215,8 @@ describe("Polar subscription lifecycle handlers", () => {
         mocks.state.events = [];
         mocks.state.paymentUpdates = [];
         mocks.state.rpcCalls = [];
+        mocks.state.operations = [];
+        mocks.state.duplicatePaymentIds = new Set();
         mocks.state.reconciliations = [];
         mocks.state.authUsers = [];
         mocks.state.authPageMode = "state";
@@ -267,6 +292,47 @@ describe("Polar subscription lifecycle handlers", () => {
         expect(mocks.state.paymentUpdates).toHaveLength(0);
     });
 
+    it("records a one-time payment before granting its credits", async () => {
+        await polarWebhookHandlers.onOrderPaid?.({
+            data: paidPackOrder(),
+        } as never);
+
+        expect(mocks.state.operations.slice(0, 2)).toEqual([
+            "payments.insert",
+            "rpc:grant_credit_pack_purchase",
+        ]);
+        expect(mocks.state.paymentUpdates[0]).toMatchObject({
+            payment_id: "polar_ord_order_pack_1",
+        });
+        expect(mocks.state.rpcCalls).toContainEqual({
+            name: "grant_credit_pack_purchase",
+            args: {
+                p_user_id: "user_1",
+                p_payment_id: "polar_ord_order_pack_1",
+                p_credits: 250,
+            },
+        });
+    });
+
+    it("retries idempotent fulfillment after a payment insert is already recorded", async () => {
+        mocks.state.duplicatePaymentIds.add("polar_ord_order_pack_1");
+
+        await polarWebhookHandlers.onOrderPaid?.({
+            data: paidPackOrder(),
+        } as never);
+
+        expect(mocks.state.operations.slice(0, 2)).toEqual([
+            "payments.insert",
+            "rpc:grant_credit_pack_purchase",
+        ]);
+        expect(mocks.state.rpcCalls).toContainEqual({
+            name: "grant_credit_pack_purchase",
+            args: expect.objectContaining({
+                p_payment_id: "polar_ord_order_pack_1",
+            }),
+        });
+    });
+
     it("registers refund and revocation callbacks supported by the Polar adapter", () => {
         expect(polarWebhookHandlers.onSubscriptionRevoked).toEqual(expect.any(Function));
         expect(polarWebhookHandlers.onSubscriptionUncanceled).toEqual(expect.any(Function));
@@ -300,6 +366,17 @@ describe("Polar subscription lifecycle handlers", () => {
         expect(migration).toContain("insert into public.audit_logs");
         expect(migration).toContain("'promotional_credit'");
         expect(migration).toContain("grant execute on function public.grant_promotional_credits(uuid, integer, text)");
+    });
+
+    it("defines payment and credit-pack idempotency keys", () => {
+        const migrationPath = path.resolve(
+            process.cwd(),
+            "../supabase/migrations/20260805094230_fix_purchased_credit_pack_ledger.sql",
+        );
+        const migration = fs.readFileSync(migrationPath, "utf8");
+
+        expect(migration).toContain("create unique index if not exists payments_payment_id_uidx");
+        expect(migration).toContain("on conflict (payment_id) do nothing");
     });
 
     it("defines a service-role-only reconciliation queue for unmatched provider events", () => {

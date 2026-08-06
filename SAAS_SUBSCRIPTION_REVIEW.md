@@ -151,9 +151,9 @@ Available and unimplemented: `onSubscriptionRevoked`, `onOrderRefunded`, `onRefu
 
 ### H5 — No webhook idempotency for one-time purchases
 
-No event-ID dedup anywhere, and `payments.payment_id` carries no unique constraint (`supabase-migration/create-payments-table.sql`). A Polar retry on `order.paid` re-runs `updateUserCredits(..., false)` and grants the pack again. (Subscription renewals are accidentally protected by the `credits_last_renewed_at` comparison — that's luck, not design.)
+The original retry path had no unique payment key, so a Polar retry of `order.paid` could re-run `updateUserCredits(..., false)` and grant a pack again. (Subscription renewals were accidentally protected by the `credits_last_renewed_at` comparison — that was luck, not design.)
 
-**Fix:** unique index on `payments.payment_id`, insert-first-then-grant, and treat `23505` as "already processed".
+**✅ FIXED in production through C2 2026-08-05; local ordering hardening 2026-08-06 is not deployed.** The migration archives historical duplicates, creates `payments_payment_id_uidx`, and makes `credit_pack_grants.payment_id` idempotent with `on conflict (payment_id) do nothing`. Production confirms the payment index is present and no duplicate Polar payment IDs remain. The local webhook now inserts the payment first, treats `23505` as already recorded, and still runs the idempotent grant so a retry can recover from an interruption between insertion and fulfillment. Focused H5 coverage passes; release of this local ordering change is intentionally pending approval.
 
 ### H6 — Plan-name matching collides with your own brand name
 

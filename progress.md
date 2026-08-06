@@ -8,6 +8,13 @@
 - Released through the Git-backed `main` build as commit `7e038cdd` / Netlify deploy `6a747c918021c80008f634ec`. Production health reports `environment=production`, `branch=main`, and Node `v20.20.2`; homepage, `/admin`, logo, checkout auth, Polar signature protection, and analytics guards all passed smoke checks.
 - The final read-only payment query remains 6 order rows totaling `$0`, 4 renewal rows totaling `$69`, 10 subscription payment rows totaling `$69`. No historical revenue amount correction was necessary, and no financial rows were deleted.
 
+## 2026-08-06: H5 webhook idempotency re-verified; local ordering hardening not deployed
+
+- Production read-only verification confirms `payments_payment_id_uidx` is live on `public.payments`, `payment_id` is non-null, `credit_pack_grants.payment_id` is the primary key, and the live Polar payment data has no duplicate `payment_id` groups. The original H5 migration/ledger fix is therefore already deployed through the C2 release.
+- The local one-time `order.paid` path is now hardened to insert the payment first, then call the idempotent `grant_credit_pack_purchase` RPC. A `23505` payment insert is treated as already recorded, while the grant still runs so a retry can recover from an interruption after payment insertion but before credit fulfillment.
+- Added regression coverage for payment-before-grant ordering, duplicate-payment retry recovery, and the migration's payment/grant idempotency keys. Focused webhook tests pass 20/20; the full frontend suite passes 7 files/48 tests; TypeScript and the local production build pass.
+- No Supabase write, migration application, push to `main`, or Netlify deployment was performed for this local hardening. It remains pending explicit release approval.
+
 ## 2026-08-06: Netlify function test coverage restored
 
 - Installed the ignored `netlify-functions` dependencies in this worktree, including `@supabase/supabase-js` and Vitest; no tracked dependency files changed.
