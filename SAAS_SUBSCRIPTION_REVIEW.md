@@ -286,7 +286,7 @@ Whether this is live depends on the exact Polar product names and whether each p
 - **M3 — AI spend precedes metering.** `netlify-functions/generate-alt-text.js:939-1020` generates first, deducts after. A failed deduction returns 500 with the Gemini cost already incurred, and concurrent bulk requests can all pass the pre-check and over-generate (credits never go negative — `use_credit` is safe — but you pay for the excess).
 - **M4 — Rate limiting is IP-only, shared across endpoints, with no per-key quota.** A WordPress site doing bulk work is one IP against a 60/min budget shared with every other endpoint; conversely a stolen API key is unthrottled across many IPs.
 - **M5 — Weak fallback API-key generation.** `netlify-functions/get-api-key.js:99` builds a key from the user's UUID prefix + `Date.now()` + `Math.random()`. The primary RPC path uses `gen_random_bytes(32)` correctly; this fallback is guessable. Keys are also stored in plaintext (hashing them would be the standard hardening).
-- **M6 — The migration history is not bootstrappable.** `supabase/migrations/` contains 7 files that all assume pre-existing tables; the real schema lives in ad-hoc `supabase-migration/*.sql` applied by hand in unclear order. The database cannot be rebuilt from the repo — a material disaster-recovery gap. Related: `supabase/migrations/20260728125159_add_wpgeared_customer_offer_claim.sql:609` renames the `renew_monthly_credits` OUT column (`user_ids` → `renewed_user_ids`) via `CREATE OR REPLACE`, which Postgres rejects without a prior `DROP FUNCTION` — so this file is not replayable on any environment where the older function exists.
+- **M6 — The migration history is not bootstrappable.** ✅ FIXED & VERIFIED 2026-08-07. Canonical bootstrap migration `20260625140000_bootstrap_schema.sql` captures the foundational tables, `audit_logs`, marketing tables, the usage view, functions, RLS, grants and renewal cron jobs; the `renew_monthly_credits` OUT-column rename is made replay-safe, with a forward repair migration for environments that already ran the old signature. **Verified by execution:** `supabase db reset --local --no-seed` replayed all 17 migrations from empty, confirming the bootstrap tables, renewal function signature, partial-refund status and removal of `public.users`. Original finding: `supabase/migrations/` contains 7 files that all assume pre-existing tables; the real schema lives in ad-hoc `supabase-migration/*.sql` applied by hand in unclear order. The database cannot be rebuilt from the repo — a material disaster-recovery gap. Related: `supabase/migrations/20260728125159_add_wpgeared_customer_offer_claim.sql:609` renames the `renew_monthly_credits` OUT column (`user_ids` → `renewed_user_ids`) via `CREATE OR REPLACE`, which Postgres rejects without a prior `DROP FUNCTION` — so this file is not replayable on any environment where the older function exists.
 - **M7 — Shadowed variable in `get-usage`.** `netlify-functions/get-usage.js:56` vs `:65` declares `userId` twice; the API-key branch assigns the inner one, leaving the outer `null`. Currently harmless only because `authUser.id` is the same value at `:135`. It will bite whoever edits this next.
 - **M8 — Stale/legacy surface.** `public.users` table, PayPal-era `upgrade_subscription`/`cancel_subscription`, the localhost branch that queries Supabase directly instead of the API (`frontend-next/src/app/dashboard/page.tsx:114`), and a `netlify.toml` redirect to a non-existent `activate-subscription` function.
 
@@ -436,7 +436,7 @@ version and leave `commit_ref` null. Deploy from git.
 **Needs action:**
 
 1. ~~Apply the V1 partial-refund migration~~ — **done 2026-08-06** (`20260806192235`, verified in production).
-2. **Verify M6** — run `supabase db reset` on a Docker-capable machine. The bootstrap schema is hand-authored and has never executed.
+2. ~~Verify M6~~ — **done 2026-08-07**: `supabase db reset --local --no-seed` replayed all 17 migrations cleanly.
 3. **Reconcile migration history** — `supabase migration repair --status applied 20260625140000` so the bootstrap never runs against production.
 4. **Set `API_KEY_ENCRYPTION_SECRET`** in Netlify before M5's migration, so key encryption is not tied to the service-role key.
 5. **Release in three batches** (low-risk fixes / M5 / M3), migrations first, deploy from git — never CLI.
@@ -506,14 +506,14 @@ timestamp. Root cause was the absence of a safe path for "give this user N credi
 | H5 | High | No webhook idempotency for one-time orders | **Fixed 2026-08-05** (via C2) |
 | H6 | High | `"pro"` substring collision misclassifies packs as subscriptions | **Fixed 2026-08-06** (Polar catalog metadata; no deploy) |
 | H7 | High | `credit_pack` plan_id has no `subscription_plans` row (FK failure) | **Fixed 2026-08-05** (via O2) |
-| M1 | Medium | Admin rate limits ignored when Upstash is enabled | Open |
-| M2 | Medium | Rollover credits accumulate but can never be spent | Open |
-| M3 | Medium | AI generation billed before credit deduction | Open |
-| M4 | Medium | IP-only rate limiting, no per-key quota | Open |
-| M5 | Medium | Weak fallback API-key generation; keys stored plaintext | Open |
-| M6 | Medium | Migration chain not bootstrappable / not replayable | Open |
-| M7 | Medium | Shadowed `userId` in `get-usage.js` | Open |
-| M8 | Medium | Legacy PayPal-era tables, functions and routes | Open |
+| M1 | Medium | Admin rate limits ignored when Upstash is enabled | **Fixed locally 2026-08-06 (`46015e0`); awaiting release** |
+| M2 | Medium | Rollover credits accumulate but can never be spent | **Fixed locally 2026-08-06 (`8432108`); awaiting release** |
+| M3 | Medium | AI generation billed before credit deduction | **Fixed locally 2026-08-06 (`c7c8971`); awaiting release** |
+| M4 | Medium | IP-only rate limiting, no per-key quota | **Fixed locally 2026-08-06; awaiting release** |
+| M5 | Medium | Weak fallback API-key generation; keys stored plaintext | **Fixed locally 2026-08-06; awaiting release** |
+| M6 | Medium | Migration chain not bootstrappable / not replayable | **Fixed & verified 2026-08-07** |
+| M7 | Medium | Shadowed `userId` in `get-usage.js` | **Fixed locally 2026-08-06; awaiting release** |
+| M8 | Medium | Legacy PayPal-era tables, functions and routes | **Fixed locally 2026-08-07; awaiting release** |
 | N1 | Medium | No fallback when `window.opener` is severed (test Google OAuth path) | **Fixed 2026-08-05** |
 | N2 | Low-Med | Dropped `postMessage` on origin mismatch reported as success | **Fixed 2026-08-05** |
 | N3 | High | Ack requirement breaks all installed plugin versions ≤1.7.10 | **Fixed 2026-08-05** |
