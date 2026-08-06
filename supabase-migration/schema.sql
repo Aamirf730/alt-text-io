@@ -37,7 +37,7 @@ CREATE TABLE public.payments (
   plan_id TEXT REFERENCES public.subscription_plans(id),
   amount DECIMAL(10,2) NOT NULL,
   currency TEXT DEFAULT 'USD',
-  status TEXT NOT NULL CHECK (status IN ('pending', 'completed', 'failed', 'cancelled', 'refunded')),
+  status TEXT NOT NULL CHECK (status IN ('pending', 'completed', 'failed', 'cancelled', 'refunded', 'partially_refunded')),
   payment_method TEXT DEFAULT 'paypal',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()

@@ -26,13 +26,14 @@ The H1/H2/H3/H4 SaaS fixes and the complete website release are live. The releas
 - Revocation now grants `30 + bonus_credits_remaining + purchased_credits_remaining` immediately and sets the renewal timestamp, preventing a 30-day free-tier lockout.
 - Future promotional grants now have one service-role-only `grant_promotional_credits(user_id, credits, reason)` path that atomically updates `credits_remaining` and `bonus_credits_remaining` and records an audit entry; manual writes to only `credits_remaining` are no longer an accepted grant procedure.
 - Production schema verification confirms `audit_logs.actor_id` and `audit_logs.actor_email` are nullable, so the RPC's null system actor fields are valid and its audit insert will not fail for that reason.
-- Partial refunds intentionally mark payment status and record the event without clawing back credits; a future policy change would require a separate reviewed ledger rule.
+- Partial refunds are intended to mark payment status and record the event without clawing back credits; the currently missing `partially_refunded` status is tracked as a local migration follow-up below. A future clawback policy would require a separate reviewed ledger rule.
 
 ### Post-release carry-forwards
 
 - `audit_logs` is a pre-existing production table; the H2/H3 migration chain does not create or define it. Its nullable actor columns were verified in production, so this is not a release blocker, but it prevents the migration from being testable against a self-contained staging schema until the table's DDL is captured.
 - The real one-time pack-purchase path and the 30-day renewal branches have not yet executed in production. Treat the first post-release run of each as an observation gate.
 - H4 is released. Review the first unmatched reconciliation event, real credit-pack purchase, refund, and 30-day renewal execution as operational observation gates; the historical H4 payment rows required no amount correction.
+- The live partial-refund handler writes `partially_refunded`, but production `payments_status_check` does not yet allow it. Local migration `20260806125120_allow_partial_refund_payment_status.sql` and regression coverage are ready; apply only with explicit release approval.
 - The prior incomplete Netlify upload was corrected by requiring the full `netlify deploy --build` flow for this Next.js site; future manual deployments must not upload the raw `.next` directory without the framework build step.
 - The Git-backed code release is the production source of truth: the H4 release is committed as `7e038cdd`, and deploy `6a747c918021c80008f634ec` verified it on `main`. Build-generated metadata makes the health endpoint report `environment = production`, `version = 7e038cdd`, and `branch = main` even though `COMMIT_REF` is not present in the function runtime.
 

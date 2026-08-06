@@ -15,6 +15,12 @@
 - Added regression coverage for payment-before-grant ordering, duplicate-payment retry recovery, and the migration's payment/grant idempotency keys. Focused webhook tests pass 20/20; the full frontend suite passes 7 files/48 tests; TypeScript and the local production build pass.
 - No Supabase write, migration application, push to `main`, or Netlify deployment was performed for this local hardening. It remains pending explicit release approval.
 
+## 2026-08-06: Partial-refund status constraint fixed locally; not deployed
+
+- Production read-only verification found `payments_status_check` still allows only `pending`, `completed`, `failed`, `cancelled`, and `refunded`. The live `onOrderRefunded` path writes `partially_refunded`, so a partial refund currently fails before reconciliation, benefit handling, or event recording.
+- Added local migration `20260806125120_allow_partial_refund_payment_status.sql` to extend the check constraint, and aligned the two legacy schema definitions. The partial-refund handler test now verifies that the status is recorded without revoking the entire pack.
+- This work is separate from H5: the existing H5 fix remains the C2/P1 release; commit `41f6f90` is a P2 ordering reversal with retry coverage. The partial-refund constraint migration is local only and awaits explicit release approval.
+
 ## 2026-08-06: Netlify function test coverage restored
 
 - Installed the ignored `netlify-functions` dependencies in this worktree, including `@supabase/supabase-js` and Vitest; no tracked dependency files changed.

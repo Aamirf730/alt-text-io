@@ -558,4 +558,37 @@ describe("Polar subscription lifecycle handlers", () => {
             args: { p_payment_id: "polar_ord_order_pack_2" },
         });
     });
+
+    it("records a partial order refund without revoking the entire pack", async () => {
+        await polarWebhookHandlers.onOrderRefunded?.({
+            data: {
+                id: "order_pack_partial",
+                status: "partially_refunded",
+                totalAmount: 1000,
+                refundedAmount: 400,
+                subscriptionId: null,
+                customer: { id: "cus_1", email: "customer@example.com" },
+                product: { name: "Credit Pack", metadata: {} },
+                metadata: {},
+            },
+        } as never);
+
+        expect(mocks.state.paymentUpdates).toContainEqual({
+            status: "partially_refunded",
+            updated_at: expect.any(String),
+        });
+        expect(mocks.state.rpcCalls).toHaveLength(0);
+        expect(mocks.state.events[0]).toMatchObject({ event_name: "order_refunded" });
+    });
+
+    it("allows the partial-refund status in the payments constraint migration", () => {
+        const migrationPath = path.resolve(
+            process.cwd(),
+            "../supabase/migrations/20260806125120_allow_partial_refund_payment_status.sql",
+        );
+        const migration = fs.readFileSync(migrationPath, "utf8");
+
+        expect(migration).toContain("payments_status_check");
+        expect(migration).toContain("'partially_refunded'");
+    });
 });

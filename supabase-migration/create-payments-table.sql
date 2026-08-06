@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS public.payments (
   plan_id TEXT REFERENCES public.subscription_plans(id),
   amount DECIMAL(10,2) NOT NULL,
   currency TEXT DEFAULT 'USD',
-  status TEXT NOT NULL CHECK (status IN ('pending', 'completed', 'failed', 'cancelled', 'refunded')),
+  status TEXT NOT NULL CHECK (status IN ('pending', 'completed', 'failed', 'cancelled', 'refunded', 'partially_refunded')),
   payment_method TEXT DEFAULT 'paypal',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -24,4 +24,3 @@ CREATE POLICY "Users can view own payments" ON public.payments
 DROP POLICY IF EXISTS "Users can insert own payments" ON public.payments;
 CREATE POLICY "Users can insert own payments" ON public.payments
   FOR INSERT WITH CHECK (auth.uid() = user_id);
-
