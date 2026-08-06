@@ -633,7 +633,7 @@ describe("Polar subscription lifecycle handlers", () => {
     it("allows the partial-refund status in the payments constraint migration", () => {
         const migrationPath = path.resolve(
             process.cwd(),
-            "../supabase/migrations/20260806125120_allow_partial_refund_payment_status.sql",
+            "../supabase/migrations/20260806192235_allow_partial_refund_payment_status.sql",
         );
         const migration = fs.readFileSync(migrationPath, "utf8");
 

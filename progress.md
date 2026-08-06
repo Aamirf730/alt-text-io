@@ -90,8 +90,8 @@
 ## 2026-08-07: V1 partial-refund status constraint applied
 
 - Production read-only verification found `payments_status_check` still allows only `pending`, `completed`, `failed`, `cancelled`, and `refunded`. The live `onOrderRefunded` path writes `partially_refunded`, so a partial refund currently fails before reconciliation, benefit handling, or event recording.
-- Applied `20260806125120_allow_partial_refund_payment_status.sql` to production after confirming the existing constraint name and value list. The partial-refund handler test verifies that the status is recorded without revoking the entire pack.
-- Post-apply verification confirms `payments_status_check` now allows `partially_refunded`. The migration is recorded remotely as version `20260806192235` with name `allow_partial_refund_payment_status`; the repository file remains timestamped `20260806125120`, so this ledger mismatch must be reconciled before a future CLI sync.
+- Applied `20260806192235_allow_partial_refund_payment_status.sql` to production after confirming the existing constraint name and value list. The partial-refund handler test verifies that the status is recorded without revoking the entire pack.
+- Post-apply verification confirms `payments_status_check` now allows `partially_refunded`. The repository filename now matches the remote migration ledger version `20260806192235`, so the migration will not appear pending in a future CLI sync.
 - This work is separate from H5: the existing H5 fix remains the C2/P1 release; commit `41f6f90` is a P2 ordering reversal with retry coverage. No app deployment was required or performed.
 
 ## 2026-08-06: H4 order-amount concern reconciled
