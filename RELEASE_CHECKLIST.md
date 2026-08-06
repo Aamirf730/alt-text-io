@@ -3,18 +3,18 @@
 **Last updated:** 2026-08-06
 **Status:** RELEASED — the approved C1/C2/C3 fix set is live; production evidence and follow-up observations are recorded below.
 
-## Newly queued high-priority fixes — SaaS release remains local
+## H1/H2/H3 and complete website release — live
 
-The H1/H2/H3 SaaS fixes below are complete locally but intentionally remain unreleased until the user explicitly resumes the release step. The independent WordPress plugin 1.7.14 release is recorded as live in the plugin rows and release log.
+The H1/H2/H3 SaaS fixes and the complete website release are live. The release used a preview-first Netlify build to verify the Next static path mapping and public assets before production promotion.
 
 | Item | Change | Target | Current state | Dependency |
 | --- | --- | --- | --- | --- |
-| H1 | Bind Polar checkouts and webhook events to the authenticated `user_id`, normalize the email fallback, paginate Auth lookup, and retain unmatched payments/subscriptions/refunds in a service-role-only reconciliation queue. | Next.js checkout/webhook, Supabase migration `20260806051721_payment_reconciliation_h1.sql` | Fixed locally; not deployed | Apply the H1 and H2/H3 migrations before the matching app/webhook deploy; review the first queued-event alert and resolution flow. |
-| H3 | Treat `subscription.canceled` as non-renewal, preserve annual drip metadata through the paid period, and downgrade only on `subscription.revoked`. | Supabase migration and Next.js Polar webhook | Fixed locally; not deployed | Apply `20260805202418_fix_subscription_lifecycle_refunds.sql` before the matching webhook. |
-| H2 | Add subscription revocation/uncancellation, order-refund, refund-created, and refund-updated handling with idempotent benefit/credit revocation, plus an audited RPC that writes promotional grants to both credit ledgers. | Supabase migration and Next.js Polar webhook | Fixed locally; not deployed | Reconcile existing cancelled paid profiles and verify Polar refund state after migration. |
+| H1 | Bind Polar checkouts and webhook events to the authenticated `user_id`, normalize the email fallback, paginate Auth lookup, and retain unmatched payments/subscriptions/refunds in a service-role-only reconciliation queue. | Next.js checkout/webhook, Supabase migration `20260806051721_payment_reconciliation_h1.sql` | Released to production | Migration record `20260806102148`; Netlify deploy `6a74609c1d7d3562f69cd368`; first unmatched-event queue review remains an observation gate. |
+| H3 | Treat `subscription.canceled` as non-renewal, preserve annual drip metadata through the paid period, and downgrade only on `subscription.revoked`. | Supabase migration and Next.js Polar webhook | Released to production | Migration record `20260806102200`; annual preflight found 2 profiles with 0 missing end dates. |
+| H2 | Add subscription revocation/uncancellation, order-refund, refund-created, and refund-updated handling with idempotent benefit/credit revocation, plus an audited RPC that writes promotional grants to both credit ledgers. | Supabase migration and Next.js Polar webhook | Released to production | Migration record `20260806102200`; first real refund and credit-pack purchase remain observation gates. |
 | API-key persistence | Preserve validated encrypted keys through the WordPress settings sanitizer. | WordPress plugin 1.7.14 and website ZIPs | Released and live | WordPress.org trunk/tag `3636397`/`3636399`; live archives verified at SHA-256 `28490170b60c9765f36a8a59764ffc8cbdd30d6d9b2e0ee3f72d26c7a737db25`. |
 | Checkbox setting preservation | Preserve all four checkbox settings during partial connection saves, while hidden form values keep unchecked settings disableable. | WordPress plugin 1.7.14 and website ZIPs | Released and live | Real local `options.php` round-trips passed; WordPress.org and site downloads are live and verified. |
-| Connection UX | Fix raw automatic-connect fallback styling, mask recovery keys, center the connect logo, and replace stale purple actions with Alt Text Pro teal. | Next.js `/connect` and WordPress onboarding modal | `/connect` fixed locally; plugin modal released in 1.7.14 | Deploy the separate website `/connect` changes, then repeat automatic and manual connection on the released plugin. |
+| Connection UX | Fix raw automatic-connect fallback styling, mask recovery keys, center the connect logo, and replace stale purple actions with Alt Text Pro teal. | Next.js `/connect` and WordPress onboarding modal | Released to production | Included in commit `33c2e28`; preview and production asset/path smoke checks passed. |
 
 ### H2/H3 pre-deploy data decisions
 
@@ -31,7 +31,8 @@ The H1/H2/H3 SaaS fixes below are complete locally but intentionally remain unre
 
 - `audit_logs` is a pre-existing production table; the H2/H3 migration chain does not create or define it. Its nullable actor columns were verified in production, so this is not a release blocker, but it prevents the migration from being testable against a self-contained staging schema until the table's DDL is captured.
 - The real one-time pack-purchase path and the 30-day renewal branches have not yet executed in production. Treat the first post-release run of each as an observation gate.
-- H4 remains the post-release reporting/robustness item. H1 is fixed locally but remains a release gate because its reconciliation table must exist before the matching webhook is deployed.
+- H4 remains the post-release reporting/robustness item. H1/H2/H3 are released; review the first unmatched reconciliation event, real credit-pack purchase, refund, and 30-day renewal execution as operational observation gates.
+- The prior incomplete Netlify upload was corrected by requiring the full `netlify deploy --build` flow for this Next.js site; future manual deployments must not upload the raw `.next` directory without the framework build step.
 
 ## Purpose
 
@@ -178,6 +179,7 @@ An issue is not release-ready merely because its code is fixed locally; its migr
 | 2026-08-05 | Production | Post-release smoke verification | Health endpoint returned 200/healthy, plugin ZIP returned HTTP 200 with the verified build hash, unauthenticated lifecycle event returned 401, and unsigned Polar webhook returned 403. | Passed |
 | 2026-08-05 | Local | Final release verification | Netlify function tests: 16 files/141 tests passed. Frontend tests: 4 files/22 tests passed with the package Vitest/jsdom configuration. | Passed |
 | 2026-08-06 | WordPress.org + Production | WordPress plugin 1.7.14 release | Focused commit `5ffee10` was published to WordPress.org trunk revision `3636397` and tag revision `3636399`; the official versioned and stable WordPress.org download endpoints returned HTTP 200 and the versioned archive reported `1.7.14`. Netlify deploy `6a745aa7b7442d42f0e7231f` published the versioned, stable, and legacy download URLs. All three site archives returned HTTP 200, passed `unzip -t`, reported version `1.7.14`, and matched SHA-256 `28490170b60c9765f36a8a59764ffc8cbdd30d6d9b2e0ee3f72d26c7a737db25`. | Passed |
+| 2026-08-06 | Production | H1/H2/H3 migration and website release | Applied H1 migration record `20260806102148` and H2/H3 migration record `20260806102200`; production deploy `6a74609c1d7d3562f69cd368` followed the passing preview `6a745f8c0de5e40fa212eb01`. Public images, plugin download, all admin Next chunks, health, checkout auth, webhook signature guard, and admin auth guards passed post-release checks. | Passed; pack purchase/refund/renewal observation gates remain |
 
 ## Change log
 
@@ -194,3 +196,4 @@ An issue is not release-ready merely because its code is fixed locally; its migr
 - 2026-08-05: added U1 to the queue. The pending migration now removes duplicate per-user signup events deterministically before creating the unique index, eliminating the preflight-to-apply timing dependency. Production remains unchanged.
 - 2026-08-05: completed the approved release. Netlify deploy `6a730485df0401d83198e2dd` is live, Supabase migration `20260805094230_fix_purchased_credit_pack_ledger` applied successfully with archive-first cleanup, Polar reconciliation found no one-time orders, and WordPress.org trunk/tag 1.7.12 were committed at revisions `3635163`/`3635165`.
 - 2026-08-06: published WordPress plugin 1.7.14 independently of the unreleased SaaS H1/H2/H3 changes. The reviewed package is in commit `5ffee10`, WordPress.org trunk/tag revisions are `3636397`/`3636399`, and Netlify deploy `6a745aa7b7442d42f0e7231f` serves all three verified download URLs.
+- 2026-08-06: released H1/H2/H3 and the committed `/connect` updates after correcting the incomplete manual Netlify upload. The migration-first release applied records `20260806102148`/`20260806102200`, and Netlify deploy `6a74609c1d7d3562f69cd368` restored public images, `/_next/static` assets, and the admin route.

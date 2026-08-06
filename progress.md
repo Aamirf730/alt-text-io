@@ -1,5 +1,14 @@
 # Progress
 
+## 2026-08-06: H1/H2/H3 and complete website release deployed
+
+- Production incident: the plugin-only Netlify publish used a raw `.next` upload, which exposed Next static files at `/static` instead of `/_next/static` and omitted `frontend-next/public`. The result was 404s for every public image and the `/admin` page chunk, leaving the dashboard on "Loading admin dashboard...".
+- Fix: the complete release was built and deployed with `netlify deploy --build`, which restored the Next asset mapping and public assets. The preview `6a745f8c0de5e40fa212eb01` passed before promotion; production deploy `6a74609c1d7d3562f69cd368` is live at `https://www.alt-text.pro`.
+- Database release: H1 migration `payment_reconciliation_h1` and H2/H3 migration `fix_subscription_lifecycle_refunds` applied successfully after the read-only preflight. Production migration records are `20260806102148` and `20260806102200`; the reconciliation table, revocation RPCs, promotional-grant RPC, paid-drip guard, and `credit_pack_grants.revoked_at` are present.
+- Preflight: 2 annual paid profiles, 0 missing annual end dates, 0 stranded cancelled paid profiles, and 0 negative credit profiles.
+- Verification: the full frontend suite passes 7 files/43 tests; TypeScript passes; all checked public images, the versioned plugin ZIP, and every `/admin` Next chunk return HTTP 200; `/admin` no longer hangs when unauthenticated; health is healthy; checkout rejects missing auth with 401; the unsigned Polar webhook rejects with 403; and admin functions reject missing auth with 401.
+- Scope: the deployed app includes the committed `/connect` recovery/branding work and H1/H2/H3. The first real credit-pack purchase and the 30-day renewal branches remain post-release observation gates.
+
 ## 2026-08-06: WordPress plugin 1.7.14 published
 
 - Baseline correction: the released 1.7.12 reference is `origin/main`/the distribution artifact; it contains no `enc:` sanitizer branch. The dirty working tree's newer branch was not used as the released baseline.
