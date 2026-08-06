@@ -1,5 +1,14 @@
 # Progress
 
+## 2026-08-06: M1 Redis rate-limit policy fix completed locally
+
+- Confirmed the defect: `checkRateLimit(identifier, maxRequests, windowMs)` passed endpoint-specific limits through to the Redis branch but enforced one shared `slidingWindow(60, '60 s')` limiter. The response advertised 10 or 30 while production allowed up to 60 requests per minute.
+- Fixed the Redis implementation to cache a limiter per `(maxRequests, window)` policy. The existing default `alttext:ratelimit` namespace is preserved for 60/minute callers; non-default policies receive isolated keyspaces so stricter admin rules cannot share the weaker counter.
+- The existing endpoint policies remain unchanged: delete-users 10/minute, admin-get-users 30/minute, lifecycle status/marketing 30/minute, and lifecycle test-send 10/minute.
+- Added Redis-mode regression coverage for the actual 10/minute cutoff, the configured limiter policy, and reuse/isolation of 10- and 30-per-minute policy instances.
+- Verification: the complete function suite passes 17 test files and 149 tests; targeted rate-limiter tests pass 7/7; JavaScript syntax and `git diff --check` pass.
+- Release state: local only. No production configuration, Redis data, push, migration, or deployment was changed. M1 remains queued with the other Medium fixes for the explicitly approved release.
+
 ## 2026-08-06: H4 subscription-payment duplication fixed and released
 
 - The Polar webhook currently records subscription revenue in `onOrderPaid` using the stable `polar_ord_<order_id>` key, then records another payment in `onSubscriptionUpdated` using `polar_renewal_<subscription_id>_<timestamp>`. The second path is not protected by the payment ID uniqueness index because it uses a different key.
