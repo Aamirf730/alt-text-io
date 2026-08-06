@@ -20,6 +20,8 @@
  * ═══════════════════════════════════════════════════════════════════════════════
  */
 
+const crypto = require('node:crypto');
+
 let redisClient = null;
 let RatelimitClass = null;
 const redisRateLimiters = new Map();
@@ -125,7 +127,7 @@ function checkMemoryRateLimit(key, maxRequests, windowMs) {
     const allowed = entry.count <= maxRequests;
 
     if (!allowed) {
-        console.warn(`[RateLimiter:Memory] IP ${key} exceeded limit (${entry.count}/${maxRequests}) on instance ${INSTANCE_ID}`);
+        console.warn(`[RateLimiter:Memory] Identifier ${key} exceeded limit (${entry.count}/${maxRequests}) on instance ${INSTANCE_ID}`);
     }
 
     // Periodic cleanup
@@ -179,7 +181,7 @@ async function checkRateLimit(identifier, maxRequests = 60, windowMs = 60000) {
             const result = await limiter.limit(identifier);
 
             if (!result.success) {
-                console.warn(`[RateLimiter:Redis] IP ${identifier} exceeded limit`);
+                console.warn(`[RateLimiter:Redis] Identifier ${identifier} exceeded limit`);
             }
 
             return {
@@ -232,6 +234,19 @@ async function checkStrictRateLimit(identifier, maxRequests = 10, windowMs = 600
 }
 
 /**
+ * Build a safe, deterministic identifier for an authenticated credential.
+ * API keys and access tokens never appear in Redis keys or logs.
+ */
+function getCredentialRateLimitKey(endpoint, credential) {
+    const digest = crypto
+        .createHash('sha256')
+        .update(String(credential))
+        .digest('hex');
+
+    return `${endpoint}:credential:${digest}`;
+}
+
+/**
  * Get rate limiting status info (for health checks / monitoring)
  */
 function getRateLimitInfo() {
@@ -249,6 +264,7 @@ function getRateLimitInfo() {
 module.exports = {
     checkRateLimit,
     checkStrictRateLimit,
+    getCredentialRateLimitKey,
     getRateLimitInfo,
     INSTANCE_ID,
 };

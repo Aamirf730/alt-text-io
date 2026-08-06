@@ -29,7 +29,7 @@ exports.handler = async (event, context) => {
 
   // Rate limiting
   const clientIp = getClientIp(event);
-  const rateLimit = await checkRateLimit(clientIp);
+  const rateLimit = await checkRateLimit(`get-usage:ip:${clientIp}`);
   if (!rateLimit.allowed) {
     return rateLimitExceededResponse(headers, rateLimit);
   }
@@ -62,7 +62,6 @@ exports.handler = async (event, context) => {
       console.log('🔑 [get-usage] Validating API key:', token.substring(0, 20) + '...');
 
       // First try RPC function
-      let userId = null;
       const { data: userIdData, error: apiKeyError } = await supabase
         .rpc('validate_api_key', { p_api_key: token });
 

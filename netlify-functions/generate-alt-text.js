@@ -12,6 +12,10 @@ const {
   rateLimitExceededResponse,
   methodNotAllowedResponse,
 } = require('./utils/cors');
+const { getCredentialRateLimitKey } = require('./utils/rate-limiter');
+
+const GENERATION_RATE_LIMIT = 60;
+const GENERATION_RATE_WINDOW_MS = 60000;
 
 // Initialize Supabase client
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -713,9 +717,13 @@ exports.handler = async (event, context) => {
   const preflightResponse = handlePreflight(event);
   if (preflightResponse) return preflightResponse;
 
-  // Rate limiting (60 requests per minute for main API)
+  // Keep a source-level safety limit scoped only to generation traffic.
   const clientIp = getClientIp(event);
-  const rateLimit = await checkRateLimit(clientIp, 60);
+  const rateLimit = await checkRateLimit(
+    `generate-alt-text:ip:${clientIp}`,
+    GENERATION_RATE_LIMIT,
+    GENERATION_RATE_WINDOW_MS
+  );
   if (!rateLimit.allowed) {
     return rateLimitExceededResponse(headers, rateLimit);
   }
@@ -759,7 +767,7 @@ exports.handler = async (event, context) => {
       // API key authentication
       user = await validateApiKey(token);
       if (!user) {
-        console.error('API key validation failed for:', token.substring(0, 20) + '...');
+        console.error('API key validation failed');
         return {
           statusCode: 401,
           headers,
@@ -818,6 +826,19 @@ exports.handler = async (event, context) => {
           body: JSON.stringify({ error: 'Authentication failed' }),
         };
       }
+    }
+
+    // Apply a second limit to the authenticated credential. The credential is
+    // hashed before becoming a rate-limit identifier so the quota follows an
+    // API key across IPs without exposing it to Redis or logs.
+    const credential = isApiKeyAuth ? token : user.id;
+    const credentialRateLimit = await checkRateLimit(
+      getCredentialRateLimitKey('generate-alt-text', credential),
+      GENERATION_RATE_LIMIT,
+      GENERATION_RATE_WINDOW_MS
+    );
+    if (!credentialRateLimit.allowed) {
+      return rateLimitExceededResponse(headers, credentialRateLimit);
     }
 
     // Check if user has sufficient credits for this billing cycle.
