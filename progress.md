@@ -1,10 +1,12 @@
 # Progress
 
-## 2026-08-06: H4 subscription-payment duplication verified; fix in progress
+## 2026-08-06: H4 subscription-payment duplication fixed and released
 
 - The Polar webhook currently records subscription revenue in `onOrderPaid` using the stable `polar_ord_<order_id>` key, then records another payment in `onSubscriptionUpdated` using `polar_renewal_<subscription_id>_<timestamp>`. The second path is not protected by the payment ID uniqueness index because it uses a different key.
 - Production read-only verification found two subscription IDs with both row types: 6 `polar_ord_*` rows totaling `$0` and 4 `polar_renewal_*` rows totaling `$69`. The current rows do not inflate the stored revenue amount because the order snapshots are zero-valued, but the duplicate path remains a future revenue-inflation risk and already inflates payment counts.
-- Planned fix: make `order.paid` the sole source of subscription payment bookkeeping and leave `subscription.updated` responsible only for lifecycle/credit state. Historical zero-amount order rows require no revenue correction; any future positive duplicate rows should be reconciled only after a reviewed archive-first query.
+- Fixed by making `order.paid` the sole source of subscription payment bookkeeping and leaving `subscription.updated` responsible only for lifecycle/credit state. The stable `polar_ord_<order_id>` key remains retry-safe; the timestamped renewal insert is gone. Regression coverage verifies one subscription payment row from `order.paid` and none from `subscription.updated`.
+- Released through the Git-backed `main` build as commit `7e038cdd` / Netlify deploy `6a747c918021c80008f634ec`. Production health reports `environment=production`, `branch=main`, and Node `v20.20.2`; homepage, `/admin`, logo, checkout auth, Polar signature protection, and analytics guards all passed smoke checks.
+- The final read-only payment query remains 6 order rows totaling `$0`, 4 renewal rows totaling `$69`, 10 subscription payment rows totaling `$69`. No historical revenue amount correction was necessary, and no financial rows were deleted.
 
 ## 2026-08-06: Netlify function test coverage restored
 

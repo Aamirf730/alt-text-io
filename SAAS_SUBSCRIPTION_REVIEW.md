@@ -147,6 +147,8 @@ Available and unimplemented: `onSubscriptionRevoked`, `onOrderRefunded`, `onRefu
 
 `onOrderPaid` inserts a `payments` row for **every** order including subscription initial + renewal orders (the insert at `route.ts:252` happens *before* the `isSubscription` early-return at `:306`). `onSubscriptionUpdated` then inserts a second row for the same renewal (`route.ts:563`). Every admin revenue figure derived from `payments` is inflated.
 
+**✅ FIXED 2026-08-06.** `onOrderPaid` is now the sole subscription revenue writer and uses the stable `polar_ord_<order_id>` key. `onSubscriptionUpdated` updates lifecycle and credit state only; its timestamped `polar_renewal_*` payment insert was removed. Regression tests cover one payment row for a subscription `order.paid` event and zero payment rows for the corresponding active subscription update. The production read-only reconciliation found 6 order rows totaling `$0` and 4 renewal rows totaling `$69`; because the order rows were zero-valued, no historical revenue amount correction was needed.
+
 ### H5 — No webhook idempotency for one-time purchases
 
 No event-ID dedup anywhere, and `payments.payment_id` carries no unique constraint (`supabase-migration/create-payments-table.sql`). A Polar retry on `order.paid` re-runs `updateUserCredits(..., false)` and grants the pack again. (Subscription renewals are accidentally protected by the `credits_last_renewed_at` comparison — that's luck, not design.)
@@ -308,7 +310,7 @@ Whether this is live depends on the exact Polar product names and whether each p
 - [ ] Supabase: current `cron.job` list — are `renew-free-credits` and `renew-paid-credits` both scheduled and succeeding? (C2, H2)
 - [ ] Supabase: any `profiles` rows with `subscription_status` in (`cancelled`,`expired`) still on a paid `subscription_plan`? (H2)
 - [ ] Netlify: is `UPSTASH_REDIS_REST_URL` set in production? (determines whether M1 is live)
-- [ ] `payments` table: count of rows per subscription renewal — confirms H4 double-count in real data.
+- [x] `payments` table: count of rows per subscription renewal — 6 `polar_ord_*` rows at `$0` and 4 `polar_renewal_*` rows at `$69`; no historical amount correction was required after the H4 fix.
 
 ## 8. Tracking
 
@@ -321,10 +323,10 @@ Whether this is live depends on the exact Polar product names and whether each p
 | R2 | Low | Legacy marketing events can no longer trigger lifecycle email | **Expected transition documented 2026-08-05** |
 | R3 | Low | Recipient gate does not check `email_confirmed_at` | **Fixed locally 2026-08-05; not deployed** |
 | S1 | Low | Cross-device `/connect` confirmation can miss `signup_created` when local storage is absent | **Fixed locally 2026-08-05; not deployed** |
-| H1 | High | Payments bound to customers by email string only | Open |
-| H2 | High | No `subscription.revoked` / refund handling | Open |
-| H3 | High | Annual cancellation destroys pre-paid credits | Open |
-| H4 | High | Subscription revenue double-counted in `payments` | Open |
+| H1 | High | Payments bound to customers by email string only | **Fixed 2026-08-06** |
+| H2 | High | No `subscription.revoked` / refund handling | **Fixed 2026-08-06** |
+| H3 | High | Annual cancellation destroys pre-paid credits | **Fixed 2026-08-06** |
+| H4 | High | Subscription revenue double-counted in `payments` | **Fixed 2026-08-06** |
 | H5 | High | No webhook idempotency for one-time orders | **Fixed 2026-08-05** (via C2) |
 | H6 | High | `"pro"` substring collision misclassifies packs as subscriptions | Open |
 | H7 | High | `credit_pack` plan_id has no `subscription_plans` row (FK failure) | **Fixed 2026-08-05** (via O2) |

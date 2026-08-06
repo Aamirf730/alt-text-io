@@ -1,17 +1,18 @@
 # Release Checklist
 
 **Last updated:** 2026-08-06
-**Status:** RELEASED — the approved C1/C2/C3 fix set is live; production evidence and follow-up observations are recorded below.
+**Status:** RELEASED — the approved C1/C2/C3 and H1/H2/H3/H4 fix sets are live; production evidence and follow-up observations are recorded below.
 
-## H1/H2/H3 and complete website release — live
+## H1/H2/H3/H4 and complete website release — live
 
-The H1/H2/H3 SaaS fixes and the complete website release are live. The release used a preview-first Netlify build to verify the Next static path mapping and public assets before production promotion.
+The H1/H2/H3/H4 SaaS fixes and the complete website release are live. The release used Git-backed Netlify builds to verify the Next static path mapping and public assets before production promotion.
 
 | Item | Change | Target | Current state | Dependency |
 | --- | --- | --- | --- | --- |
 | H1 | Bind Polar checkouts and webhook events to the authenticated `user_id`, normalize the email fallback, paginate Auth lookup, and retain unmatched payments/subscriptions/refunds in a service-role-only reconciliation queue. | Next.js checkout/webhook, Supabase migration `20260806051721_payment_reconciliation_h1.sql` | Released to production | Migration record `20260806102148`; metadata rollout deploy `6a74705b541db90008b1d601` from `1ae443c`; first unmatched-event queue review remains an observation gate. |
 | H3 | Treat `subscription.canceled` as non-renewal, preserve annual drip metadata through the paid period, and downgrade only on `subscription.revoked`. | Supabase migration and Next.js Polar webhook | Released to production | Migration record `20260806102200`; annual preflight found 2 profiles with 0 missing end dates. |
 | H2 | Add subscription revocation/uncancellation, order-refund, refund-created, and refund-updated handling with idempotent benefit/credit revocation, plus an audited RPC that writes promotional grants to both credit ledgers. | Supabase migration and Next.js Polar webhook | Released to production | Migration record `20260806102200`; first real refund and credit-pack purchase remain observation gates. |
+| H4 | Record subscription revenue once from Polar's canonical `order.paid` event; keep `subscription.updated` limited to lifecycle and credit state. | Next.js Polar webhook and admin revenue derived from `payments` | Released to production | Commit `7e038cdd`; Netlify deploy `6a747c918021c80008f634ec`; production query found 6 order rows at `$0` and 4 renewal rows at `$69`, so no historical amount correction was required. |
 | API-key persistence | Preserve validated encrypted keys through the WordPress settings sanitizer. | WordPress plugin 1.7.14 and website ZIPs | Released and live | WordPress.org trunk/tag `3636397`/`3636399`; live archives verified at SHA-256 `28490170b60c9765f36a8a59764ffc8cbdd30d6d9b2e0ee3f72d26c7a737db25`. |
 | Checkbox setting preservation | Preserve all four checkbox settings during partial connection saves, while hidden form values keep unchecked settings disableable. | WordPress plugin 1.7.14 and website ZIPs | Released and live | Real local `options.php` round-trips passed; WordPress.org and site downloads are live and verified. |
 | Connection UX | Fix raw automatic-connect fallback styling, mask recovery keys, center the connect logo, and replace stale purple actions with Alt Text Pro teal. | Next.js `/connect` and WordPress onboarding modal | Released to production | Included in commit `33c2e28`; preview and production asset/path smoke checks passed. |
@@ -31,9 +32,9 @@ The H1/H2/H3 SaaS fixes and the complete website release are live. The release u
 
 - `audit_logs` is a pre-existing production table; the H2/H3 migration chain does not create or define it. Its nullable actor columns were verified in production, so this is not a release blocker, but it prevents the migration from being testable against a self-contained staging schema until the table's DDL is captured.
 - The real one-time pack-purchase path and the 30-day renewal branches have not yet executed in production. Treat the first post-release run of each as an observation gate.
-- H4 remains the post-release reporting/robustness item. H1/H2/H3 are released; review the first unmatched reconciliation event, real credit-pack purchase, refund, and 30-day renewal execution as operational observation gates.
+- H4 is released. Review the first unmatched reconciliation event, real credit-pack purchase, refund, and 30-day renewal execution as operational observation gates; the historical H4 payment rows required no amount correction.
 - The prior incomplete Netlify upload was corrected by requiring the full `netlify deploy --build` flow for this Next.js site; future manual deployments must not upload the raw `.next` directory without the framework build step.
-- The Git-backed code release is the production source of truth: the metadata-enabled code is committed as `1ae443c`, and rollout deploy `6a74705b541db90008b1d601` verified it on `main`. Build-generated metadata makes the health endpoint report `environment = production`, `version = 1ae443c9`, and `branch = main` even though `COMMIT_REF` is not present in the function runtime.
+- The Git-backed code release is the production source of truth: the H4 release is committed as `7e038cdd`, and deploy `6a747c918021c80008f634ec` verified it on `main`. Build-generated metadata makes the health endpoint report `environment = production`, `version = 7e038cdd`, and `branch = main` even though `COMMIT_REF` is not present in the function runtime.
 
 ## Purpose
 
@@ -43,6 +44,7 @@ This file is the release queue for the current round of SaaS and plugin fixes. A
 
 | Item | Change | Target | Current state | Dependency |
 | --- | --- | --- | --- | --- |
+| H4 | Record subscription revenue only from canonical Polar order-paid events; do not create a second payment row from subscription lifecycle updates. | Next.js Polar webhook and admin revenue | Released to production | Commit `7e038cdd`; Netlify deploy `6a747c918021c80008f634ec`; focused route test and production read-only reconciliation passed. |
 | C1/N1–N5 | Harden the `/connect` flow, support opener loss, require acknowledgements only for compatible plugins, use the longer acknowledgement window, and correct legacy success wording. | Netlify Next.js app and WordPress plugin | Released to production with plugin 1.7.12 | Netlify deploy `6a730485df0401d83198e2dd`; WordPress.org tag `1.7.12`. |
 | C2/O1–O4/P1/P2/P3/P4/P5/Q1/Q2 | Move one-time credit packs into an idempotent paid ledger, classify discounted packs using product/discount identity before legacy amount fallbacks, preserve balances on renewal, make webhook bookkeeping retry-safe, archive duplicate payment rows before deduplication, scope reconciliation to paid-ledger owners, consume promotional credits before purchased credits, and reserve the Polar webhook event source. | Supabase migration `20260805094230_fix_purchased_credit_pack_ledger.sql`, Polar webhook, and public event endpoint | Released; migration applied before the matching app/webhook deploy | Supabase migration `20260805094230`; archive count 2; remaining duplicate payment/event groups 0. |
 | O5 | Keep purchased and WPGeared promotional balances separate in the profile/API response so the dashboard uses accurate copy. | Supabase profile field, usage API, SaaS dashboard | Released to production | `purchased_credits_remaining`, grant/use/renew RPCs, and dashboard paths verified in production. |
