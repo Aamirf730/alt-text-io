@@ -76,8 +76,9 @@ async function recordPayment(payment: Record<string, unknown>) {
         return;
     }
 
-    // A replayed Polar webhook is already fulfilled if this payment exists.
-    // The unique index added by the accompanying migration makes this safe.
+    // A replayed Polar webhook has already recorded this payment. The caller
+    // still runs idempotent fulfillment so an interruption between the insert
+    // and the grant can be recovered by Polar's retry.
     if (isUniqueViolation(error)) {
         console.log(`↺ Payment ${String(payment.payment_id)} was already recorded`);
         return;
@@ -681,8 +682,12 @@ const polarWebhookHandlers = {
             }
 
             if (!isSubscription) {
-                // Fulfill first. The grant RPC is idempotent by payment ID, so
-                // a retry after a bookkeeping failure cannot double-credit.
+                // Record the provider order first. The unique payment ID makes
+                // retries safe, and the grant RPC below is idempotent so a
+                // retry can recover if the first delivery stopped after this
+                // insert but before fulfillment.
+                await recordPayment(payment);
+
                 console.log(`✓ Processing one-time purchase: ${productName}`);
                 const credits = getCreditsForProduct(productName, mergedMetadata);
 
@@ -693,10 +698,6 @@ const polarWebhookHandlers = {
                     console.warn(`No credits found for product: ${productName}`);
                 }
 
-                // Record only after fulfillment. Non-duplicate failures are
-                // thrown so Polar retries; the grant and payment are both
-                // idempotent on that retry.
-                await recordPayment(payment);
                 await recordMarketingEvent(
                     "purchase_completed",
                     userId,

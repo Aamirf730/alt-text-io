@@ -25,6 +25,8 @@ const mocks = vi.hoisted(() => {
         events: Array<Record<string, unknown>>;
         paymentUpdates: Array<Record<string, unknown>>;
         rpcCalls: Array<{ name: string; args: Record<string, unknown> }>;
+        operations: string[];
+        duplicatePaymentIds: Set<string>;
         reconciliations: Array<Record<string, unknown>>;
         authUsers: Array<{ id: string; email: string | null }>;
         authPageMode: "state" | "always_full";
@@ -34,6 +36,8 @@ const mocks = vi.hoisted(() => {
         events: [],
         paymentUpdates: [],
         rpcCalls: [],
+        operations: [],
+        duplicatePaymentIds: new Set(),
         reconciliations: [],
         authUsers: [],
         authPageMode: "state",
@@ -46,6 +50,13 @@ const mocks = vi.hoisted(() => {
         const caseInsensitiveFilters = new Set<string>();
 
         const execute = () => {
+            if (operation === "insert" && table === "payments") {
+                state.operations.push("payments.insert");
+                if (state.duplicatePaymentIds.has(String(values.payment_id))) {
+                    return { data: null, error: { code: "23505", message: "duplicate payment" } };
+                }
+            }
+
             if (operation === "select") {
                 const rows = state.profiles.filter((profile) =>
                     filters.every(([field, value]) => {
@@ -102,6 +113,7 @@ const mocks = vi.hoisted(() => {
     const client = {
         from: vi.fn((table: string) => createQuery(table)),
         rpc: vi.fn(async (name: string, args: Record<string, unknown>) => {
+            state.operations.push(`rpc:${name}`);
             state.rpcCalls.push({ name, args });
             return { data: { success: true }, error: null };
         }),
@@ -191,6 +203,17 @@ const paidSubscriptionOrder = (overrides: Record<string, unknown> = {}) => ({
     ...overrides,
 });
 
+const paidPackOrder = (overrides: Record<string, unknown> = {}) => ({
+    id: "order_pack_1",
+    subscriptionId: null,
+    totalAmount: 1000,
+    currency: "usd",
+    customer: { id: "cus_1", email: "customer@example.com" },
+    product: { id: "prod_credit_pack", name: "Credit Pack", metadata: {} },
+    metadata: {},
+    ...overrides,
+});
+
 describe("Polar subscription lifecycle handlers", () => {
     beforeEach(() => {
         mocks.state.profiles = [profile()];
@@ -198,6 +221,8 @@ describe("Polar subscription lifecycle handlers", () => {
         mocks.state.events = [];
         mocks.state.paymentUpdates = [];
         mocks.state.rpcCalls = [];
+        mocks.state.operations = [];
+        mocks.state.duplicatePaymentIds = new Set();
         mocks.state.reconciliations = [];
         mocks.state.authUsers = [];
         mocks.state.authPageMode = "state";
