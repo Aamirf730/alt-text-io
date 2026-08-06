@@ -1,5 +1,12 @@
 # Progress
 
+## 2026-08-06: Netlify function test coverage restored
+
+- Installed the ignored `netlify-functions` dependencies in this worktree, including `@supabase/supabase-js` and Vitest; no tracked dependency files changed.
+- The combined function suite now passes: 17 test files and 147 tests. This covers the package utility tests plus the health, track-event, and lifecycle-routing tests stored in `netlify-functions-tests`.
+- Expected test-only diagnostics remain: missing test Supabase credentials, rejected-origin logs, in-memory rate-limit fallback, and the audit logger's mocked persistence failure. None caused a test failure.
+- `npm install` reports 7 dependency audit findings (1 low, 5 high, 1 critical). No automatic audit fix was applied; dependency review remains hygiene follow-up.
+
 ## 2026-08-06: Git-backed production redeploy and build metadata completed
 
 - Code release: build metadata is committed as `1ae443c` on `fix/subscription-lifecycle-refunds` and was fast-forwarded into `origin/main`. Its metadata rollout deploy is `6a74705b541db90008b1d601`, with `manual_deploy = false`, `branch = main`, and `commit_ref = 1ae443c9123283de09ae28a09b8a61049a660da2`.
