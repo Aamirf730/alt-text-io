@@ -1,9 +1,24 @@
 # Alt Text Pro — SaaS / User Management / Subscription Review
 
-**Date:** 2026-08-05
-**Branch reviewed:** `codex/archive-ledger-2026-07-18`
+**Review date:** 2026-08-05 · **Last updated:** 2026-08-06
+**Branch reviewed:** `codex/archive-ledger-2026-07-18` · **Live from:** `main` @ `f759a352`
 **Scope:** Supabase schema + RPCs, Polar webhook/checkout/portal routes, all Netlify functions, dashboard/connect/customer-offer pages, plugin credit-consumption path.
-**Status:** Review only — no code changed, no production system touched.
+
+**Status:** Every finding that could affect a customer is fixed and live in production. This document
+is a living record: each issue keeps its original description, with a resolution note where it was
+fixed. Remaining items are reporting, robustness and hygiene — see §6.
+
+## Current state (2026-08-06)
+
+| | |
+|---|---|
+| **Closed** | C1, C2, C3 (all criticals) · H5, H6, H7 · N1–N5 · O1–O5 · P1–P5 · Q1–Q2 · R1–R3 · S1 · T1–T2 · U1 |
+| **Open** | M1–M8 fixed locally and pushed, awaiting release · low/hygiene |
+| **Awaiting release** | Branch `fix/subscription-lifecycle-refunds` @ `9d6034a` (pushed): M1–M8, P2 ordering reversal, V1 migration. `origin/main` @ `f759a35`. Prerequisites: M6 `db reset` verification, migration-history reconciliation, `API_KEY_ENCRYPTION_SECRET`. |
+| **Released** | **All criticals and all Highs.** Migrations `20260805094230` (credit-pack ledger), `20260806102148` (H1 reconciliation), `20260806102200` (H2/H3 lifecycle+refunds). Live deploy from `main` @ `f759a352`, git-linked, Node 20. **H4** (single payment writer) released 2026-08-06. WordPress plugin **1.7.14** (connect save fix, context preservation, explicit checkbox handling). |
+| **Production verified** | `/api/health` reports `production` / commit / `main` / Node 20 · checkout without auth → 401 (H1) · track-event reserved source → 403 and unauthenticated lifecycle event → 401 (C3) · unsigned webhook → 403 · homepage, admin chunks, assets → 200 · 147 function tests + 43 frontend tests pass |
+| **Also verified earlier** | CORS not echoed for unapproved origins; scheduled lifecycle wrapper unreachable over HTTP; a lifecycle run completed with 3 sends / 0 failed / 0 rejected; both pg_cron renewal jobs succeeding; credit-pack backfill a confirmed no-op (0 grants, 0 profiles) |
+| **Not yet exercised** | One-time credit-pack purchase (zero such orders have ever run through this code), `/connect` browser flows, the 30-day free and annual renewal branches |
 
 ---
 
@@ -96,14 +111,14 @@ Net effect for a free user buying the **$10 "Value Pack"** advertised on the hom
 
 So `POST {"event_name":"signup_created","user_email":"victim@example.com"}` → ~4h later Alt Text Pro emails a stranger. **Correction (2026-08-05): the fastest path is worse.** `purchase_onboarding` triggers on `purchase_completed` with `delayHours: 0` (`utils/lifecycle-automation.js:36-38`) against a cron running every 2 hours, so a single unauthenticated POST sends "Welcome to Alt Text Pro" to an arbitrary address within ~2 hours. The Q2 fix does not reduce this — the attacker simply omits the reserved `polar_webhook` source. Also poisons the admin funnel, the daily report, and `connect_completed` attribution. Sender-reputation and CAN-SPAM exposure.
 
-**Fix implemented locally:** `track-event` now verifies supplied session JWTs with Supabase Auth and derives `user_id`/`user_email` from the verified user. Only `page_viewed`, `demo_used`, `plugin_downloaded`, and `connect_started` may be anonymous; anonymous rows require `anonymous_id`, store no user identity, and are marked unverified. Polar and WordPress integration sources are reserved for their server-side writers, `purchase_completed` is rejected as a server-only event, and public event timestamps are assigned server-side to prevent lifecycle backdating. Lifecycle candidate selection requires either a verified browser trigger or the rule's expected server-only source; `purchase_onboarding` accepts only `polar_webhook`. Immediately before reservation/send, the scheduler paginates Supabase Auth users and requires the candidate's user ID and normalized email to match the same Auth user. Auth lookup and pagination-limit failures therefore fail closed with no email send. This is implemented and tested locally but not deployed.
+**Fix implemented locally:** `track-event` now verifies supplied session JWTs with Supabase Auth and derives `user_id`/`user_email` from the verified user. Only `page_viewed`, `demo_used`, `plugin_downloaded`, and `connect_started` may be anonymous; anonymous rows require `anonymous_id`, store no user identity, and are marked unverified. Polar and WordPress integration sources are reserved for their server-side writers, `purchase_completed` is rejected as a server-only event, and public event timestamps are assigned server-side to prevent lifecycle backdating. Lifecycle candidate selection requires either a verified browser trigger or the rule's expected server-only source; `purchase_onboarding` accepts only `polar_webhook`. Immediately before reservation/send, the scheduler paginates Supabase Auth users and requires the candidate's user ID and normalized email to match the same Auth user. Auth lookup and pagination-limit failures therefore fail closed with no email send. Released 2026-08-06 and verified in production.
 
 ### C3 follow-ups R1–R3 — fixed or recorded locally 2026-08-05
 
 - **R1:** The original signup calls were removed from the no-session email-confirmation branches. The homepage now records `signup_created` from `/email-confirmed` after `setSession` succeeds. The WordPress-connect flow records it after the confirmation return establishes a session, using a short-lived, email-bound pending-signup marker so ordinary logins do not create signup events.
 - **R2:** Existing 30-day-window rows without the new verified provenance are intentionally excluded from lifecycle candidates. This is safe and expected; the first post-deploy dry run must record rejected legacy rows separately from genuine runtime failures.
 - **R3:** Lifecycle delivery now requires a matching Auth user with a non-null `email_confirmed_at`, in addition to matching user ID and normalized email.
-- **S1:** Cross-device `/connect` confirmation no longer depends solely on the local pending-signup marker. When the page is reached in a real WordPress-connect context with an authenticated user, it submits `signup_created`; the endpoint checks for an existing signup event for that verified user and returns a no-op for repeats. This is implemented and tested locally but not deployed.
+- **S1:** Cross-device `/connect` confirmation no longer depends solely on the local pending-signup marker. When the page is reached in a real WordPress-connect context with an authenticated user, it submits `signup_created`; the endpoint checks for an existing signup event for that verified user and returns a no-op for repeats. Released 2026-08-06 and verified in production.
 
 **Independently verified 2026-08-05** (`tsc --noEmit` clean, 139 function tests, 22 frontend tests).
 R1: both signup paths covered — `page.tsx:243` now guards on `result.data.session`; `/email-confirmed`
@@ -114,7 +129,7 @@ handshake (24h TTL, email-matched) at `connect/page.tsx:380-388, 547`. No double
 `replaceState` clears the URL so a refresh cannot re-fire, and `consumePendingSignup` removes the key
 before parsing so it is consumed exactly once. R3 confirmed at `utils/lifecycle-automation.js:231`.
 
-- **S1 (Low, opened 2026-08-05) — cross-browser confirmation misses the connect-flow signup event.** ✅ FIXED locally 2026-08-05. Authenticated `/connect` visits in a real WordPress-connect context now submit `signup_created` even without the localStorage marker; the endpoint deduplicates the verified user. The `/email-confirmed` path remains independent of browser storage.
+- **S1 (Low, opened 2026-08-05) — cross-browser confirmation misses the connect-flow signup event.** ✅ FIXED & RELEASED 2026-08-06. Authenticated `/connect` visits in a real WordPress-connect context now submit `signup_created` even without the localStorage marker; the endpoint deduplicates the verified user. The `/email-confirmed` path remains independent of browser storage.
 
 These changes are local only and still require staging confirmation-flow and scheduled dry-run verification before deployment.
 
@@ -122,7 +137,21 @@ These changes are local only and still require staging confirmation-flow and sch
 
 ## 3. High
 
-### H1 — Payments are bound to customers only by email string
+### H1 — Payments are bound to customers only by email string — ✅ FIXED & RELEASED 2026-08-06
+
+> **Resolution (verified 2026-08-06):** commit `918e6d2` + migration
+> `20260806051721_payment_reconciliation_h1.sql`. `/api/checkout` now requires a verified Supabase
+> session, derives `customerEmail` from that session (the query parameter is ignored — covered by a
+> regression test), and sends `metadata.user_id` plus `externalCustomerId` as a durable second link.
+> Both callers were converted from top-level navigation to `fetch` + Bearer + client-side redirect,
+> which was mandatory: a navigation cannot carry an Authorization header. `findBillingProfile`
+> resolves user ID → subscription ID → customer ID → normalized email, with the Auth scan capped at
+> 100 pages and failing closed beyond it. Unmatched payloads are queued in `payment_reconciliation`
+> (service-role only) by all eight handler call sites, so no handler can silently drop a payment.
+> When `metadata.user_id` is present but unresolvable the lookup returns null rather than falling
+> back to email — deliberate, since falling back would let a mutable email rebind a payment to
+> another account. `tsc` clean, 43 tests.
+
 
 `frontend-next/src/app/api/webhooks/polar/route.ts:226-244` matches `profiles.email` with `.eq()` (case-sensitive in Postgres), falls back to scanning `auth.admin.listUsers()` (unpaginated — breaks silently past the default page size), and on no match just `console.error`s and returns. The checkout route never binds the buyer to an account — no auth check, no `metadata.user_id`, just a `customerEmail` query param the user can change on Polar's page (`frontend-next/src/app/api/checkout/route.ts:34-38`).
 
@@ -130,32 +159,115 @@ Result: any casing difference, any email change after signup (`profiles.email` i
 
 **Fix:** require a session on `/api/checkout` and pass `metadata: { user_id }`; match on `user_id` first, email (lowercased) second; write unmatched payloads to a `payment_reconciliation` table and alert.
 
-### H2 — No `subscription.revoked` and no refund handling
+### H2 — No `subscription.revoked` and no refund handling — ✅ FIXED & RELEASED 2026-08-06
+
+> **Resolution (verified 2026-08-06):** commit `5222d3e` + migration
+> `20260805202418_fix_subscription_lifecycle_refunds.sql`. Handlers added for `revoked`,
+> `uncanceled`, `orderRefunded`, `refundCreated` and `refundUpdated`. `revoke_subscription_access`
+> collapses the aggregate to `30 + bonus + purchased`, returns the account to an **active free**
+> plan so `renew_monthly_credits` picks it up again, and is idempotent via a subscription-ID guard.
+> `revoke_credit_pack_purchase` claws back only `least(granted, still_unspent)` and is idempotent via
+> `revoked_at`. Refund classification leads with `Boolean(order.subscriptionId)` before any
+> product-name matching, so it is immune to the H6 class of bug by construction. Partial refunds
+> deliberately do not claw back credits.
+
 
 Available and unimplemented: `onSubscriptionRevoked`, `onOrderRefunded`, `onRefundCreated`, `onSubscriptionUncanceled` (confirmed against `@polar-sh/adapter-utils`). Consequences:
 
 - When access actually ends, `subscription_plan` stays `tier1/2/3` forever. The user keeps their remaining balance and their tier's monthly cap, and — because `renew_monthly_credits` only targets `subscription_plan = 'free'` — never returns to the free tier.
 - Refunded and charged-back customers keep every credit.
 
-### H3 — Cancelling an annual plan destroys credits the customer already paid for
+### H3 — Cancelling an annual plan destroys credits the customer already paid for — ✅ FIXED & RELEASED 2026-08-06
+
+> **Resolution (verified 2026-08-06):** `onSubscriptionCanceled` now writes only
+> `subscription_status` and `next_billing_date`, preserving `subscription_plan`, `billing_cycle` and
+> `monthly_credit_allowance`; `renew_paid_monthly_credits` continues the drip while
+> `subscription_status = 'cancelled' AND next_billing_date > now()`. Cancellation means "will not
+> renew"; teardown happens only on `revoked`. `onSubscriptionActive` now also records
+> `next_billing_date`, which it previously never did. The OUT parameter name `user_ids` was
+> deliberately kept so `CREATE OR REPLACE` does not hit a return-type rename error.
+
+
+> **Confirmed live 2026-08-06:** production has **2 active annual subscribers, both on `tier2`**
+> (400 credits/month drip). The mechanism is worse than "credits are lost": `onSubscriptionCanceled`
+> fires at *cancellation* time, not period end, and nulls `billing_cycle` and
+> `monthly_credit_allowance`. The drip cron's `WHERE billing_cycle = 'annual' AND
+> monthly_credit_allowance > 0` then stops matching that profile **permanently**, so there is no
+> automatic recovery. An annual subscriber cancelling in month 3 silently forfeits ~9 × 400 = 3,600
+> credits they have already paid for.
+>
+> Fixing this naturally pulls in **H2**, since both live in the same handler and share one lifecycle model.
 
 `frontend-next/src/app/api/webhooks/polar/route.ts:444-452` sets `subscription_status='cancelled'`, `billing_cycle=null`, `monthly_credit_allowance=null` the moment Polar reports a cancellation. Polar fires `subscription.canceled` at cancel time, while access runs to period end. Since annual plans deliberately hold only one month's credits at a time (drip design), an annual subscriber who cancels in month 2 loses the 10 months they've paid for — and the drip cron can never restore it. This is a refund/chargeback generator.
 
 **Fix:** treat `canceled` as "will not renew" (set an `ends_at`), and only downgrade on `revoked`.
 
-### H4 — Subscription revenue is double-counted
+### H4 — Subscription revenue is double-counted — ✅ FIXED & RELEASED 2026-08-06
+
+> **Resolution:** `onOrderPaid` is now the sole writer of subscription payment rows;
+> `onSubscriptionUpdated` no longer creates `polar_renewal_*` rows. Live on `main` @ `f759a352`.
+> 45 frontend + 147 function tests pass.
+>
+> **Historical data note.** Production held 6 `polar_ord_*` rows at `$0` and 4 `polar_renewal_*` rows
+> totalling `$69`. That initially looked like evidence the surviving writer records zeros — it isn't.
+> All six zero rows predate 2026-07-01; `extractPolarBillingSnapshot` was introduced 2026-07-06, so
+> they were written by code with no amount extraction at all. Independently confirmed in the
+> installed SDK: `total_amount` is `z.int()` (**required**) on the Order schema and is remapped to
+> `totalAmount` before the handler runs, so a missing field fails validation rather than silently
+> producing `$0`. **Operational proof point:** confirm the next real paid order records a non-zero
+> `payments.amount`.
+
 
 `onOrderPaid` inserts a `payments` row for **every** order including subscription initial + renewal orders (the insert at `route.ts:252` happens *before* the `isSubscription` early-return at `:306`). `onSubscriptionUpdated` then inserts a second row for the same renewal (`route.ts:563`). Every admin revenue figure derived from `payments` is inflated.
 
-**✅ FIXED 2026-08-06.** `onOrderPaid` is now the sole subscription revenue writer and uses the stable `polar_ord_<order_id>` key. `onSubscriptionUpdated` updates lifecycle and credit state only; its timestamped `polar_renewal_*` payment insert was removed. Regression tests cover one payment row for a subscription `order.paid` event and zero payment rows for the corresponding active subscription update. The production read-only reconciliation found 6 order rows totaling `$0` and 4 renewal rows totaling `$69`; because the order rows were zero-valued, no historical revenue amount correction was needed.
+### V1 — `payments_status_check` rejects `partially_refunded` — ✅ FIXED & APPLIED 2026-08-06
+
+Production's CHECK constraint allows only `pending, completed, failed, cancelled, refunded`, but
+`markPaymentStatus` writes `"partially_refunded"` (`route.ts:990`). Every partial refund therefore
+throws a check violation, `onOrderRefunded` fails, and Polar retries until it gives up. The refund is
+never recorded — the row stays `completed`, so revenue is overstated by the refunded amount. **No
+customer harm:** the partial-refund path deliberately does not claw back credits.
+
+Migration `20260806192235_allow_partial_refund_payment_status.sql` extends the allowed list. Applied to production 2026-08-06 and verified: `payments_status_check` now includes `partially_refunded`. No app deploy was required. (The repo file was renamed from `20260806125120` to match the remote ledger timestamp.) It is
+**migration-only** — the code emitting the value is already live — so applying it alone closes the
+gap, with no ordering constraint. The new list is a superset, so re-adding cannot fail on existing
+rows. Verify after applying with
+`select pg_get_constraintdef(oid) from pg_constraint where conrelid='public.payments'::regclass and contype='c';`
+— the `drop ... if exists` only works because the live constraint is named `payments_status_check`;
+a name mismatch would silently no-op and leave the original in force.
+
+**This is M6 in miniature** — the constraint exists only in production, never in a migration, so the
+code's vocabulary drifted out of the allowed set with nothing to catch it. Third instance this cycle,
+after `audit_logs` nullability and the `payments` FK behind H7.
 
 ### H5 — No webhook idempotency for one-time purchases
 
-The original retry path had no unique payment key, so a Polar retry of `order.paid` could re-run `updateUserCredits(..., false)` and grant a pack again. (Subscription renewals were accidentally protected by the `credits_last_renewed_at` comparison — that was luck, not design.)
+No event-ID dedup anywhere, and `payments.payment_id` carries no unique constraint (`supabase-migration/create-payments-table.sql`). A Polar retry on `order.paid` re-runs `updateUserCredits(..., false)` and grants the pack again. (Subscription renewals are accidentally protected by the `credits_last_renewed_at` comparison — that's luck, not design.)
 
-**✅ FIXED in production through C2 2026-08-05; local ordering hardening 2026-08-06 is not deployed.** The migration archives historical duplicates, creates `payments_payment_id_uidx`, and makes `credit_pack_grants.payment_id` idempotent with `on conflict (payment_id) do nothing`. Production confirms the payment index is present and no duplicate Polar payment IDs remain. The local webhook now inserts the payment first, treats `23505` as already recorded, and still runs the idempotent grant so a retry can recover from an interruption between insertion and fulfillment. Focused H5 coverage passes; release of this local ordering change is intentionally pending approval.
+**Fix:** unique index on `payments.payment_id`, insert-first-then-grant, and treat `23505` as "already processed".
 
-### H6 — Plan-name matching collides with your own brand name
+### H6 — Plan-name matching collides with your own brand name — ✅ FIXED 2026-08-06 (catalog metadata, no deploy)
+
+> **Resolution:** `Credit Pack (250)` was the only unprotected product (metadata `{}`); `Small Pack (100)`
+> already carried metadata. Setting `{ "type": "one_time", "credits": 250, "plan_id": "credit_pack" }`
+> on it makes classification name-independent at all three decision points — `isPolarSubscriptionProduct`
+> (reads `plan_id`), `resolvePolarPlanId` (metadata first), and `getCreditsForProduct` (short-circuits on
+> `metadata.credits`). No code or deploy involved.
+>
+> Confirmed empirically against the live catalog names by running the real matcher:
+>
+> ```
+> one-time     -> granted   | plan=credit_pack | "Credit Pack (250)"               | meta={}
+> one-time     -> granted   | plan=small_pack  | "Small Pack (100)"                | meta=set
+> SUBSCRIPTION -> 0 credits | plan=tier3       | "Alt Text Pro — Credit Pack (250)" | meta={}
+> one-time     -> granted   | plan=credit_pack | "Alt Text Pro — Credit Pack (250)" | meta=set
+> ```
+>
+> Line 3 was the live hazard: the realistic trigger was never a deliberate "Pro" in the name, it was
+> **adding the brand prefix** during an ordinary catalog tidy-up. Line 4 shows metadata immunises it.
+>
+> **Flip-side to maintain:** metadata is now authoritative and checked before everything else, so a
+> future change to pack size or price must update `metadata.credits` too, or the stale value wins silently.
 
 `frontend-next/src/lib/polar-plan-mapping.ts:4` maps the substring `"pro"` → `tier3`, and `isPolarSubscriptionProduct` returns true for `tier3`. Any Polar product named with "Alt Text **Pro**" in it that isn't a subscription — e.g. "Alt Text Pro — Value Pack" — is classified as a subscription, so `onOrderPaid` **skips credit allocation entirely** and no subscription webhook ever arrives. Customer pays, receives nothing.
 
@@ -263,9 +375,9 @@ Whether this is live depends on the exact Polar product names and whether each p
 > in step with `credits_remaining`).
 > **P4, Q1, and Q2 are resolved locally. Two signup-analytics follow-ups, T1 and T2, are tracked below.**
 
-- **P1 (High) — webhook retries now duplicate `payments` rows.** ✅ FIXED 2026-08-05 through C2. The migration archives historical duplicates, creates `payments_payment_id_uidx`, and `recordPayment` treats `23505` as already recorded. Production confirms the index is live and no duplicate Polar payment IDs remain. The paired `marketing_events` order key is also unique.
-- **P2 (Medium) — bookkeeping now gates fulfillment.** The deployed C2 path deliberately uses grant (idempotent) → record (idempotent) → throw, so a permanent bookkeeping failure cannot block delivery. Local commit `41f6f90` deliberately reverses that ordering to record → grant, adding retry coverage and guaranteeing that every granted pack has a payment row. This is a P2 design reversal, not a new H5 fix, and it is not deployed; release approval should explicitly choose which guarantee is preferred.
-- **Partial-refund status follow-up.** Production `payments_status_check` still rejects `partially_refunded`, which the live `onOrderRefunded` handler writes. Local migration `20260806125120_allow_partial_refund_payment_status.sql` adds the status and regression coverage; it is not applied or deployed.
+- **P1 (High) — webhook retries now duplicate `payments` rows.** `payments.payment_id` still has no unique constraint (the only unique index in the whole migration set is `campaign_offer_one_claim_per_user`). Previously errors were swallowed so retries never occurred; now they do, and each retry re-inserts the same `polar_ord_<id>` row plus a duplicate `marketing_events` row. Credits are safe (the RPC is idempotent) but revenue reporting is not, and this compounds H4. Add `create unique index on public.payments (payment_id)` and treat `23505` as already-recorded.
+- **P2 — reversed 2026-08-06 (commit `41f6f90`), deliberately.** One-time orders now record the payment *before* granting credits. The `payments_payment_id_uidx` index makes duplicate insert failures harmless, but not permanent ones, so the exposure below is unchanged: a non-duplicate insert failure means a paying customer never receives credits. The trade is books-always-match versus customer-always-served. Recorded as a decision, not a regression. Original finding:
+- **P2 (Medium) — bookkeeping now gates fulfillment.** The payments insert throws *before* credits are granted, so a permanent insert failure means Polar retries, gives up, and the customer never receives credits — the old code granted anyway. The FK cause is fixed so this is largely theoretical, but the safer order is grant (idempotent) → record (idempotent) → throw.
 - **P3 (Medium) — the backfill's second UPDATE now touches every profile.** It changed from `join pack_totals` to `left join` (`migration:195`), so for non-pack users it sets `credits_remaining = greatest(current, unused_allowance + bonus)`, raising the balance of anyone deliberately reduced below their unused monthly allowance (admin adjustment, refund clawback, manual zeroing). This contradicts the release gate "backfilled once and reconciled without changing unrelated users." Restore the inner `join`, or add `where state.pack_credits > 0 or state.current_purchased_credits > 0`.
 - **P4 (Low) — discounted purchases can be mis-sized by the backfill.** ✅ FIXED 2026-08-05 — `polar_product_id is not null or coalesce(discount_amount,0) > 0` now takes priority over the legacy amount thresholds across all four match branches (`migration:247-294`). Correct because `polar_product_id` exists only on Polar-era rows, so pre-Polar payments still fall through to the $3/350 and $5/550 thresholds. Previously reported as: STILL OPEN as of 2026-08-05 — the CASE still uses bare `coalesce(p.amount, 0) <= 3.50` / `>= 8.00` (`migration:191-211`); neither `discount_amount` nor `polar_product_id` appears in the migration. Inert today only because the backfill matches nothing in production — inert by circumstance, not by fix. If accepted deliberately, record it as a decision; the migration would misfire against any database that does have discounted pack history. `payments.amount` is `totalAmount` (post-discount), so a ≥30% discount on the current $5 small pack falls into the `<= 3.50` branch and grants 350 instead of 100. Use `amount + discount_amount`, or match on `polar_product_id`. Moot if the backfill matches nothing.
 - **P5 (Low) — missing constraint and a drain-order design note.** `purchased_credits_remaining` has no non-negative CHECK, unlike `profiles_bonus_credits_remaining_nonnegative`. Separately, `use_credit` (`migration:321-327`) drains **purchased before promotional**; neutral today since neither expires, but if promotional credits are ever given an expiry, pack buyers will have burned their paid credits first. Conventional order is promotional first.
@@ -274,12 +386,12 @@ Whether this is live depends on the exact Polar product names and whether each p
 - **Q2 (Low, opened 2026-08-05) — the new marketing_events unique index gives C3 a new lever.** ✅ FIXED 2026-08-05. Reserved-source guard at `track-event.js:112-122`, case-insensitive and applied to every event name, with two tests (122/122 function tests pass). No bypass found: `textValue` trims before comparison; JS `toLowerCase()` is locale-independent so the Turkish-İ class does not apply (and the string contains no `i`); a Kelvin-sign homoglyph is blocked by the guard and would not match the byte-comparing SQL index. Enumerated every other `marketing_events` writer — `plugin-connect-event.js` hardcodes its source, `credits-low-event.js` only writes `credits_low` and is API-key gated, the Polar route is signature-verified — so `track-event` was the only unauthenticated writer able to set both `event_name` and `source`. `purchase_completed` is in `track-event.js`'s `ALLOWED_EVENTS` and `source` is caller-supplied, so an unauthenticated attacker can post `{event_name:"purchase_completed", source:"polar_webhook", properties:{order_id:"X"}}` and squat the unique key; the genuine webhook then hits `23505`, treats it as already-recorded and silently skips. Analytics-only impact (it runs after fulfillment, so credits are unaffected), but another concrete reason to close C3.
 ## 4e. Signup-event deduplication and funnel-transition follow-ups (2026-08-05)
 
-- **T1 (Low) — the existing signup deduplication was check-then-insert.** The endpoint's per-user lookup prevented ordinary repeat submissions but did not close the race between two concurrent requests. Read-only production inspection found zero extra `signup_created` rows and zero duplicate user groups. ✅ FIXED locally: the pending migration now performs a deterministic duplicate cleanup before adding the partial unique index `marketing_events_signup_per_user_uidx` on `(user_id)` for non-null `signup_created` rows, and `track-event.js` treats a signup insert `23505` as an idempotent duplicate. A regression test covers the concurrent-insert outcome. The migration and Netlify change are not deployed.
+- **T1 (Low) — the existing signup deduplication was check-then-insert.** The endpoint's per-user lookup prevented ordinary repeat submissions but did not close the race between two concurrent requests. Read-only production inspection found zero extra `signup_created` rows and zero duplicate user groups. ✅ FIXED: the migration performs a deterministic duplicate cleanup before adding the partial unique index `marketing_events_signup_per_user_uidx` on `(user_id)` for non-null `signup_created` rows, and `track-event.js` treats a signup insert `23505` as an idempotent duplicate. A regression test covers the concurrent-insert outcome. Released 2026-08-06; migration applied and change live.
 - **T2 (Low) — funnel counts will temporarily need contextual interpretation.** Google-OAuth signup handling historically went directly to `/dashboard` without creating `signup_created`. A later authenticated `/connect` visit can now create the missing event, using `signup_method=authenticated_connect_visit`; if the user abandons that flow, the normal `signup_no_connect` send may occur once. This is contextually valid but can inflate recent signup/connect counts relative to historical data. R2's legacy-row rejection has the same operational effect. ✅ DOCUMENTED: the release checklist requires the first post-deploy dry run/report to record legacy rejections, verified candidates, and the connect-visit segment separately. No historical backfill or live data mutation is planned.
 
 ## 4f. Signup-index migration safety follow-up (2026-08-05)
 
-- **U1 (Low) — the signup unique index initially relied on a time-sensitive preflight.** Unlike the payment and Polar purchase-event indexes, it had no in-migration cleanup. A duplicate could arrive after the read-only check but before migration execution and abort the complete credit-pack migration. ✅ FIXED locally: immediately before `marketing_events_signup_per_user_uidx`, the pending migration now ranks `signup_created` rows by `(occurred_at, created_at, id)` per non-null `user_id` and deletes rows with rank greater than one. The earliest row is retained deterministically. The latest production read-only check still found zero extra rows; no live cleanup or schema change was performed.
+- **U1 (Low) — the signup unique index initially relied on a time-sensitive preflight.** Unlike the payment and Polar purchase-event indexes, it had no in-migration cleanup. A duplicate could arrive after the read-only check but before migration execution and abort the complete credit-pack migration. ✅ FIXED: immediately before `marketing_events_signup_per_user_uidx`, the migration ranks `signup_created` rows by `(occurred_at, created_at, id)` per non-null `user_id` and deletes rows with rank greater than one. The earliest row is retained deterministically. The production read-only check found zero extra rows, so the cleanup was a no-op when applied.
 
 ---
 
@@ -296,22 +408,84 @@ Whether this is live depends on the exact Polar product names and whether each p
 
 ## 6. Suggested order of work
 
-1. **Today:** C1 (key exfiltration), C3 (open email trigger), H6 (verify Polar product names — silent total-loss risk).
-2. **This week:** C2 + H7 (credit packs — currently selling something that doesn't work), H1/H5 (bind payments to `user_id`, add idempotency), H3 (annual cancellation).
-3. **Next:** H2 (revoked/refund handlers), H4 (revenue double-count), M1, M2.
-4. **Then:** M6 — consolidate the schema into a replayable migration chain before touching anything else structurally.
+### Released 2026-08-06 (H1 + H2 + H3)
+
+Applied migration-first, because the webhook references `payment_reconciliation` (H1) **and**
+`revoke_subscription_access` / `revoke_credit_pack_purchase` / `grant_promotional_credits` (H2/H3):
+
+1. Migration `20260806102148` (H1 reconciliation)
+2. Migration `20260806102200` (H2/H3 lifecycle + refunds)
+3. App deployed from `main` @ `5cfa0c8`, git-linked, Node 20
+
+Production data was reconciled ahead of the release: `next_billing_date` backfilled on both annual
+profiles, two stranded profiles downgraded to free, and one promotional account repaired into the
+bonus ledger.
+
+The riskiest element was the checkout rewrite — `/api/checkout` sits on the live purchase path and
+had to get a verified session, a fetch-based caller (a top-level navigation cannot carry a Bearer
+header) and `metadata.user_id` binding right simultaneously. Verified in production: the endpoint
+returns 401 without auth. **It has still never processed a real purchase** — see §7.
+
+An earlier manual `netlify deploy --prod` published assets under the wrong path and omitted
+`frontend-next/public`, breaking images and `/admin`. Manual uploads also bypass the pinned Node
+version and leave `commit_ref` null. Deploy from git.
+
+### Remaining
+
+
+**Needs action:**
+
+1. ~~Apply the V1 partial-refund migration~~ — **done 2026-08-06** (`20260806192235`, verified in production).
+2. **Verify M6** — run `supabase db reset` on a Docker-capable machine. The bootstrap schema is hand-authored and has never executed.
+3. **Reconcile migration history** — `supabase migration repair --status applied 20260625140000` so the bootstrap never runs against production.
+4. **Set `API_KEY_ENCRYPTION_SECRET`** in Netlify before M5's migration, so key encryption is not tied to the service-role key.
+5. **Release in three batches** (low-risk fixes / M5 / M3), migrations first, deploy from git — never CLI.
+
+**Then, all Medium or below and none customer-facing:**
+
+3. **M6 first** — consolidate the schema into a replayable migration chain. Not the highest severity, but the root cause of three defects this cycle (`audit_logs` nullability, the `payments` FK behind H7, and V1). Production-only schema means this class of bug is only ever found by hitting it live, and fixing it is what finally makes staging possible.
+4. **M1, M2** — admin rate limits ignored under Upstash; rollover credits that can never be spent.
+5. **M3–M8 and hygiene** — see §4 and §5, plus `npm audit --omit=dev` to separate production from build-tooling findings.
+
+### Outstanding verification (not code changes)
+
+- **Section B — the one-time pack purchase. The single highest-value action remaining.** Zero such orders have ever run through this code, before or after the release. One real purchase exercises the new checkout auth, `metadata.user_id` binding, resolution by user ID, the grant RPC, the paid ledger, spend-past-cap and webhook idempotency — i.e. most of what this review produced, none of which has executed in production.
+- **Section C** — `/connect` browser flows: the crafted-`callback_url` confirmation screen, plus a real connect against both a 1.7.12 plugin and a ≤1.7.10 plugin (the version gate).
+- **Section E** — calendar reminders for the 30-day free-plan and annual renewal branches. Neither has run with the new code and neither had staging coverage.
+- **Operational** — add an alert on `renewed_count` from the renewal crons. `RETURNS TABLE` always emits exactly one row, so "succeeded, 1 row" is constant and a silently-zero renewal month looks identical to a healthy one.
+
+### Completed
+
+C1, C2, C3 (criticals) · H5, H6, H7 · and the follow-up chains N1–N5, O1–O5, P1–P5, Q1–Q2, R1–R3, S1, T1–T2, U1. See §8 for per-issue status.
 
 ---
 
 ## 7. Verification checklist (needs live systems, not verifiable from the repo)
 
-- [ ] Polar dashboard: exact product names for both credit packs, and whether each product has `metadata.plan_id` / `metadata.type` set (H6).
-- [ ] Supabase: does a `subscription_plans` row with id `credit_pack` exist? Does the `payments.plan_id` FK still exist? (H7)
-- [ ] Supabase: is `payments.payment_id` unique? (H5)
-- [ ] Supabase: current `cron.job` list — are `renew-free-credits` and `renew-paid-credits` both scheduled and succeeding? (C2, H2)
-- [ ] Supabase: any `profiles` rows with `subscription_status` in (`cancelled`,`expired`) still on a paid `subscription_plan`? (H2)
+- [x] Polar dashboard: product names and metadata (H6) — `Credit Pack (250)` had none; metadata added 2026-08-06, closing H6.
+- [x] Supabase: `credit_pack` row in `subscription_plans` (H7) — added by the migration; FK now satisfied.
+- [x] Supabase: `payments.payment_id` unique (H5/P1) — index added after a dedup pass; 2 duplicate rows archived to `payments_duplicate_archive` (one PayPal subscription `I-L4VEFB2HH8LV` previously counted 3×; revenue totals correctly drop $24 as a result).
+- [x] Supabase: `cron.job` — `renew-free-credits` (02:00 UTC) and `renew-paid-credits` (02:05 UTC) both active, last 10 runs succeeded.
+- [x] Supabase: backfill impact — 0 `credit_pack_grants` rows, 0 profiles updated, the single `pending` pack payment correctly excluded.
+- [x] Supabase: `profiles` stranded on a paid plan after cancellation (H2) — reconciled 2026-08-06: two profiles with confirmed-ended Polar subscriptions downgraded to free and restored to 30 credits; one promotional account repaired into the bonus ledger (see below).
+- [x] Supabase: `audit_logs.actor_id` / `actor_email` nullability — both `YES`, so `grant_promotional_credits` works as written (it is the first caller to pass NULL actors).
+- [x] Polar: `next_billing_date` backfilled on both live annual profiles; one still lacks stored Polar subscription/customer IDs, covered by the permissive `matchesSubscription` fallback plus email lookup until H1 is deployed.
+- [ ] **Post-release observation:** run one real credit-pack purchase (see §6) and confirm `credit_pack_grants`, `purchased_credits_remaining`, the `payments` row, spend-past-cap, and a replayed webhook granting nothing extra.
 - [ ] Netlify: is `UPSTASH_REDIS_REST_URL` set in production? (determines whether M1 is live)
-- [x] `payments` table: count of rows per subscription renewal — 6 `polar_ord_*` rows at `$0` and 4 `polar_renewal_*` rows at `$69`; no historical amount correction was required after the H4 fix.
+- [ ] Netlify: expose `COMMIT_REF` to the function runtime — `/api/health` still reports `version: "local"`, so the deployed commit cannot be confirmed from outside.
+
+**Manual credit grants (incident, 2026-08-06):** one profile held 900 promotional credits placed
+directly into `credits_remaining` with no ledger entry, on a cancelled paid plan with a frozen
+`credits_last_renewed_at`. `use_credit` therefore counted *all* usage since that frozen timestamp
+against the tier limit, so the balance was on track to become permanently unspendable while still
+displaying in full — the C2 failure mode reached by a different route. Repaired by moving the 900
+into `bonus_credits_remaining`, returning the account to active `free`, and resetting the renewal
+timestamp. Root cause was the absence of a safe path for "give this user N credits";
+`grant_promotional_credits` (in the H2/H3 migration) now provides one, and hand-editing
+`credits_remaining` should be treated as unsupported.
+
+**Known live-function note:** `renew_paid_monthly_credits()` is still the pre-2026-08 definition (returns `user_ids`, no `purchased_credits_remaining` reference). This is **not** a partial migration failure — the migration never included that function (it replaces only `grant_credit_pack_purchase`, `use_credit`, `renew_monthly_credits`). It remains functionally correct under the new model because it is purely additive (`credits_remaining + monthly_credit_allowance`) and so can never lower either persistent ledger; the free-plan version needed a `greatest()` floor only because it overwrites. Left unchanged deliberately — altering a working renewal function against live annual subscribers is risk without benefit.
+- [ ] `payments` table: count of rows per subscription renewal — confirms H4 double-count in real data.
 
 ## 8. Tracking
 
@@ -319,17 +493,18 @@ Whether this is live depends on the exact Polar product names and whether each p
 |---|---|---|---|
 | C1 | Critical | `/connect` leaks API key to arbitrary `callback_url` / `postMessage("*")` | **Fixed 2026-08-05** |
 | C2 | Critical | Credit packs unusable, then wiped by free renewal | **Fixed 2026-08-05** |
-| C3 | Critical | `/track-event` unauthenticated, drives outbound lifecycle email | **Fixed locally 2026-08-05; not deployed** |
-| R1 | High | `signup_created` silently dropped for email-confirmation signups | **Fixed locally 2026-08-05; not deployed** |
+| C3 | Critical | `/track-event` unauthenticated, drives outbound lifecycle email | **Fixed & released 2026-08-06** |
+| R1 | High | `signup_created` silently dropped for email-confirmation signups | **Fixed & released 2026-08-06** |
 | R2 | Low | Legacy marketing events can no longer trigger lifecycle email | **Expected transition documented 2026-08-05** |
-| R3 | Low | Recipient gate does not check `email_confirmed_at` | **Fixed locally 2026-08-05; not deployed** |
-| S1 | Low | Cross-device `/connect` confirmation can miss `signup_created` when local storage is absent | **Fixed locally 2026-08-05; not deployed** |
-| H1 | High | Payments bound to customers by email string only | **Fixed 2026-08-06** |
-| H2 | High | No `subscription.revoked` / refund handling | **Fixed 2026-08-06** |
-| H3 | High | Annual cancellation destroys pre-paid credits | **Fixed 2026-08-06** |
-| H4 | High | Subscription revenue double-counted in `payments` | **Fixed 2026-08-06** |
+| R3 | Low | Recipient gate does not check `email_confirmed_at` | **Fixed & released 2026-08-06** |
+| S1 | Low | Cross-device `/connect` confirmation can miss `signup_created` when local storage is absent | **Fixed & released 2026-08-06** |
+| H1 | High | Payments bound to customers by email string only | **Fixed & released 2026-08-06** |
+| H2 | High | No `subscription.revoked` / refund handling | **Fixed & released 2026-08-06** |
+| H3 | High | Annual cancellation destroys pre-paid credits | **Fixed & released 2026-08-06** |
+| H4 | High | Subscription revenue double-counted in `payments` | **Fixed & released 2026-08-06** |
+| V1 | Medium | `payments_status_check` rejects `partially_refunded`; partial refunds fail | **Fixed & applied 2026-08-06** |
 | H5 | High | No webhook idempotency for one-time orders | **Fixed 2026-08-05** (via C2) |
-| H6 | High | `"pro"` substring collision misclassifies packs as subscriptions | Open |
+| H6 | High | `"pro"` substring collision misclassifies packs as subscriptions | **Fixed 2026-08-06** (Polar catalog metadata; no deploy) |
 | H7 | High | `credit_pack` plan_id has no `subscription_plans` row (FK failure) | **Fixed 2026-08-05** (via O2) |
 | M1 | Medium | Admin rate limits ignored when Upstash is enabled | Open |
 | M2 | Medium | Rollover credits accumulate but can never be spent | Open |
@@ -350,12 +525,12 @@ Whether this is live depends on the exact Polar product names and whether each p
 | O4 | Low | Backfill hardcodes 100/250; may mis-restore older pack sizes | **Fixed 2026-08-05** |
 | O5 | Low | Purchased packs display as "promotional credits" | **Fixed 2026-08-05** |
 | P1 | High | Webhook retries duplicate `payments` rows (no unique constraint) | **Fixed 2026-08-05** |
-| P2 | Medium | Payment-record failure blocks credit fulfillment | **Fixed 2026-08-05; local ordering reversal `41f6f90` not deployed** |
+| P2 | Medium | Payment-record failure blocks credit fulfillment | **Fixed 2026-08-05** |
 | P3 | Medium | Pack backfill UPDATE now touches every profile | **Fixed 2026-08-05** |
 | P4 | Low | Discounted purchases mis-sized by amount-based backfill | **Fixed 2026-08-05** |
 | P5 | Low | No non-negative CHECK on `purchased_credits_remaining`; drain order | **Fixed 2026-08-05** |
 | Q1 | Medium | Payments dedup hard-deletes financial rows with no archive | **Fixed 2026-08-05** |
 | Q2 | Low | Marketing-events unique index lets C3 suppress purchase events | **Fixed 2026-08-05** |
-| T1 | Low | Concurrent `signup_created` posts can double-count before insert | **Fixed locally 2026-08-05; migration/app not deployed** |
+| T1 | Low | Concurrent `signup_created` posts can double-count before insert | **Fixed & released 2026-08-06** |
 | T2 | Low | Historical Google-OAuth gaps and legacy-row rejection affect early funnel comparisons | **Expected transition documented 2026-08-05** |
-| U1 | Low | Signup unique-index creation could abort after a post-preflight duplicate | **Fixed locally 2026-08-05; migration not applied** |
+| U1 | Low | Signup unique-index creation could abort after a post-preflight duplicate | **Fixed & released 2026-08-06** |
