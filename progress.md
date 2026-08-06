@@ -1,11 +1,19 @@
 # Progress
 
+## 2026-08-07: M3 credit-reservation preflight
+
+- Production currently has no `credit_reservations` table and none of the `reserve_credit`, `finalize_credit_reservation`, or `release_credit_reservation` RPCs. No production change was made.
+- The reviewed M3 commit must be isolated before release: its generation diff predates Batch A/M5 and would otherwise remove the per-credential rate limit and hash-based API-key validation. Only the reservation path and migration should be carried forward.
+- The reservation migration also replaces both renewal functions; production signatures match the migration’s current output names (`renewed_user_ids` and `user_ids`), so no signature repair is needed for this batch.
+- Release verification gate: one successful generation must finalize exactly one reservation/usage credit, and one controlled provider failure must leave the reservation released with no net credit loss.
+
 ## 2026-08-07: M5 API-key storage migration applied; app rollout pending
 
 - Production migration `20260806153415_secure_api_key_storage` is applied before the app rollout. It added the hash/encrypted/last-four columns, seeded hashes for all 23 active legacy keys, and preserved every existing raw key for lazy authorized migration.
 - The M5 application changes are isolated in commit `5098c89` on `codex/release-medium-batch-b`; they must be deployed only after this migration, which is now satisfied.
 - The production encryption secret is already configured. No production key was deleted or rotated; the approved migration was the only production change before deployment.
-- Existing-key verification remains the release gate: after the app rollout, confirm an existing WordPress plugin authenticates and the dashboard can still display its key through the authenticated key endpoint.
+- Git-backed Netlify deploy `6a74fd284b8a3b0008870853` completed from `main` at commit `6a1dcb5`; homepage, `/admin`, and health returned 200, with production/`main`/Node 20 reported by health.
+- A real existing production API key authenticated successfully through the live plugin endpoint without exposing the key. Dashboard display is still pending because the available browser session is signed out and `/dashboard` redirects to the sign-in page.
 
 ## 2026-08-07: P7 Medium Batch A released
 

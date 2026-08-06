@@ -2,7 +2,15 @@
 // File: netlify/functions/generate-alt-text.js
 
 const { createClient } = require('@supabase/supabase-js');
-const { validateApiKey, updateUserCredits, isSupabaseConfigured, getMonthlyCreditState, getCurrentCycleCreditsUsed } = require('./utils/api-key-validator');
+const {
+  validateApiKey,
+  reserveUserCredit,
+  finalizeUserCreditReservation,
+  releaseUserCreditReservation,
+  isSupabaseConfigured,
+  getMonthlyCreditState,
+  getCurrentCycleCreditsUsed,
+} = require('./utils/api-key-validator');
 const { recordCreditsLowEvent } = require('./utils/credits-low-event');
 const {
   getCorsHeaders,
@@ -712,6 +720,9 @@ exports.handler = async (event, context) => {
   // Get secure CORS headers (origin-validated)
   const headers = getCorsHeaders(event.headers, ['POST', 'OPTIONS']);
   let isApiKeyAuth = false;
+  let creditReservationId = null;
+  let creditReservationSettled = false;
+  let releaseReservedCredit = async () => ({ success: true });
 
   // Handle preflight OPTIONS request
   const preflightResponse = handlePreflight(event);
@@ -953,79 +964,15 @@ exports.handler = async (event, context) => {
 
     console.log('Pre-generation credit check - Monthly credits remaining:', finalCreditCheck);
 
-    // Generate alt-text using AI with retry logic
-    let altText;
-    let lastError;
-    const maxRetries = 2;
-
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      try {
-        altText = await generateAltTextWithGemini(image_base64, context);
-
-        // Validate alt-text is not empty
-        if (!altText || altText.trim().length === 0) {
-          throw new Error('Generated alt-text is empty');
-        }
-
-        // Success - break out of retry loop
-        break;
-      } catch (aiError) {
-        lastError = aiError;
-
-        // Don't retry on certain errors (auth, invalid input, etc.)
-        const errorMessage = aiError.message || '';
-        if (aiError.code === 'AI_RATE_LIMITED' || aiError.statusCode === 429 || isAiRateLimitError(errorMessage)) {
-          return aiRateLimitResponse(headers, aiError.code === 'AI_RATE_LIMITED' ? aiError : createAiRateLimitError(errorMessage));
-        }
-
-        if (errorMessage.includes('API key') ||
-          errorMessage.includes('invalid') ||
-          errorMessage.includes('leaked') ||
-          errorMessage.includes('reported') ||
-          attempt === maxRetries) {
-          // Return error immediately for non-retryable errors or last attempt
-          return {
-            statusCode: 500,
-            headers,
-            body: JSON.stringify({
-              success: false,
-              error: aiError.message || 'Failed to generate alt-text',
-              message: aiError.message || 'Failed to generate alt-text'
-            }),
-          };
-        }
-
-        // Wait before retry (exponential backoff)
-        if (attempt < maxRetries) {
-          await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
-        }
-      }
-    }
-
-    // If we get here and altText is still empty, return error
-    if (!altText || altText.trim().length === 0) {
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({
-          success: false,
-          error: lastError?.message || 'Failed to generate alt-text',
-          message: lastError?.message || 'Failed to generate alt-text'
-        }),
-      };
-    }
-
-    // Deduct credit and update usage in profiles table (single source of truth)
-    // Uses unified updateUserCredits function for both API key and Supabase auth users
-    const creditUpdateResult = await updateUserCredits(user.id, 1, altText, context || null);
-
-    if (!creditUpdateResult.success) {
-      console.error('Failed to update credits:', creditUpdateResult.error);
-
-      // Check if it's a "no credits" error
-      if (creditUpdateResult.error &&
-        (creditUpdateResult.error.toLowerCase().includes('insufficient') ||
-          creditUpdateResult.error.toLowerCase().includes('no credits'))) {
+    // The pre-check is advisory only. The reservation RPC is the authoritative
+    // concurrency boundary and deducts one usable credit before Gemini runs.
+    const creditReservationResult = await reserveUserCredit(user.id, 1);
+    if (!creditReservationResult.success) {
+      console.error('Failed to reserve credit:', creditReservationResult.error);
+      const reservationError = String(creditReservationResult.error || '').toLowerCase();
+      if (reservationError.includes('insufficient') ||
+        reservationError.includes('no credits') ||
+        reservationError.includes('monthly credits')) {
         return {
           statusCode: 402,
           headers,
@@ -1033,7 +980,122 @@ exports.handler = async (event, context) => {
         };
       }
 
-      // For other errors, return 500
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Failed to reserve a credit. Please try again.' }),
+      };
+    }
+
+    creditReservationId = creditReservationResult.reservation_id;
+    releaseReservedCredit = async () => {
+      if (!creditReservationId || creditReservationSettled) {
+        return { success: true, already_settled: true };
+      }
+
+      const releaseResult = await releaseUserCreditReservation(creditReservationId);
+      if (releaseResult.success) {
+        creditReservationSettled = true;
+      } else {
+        console.error('Failed to release credit reservation:', {
+          reservationId: creditReservationId,
+          error: releaseResult.error,
+        });
+      }
+      return releaseResult;
+    };
+
+    console.log('✅ Credit reserved before AI generation:', {
+      user: user.email,
+      reservation_id: creditReservationId,
+      credit_source: creditReservationResult.credit_source,
+    });
+
+    // Generate alt-text using AI with retry logic. If generation fails, the
+    // reservation is released so the failed request is not charged.
+    let altText;
+    let lastError;
+    const maxRetries = 2;
+    let generationSucceeded = false;
+
+    try {
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+          altText = await generateAltTextWithGemini(image_base64, context);
+
+          // Validate alt-text is not empty
+          if (!altText || altText.trim().length === 0) {
+            throw new Error('Generated alt-text is empty');
+          }
+
+          // Success - break out of retry loop
+          break;
+        } catch (aiError) {
+          lastError = aiError;
+
+          // Don't retry on certain errors (auth, invalid input, etc.)
+          const errorMessage = aiError.message || '';
+          if (aiError.code === 'AI_RATE_LIMITED' || aiError.statusCode === 429 || isAiRateLimitError(errorMessage)) {
+            return aiRateLimitResponse(headers, aiError.code === 'AI_RATE_LIMITED' ? aiError : createAiRateLimitError(errorMessage));
+          }
+
+          if (errorMessage.includes('API key') ||
+            errorMessage.includes('invalid') ||
+            errorMessage.includes('leaked') ||
+            errorMessage.includes('reported') ||
+            attempt === maxRetries) {
+            // Return error immediately for non-retryable errors or last attempt
+            return {
+              statusCode: 500,
+              headers,
+              body: JSON.stringify({
+                success: false,
+                error: aiError.message || 'Failed to generate alt-text',
+                message: aiError.message || 'Failed to generate alt-text'
+              }),
+            };
+          }
+
+          // Wait before retry (exponential backoff)
+          if (attempt < maxRetries) {
+            await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+          }
+        }
+      }
+
+      // If we get here and altText is still empty, return error
+      if (!altText || altText.trim().length === 0) {
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({
+            success: false,
+            error: lastError?.message || 'Failed to generate alt-text',
+            message: lastError?.message || 'Failed to generate alt-text'
+          }),
+        };
+      }
+
+      generationSucceeded = true;
+    } finally {
+      if (!generationSucceeded) {
+        await releaseReservedCredit();
+      }
+    }
+
+    // Finalize the already-reserved credit only after generation succeeds.
+    // This inserts the usage log without opening a long database transaction
+    // around the external Gemini request.
+    const creditFinalizeResult = await finalizeUserCreditReservation(
+      creditReservationId,
+      altText,
+      context || null
+    );
+
+    if (!creditFinalizeResult.success) {
+      console.error('Failed to finalize credit reservation:', creditFinalizeResult.error);
+      await releaseReservedCredit();
+
       return {
         statusCode: 500,
         headers,
@@ -1041,10 +1103,11 @@ exports.handler = async (event, context) => {
       };
     }
 
-    const newCreditsRemaining = creditUpdateResult.credits_remaining;
-    const newTotalProcessed = creditUpdateResult.total_processed;
+    creditReservationSettled = true;
+    const newCreditsRemaining = creditFinalizeResult.credits_remaining;
+    const newTotalProcessed = creditFinalizeResult.total_processed;
 
-    console.log('✅ Credit deducted successfully:', {
+    console.log('✅ Credit reservation finalized successfully:', {
       user: user.email,
       credits_remaining: newCreditsRemaining,
       total_processed: newTotalProcessed
@@ -1053,8 +1116,8 @@ exports.handler = async (event, context) => {
     const updatedMonthlyCreditState = getMonthlyCreditState({
       ...user,
       credits_remaining: newCreditsRemaining,
-      bonus_credits_remaining: creditUpdateResult.bonus_credits_remaining ?? user.bonus_credits_remaining,
-      purchased_credits_remaining: creditUpdateResult.purchased_credits_remaining ?? user.purchased_credits_remaining,
+      bonus_credits_remaining: creditFinalizeResult.bonus_credits_remaining ?? user.bonus_credits_remaining,
+      purchased_credits_remaining: creditFinalizeResult.purchased_credits_remaining ?? user.purchased_credits_remaining,
       total_processed: newTotalProcessed,
     });
 

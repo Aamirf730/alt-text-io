@@ -461,11 +461,164 @@ async function getCreditStoreStats() {
   }
 }
 
+function normalizeCreditRpcResult(rpcResult, operation) {
+  if (!rpcResult) {
+    console.error(`❌ CRITICAL: ${operation} RPC returned null/undefined`);
+    return {
+      success: false,
+      error: 'Credit system temporarily unavailable. Please contact support.',
+      requiresDatabaseFix: true,
+    };
+  }
+
+  let result = rpcResult;
+
+  if (Array.isArray(result)) {
+    if (result.length === 0) {
+      console.error(`❌ CRITICAL: ${operation} RPC returned an empty array`);
+      return {
+        success: false,
+        error: 'Credit system temporarily unavailable. Please contact support.',
+        requiresDatabaseFix: true,
+      };
+    }
+    result = result[0];
+  }
+
+  if (typeof result === 'string') {
+    try {
+      result = JSON.parse(result);
+    } catch (parseError) {
+      console.error(`❌ CRITICAL: Failed to parse ${operation} RPC result:`, parseError);
+      return {
+        success: false,
+        error: 'Invalid credit system response. Please contact support.',
+        requiresDatabaseFix: true,
+      };
+    }
+  }
+
+  if (!result || typeof result !== 'object') {
+    console.error(`❌ CRITICAL: Unexpected ${operation} RPC result format:`, typeof result);
+    return {
+      success: false,
+      error: 'Invalid credit system response. Please contact support.',
+      requiresDatabaseFix: true,
+    };
+  }
+
+  if (result.error || result.success === false) {
+    return {
+      success: false,
+      error: result.error || `${operation} failed`,
+      ...result,
+    };
+  }
+
+  return {
+    success: true,
+    ...result,
+  };
+}
+
+async function callCreditLifecycleRpc(functionName, params) {
+  if (!supabase) {
+    return {
+      success: false,
+      error: 'Supabase credentials not configured',
+      requiresConfiguration: true,
+    };
+  }
+
+  try {
+    const { data, error } = await supabase.rpc(functionName, params);
+
+    if (error) {
+      console.error(`❌ CRITICAL: ${functionName} RPC error:`, {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+      });
+      return {
+        success: false,
+        error: 'Credit system temporarily unavailable. Please contact support if this persists.',
+        requiresDatabaseFix: true,
+        rpcError: error.message,
+      };
+    }
+
+    return normalizeCreditRpcResult(data, functionName);
+  } catch (error) {
+    console.error(`❌ CRITICAL: Unexpected ${functionName} RPC error:`, {
+      error: error.message,
+      stack: error.stack,
+    });
+    return {
+      success: false,
+      error: 'Database error during credit operation',
+      requiresDatabaseFix: true,
+    };
+  }
+}
+
+/**
+ * Reserve one credit before spending money on an external AI request.
+ * The reservation is finalized after a successful response or released when
+ * generation fails.
+ */
+async function reserveUserCredit(userId, creditsToReserve = 1) {
+  if (!userId) return { success: false, error: 'User ID is required' };
+
+  const result = await callCreditLifecycleRpc('reserve_credit', {
+    user_uuid: userId,
+    credits_to_reserve: creditsToReserve,
+  });
+
+  if (result.success && !result.reservation_id) {
+    console.error('❌ CRITICAL: reserve_credit RPC omitted reservation_id');
+    return {
+      success: false,
+      error: 'Invalid credit reservation response. Please contact support.',
+      requiresDatabaseFix: true,
+    };
+  }
+
+  return result;
+}
+
+/**
+ * Convert a successful AI generation into a durable usage log.
+ */
+async function finalizeUserCreditReservation(reservationId, altText = null, context = null) {
+  if (!reservationId) return { success: false, error: 'Reservation ID is required' };
+
+  return callCreditLifecycleRpc('finalize_credit_reservation', {
+    p_reservation_id: reservationId,
+    p_alt_text: altText,
+    p_context: context,
+  });
+}
+
+/**
+ * Return a reserved credit when the external AI request fails.
+ */
+async function releaseUserCreditReservation(reservationId) {
+  if (!reservationId) return { success: false, error: 'Reservation ID is required' };
+
+  return callCreditLifecycleRpc('release_credit_reservation', {
+    p_reservation_id: reservationId,
+  });
+}
+
 module.exports = {
   validateApiKey,
   hasSufficientCredits,
   deductCredits,
   updateUserCredits,
+  reserveUserCredit,
+  finalizeUserCreditReservation,
+  releaseUserCreditReservation,
   getUserProfile,
   getCreditStoreStats,
   getMonthlyCreditState,
