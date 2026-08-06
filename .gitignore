@@ -84,6 +84,7 @@ agenthub/agents/youtube/db
 !frontend-next/public/wordpress-plugin/
 !frontend-next/public/wordpress-plugin/alt-text-pro-plugin.zip
 !frontend-next/public/wordpress-plugin/alt-text-pro-plugin-1.4.96.zip
+!frontend-next/public/wordpress-plugin/alt-text-pro-plugin-1.7.14.zip
 **/*.tar.gz
 **/*.tar
 **/*.tgz

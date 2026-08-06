@@ -692,7 +692,7 @@
             var $modal = $('#' + modalId);
 
             if ($modal.length) {
-                $modal.addClass('active');
+                $modal.addClass('active').attr('aria-hidden', 'false');
                 $('body').addClass('modal-open');
                 $modal.find('input, button, a').first().trigger('focus');
             }
@@ -700,10 +700,14 @@
 
         // Close modal dialog
         closeModal: function (e) {
-            if ($(e.target).hasClass('modal-overlay') || $(e.target).hasClass('close-modal')) {
-                $('.modal').removeClass('active');
-                $('body').removeClass('modal-open');
+            if ($(e.target).closest('.close-modal').length) {
+                AltTextProAdmin.closeAllModals();
             }
+        },
+
+        closeAllModals: function () {
+            $('.modal').removeClass('active').attr('aria-hidden', 'true');
+            $('body').removeClass('modal-open');
         },
 
         // Init onboarding modal logic
@@ -736,7 +740,7 @@
             if ($modal.length) {
                 // Ensure page is scrolled to top
                 window.scrollTo({ top: 0, behavior: 'smooth' });
-                $modal.addClass('active');
+                $modal.addClass('active').attr('aria-hidden', 'false');
                 $('body').addClass('modal-open');
                 // Focus management for accessibility
                 var modalContent = $modal.find('.modal-content').attr('tabindex', '-1').get(0);
@@ -751,6 +755,39 @@
             var $msg = $('#onboarding-message');
             $msg.removeClass('success error').addClass(type || '');
             $msg.text(message);
+        },
+
+        setAutoConnectButtonState: function (isLoading) {
+            var $button = $('#auto-connect-btn');
+            $button.prop('disabled', !!isLoading).toggleClass('is-loading', !!isLoading);
+
+            if (isLoading) {
+                $button.html(
+                    '<span>Connecting...</span>'
+                    + '<span class="dashicons dashicons-update" aria-hidden="true"></span>'
+                );
+                return;
+            }
+
+            $button.html(
+                '<span>Connect Account</span>'
+                + '<span class="dashicons dashicons-arrow-right-alt2" aria-hidden="true"></span>'
+            );
+        },
+
+        setAutoConnectStatus: function (message, type, iconClass) {
+            var $status = $('#auto-connect-status');
+            var $icon = $('<span>', {
+                'class': 'dashicons ' + (iconClass || 'dashicons-info-outline'),
+                'aria-hidden': 'true'
+            });
+            var $message = $('<span>').text(message || '');
+
+            $status
+                .removeClass('success error')
+                .addClass('is-visible ' + (type || ''))
+                .empty()
+                .append($icon, $message);
         },
 
         handleOnboardingSave: function (e) {
@@ -780,8 +817,7 @@
                         $('#api_key').val(apiKey);
                         altTextAI.onboarding.show = false;
                         setTimeout(function () {
-                            $('.modal').removeClass('active');
-                            $('body').removeClass('modal-open');
+                            AltTextProAdmin.closeAllModals();
                             location.reload();
                         }, 800);
                     } else {
@@ -817,10 +853,11 @@
                 + '&plugin_version=' + encodeURIComponent(altTextAI.version || '');
 
             // Update button state
-            var $btn = $('#auto-connect-btn');
-            $btn.prop('disabled', true).text('Connecting...');
-            $('#auto-connect-status').show().html(
-                '<span style="color: var(--text-secondary);">&#8987; Waiting for you to sign in...</span>'
+            AltTextProAdmin.setAutoConnectButtonState(true);
+            AltTextProAdmin.setAutoConnectStatus(
+                'Waiting for you to sign in...',
+                '',
+                'dashicons-clock'
             );
 
             // Open popup
@@ -833,18 +870,29 @@
                 'width=' + w + ',height=' + h + ',left=' + left + ',top=' + top + ',scrollbars=yes,resizable=yes'
             );
 
+            if (!popup) {
+                sessionStorage.removeItem('alt_text_pro_connect_state');
+                AltTextProAdmin.setAutoConnectButtonState(false);
+                AltTextProAdmin.setAutoConnectStatus(
+                    'Your browser blocked the sign-in window. Allow popups or use manual entry.',
+                    'error',
+                    'dashicons-warning'
+                );
+                return;
+            }
+
             // Poll to detect if popup was closed without completing
             var pollTimer = setInterval(function () {
                 if (popup && popup.closed) {
                     clearInterval(pollTimer);
-                    $btn.prop('disabled', false).html(
-                        '<span class="dashicons dashicons-admin-links" style="margin-right: 6px; line-height: inherit;"></span> Connect Account'
-                    );
+                    AltTextProAdmin.setAutoConnectButtonState(false);
                     // Only show "cancelled" if we didn't get a key
                     var storedState = sessionStorage.getItem('alt_text_pro_connect_state');
                     if (storedState) {
-                        $('#auto-connect-status').html(
-                            '<span style="color: var(--text-secondary);">Popup closed. Try again or use manual entry.</span>'
+                        AltTextProAdmin.setAutoConnectStatus(
+                            'Sign-in window closed. Try again or use manual entry.',
+                            '',
+                            'dashicons-info-outline'
                         );
                     }
                 }
@@ -876,8 +924,11 @@
             sessionStorage.removeItem('alt_text_pro_connect_state');
 
             // Show connecting status
-            $('#auto-connect-status').show().html(
-                '<span style="color: var(--primary-color);">&#10003; Key received! Saving...</span>'
+            AltTextProAdmin.setAutoConnectButtonState(true);
+            AltTextProAdmin.setAutoConnectStatus(
+                'Account connected. Saving your key...',
+                '',
+                'dashicons-update'
             );
 
             // Save via AJAX (reuses existing validate_key action)
@@ -892,8 +943,10 @@
                 success: function (response) {
                     if (response.success) {
                         AltTextProAdmin.sendConnectAcknowledgement(ackContext, true);
-                        $('#auto-connect-status').html(
-                            '<span style="color: var(--success-color, #16a34a); font-weight: 600;">&#10003; Connected successfully!</span>'
+                        AltTextProAdmin.setAutoConnectStatus(
+                            'Connected successfully!',
+                            'success',
+                            'dashicons-yes-alt'
                         );
                         // Mirror into settings field
                         $('#api_key').val(apiKey);
@@ -903,29 +956,34 @@
                         AltTextProAdmin.showNotification('Connected successfully! Your API key has been saved.', 'success');
 
                         setTimeout(function () {
-                            $('.modal').removeClass('active');
-                            $('body').removeClass('modal-open');
+                            AltTextProAdmin.closeAllModals();
                             location.reload();
                         }, 1500);
                     } else {
+                        AltTextProAdmin.setAutoConnectButtonState(false);
                         AltTextProAdmin.sendConnectAcknowledgement(
                             ackContext,
                             false,
                             response.data || 'WordPress could not save the API key.'
                         );
-                        $('#auto-connect-status').html(
-                            '<span style="color: var(--error-color, #dc2626);">&#10007; ' + (response.data || 'Invalid API key') + '</span>'
+                        AltTextProAdmin.setAutoConnectStatus(
+                            response.data || 'Invalid API key',
+                            'error',
+                            'dashicons-warning'
                         );
                     }
                 },
                 error: function () {
+                    AltTextProAdmin.setAutoConnectButtonState(false);
                     AltTextProAdmin.sendConnectAcknowledgement(
                         ackContext,
                         false,
                         'WordPress could not save the API key.'
                     );
-                    $('#auto-connect-status').html(
-                        '<span style="color: var(--error-color, #dc2626);">&#10007; Failed to save. Please try manual entry.</span>'
+                    AltTextProAdmin.setAutoConnectStatus(
+                        'Failed to save. Please try manual entry.',
+                        'error',
+                        'dashicons-warning'
                     );
                 }
             });

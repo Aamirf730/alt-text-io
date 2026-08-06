@@ -1003,6 +1003,22 @@
     color: var(--primary-color);
 }
 
+.alt-text-pro-modal .modal-close .dashicons {
+    flex: 0 0 20px;
+    width: 20px;
+    height: 20px;
+    font-size: 20px;
+    line-height: 1;
+}
+
+.alt-text-pro-modal .modal-close:focus-visible,
+.alt-text-pro-modal .onboarding-connect-button:focus-visible,
+.alt-text-pro-modal .onboarding-save-button:focus-visible,
+.alt-text-pro-modal .button-link:focus-visible {
+    outline: 3px solid rgba(13, 79, 94, 0.22);
+    outline-offset: 2px;
+}
+
 /* Modal Header */
 .alt-text-pro-modal .modal-header {
     text-align: center;
@@ -1013,6 +1029,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    flex: 0 0 48px;
     width: 48px;
     height: 48px;
     margin-bottom: 12px;
@@ -1072,6 +1089,13 @@
     border-color: var(--primary-border);
 }
 
+.alt-text-pro-modal .onboarding-recommended-copy {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    height: 100%;
+}
+
 .alt-text-pro-modal .step-label {
     display: inline-flex;
     align-items: center;
@@ -1120,6 +1144,7 @@
     font-size: 14px !important;
     font-weight: 700 !important;
     border-radius: 9px !important;
+    white-space: nowrap;
 }
 
 .alt-text-pro-modal .onboarding-connect-button .dashicons {
@@ -1154,6 +1179,7 @@
 .alt-text-pro-modal .onboarding-connect-button > span:first-child {
     display: inline-flex;
     align-items: center;
+    min-width: 0;
     line-height: 1.2;
 }
 
@@ -1164,6 +1190,49 @@
 .alt-text-pro-modal .auto-connect-status {
     display: none;
     margin-top: 10px;
+    align-items: flex-start;
+    gap: 7px;
+    padding: 9px 10px;
+    border: 1px solid #D9E2E8;
+    border-radius: 8px;
+    background: #F8FAFC;
+    color: #53627A;
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.alt-text-pro-modal .auto-connect-status.is-visible {
+    display: flex;
+}
+
+.alt-text-pro-modal .auto-connect-status .dashicons {
+    flex: 0 0 16px;
+    width: 16px;
+    height: 16px;
+    margin-top: 1px;
+    font-size: 16px;
+}
+
+.alt-text-pro-modal .auto-connect-status.success {
+    border-color: #A7F3D0;
+    background: #ECFDF5;
+    color: #047857;
+}
+
+.alt-text-pro-modal .auto-connect-status.error {
+    border-color: #FECACA;
+    background: #FEF2F2;
+    color: #B91C1C;
+}
+
+.alt-text-pro-modal .onboarding-connect-button.is-loading .dashicons {
+    animation: alt-text-pro-spin 0.9s linear infinite;
+}
+
+@keyframes alt-text-pro-spin {
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 .alt-text-pro-modal .onboarding-account-illustration {
@@ -1378,6 +1447,7 @@
     color: var(--primary-color) !important;
     font-size: 14px !important;
     font-weight: 700 !important;
+    white-space: nowrap;
     box-shadow: none !important;
 }
 
@@ -1465,10 +1535,11 @@
     }
 
     .alt-text-pro-modal .modal-content {
-        max-width: 640px;
-        width: min(640px, 92vw);
-        max-height: none;
-        overflow: hidden;
+        max-width: 720px;
+        width: min(720px, 92vw);
+        max-height: calc(100vh - 32px);
+        overflow-x: hidden;
+        overflow-y: auto;
         margin: auto;
     }
 
@@ -1502,7 +1573,8 @@
     }
 
     .alt-text-pro-modal .onboarding-step-recommended {
-        display: block;
+        display: flex;
+        flex-direction: column;
     }
 
     .alt-text-pro-modal .onboarding-account-illustration {
@@ -1547,6 +1619,11 @@
     }
 
     .alt-text-pro-modal .onboarding-save-button {
+        margin-top: auto !important;
+        transform: translateY(1px);
+    }
+
+    .alt-text-pro-modal .onboarding-connect-button {
         margin-top: auto !important;
         transform: translateY(1px);
     }

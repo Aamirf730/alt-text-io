@@ -140,7 +140,26 @@ class AltTextPro_Settings
         if (isset($input['api_key'])) {
             $api_key = trim(sanitize_text_field(wp_unslash($input['api_key'])));
 
-            if (!empty($api_key) && AltTextPro_API_Client::validate_api_key_format($api_key)) {
+            // Internal, already-validated saves provide the encrypted value. Keep it
+            // only when it can be decrypted on this WordPress installation and is a
+            // valid Alt Text Pro key. This avoids a second encryption pass while
+            // preserving the same validation standard as the public settings form.
+            if (!empty($api_key) && strpos($api_key, 'enc:') === 0) {
+                $decrypted_key = $this->decrypt_api_key($api_key);
+                if ($decrypted_key !== false && AltTextPro_API_Client::validate_api_key_format($decrypted_key)) {
+                    $sanitized['api_key'] = $api_key;
+                }
+                else {
+                    add_settings_error(
+                        'alt_text_pro_settings',
+                        'invalid_api_key_format',
+                        esc_html__('Invalid API key format. API keys should start with "alt_" or "altai_".', 'alt-text-pro'),
+                        'error'
+                    );
+                    $sanitized['api_key'] = $existing_settings['api_key'];
+                }
+            }
+            elseif (!empty($api_key) && AltTextPro_API_Client::validate_api_key_format($api_key)) {
                 // Valid new API key — encrypt and save
                 $encrypted_key = $this->encrypt_api_key($api_key);
                 if (!empty($encrypted_key)) {
@@ -164,17 +183,25 @@ class AltTextPro_Settings
             }
         }
 
-        // Checkboxes: if they are present in POST, they are checked. If absent but other settings are present, they are unchecked.
-        // We only do this if we are actually processing form submission containing this option group
-        // (verified by checking for a known field that is always submitted or the fact that this callback ran from HTTP POST).
+        // Checkboxes are only changed when they are explicitly present in the POST
+        // payload. Partial saves, such as the connection flow, must preserve the
+        // existing values rather than treating omitted fields as unchecked.
         $alt_text_pro_request_method = isset($_SERVER['REQUEST_METHOD'])
             ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_METHOD']))
             : '';
         if ('POST' === $alt_text_pro_request_method) {
-            $sanitized['auto_generate'] = !empty($input['auto_generate']);
-            $sanitized['overwrite_existing'] = !empty($input['overwrite_existing']);
-            $sanitized['context_enabled'] = !empty($input['context_enabled']);
-            $sanitized['show_context_field'] = !empty($input['show_context_field']);
+            $sanitized['auto_generate'] = array_key_exists('auto_generate', $input)
+                ? !empty($input['auto_generate'])
+                : $sanitized['auto_generate'];
+            $sanitized['overwrite_existing'] = array_key_exists('overwrite_existing', $input)
+                ? !empty($input['overwrite_existing'])
+                : $sanitized['overwrite_existing'];
+            $sanitized['context_enabled'] = array_key_exists('context_enabled', $input)
+                ? !empty($input['context_enabled'])
+                : $sanitized['context_enabled'];
+            $sanitized['show_context_field'] = array_key_exists('show_context_field', $input)
+                ? !empty($input['show_context_field'])
+                : $sanitized['show_context_field'];
         }
 
         // Sanitize batch size

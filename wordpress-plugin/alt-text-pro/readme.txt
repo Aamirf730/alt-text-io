@@ -4,7 +4,7 @@ Tags: alt text, accessibility, image seo, ai, media library
 Requires at least: 5.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.7.12
+Stable tag: 1.7.14
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -158,6 +158,14 @@ Yes, you can cancel your subscription at any time from your Alt Text Pro dashboa
 6. Responsive admin interface for managing alt text from different screen sizes.
 
 == Changelog ==
+= 1.7.14 =
+* UX: Restored the polished shared connection modal with consistent icons, balanced cards, card-local actions, and responsive layouts that do not compress controls.
+* UX: Improved automatic-connection loading, popup-blocked, success, and error feedback without changing the connection flow.
+* Fix: Preserved the default context-aware generation setting during partial connection saves.
+
+= 1.7.13 =
+* Fix: Validated API keys now persist correctly when WordPress applies the plugin settings sanitizer during automatic or manual connection.
+
 = 1.7.12 =
 * UX: Distinguish confirmed popup connections from legacy key delivery and normalize the connect-handler formatting.
 

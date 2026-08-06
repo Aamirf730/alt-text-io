@@ -1,7 +1,37 @@
 # Release Checklist
 
-**Last updated:** 2026-08-05
+**Last updated:** 2026-08-06
 **Status:** RELEASED — the approved C1/C2/C3 fix set is live; production evidence and follow-up observations are recorded below.
+
+## Newly queued high-priority fixes — local only
+
+The following fixes are complete locally but intentionally remain unreleased until the user explicitly resumes the release step:
+
+| Item | Change | Target | Current state | Dependency |
+| --- | --- | --- | --- | --- |
+| H1 | Bind Polar checkouts and webhook events to the authenticated `user_id`, normalize the email fallback, paginate Auth lookup, and retain unmatched payments/subscriptions/refunds in a service-role-only reconciliation queue. | Next.js checkout/webhook, Supabase migration `20260806051721_payment_reconciliation_h1.sql` | Fixed locally; not deployed | Apply the H1 and H2/H3 migrations before the matching app/webhook deploy; review the first queued-event alert and resolution flow. |
+| H3 | Treat `subscription.canceled` as non-renewal, preserve annual drip metadata through the paid period, and downgrade only on `subscription.revoked`. | Supabase migration and Next.js Polar webhook | Fixed locally; not deployed | Apply `20260805202418_fix_subscription_lifecycle_refunds.sql` before the matching webhook. |
+| H2 | Add subscription revocation/uncancellation, order-refund, refund-created, and refund-updated handling with idempotent benefit/credit revocation, plus an audited RPC that writes promotional grants to both credit ledgers. | Supabase migration and Next.js Polar webhook | Fixed locally; not deployed | Reconcile existing cancelled paid profiles and verify Polar refund state after migration. |
+| API-key persistence | Preserve validated encrypted keys through the WordPress settings sanitizer. | WordPress plugin 1.7.14 and website ZIPs | Fixed and packaged locally; not released | Publish the exact 1.7.14 package and repeat save/read-back on an updated WordPress site. |
+| Checkbox setting preservation | Preserve all four checkbox settings during partial connection saves, while hidden form values keep unchecked settings disableable. | WordPress plugin 1.7.14 and website ZIPs | Fixed, packaged, and manually verified locally; not released | Publish the rebuilt 1.7.14 package and verify context-aware generation on a fresh install. |
+| Connection UX | Fix raw automatic-connect fallback styling, mask recovery keys, center the connect logo, and replace stale purple actions with Alt Text Pro teal. | Next.js `/connect` and WordPress onboarding modal | Fixed locally; not deployed | Deploy website and publish plugin 1.7.14, then repeat automatic and manual connection. |
+
+### H2/H3 pre-deploy data decisions
+
+- The live annual profile whose subscription ID is `bcd55991-6e2e-468e-bd8b-1997638af67d` had a null `profiles.next_billing_date`; it was backfilled in production to Polar's confirmed period end `2027-07-01T08:27:01.737Z`.
+- The second live annual profile has a database end date of `2027-07-23T16:10:49.335Z`, but its stored `subscription_id` and `polar_customer_id` are null. H1 now gives new checkouts a durable `metadata.user_id` binding and retains any future unmatched event for review; the legacy profile remains covered by the subscription/customer/email fallback until its next provider event is observed.
+- Two cancelled paid profiles match Polar subscriptions that ended on 2026-03-28 and 2026-05-17. Because the new RPC is not deployed yet, the migration-equivalent guarded update was applied: both now have `subscription_plan = free`, `subscription_status = active`, null paid metadata, and 30 credits.
+- One legacy cancelled paid profile had no provider subscription/customer ID and held 900 aggregate credits with no bonus or purchased-ledger balance. A direct Polar customer search returned no exact-email or domain match; the database record is a completed legacy/manual payment, and the user confirmed the 900-credit grant was intentional. A guarded production repair preserved the 900 aggregate balance, mirrored it into `bonus_credits_remaining`, moved the profile to active `free`, and reset its renewal timestamp. Post-repair calculation returns 900 usable credits; do not revoke this grant.
+- Revocation now grants `30 + bonus_credits_remaining + purchased_credits_remaining` immediately and sets the renewal timestamp, preventing a 30-day free-tier lockout.
+- Future promotional grants now have one service-role-only `grant_promotional_credits(user_id, credits, reason)` path that atomically updates `credits_remaining` and `bonus_credits_remaining` and records an audit entry; manual writes to only `credits_remaining` are no longer an accepted grant procedure.
+- Production schema verification confirms `audit_logs.actor_id` and `audit_logs.actor_email` are nullable, so the RPC's null system actor fields are valid and its audit insert will not fail for that reason.
+- Partial refunds intentionally mark payment status and record the event without clawing back credits; a future policy change would require a separate reviewed ledger rule.
+
+### Post-release carry-forwards
+
+- `audit_logs` is a pre-existing production table; the H2/H3 migration chain does not create or define it. Its nullable actor columns were verified in production, so this is not a release blocker, but it prevents the migration from being testable against a self-contained staging schema until the table's DDL is captured.
+- The real one-time pack-purchase path and the 30-day renewal branches have not yet executed in production. Treat the first post-release run of each as an observation gate.
+- H4 remains the post-release reporting/robustness item. H1 is fixed locally but remains a release gate because its reconciliation table must exist before the matching webhook is deployed.
 
 ## Purpose
 
