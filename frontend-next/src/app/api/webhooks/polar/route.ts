@@ -1,5 +1,6 @@
 import { Webhooks } from "@polar-sh/nextjs";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { createHash } from "node:crypto";
 import { extractPolarBillingSnapshot } from "@/lib/polar-billing";
 import { isPolarSubscriptionProduct, resolvePolarPlanId } from "@/lib/polar-plan-mapping";
 
@@ -123,6 +124,9 @@ type BillingProfile = {
     polar_customer_id: string | null;
     bonus_credits_remaining: number | null;
     purchased_credits_remaining: number | null;
+    credits_remaining: number | null;
+    credits_last_renewed_at: string | null;
+    monthly_credit_allowance: number | null;
     next_billing_date: string | null;
 };
 
@@ -133,18 +137,48 @@ const BILLING_PROFILE_COLUMNS = [
     "polar_customer_id",
     "bonus_credits_remaining",
     "purchased_credits_remaining",
+    "credits_remaining",
+    "credits_last_renewed_at",
+    "monthly_credit_allowance",
     "next_billing_date",
 ].join(", ");
 
+type BillingField = "id" | "subscription_id" | "polar_customer_id" | "email";
+const AUTH_LOOKUP_PAGE_SIZE = 1000;
+const MAX_AUTH_LOOKUP_PAGES = 100;
+
+function normalizeEmail(value: unknown): string | null {
+    if (typeof value !== "string") return null;
+    const normalized = value.trim().toLowerCase();
+    return normalized || null;
+}
+
+function normalizeUserId(value: unknown): string | null {
+    if (typeof value !== "string") return null;
+    const normalized = value.trim();
+    return normalized && normalized.length <= 200 ? normalized : null;
+}
+
+function getProviderUserId(payload: any): string | null {
+    return normalizeUserId(payload?.metadata?.user_id);
+}
+
+function escapeIlikePattern(value: string): string {
+    return value.replace(/[\\%_]/g, "\\$&");
+}
+
 async function findProfileByBillingField(
-    field: "subscription_id" | "polar_customer_id" | "email",
+    field: BillingField,
     value: string,
 ): Promise<BillingProfile | null> {
-    const { data, error } = await getSupabase()
+    const query = getSupabase()
         .from("profiles")
-        .select(BILLING_PROFILE_COLUMNS)
-        .eq(field, value)
-        .limit(1);
+        .select(BILLING_PROFILE_COLUMNS);
+
+    const filteredQuery = field === "email"
+        ? query.ilike(field, escapeIlikePattern(value))
+        : query.eq(field, value);
+    const { data, error } = await filteredQuery.limit(1);
 
     if (error) {
         throw error;
@@ -154,14 +188,24 @@ async function findProfileByBillingField(
 }
 
 async function findBillingProfile({
+    userId,
     email,
     subscriptionId,
     customerId,
 }: {
+    userId?: string | null;
     email?: string | null;
     subscriptionId?: string | null;
     customerId?: string | null;
 }): Promise<BillingProfile | null> {
+    const normalizedUserId = normalizeUserId(userId);
+    if (normalizedUserId) {
+        // Metadata is created by our authenticated checkout endpoint. If it is
+        // present but stale, queue the event rather than rebinding it to an
+        // unrelated account via a mutable email address.
+        return findProfileByBillingField("id", normalizedUserId);
+    }
+
     if (subscriptionId) {
         const profile = await findProfileByBillingField("subscription_id", subscriptionId);
         if (profile) return profile;
@@ -172,31 +216,136 @@ async function findBillingProfile({
         if (profile) return profile;
     }
 
-    if (email) {
-        const profile = await findProfileByBillingField("email", email);
+    const normalizedEmail = normalizeEmail(email);
+    if (normalizedEmail) {
+        const profile = await findProfileByBillingField("email", normalizedEmail);
         if (profile) return profile;
 
-        const { data: authData, error: authError } = await getSupabase().auth.admin.listUsers();
-        if (authError) {
-            throw authError;
-        }
-
-        const authUser = authData?.users.find((user) => user.email === email);
-        if (authUser?.id) {
-            const { data, error } = await getSupabase()
-                .from("profiles")
-                .select(BILLING_PROFILE_COLUMNS)
-                .eq("id", authUser.id)
-                .limit(1);
-
-            if (error) {
-                throw error;
+        for (let page = 1; page <= MAX_AUTH_LOOKUP_PAGES + 1; page += 1) {
+            const { data: authData, error: authError } = await getSupabase().auth.admin.listUsers({
+                page,
+                perPage: AUTH_LOOKUP_PAGE_SIZE,
+            });
+            if (authError) {
+                throw authError;
             }
 
-            return (data?.[0] as unknown as BillingProfile | undefined) || null;
+            const batch = authData?.users || [];
+            if (page > MAX_AUTH_LOOKUP_PAGES) {
+                if (batch.length === 0) break;
+                throw new Error("Auth user pagination limit reached while resolving a Polar billing identity");
+            }
+
+            const authUser = batch.find((user) => normalizeEmail(user.email) === normalizedEmail);
+            if (authUser?.id) {
+                return findProfileByBillingField("id", authUser.id);
+            }
+
+            if (batch.length < AUTH_LOOKUP_PAGE_SIZE) {
+                break;
+            }
         }
     }
 
+    return null;
+}
+
+function getProviderObjectId(payload: any): string {
+    const directId = payload?.id || payload?.orderId || payload?.subscriptionId;
+    if (directId) return String(directId);
+
+    return createHash("sha256")
+        .update(JSON.stringify(payload || {}))
+        .digest("hex");
+}
+
+async function recordPaymentReconciliation({
+    eventName,
+    payload,
+    reason,
+    userId,
+    customerEmail,
+    customerId,
+    subscriptionId,
+    paymentId,
+}: {
+    eventName: string;
+    payload: any;
+    reason: string;
+    userId?: string | null;
+    customerEmail?: string | null;
+    customerId?: string | null;
+    subscriptionId?: string | null;
+    paymentId?: string | null;
+}): Promise<void> {
+    const providerObjectId = getProviderObjectId(payload);
+    const row = {
+        provider: "polar",
+        event_name: eventName,
+        provider_object_id: providerObjectId,
+        candidate_user_id: normalizeUserId(userId),
+        customer_id: customerId || null,
+        customer_email: normalizeEmail(customerEmail),
+        subscription_id: subscriptionId || null,
+        payment_id: paymentId || null,
+        reason,
+        payload: payload || {},
+        status: "open",
+    };
+
+    const { error } = await getSupabase()
+        .from("payment_reconciliation")
+        .insert(row);
+
+    if (error && !isUniqueViolation(error)) {
+        throw error;
+    }
+
+    console.error("[PaymentReconciliation] Unmatched Polar payload", {
+        eventName,
+        providerObjectId,
+        reason,
+        candidateUserId: row.candidate_user_id,
+        customerId: row.customer_id,
+        customerEmail: row.customer_email,
+        subscriptionId: row.subscription_id,
+        paymentId: row.payment_id,
+        alreadyQueued: Boolean(error && isUniqueViolation(error)),
+    });
+}
+
+async function findOrQueueBillingProfile({
+    eventName,
+    payload,
+    reason,
+    userId,
+    email,
+    subscriptionId,
+    customerId,
+    paymentId,
+}: {
+    eventName: string;
+    payload: any;
+    reason: string;
+    userId?: string | null;
+    email?: string | null;
+    subscriptionId?: string | null;
+    customerId?: string | null;
+    paymentId?: string | null;
+}): Promise<BillingProfile | null> {
+    const profile = await findBillingProfile({ userId, email, subscriptionId, customerId });
+    if (profile) return profile;
+
+    await recordPaymentReconciliation({
+        eventName,
+        payload,
+        reason,
+        userId,
+        customerEmail: email,
+        customerId,
+        subscriptionId,
+        paymentId,
+    });
     return null;
 }
 
@@ -280,11 +429,19 @@ async function processRefund(
 ): Promise<void> {
     logWebhookReceived(webhookName, refund);
 
-    const profile = await findBillingProfile({
+    const paymentId = `polar_ord_${refund.orderId}`;
+    const profile = await findOrQueueBillingProfile({
+        eventName,
+        payload: refund,
+        reason: !getProviderUserId(refund) && !normalizeEmail(refund.customer?.email)
+            ? "missing_customer_identity"
+            : "profile_not_found",
+        userId: getProviderUserId(refund),
+        email: refund.customer?.email,
         subscriptionId: refund.subscriptionId,
         customerId: refund.customerId,
+        paymentId,
     });
-    const paymentId = `polar_ord_${refund.orderId}`;
     const succeeded = refund.status === "succeeded";
 
     if (succeeded) {
@@ -439,12 +596,7 @@ const polarWebhookHandlers = {
         try {
             const order = payload.data;
             logWebhookReceived("Order paid", order);
-            const customerEmail = order.customer?.email;
-
-            if (!customerEmail) {
-                console.error("No customer email in order");
-                return;
-            }
+            const customerEmail = normalizeEmail(order.customer?.email);
 
             // Get product details early to check if this is a subscription
             const productName = order.product?.name || "";
@@ -456,33 +608,29 @@ const polarWebhookHandlers = {
 
             const isSubscription = isPolarSubscriptionProduct(productName, mergedMetadata);
             const billingSnapshot = extractPolarBillingSnapshot(order);
+            const subscriptionId = order.subscriptionId || (order as { subscription_id?: string | null }).subscription_id || null;
+            const paymentId = `polar_ord_${order.id}`;
+            const profile = await findOrQueueBillingProfile({
+                eventName: "order.paid",
+                payload: order,
+                reason: !getProviderUserId(order) && !customerEmail
+                    ? "missing_customer_identity"
+                    : "profile_not_found",
+                userId: getProviderUserId(order),
+                email: customerEmail,
+                subscriptionId,
+                customerId: order.customer?.id,
+                paymentId,
+            });
 
-            // Find user by email
-            const { data: users, error: userError } = await getSupabase()
-                .from("profiles")
-                .select("id")
-                .eq("email", customerEmail);
+            if (!profile) return;
 
-            // If no profile with email, try auth.users
-            let userId: string | null = null;
-            if (!users || users.length === 0) {
-                const { data: authData } = await getSupabase().auth.admin.listUsers();
-                const authUser = authData?.users.find(u => u.email === customerEmail);
-                userId = authUser?.id || null;
-            } else {
-                userId = users[0].id;
-            }
-
-            if (!userId) {
-                console.error(`No user found for email: ${customerEmail}`);
-                return;
-            }
+            const userId = profile.id;
+            const resolvedEmail = profile.email || customerEmail;
 
             const paymentAmount = billingSnapshot.paymentAmount;
             const currency = billingSnapshot.currency;
             const planId = resolvePolarPlanId(productName, mergedMetadata);
-            const subscriptionId = order.subscriptionId || (order as { subscription_id?: string | null }).subscription_id || null;
-            const paymentId = `polar_ord_${order.id}`;
             const payment = {
                 user_id: userId,
                 payment_id: paymentId,
@@ -523,7 +671,7 @@ const polarWebhookHandlers = {
                 await recordMarketingEvent(
                     "purchase_completed",
                     userId,
-                    customerEmail,
+                    resolvedEmail,
                     marketingProperties,
                     { throwOnError: true }
                 );
@@ -549,7 +697,7 @@ const polarWebhookHandlers = {
                 await recordMarketingEvent(
                     "purchase_completed",
                     userId,
-                    customerEmail,
+                    resolvedEmail,
                     marketingProperties,
                     { throwOnError: true }
                 );
@@ -586,18 +734,19 @@ const polarWebhookHandlers = {
         try {
             const subscription = payload.data;
             logWebhookReceived("Subscription active", subscription);
-            const customerEmail = subscription.customer?.email;
-
-            if (!customerEmail) {
-                console.error("No customer email in subscription");
-                return;
-            }
+            const customerEmail = normalizeEmail(subscription.customer?.email);
 
             // Get product details early for logging
             const productName = subscription.product?.name || "";
             console.log(`✓ Processing subscription activation: ${productName} for ${customerEmail}`);
 
-            const profile = await findBillingProfile({
+            const profile = await findOrQueueBillingProfile({
+                eventName: "subscription.active",
+                payload: subscription,
+                reason: !getProviderUserId(subscription) && !customerEmail
+                    ? "missing_customer_identity"
+                    : "profile_not_found",
+                userId: getProviderUserId(subscription),
                 email: customerEmail,
                 subscriptionId: subscription.id,
                 customerId: subscription.customer?.id,
@@ -605,7 +754,6 @@ const polarWebhookHandlers = {
             const userId = profile?.id || null;
 
             if (!userId) {
-                console.error(`No user found for email: ${customerEmail}`);
                 return;
             }
 
@@ -654,6 +802,7 @@ const polarWebhookHandlers = {
 
         } catch (error) {
             console.error("Error processing subscription active webhook:", error);
+            throw error;
         }
     },
 
@@ -662,21 +811,21 @@ const polarWebhookHandlers = {
         try {
             const subscription = payload.data;
             logWebhookReceived("Subscription canceled", subscription);
-            const customerEmail = subscription.customer?.email;
+            const customerEmail = normalizeEmail(subscription.customer?.email);
 
-            if (!customerEmail) {
-                console.error("No customer email in subscription");
-                return;
-            }
-
-            const profile = await findBillingProfile({
+            const profile = await findOrQueueBillingProfile({
+                eventName: "subscription.canceled",
+                payload: subscription,
+                reason: !getProviderUserId(subscription) && !customerEmail
+                    ? "missing_customer_identity"
+                    : "profile_not_found",
+                userId: getProviderUserId(subscription),
                 email: customerEmail,
                 subscriptionId: subscription.id,
                 customerId: subscription.customer?.id,
             });
 
             if (!profile) {
-                console.error(`No user found for email: ${customerEmail}`);
                 return;
             }
 
@@ -696,7 +845,7 @@ const polarWebhookHandlers = {
                 updated_at: new Date().toISOString(),
             });
 
-            await recordMarketingEvent("subscription_canceled", profile.id, customerEmail, {
+            await recordMarketingEvent("subscription_canceled", profile.id, profile.email || customerEmail, {
                 provider: "polar",
                 subscription_id: subscription.id,
                 product_name: subscription.product?.name || "",
@@ -717,14 +866,19 @@ const polarWebhookHandlers = {
             const subscription = payload.data;
             logWebhookReceived("Subscription revoked", subscription);
 
-            const profile = await findBillingProfile({
+            const profile = await findOrQueueBillingProfile({
+                eventName: "subscription.revoked",
+                payload: subscription,
+                reason: !getProviderUserId(subscription) && !normalizeEmail(subscription.customer?.email)
+                    ? "missing_customer_identity"
+                    : "profile_not_found",
+                userId: getProviderUserId(subscription),
                 email: subscription.customer?.email,
                 subscriptionId: subscription.id,
                 customerId: subscription.customer?.id,
             });
 
             if (!profile) {
-                console.error(`No user found for revoked subscription ${subscription.id}`);
                 return;
             }
 
@@ -756,14 +910,19 @@ const polarWebhookHandlers = {
             const subscription = payload.data;
             logWebhookReceived("Subscription uncanceled", subscription);
 
-            const profile = await findBillingProfile({
+            const profile = await findOrQueueBillingProfile({
+                eventName: "subscription.uncanceled",
+                payload: subscription,
+                reason: !getProviderUserId(subscription) && !normalizeEmail(subscription.customer?.email)
+                    ? "missing_customer_identity"
+                    : "profile_not_found",
+                userId: getProviderUserId(subscription),
                 email: subscription.customer?.email,
                 subscriptionId: subscription.id,
                 customerId: subscription.customer?.id,
             });
 
             if (!profile) {
-                console.error(`No user found for uncanceled subscription ${subscription.id}`);
                 return;
             }
 
@@ -829,10 +988,17 @@ const polarWebhookHandlers = {
                 order.status === "partially_refunded" ? "partially_refunded" : "refunded",
             );
 
-            const profile = await findBillingProfile({
+            const profile = await findOrQueueBillingProfile({
+                eventName: "order.refunded",
+                payload: order,
+                reason: !getProviderUserId(order) && !normalizeEmail(order.customer?.email)
+                    ? "missing_customer_identity"
+                    : "profile_not_found",
+                userId: getProviderUserId(order),
                 email: order.customer?.email,
                 subscriptionId: order.subscriptionId,
                 customerId: order.customer?.id,
+                paymentId,
             });
 
             if (isFullRefund && isSubscription && profile && matchesSubscription(profile, order.subscriptionId)) {
@@ -889,23 +1055,23 @@ const polarWebhookHandlers = {
 
             // Check if this is a renewal (status is active and we have current period info)
             if (subscription.status === "active") {
-                const customerEmail = subscription.customer?.email;
+                const customerEmail = normalizeEmail(subscription.customer?.email);
+                const user = await findOrQueueBillingProfile({
+                    eventName: "subscription.updated",
+                    payload: subscription,
+                    reason: !getProviderUserId(subscription) && !customerEmail
+                        ? "missing_customer_identity"
+                        : "profile_not_found",
+                    userId: getProviderUserId(subscription),
+                    email: customerEmail,
+                    subscriptionId: subscription.id,
+                    customerId: subscription.customer?.id,
+                });
 
-                if (!customerEmail) {
-                    console.warn("No customer email in subscription update");
-                    return;
-                }
+                if (!user) return;
 
-                // Find user - use subscription_id (not polar_subscription_id which doesn't exist)
-                const { data: users } = await getSupabase()
-                    .from("profiles")
-                    .select("id, subscription_id, credits_remaining, credits_last_renewed_at, monthly_credit_allowance")
-                    .eq("email", customerEmail);
-
-                if (users && users.length > 0) {
-                    const user = users[0];
-                    const userId = user.id;
-                    const productName = subscription.product?.name || "";
+                const userId = user.id;
+                const productName = subscription.product?.name || "";
 
                     const isAnnual = productName.toLowerCase().includes("annual");
                     const mergedMetadata = {
@@ -970,10 +1136,10 @@ const polarWebhookHandlers = {
                             .eq("id", userId);
 
                         if (updateError) {
-                            console.error("Error updating renewal credits:", updateError);
-                        } else {
-                            console.log(`✓ Renewed subscription credits for user ${userId}: +${creditsToGrant} credits (total: ${newCredits})`);
+                            throw updateError;
                         }
+
+                        console.log(`✓ Renewed subscription credits for user ${userId}: +${creditsToGrant} credits (total: ${newCredits})`);
 
                         // Record renewal payment
                         const billingSnapshot = extractPolarBillingSnapshot(subscription);
@@ -999,15 +1165,13 @@ const polarWebhookHandlers = {
                             });
 
                         console.log(`✓ Recorded renewal payment for ${planId}`);
-                    } else {
-                        console.log(`Skipping credit update: isMatchingSubscription=${isMatchingSubscription}, isRenewal=${isRenewal}, credits=${creditsToGrant}`);
-                    }
                 } else {
-                    console.warn(`No user found for email: ${customerEmail}`);
+                    console.log(`Skipping credit update: isMatchingSubscription=${isMatchingSubscription}, isRenewal=${isRenewal}, credits=${creditsToGrant}`);
                 }
             }
         } catch (error) {
             console.error("Error processing subscription updated webhook:", error);
+            throw error;
         }
     },
 } satisfies Omit<Parameters<typeof Webhooks>[0], "webhookSecret">;

@@ -307,23 +307,23 @@ export default function LandingPage() {
   };
 
   // Redirect to Polar.sh checkout
-  const redirectToCheckout = (productId: string, userEmail?: string) => {
+  const redirectToCheckout = async (productId: string) => {
     if (!productId) {
       toast.error('Product not configured. Please contact support.');
       return;
     }
 
-    let checkoutUrl = `/api/checkout?products=${productId}`;
+    const { data: { session } } = await supabase.auth.getSession();
 
-    // Add customer email if user is logged in
-    if (userEmail) {
-      checkoutUrl += `&customerEmail=${encodeURIComponent(userEmail)}`;
+    if (!session?.access_token) {
+      toast.error('Please sign in again before starting checkout.');
+      return;
     }
 
     trackMarketingEvent("checkout_started", {
       source: "landing_page",
       userId: user?.id,
-      userEmail: userEmail || user?.email,
+      userEmail: session.user.email || user?.email,
       properties: {
         product_id: productId,
         plan_id: selectedPlan?.id,
@@ -331,7 +331,23 @@ export default function LandingPage() {
       },
     });
 
-    window.location.href = checkoutUrl;
+    const response = await fetch(
+      `/api/checkout?products=${encodeURIComponent(productId)}&format=json`,
+      {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          Accept: "application/json",
+        },
+      },
+    );
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok || !data.url) {
+      toast.error(data.error || 'Could not start checkout. Please try again.');
+      return;
+    }
+
+    window.location.href = data.url;
   };
 
   // Get the correct Polar product ID based on plan and billing cycle
@@ -366,7 +382,7 @@ export default function LandingPage() {
       }
 
       const productId = getPolarProductId(planId, billingCycle);
-      redirectToCheckout(productId, user?.email);
+      await redirectToCheckout(productId);
     } catch (error) {
       console.error('Purchase error:', error);
       toast.error("Failed to start purchase.");

@@ -182,24 +182,24 @@ export default function Dashboard() {
     };
 
     // Redirect to Polar.sh checkout
-    const redirectToCheckout = (productId: string) => {
+    const redirectToCheckout = async (productId: string) => {
         console.log('Redirecting to checkout with productId:', productId);
         if (!productId) {
             toast.error('Product not configured. Please contact support.');
             return;
         }
 
-        let checkoutUrl = `/api/checkout?products=${productId}`;
+        const { data: { session } } = await supabase.auth.getSession();
 
-        // Add customer email if user is logged in
-        if (user?.email) {
-            checkoutUrl += `&customerEmail=${encodeURIComponent(user.email)}`;
+        if (!session?.access_token) {
+            toast.error('Please sign in again before starting checkout.');
+            return;
         }
 
         trackMarketingEvent("checkout_started", {
             source: "dashboard",
             userId: user?.id,
-            userEmail: user?.email,
+            userEmail: session.user.email || user?.email,
             properties: {
                 product_id: productId,
                 plan_id: selectedUpgradePlan?.id,
@@ -208,8 +208,24 @@ export default function Dashboard() {
             },
         });
 
-        console.log('Final checkout URL:', checkoutUrl);
-        window.location.href = checkoutUrl;
+        const response = await fetch(
+            `/api/checkout?products=${encodeURIComponent(productId)}&format=json`,
+            {
+                headers: {
+                    Authorization: `Bearer ${session.access_token}`,
+                    Accept: 'application/json',
+                },
+            },
+        );
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok || !data.url) {
+            toast.error(data.error || 'Could not start checkout. Please try again.');
+            return;
+        }
+
+        console.log('Final checkout URL:', data.url);
+        window.location.href = data.url;
     };
 
     const openCustomerPortal = async () => {
@@ -1334,7 +1350,7 @@ export default function Dashboard() {
                                         <Button
                                             onClick={() => {
                                                 const productId = getPolarProductId(selectedUpgradePlan.id);
-                                                redirectToCheckout(productId);
+                                                void redirectToCheckout(productId);
                                             }}
                                             className="w-full h-14 bg-[#0D4F5E] hover:bg-[#083F4B] text-white font-semibold text-lg rounded-xl transition-all shadow-[0_10px_24px_rgba(13,79,94,0.18)]"
                                         >

@@ -19,23 +19,35 @@ const mocks = vi.hoisted(() => {
         events: Array<Record<string, unknown>>;
         paymentUpdates: Array<Record<string, unknown>>;
         rpcCalls: Array<{ name: string; args: Record<string, unknown> }>;
+        reconciliations: Array<Record<string, unknown>>;
+        authUsers: Array<{ id: string; email: string | null }>;
+        authPageMode: "state" | "always_full";
     } = {
         profiles: [],
         updates: [],
         events: [],
         paymentUpdates: [],
         rpcCalls: [],
+        reconciliations: [],
+        authUsers: [],
+        authPageMode: "state",
     };
 
     const createQuery = (table: string) => {
         let operation: "select" | "update" | "insert" = "select";
         let values: Record<string, unknown> = {};
         const filters: Array<[string, string]> = [];
+        const caseInsensitiveFilters = new Set<string>();
 
         const execute = () => {
             if (operation === "select") {
                 const rows = state.profiles.filter((profile) =>
-                    filters.every(([field, value]) => String(profile[field as keyof TestProfile]) === value)
+                    filters.every(([field, value]) => {
+                        const actual = String(profile[field as keyof TestProfile]);
+                        return caseInsensitiveFilters.has(field)
+                            ? actual.toLowerCase() === value.toLowerCase()
+                            : actual === value;
+                    })
                 );
                 return { data: rows, error: null };
             }
@@ -46,6 +58,9 @@ const mocks = vi.hoisted(() => {
             }
             if (operation === "insert" && table === "marketing_events") {
                 state.events.push(values);
+            }
+            if (operation === "insert" && table === "payment_reconciliation") {
+                state.reconciliations.push(values);
             }
             return { data: null, error: null };
         };
@@ -66,6 +81,11 @@ const mocks = vi.hoisted(() => {
                 filters.push([field, value]);
                 return query;
             }),
+            ilike: vi.fn((field: string, value: string) => {
+                caseInsensitiveFilters.add(field);
+                filters.push([field, value]);
+                return query;
+            }),
             limit: vi.fn(async () => execute()),
             then: (resolve: (value: unknown) => unknown) => Promise.resolve(execute()).then(resolve),
         };
@@ -81,7 +101,27 @@ const mocks = vi.hoisted(() => {
         }),
         auth: {
             admin: {
-                listUsers: vi.fn(async () => ({ data: { users: [] }, error: null })),
+                listUsers: vi.fn(async (options?: { page?: number; perPage?: number }) => {
+                    const page = options?.page || 1;
+                    const perPage = options?.perPage || 50;
+                    if (state.authPageMode === "always_full") {
+                        return {
+                            data: {
+                                users: Array.from({ length: perPage }, (_, index) => ({
+                                    id: `auth_page_${page}_${index}`,
+                                    email: `auth-page-${page}-${index}@example.com`,
+                                })),
+                            },
+                            error: null,
+                        };
+                    }
+
+                    const start = (page - 1) * perPage;
+                    return {
+                        data: { users: state.authUsers.slice(start, start + perPage) },
+                        error: null,
+                    };
+                }),
             },
         },
     };
@@ -139,6 +179,9 @@ describe("Polar subscription lifecycle handlers", () => {
         mocks.state.events = [];
         mocks.state.paymentUpdates = [];
         mocks.state.rpcCalls = [];
+        mocks.state.reconciliations = [];
+        mocks.state.authUsers = [];
+        mocks.state.authPageMode = "state";
     });
 
     it("keeps annual drip metadata through cancellation and stores the paid-period end", async () => {
@@ -218,6 +261,116 @@ describe("Polar subscription lifecycle handlers", () => {
         expect(migration).toContain("insert into public.audit_logs");
         expect(migration).toContain("'promotional_credit'");
         expect(migration).toContain("grant execute on function public.grant_promotional_credits(uuid, integer, text)");
+    });
+
+    it("defines a service-role-only reconciliation queue for unmatched provider events", () => {
+        const migrationPath = path.resolve(
+            process.cwd(),
+            "../supabase/migrations/20260806051721_payment_reconciliation_h1.sql",
+        );
+        const migration = fs.readFileSync(migrationPath, "utf8");
+
+        expect(migration).toContain("create table if not exists public.payment_reconciliation");
+        expect(migration).toContain("enable row level security");
+        expect(migration).toContain("revoke all on table public.payment_reconciliation from public, anon, authenticated");
+        expect(migration).toContain("grant all on table public.payment_reconciliation to service_role");
+        expect(migration).toContain("payment_reconciliation_provider_event_uidx");
+    });
+
+    it("uses checkout metadata user_id before mutable provider identity fields", async () => {
+        await polarWebhookHandlers.onSubscriptionCanceled?.({
+            data: annualSubscription({
+                customer: { id: "cus_other", email: "different@example.com" },
+                metadata: { user_id: "user_1" },
+            }),
+        } as never);
+
+        expect(mocks.state.updates.find((entry) => entry.table === "profiles")?.filters).toContainEqual(["id", "user_1"]);
+        expect(mocks.state.reconciliations).toHaveLength(0);
+    });
+
+    it("matches email case-insensitively after provider IDs are unavailable", async () => {
+        mocks.state.profiles = [profile({
+            email: "Customer@Example.com",
+            subscription_id: null,
+            polar_customer_id: null,
+        })];
+
+        await polarWebhookHandlers.onSubscriptionCanceled?.({
+            data: annualSubscription({
+                id: "sub_email_case",
+                customer: { id: null, email: " CUSTOMER@example.COM ", },
+            }),
+        } as never);
+
+        expect(mocks.state.reconciliations).toHaveLength(0);
+        expect(mocks.state.updates.find((entry) => entry.table === "profiles")?.values).toMatchObject({
+            subscription_status: "cancelled",
+        });
+    });
+
+    it("paginates the auth fallback beyond the first thousand users", async () => {
+        const firstPage = Array.from({ length: 1000 }, (_, index) => ({
+            id: `auth_${index}`,
+            email: `user-${index}@example.com`,
+        }));
+        mocks.state.authUsers = [...firstPage, { id: "user_paged", email: "paged@example.com" }];
+        mocks.state.profiles = [profile({
+            id: "user_paged",
+            email: "stored-different@example.com",
+            subscription_id: null,
+            polar_customer_id: null,
+        })];
+
+        await polarWebhookHandlers.onSubscriptionCanceled?.({
+            data: annualSubscription({
+                id: "sub_paged",
+                customer: { id: null, email: "paged@example.com" },
+            }),
+        } as never);
+
+        expect(mocks.client.auth.admin.listUsers).toHaveBeenCalledWith({ page: 1, perPage: 1000 });
+        expect(mocks.client.auth.admin.listUsers).toHaveBeenCalledWith({ page: 2, perPage: 1000 });
+        expect(mocks.state.reconciliations).toHaveLength(0);
+        expect(mocks.state.updates.find((entry) => entry.table === "profiles")?.values).toMatchObject({
+            subscription_status: "cancelled",
+        });
+    });
+
+    it("queues an unmatched event for reconciliation instead of dropping it", async () => {
+        mocks.state.profiles = [];
+
+        await polarWebhookHandlers.onSubscriptionCanceled?.({
+            data: annualSubscription({
+                id: "sub_unmatched",
+                customer: { id: "cus_unmatched", email: "missing@example.com" },
+            }),
+        } as never);
+
+        expect(mocks.state.reconciliations).toHaveLength(1);
+        expect(mocks.state.reconciliations[0]).toMatchObject({
+            provider: "polar",
+            event_name: "subscription.canceled",
+            provider_object_id: "sub_unmatched",
+            customer_email: "missing@example.com",
+            status: "open",
+        });
+    });
+
+    it("fails closed when the Auth fallback reaches its pagination limit", async () => {
+        mocks.state.profiles = [];
+        mocks.state.authPageMode = "always_full";
+        mocks.client.auth.admin.listUsers.mockClear();
+
+        await expect(polarWebhookHandlers.onSubscriptionCanceled?.({
+            data: annualSubscription({
+                id: "sub_pagination_limit",
+                customer: { id: null, email: "missing@example.com" },
+            }),
+        } as never)).rejects.toThrow("Auth user pagination limit reached");
+
+        expect(mocks.client.auth.admin.listUsers).toHaveBeenCalledTimes(101);
+        expect(mocks.state.reconciliations).toHaveLength(0);
     });
 
     it("revokes a fully refunded one-time pack through the idempotent RPC", async () => {
