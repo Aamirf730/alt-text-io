@@ -1032,6 +1032,8 @@ exports.handler = async (event, context) => {
     const updatedMonthlyCreditState = getMonthlyCreditState({
       ...user,
       credits_remaining: newCreditsRemaining,
+      bonus_credits_remaining: creditUpdateResult.bonus_credits_remaining ?? user.bonus_credits_remaining,
+      purchased_credits_remaining: creditUpdateResult.purchased_credits_remaining ?? user.purchased_credits_remaining,
       total_processed: newTotalProcessed,
     });
 
@@ -1049,7 +1051,9 @@ exports.handler = async (event, context) => {
       body: JSON.stringify({
         alt_text: altText,
         credits_used: 1,
-        credits_remaining: newCreditsRemaining,
+        // Do not expose an aggregate that includes future subscription
+        // allowances; this is the balance the customer can spend now.
+        credits_remaining: updatedMonthlyCreditState.monthly_credits_remaining,
         monthly_credits_remaining: updatedMonthlyCreditState.monthly_credits_remaining,
         monthly_credit_limit: updatedMonthlyCreditState.monthly_credit_limit,
         total_processed: newTotalProcessed

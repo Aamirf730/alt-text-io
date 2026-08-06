@@ -1116,13 +1116,16 @@ const polarWebhookHandlers = {
                     const isRenewal = !lastRenewed || currentPeriodStart > lastRenewed;
 
                     if (creditsToGrant > 0 && isMatchingSubscription && isRenewal) {
-                        // Calculate new credits with rollover
-                        const existingCredits = user.credits_remaining || 0;
-                        const newCredits = creditsToGrant + existingCredits;
+                        // Subscription credits are a per-cycle allowance, not a
+                        // rollover balance. Preserve only the ledgers that are
+                        // explicitly persistent across cycles.
+                        const persistentCredits =
+                            (user.bonus_credits_remaining || 0)
+                            + (user.purchased_credits_remaining || 0);
+                        const newCredits = creditsToGrant + persistentCredits;
 
-                        console.log(`✓ Renewal detected! Adding ${creditsToGrant} credits (rollover: ${existingCredits}, total: ${newCredits})`);
+                        console.log(`✓ Renewal detected! Resetting plan allowance to ${creditsToGrant} credits (persistent ledgers: ${persistentCredits}, total: ${newCredits})`);
 
-                        // Update credits with rollover support
                         const { error: updateError } = await getSupabase()
                             .from("profiles")
                             .update({

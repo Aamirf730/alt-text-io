@@ -330,6 +330,8 @@ async function updateUserCredits(userId, creditsToDeduct = 1, altText = null, co
     return {
       success: true,
       credits_remaining: result.credits_remaining,
+      bonus_credits_remaining: result.bonus_credits_remaining,
+      purchased_credits_remaining: result.purchased_credits_remaining,
       total_processed: result.total_processed
     };
 

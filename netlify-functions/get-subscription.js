@@ -10,6 +10,7 @@ const {
   rateLimitExceededResponse,
   methodNotAllowedResponse,
 } = require('./utils/cors');
+const { getMonthlyCreditState } = require('./utils/api-key-validator');
 
 // Initialize Supabase client
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -96,6 +97,8 @@ exports.handler = async (event, context) => {
       console.error('Plan details error:', planError);
     }
 
+    const monthlyCreditState = getMonthlyCreditState(profile, planDetails?.credits);
+
     // Get recent payments
     const { data: payments, error: paymentsError } = await supabase
       .from('payments')
@@ -136,7 +139,8 @@ exports.handler = async (event, context) => {
           next_billing_date: profile.next_billing_date,
           billing_cycle: profile.billing_cycle,
           monthly_credit_allowance: profile.monthly_credit_allowance,
-          credits_remaining: profile.credits_remaining,
+          credits_remaining: monthlyCreditState.monthly_credits_remaining,
+          monthly_credits_remaining: monthlyCreditState.monthly_credits_remaining,
           total_processed: profile.total_processed,
           created_at: profile.created_at,
           updated_at: profile.updated_at

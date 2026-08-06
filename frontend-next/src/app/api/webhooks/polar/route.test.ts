@@ -10,6 +10,12 @@ type TestProfile = {
     bonus_credits_remaining: number;
     purchased_credits_remaining: number;
     next_billing_date: string | null;
+    credits_remaining?: number;
+    subscription_plan?: string;
+    subscription_status?: string;
+    billing_cycle?: string | null;
+    monthly_credit_allowance?: number | null;
+    credits_last_renewed_at?: string | null;
 };
 
 const mocks = vi.hoisted(() => {
@@ -292,6 +298,34 @@ describe("Polar subscription lifecycle handlers", () => {
         expect(mocks.state.paymentUpdates).toHaveLength(0);
     });
 
+    it("resets the plan allowance on renewal while preserving persistent ledgers", async () => {
+        mocks.state.profiles = [profile({
+            credits_remaining: 900,
+            subscription_plan: "tier2",
+            subscription_status: "active",
+            billing_cycle: "annual",
+            monthly_credit_allowance: 400,
+            credits_last_renewed_at: "2026-07-23T16:10:49.335Z",
+            bonus_credits_remaining: 40,
+            purchased_credits_remaining: 25,
+        })];
+
+        await polarWebhookHandlers.onSubscriptionUpdated?.({
+            data: annualSubscription({
+                status: "active",
+                currentPeriodStart: new Date("2026-08-23T16:10:49.335Z"),
+                currentPeriodEnd: new Date("2026-09-23T16:10:49.335Z"),
+                endsAt: null,
+            }),
+        } as never);
+
+        const update = mocks.state.updates.find((entry) => entry.table === "profiles")?.values;
+        expect(update).toMatchObject({
+            credits_remaining: 465,
+            total_processed: 0,
+        });
+    });
+
     it("records a one-time payment before granting its credits", async () => {
         await polarWebhookHandlers.onOrderPaid?.({
             data: paidPackOrder(),
@@ -377,6 +411,21 @@ describe("Polar subscription lifecycle handlers", () => {
 
         expect(migration).toContain("create unique index if not exists payments_payment_id_uidx");
         expect(migration).toContain("on conflict (payment_id) do nothing");
+    });
+
+    it("defines the non-rollover paid-credit reset and existing-balance repair", () => {
+        const migrationPath = path.resolve(
+            process.cwd(),
+            "../supabase/migrations/20260806140000_fix_subscription_credit_rollover.sql",
+        );
+        const migration = fs.readFileSync(migrationPath, "utf8");
+
+        expect(migration).toContain("with paid_profile_state as (");
+        expect(migration).toContain("credits_remaining = state.plan_credits_remaining");
+        expect(migration).toContain("+ state.bonus_credits_remaining");
+        expect(migration).toContain("+ state.purchased_credits_remaining");
+        expect(migration).toContain("credits_remaining = coalesce(monthly_credit_allowance, 0)");
+        expect(migration).toContain("p.next_billing_date > now()");
     });
 
     it("defines a service-role-only reconciliation queue for unmatched provider events", () => {
