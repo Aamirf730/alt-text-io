@@ -21,7 +21,8 @@
  */
 
 let redisClient = null;
-let rateLimiter = null;
+let RatelimitClass = null;
+const redisRateLimiters = new Map();
 let useRedis = false;
 
 // Track initialization
@@ -50,15 +51,7 @@ function initRedis() {
         const { Ratelimit } = require('@upstash/ratelimit');
 
         redisClient = new Redis({ url, token });
-
-        // Create a sliding window rate limiter
-        // 60 requests per 60 seconds per key (IP address)
-        rateLimiter = new Ratelimit({
-            redis: redisClient,
-            limiter: Ratelimit.slidingWindow(60, '60 s'),
-            analytics: true,
-            prefix: 'alttext:ratelimit',
-        });
+        RatelimitClass = Ratelimit;
 
         useRedis = true;
         console.log('[RateLimiter] ✓ Upstash Redis connected — distributed rate limiting active.');
@@ -70,6 +63,39 @@ function initRedis() {
         console.log('[RateLimiter] Falling back to in-memory rate limiting.');
         return false;
     }
+}
+
+/**
+ * Get a Redis limiter for the requested policy.
+ *
+ * Each policy gets its own limiter and Redis keyspace. This is important because
+ * the same client IP can use multiple endpoints with different limits; sharing a
+ * single 60/minute limiter would silently weaken stricter endpoint policies.
+ */
+function getRedisRateLimiter(maxRequests, windowMs) {
+    if (!RatelimitClass || !redisClient) return null;
+
+    const windowSeconds = Math.max(1, Math.ceil(windowMs / 1000));
+    const policyKey = `${maxRequests}:${windowSeconds}`;
+    const existingLimiter = redisRateLimiters.get(policyKey);
+    if (existingLimiter) return existingLimiter;
+
+    // Keep the original namespace for the default policy so existing counters
+    // continue to work across the change. Non-default policies are isolated from
+    // it and from one another.
+    const prefix = policyKey === '60:60'
+        ? 'alttext:ratelimit'
+        : `alttext:ratelimit:${policyKey}`;
+
+    const limiter = new RatelimitClass({
+        redis: redisClient,
+        limiter: RatelimitClass.slidingWindow(maxRequests, `${windowSeconds} s`),
+        analytics: true,
+        prefix,
+    });
+
+    redisRateLimiters.set(policyKey, limiter);
+    return limiter;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -138,9 +164,19 @@ async function checkRateLimit(identifier, maxRequests = 60, windowMs = 60000) {
     // Lazy init
     initRedis();
 
-    if (useRedis && rateLimiter) {
+    let limiter = null;
+    if (useRedis) {
         try {
-            const result = await rateLimiter.limit(identifier);
+            limiter = getRedisRateLimiter(maxRequests, windowMs);
+        } catch (err) {
+            console.error('[RateLimiter] Failed to create Redis limiter, falling back to memory:', err.message);
+            return checkMemoryRateLimit(identifier, maxRequests, windowMs);
+        }
+    }
+
+    if (limiter) {
+        try {
+            const result = await limiter.limit(identifier);
 
             if (!result.success) {
                 console.warn(`[RateLimiter:Redis] IP ${identifier} exceeded limit`);
