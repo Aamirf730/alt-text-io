@@ -140,6 +140,8 @@ vi.mock("@supabase/supabase-js", () => ({
 import { POST } from "./route";
 
 const polarWebhookHandlers = POST as unknown as {
+    onOrderPaid?: (payload: unknown) => Promise<void>;
+    onSubscriptionUpdated?: (payload: unknown) => Promise<void>;
     onSubscriptionCanceled?: (payload: unknown) => Promise<void>;
     onSubscriptionRevoked?: (payload: unknown) => Promise<void>;
     onSubscriptionUncanceled?: (payload: unknown) => Promise<void>;
@@ -169,6 +171,17 @@ const profile = (overrides: Partial<TestProfile> = {}): TestProfile => ({
     bonus_credits_remaining: 0,
     purchased_credits_remaining: 0,
     next_billing_date: null,
+    ...overrides,
+});
+
+const paidSubscriptionOrder = (overrides: Record<string, unknown> = {}) => ({
+    id: "order_subscription_1",
+    subscriptionId: "sub_annual_1",
+    totalAmount: 2000,
+    currency: "usd",
+    customer: { id: "cus_1", email: "customer@example.com" },
+    product: { id: "prod_standard_annual", name: "Standard Annual", metadata: {} },
+    metadata: {},
     ...overrides,
 });
 
@@ -226,6 +239,32 @@ describe("Polar subscription lifecycle handlers", () => {
             next_billing_date: "2027-07-23T16:10:49.335Z",
         });
         expect(mocks.state.rpcCalls).toHaveLength(0);
+    });
+
+    it("records subscription revenue once from the canonical paid order", async () => {
+        await polarWebhookHandlers.onOrderPaid?.({
+            data: paidSubscriptionOrder(),
+        } as never);
+
+        expect(mocks.state.paymentUpdates).toHaveLength(1);
+        expect(mocks.state.paymentUpdates[0]).toMatchObject({
+            payment_id: "polar_ord_order_subscription_1",
+            subscription_id: "sub_annual_1",
+            amount: 20,
+        });
+    });
+
+    it("does not create a second payment row from subscription.updated", async () => {
+        await polarWebhookHandlers.onSubscriptionUpdated?.({
+            data: annualSubscription({
+                status: "active",
+                currentPeriodStart: new Date("2026-08-23T16:10:49.335Z"),
+                currentPeriodEnd: new Date("2026-09-23T16:10:49.335Z"),
+                endsAt: null,
+            }),
+        } as never);
+
+        expect(mocks.state.paymentUpdates).toHaveLength(0);
     });
 
     it("registers refund and revocation callbacks supported by the Polar adapter", () => {

@@ -1,5 +1,11 @@
 # Progress
 
+## 2026-08-06: H4 subscription-payment duplication verified; fix in progress
+
+- The Polar webhook currently records subscription revenue in `onOrderPaid` using the stable `polar_ord_<order_id>` key, then records another payment in `onSubscriptionUpdated` using `polar_renewal_<subscription_id>_<timestamp>`. The second path is not protected by the payment ID uniqueness index because it uses a different key.
+- Production read-only verification found two subscription IDs with both row types: 6 `polar_ord_*` rows totaling `$0` and 4 `polar_renewal_*` rows totaling `$69`. The current rows do not inflate the stored revenue amount because the order snapshots are zero-valued, but the duplicate path remains a future revenue-inflation risk and already inflates payment counts.
+- Planned fix: make `order.paid` the sole source of subscription payment bookkeeping and leave `subscription.updated` responsible only for lifecycle/credit state. Historical zero-amount order rows require no revenue correction; any future positive duplicate rows should be reconciled only after a reviewed archive-first query.
+
 ## 2026-08-06: Netlify function test coverage restored
 
 - Installed the ignored `netlify-functions` dependencies in this worktree, including `@supabase/supabase-js` and Vitest; no tracked dependency files changed.

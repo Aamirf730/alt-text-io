@@ -590,8 +590,9 @@ async function updateUserCredits(
 
 const polarWebhookHandlers = {
 
-    // Handle successful order payment (one-time purchases ONLY)
-    // Note: Subscriptions are handled by onSubscriptionActive to prevent double allocation
+    // Handle successful order payment and subscription revenue bookkeeping.
+    // Credit allocation for subscriptions is handled by the subscription
+    // lifecycle callbacks so it cannot happen twice.
     onOrderPaid: async (payload) => {
         try {
             const order = payload.data;
@@ -664,8 +665,10 @@ const polarWebhookHandlers = {
                 is_subscription: isSubscription,
             };
 
-            // Subscription orders are only bookkeeping here; allocation is
-            // handled by onSubscriptionActive. Keep this path idempotent too.
+            // Order-paid is the canonical revenue event for subscriptions.
+            // The order ID is stable across webhook retries, while
+            // subscription.updated is a lifecycle event and must not create a
+            // second payment row for the same paid period.
             if (isSubscription) {
                 await recordPayment(payment);
                 await recordMarketingEvent(
@@ -1141,30 +1144,10 @@ const polarWebhookHandlers = {
 
                         console.log(`✓ Renewed subscription credits for user ${userId}: +${creditsToGrant} credits (total: ${newCredits})`);
 
-                        // Record renewal payment
-                        const billingSnapshot = extractPolarBillingSnapshot(subscription);
-
-                        await getSupabase()
-                            .from("payments")
-                            .insert({
-                                user_id: userId,
-                                payment_id: `polar_renewal_${subscription.id}_${Date.now()}`,
-                                subscription_id: subscription.id,
-                                plan_id: planId,
-                                amount: billingSnapshot.paymentAmount,
-                                currency: billingSnapshot.currency,
-                                polar_product_id: billingSnapshot.productId,
-                                product_name: billingSnapshot.productName || productName,
-                                discount_id: billingSnapshot.discountId,
-                                discount_code: billingSnapshot.discountCode,
-                                discount_name: billingSnapshot.discountName,
-                                discount_amount: billingSnapshot.discountAmount,
-                                status: "completed",
-                                payment_method: "polar",
-                                created_at: new Date().toISOString(),
-                            });
-
-                        console.log(`✓ Recorded renewal payment for ${planId}`);
+                        // Revenue is recorded by onOrderPaid from Polar's
+                        // canonical order ID. This lifecycle event only
+                        // updates access and credits; inserting a timestamped
+                        // payment ID here would double-count renewals.
                 } else {
                     console.log(`Skipping credit update: isMatchingSubscription=${isMatchingSubscription}, isRenewal=${isRenewal}, credits=${creditsToGrant}`);
                 }
