@@ -1,5 +1,12 @@
 # Progress
 
+## 2026-08-06: Git-backed production redeploy completed
+
+- Git release: `fix/subscription-lifecycle-refunds` was pushed to GitHub and fast-forwarded into `origin/main` at `a2f0dfc`. The Netlify automatic production deploy is `6a746cafcfea050008f200c8`, with `manual_deploy = false`, `branch = main`, and `commit_ref = a2f0dfc0d822c0520e93bfd3a6d4ddaf90c231e7`.
+- Runtime: the Git build honors the pinned Node `v20.20.2` instead of the local manual-upload Node 24 runtime.
+- Verification: public images, the plugin ZIP, every `/_next/static` admin chunk, homepage, health, checkout auth guard, unsigned Polar webhook guard, and admin-function auth guards all pass after the Git deploy.
+- Observability follow-up: Netlify records the commit correctly, but the health function still reports `environment: unknown` and `version: local` because `COMMIT_REF` is not available in the function runtime. This is reporting-only; the production code and Netlify deploy provenance are correct.
+
 ## 2026-08-06: H1/H2/H3 and complete website release deployed
 
 - Production incident: the plugin-only Netlify publish used a raw `.next` upload, which exposed Next static files at `/static` instead of `/_next/static` and omitted `frontend-next/public`. The result was 404s for every public image and the `/admin` page chunk, leaving the dashboard on "Loading admin dashboard...".

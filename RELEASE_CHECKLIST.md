@@ -33,6 +33,7 @@ The H1/H2/H3 SaaS fixes and the complete website release are live. The release u
 - The real one-time pack-purchase path and the 30-day renewal branches have not yet executed in production. Treat the first post-release run of each as an observation gate.
 - H4 remains the post-release reporting/robustness item. H1/H2/H3 are released; review the first unmatched reconciliation event, real credit-pack purchase, refund, and 30-day renewal execution as operational observation gates.
 - The prior incomplete Netlify upload was corrected by requiring the full `netlify deploy --build` flow for this Next.js site; future manual deployments must not upload the raw `.next` directory without the framework build step.
+- The Git-backed redeploy is now the production source of truth: `origin/main` and Netlify deploy `6a746cafcfea050008f200c8` both point to `a2f0dfc`. The health endpoint still reports `version = local` because `COMMIT_REF` is not present in the function runtime; expose that build metadata in a later observability-only change.
 
 ## Purpose
 
@@ -180,6 +181,7 @@ An issue is not release-ready merely because its code is fixed locally; its migr
 | 2026-08-05 | Local | Final release verification | Netlify function tests: 16 files/141 tests passed. Frontend tests: 4 files/22 tests passed with the package Vitest/jsdom configuration. | Passed |
 | 2026-08-06 | WordPress.org + Production | WordPress plugin 1.7.14 release | Focused commit `5ffee10` was published to WordPress.org trunk revision `3636397` and tag revision `3636399`; the official versioned and stable WordPress.org download endpoints returned HTTP 200 and the versioned archive reported `1.7.14`. Netlify deploy `6a745aa7b7442d42f0e7231f` published the versioned, stable, and legacy download URLs. All three site archives returned HTTP 200, passed `unzip -t`, reported version `1.7.14`, and matched SHA-256 `28490170b60c9765f36a8a59764ffc8cbdd30d6d9b2e0ee3f72d26c7a737db25`. | Passed |
 | 2026-08-06 | Production | H1/H2/H3 migration and website release | Applied H1 migration record `20260806102148` and H2/H3 migration record `20260806102200`; production deploy `6a74609c1d7d3562f69cd368` followed the passing preview `6a745f8c0de5e40fa212eb01`. Public images, plugin download, all admin Next chunks, health, checkout auth, webhook signature guard, and admin auth guards passed post-release checks. | Passed; pack purchase/refund/renewal observation gates remain |
+| 2026-08-06 | Production | Git-backed Netlify redeploy | Branch `fix/subscription-lifecycle-refunds` was pushed and fast-forwarded to `main`; automatic deploy `6a746cafcfea050008f200c8` is ready with `manual_deploy = false`, commit `a2f0dfc`, and Node `v20.20.2`. The same image, admin chunk, health, and auth-guard smoke checks passed. | Passed; health commit display remains an observability follow-up |
 
 ## Change log
 
@@ -197,3 +199,4 @@ An issue is not release-ready merely because its code is fixed locally; its migr
 - 2026-08-05: completed the approved release. Netlify deploy `6a730485df0401d83198e2dd` is live, Supabase migration `20260805094230_fix_purchased_credit_pack_ledger` applied successfully with archive-first cleanup, Polar reconciliation found no one-time orders, and WordPress.org trunk/tag 1.7.12 were committed at revisions `3635163`/`3635165`.
 - 2026-08-06: published WordPress plugin 1.7.14 independently of the unreleased SaaS H1/H2/H3 changes. The reviewed package is in commit `5ffee10`, WordPress.org trunk/tag revisions are `3636397`/`3636399`, and Netlify deploy `6a745aa7b7442d42f0e7231f` serves all three verified download URLs.
 - 2026-08-06: released H1/H2/H3 and the committed `/connect` updates after correcting the incomplete manual Netlify upload. The migration-first release applied records `20260806102148`/`20260806102200`, and Netlify deploy `6a74609c1d7d3562f69cd368` restored public images, `/_next/static` assets, and the admin route.
+- 2026-08-06: moved production to the Git-backed `main` build. Netlify deploy `6a746cafcfea050008f200c8` is commit-linked and Node 20; the health endpoint's missing runtime `COMMIT_REF` remains documented as observability-only.
