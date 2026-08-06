@@ -21,6 +21,12 @@
 - Added local migration `20260806125120_allow_partial_refund_payment_status.sql` to extend the check constraint, and aligned the two legacy schema definitions. The partial-refund handler test now verifies that the status is recorded without revoking the entire pack.
 - This work is separate from H5: the existing H5 fix remains the C2/P1 release; commit `41f6f90` is a P2 ordering reversal with retry coverage. The partial-refund constraint migration is local only and awaits explicit release approval.
 
+## 2026-08-06: H4 order-amount concern reconciled
+
+- Production contains six historical `polar_ord_*` rows, all at `$0`; the newest is `2026-07-01`. The billing snapshot helper was introduced in commit `1b13f2d` on `2026-07-06` and is included in live `main`, so these rows predate the current extraction path.
+- The installed runtime dependency used by `@polar-sh/nextjs` is `@polar-sh/sdk` `0.46.1`. Its `Order` schema requires raw `total_amount` and remaps it to top-level `totalAmount` before `onOrderPaid` receives the payload. A missing field would fail adapter validation rather than silently produce a zero row; the helper also accepts `totalAmount`, `total_amount`, and `amount`.
+- No `order.paid` payloads are present in the reconciliation queue, so the next real paid order remains the operational proof point. No H4 code change or production action is warranted from the historical zero rows.
+
 ## 2026-08-06: Netlify function test coverage restored
 
 - Installed the ignored `netlify-functions` dependencies in this worktree, including `@supabase/supabase-js` and Vitest; no tracked dependency files changed.
