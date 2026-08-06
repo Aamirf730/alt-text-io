@@ -14,6 +14,18 @@
 const { createClient } = require('@supabase/supabase-js');
 const { reportInfo, reportError } = require('./utils/error-reporter');
 
+function loadBuildInfo() {
+    try {
+        // The build step generates this file before Netlify packages functions.
+        // It is intentionally optional so local development still works.
+        return require('./build-info.json');
+    } catch {
+        return {};
+    }
+}
+
+const buildInfo = loadBuildInfo();
+
 // Lazy-init Supabase only when needed
 let _supabase = null;
 function getSupabase() {
@@ -34,12 +46,19 @@ function getSupabase() {
  * Basic liveness — always succeeds if the function is running.
  */
 function checkBasic() {
+    const commitRef = process.env.COMMIT_REF || buildInfo.commit;
+    const context = process.env.CONTEXT || buildInfo.context;
+    const branch = process.env.BRANCH || buildInfo.branch;
+
     return {
         status: 'healthy',
         uptime: process.uptime(),
         timestamp: new Date().toISOString(),
-        environment: process.env.CONTEXT || process.env.NODE_ENV || 'unknown',
-        version: process.env.COMMIT_REF?.substring(0, 8) || 'local',
+        environment:
+            context && context !== 'unknown' ? context : process.env.NODE_ENV || 'unknown',
+        version:
+            commitRef && commitRef !== 'unknown' ? String(commitRef).substring(0, 8) : 'local',
+        branch: branch && branch !== 'unknown' ? branch : 'unknown',
         node: process.version,
     };
 }

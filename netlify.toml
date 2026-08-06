@@ -1,7 +1,7 @@
 [build]
   base = "."
   publish = "frontend-next/.next"
-  command = "cd wordpress-plugin && ./build-plugin.sh && cd ../netlify-functions && npm install && cd ../frontend-next && npm install && npm run build"
+  command = "node scripts/write-build-info.mjs && cd wordpress-plugin && ./build-plugin.sh && cd ../netlify-functions && npm install && cd ../frontend-next && npm install && npm run build"
   functions = "netlify-functions"
 
 [dev]

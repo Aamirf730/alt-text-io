@@ -99,6 +99,7 @@ agenthub/agents/youtube/db
 android-sdk/ 
 # Local Netlify folder
 .netlify
+/netlify-functions/build-info.json
 
 # Environment variables - NEVER commit these!
 .env
