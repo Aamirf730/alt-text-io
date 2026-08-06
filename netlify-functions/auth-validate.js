@@ -12,6 +12,7 @@ const {
 } = require('./utils/cors');
 const { recordPluginConnectCompleted } = require('./utils/plugin-connect-event');
 const { extractPluginVersion } = require('./utils/plugin-version');
+const { getMonthlyCreditState } = require('./utils/api-key-validator');
 
 // Initialize Supabase clients
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -251,6 +252,9 @@ exports.handler = async (event, context) => {
       .eq('id', profile.subscription_plan)
       .single();
 
+    const monthlyCreditState = getMonthlyCreditState(profile, planDetails?.credits);
+    const displayCreditsRemaining = monthlyCreditState.monthly_credits_remaining;
+
     await recordPluginConnectCompleted(supabase, {
       userId: authUser.id,
       userEmail: authUser.email,
@@ -268,7 +272,8 @@ exports.handler = async (event, context) => {
             id: authUser.id,
             email: authUser.email,
             plan: planDetails ? planDetails.name : 'Free Plan',
-            credits_remaining: profile.credits_remaining || 0,
+            credits_remaining: displayCreditsRemaining,
+            monthly_credits_remaining: displayCreditsRemaining,
             subscription_plan: profile.subscription_plan || 'free',
             subscription_status: profile.subscription_status || 'active',
             total_credits: planDetails ? planDetails.credits : 100
@@ -276,7 +281,8 @@ exports.handler = async (event, context) => {
           // Also include flat structure for backward compatibility
           user_id: authUser.id,
           email: authUser.email,
-          credits_remaining: profile.credits_remaining || 0,
+          credits_remaining: displayCreditsRemaining,
+          monthly_credits_remaining: displayCreditsRemaining,
           subscription_plan: profile.subscription_plan || 'free',
           subscription_status: profile.subscription_status || 'active',
           plan_name: planDetails ? planDetails.name : 'Free Plan',

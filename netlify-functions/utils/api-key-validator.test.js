@@ -55,4 +55,17 @@ describe('monthly credit state with promotional credits', () => {
       purchased_credits_remaining: 250,
     });
   });
+
+  it('reports only the spendable current-cycle balance when a paid aggregate contains future allowance', () => {
+    expect(getMonthlyCreditState({
+      subscription_plan: 'tier2',
+      monthly_credit_allowance: 400,
+      credits_remaining: 4760,
+      total_processed: 40,
+    })).toMatchObject({
+      monthly_credit_limit: 400,
+      monthly_credits_used: 40,
+      monthly_credits_remaining: 360,
+    });
+  });
 });

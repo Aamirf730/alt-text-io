@@ -1,5 +1,15 @@
 # Progress
 
+## 2026-08-06: M2 subscription-credit rollover fixed locally
+
+- Read-only production verification confirmed the failure on the live paid data: one active `tier2` annual profile stores 4,760 aggregate credits, has used 40 in the current cycle, and has only 360 usable; 4,400 are stranded future-plan allowance. The second active annual profile is at 0 usable credits after consuming its 400-credit cycle. No production data was changed.
+- Root cause: `subscription.updated` and `renew_paid_monthly_credits()` added each new plan allowance to `credits_remaining`, while `use_credit` capped plan usage at the current cycle and only allowed bonus/purchased ledgers past that cap.
+- Policy decision: subscription plan credits are per-cycle allowances and do not roll over. Bonus and purchased ledgers remain persistent and spendable after the plan allowance is exhausted.
+- Fix: renewal webhook updates and the annual drip now reset the plan portion to one allowance plus persistent ledgers. Migration `20260806140000_fix_subscription_credit_rollover.sql` repairs existing active paid profiles from current-cycle usage logs and preserves bonus/purchased balances.
+- Fix: auth validation, subscription, usage, and generation responses now expose the spendable current-cycle balance instead of the raw aggregate; the WordPress plugin receives that corrected value through the existing generation response contract.
+- Verification: focused Polar lifecycle tests pass 24/24; credit-state tests pass 5/5; full frontend tests pass 7 files/52 tests; TypeScript passes; the full function suite passes 17 files/150 tests; all Netlify-function JavaScript syntax checks and `git diff --check` pass.
+- Release state: local only. The migration is not applied, and no production code, push, or deployment has been performed. Apply this migration before deploying the matching webhook/API changes.
+
 ## 2026-08-06: M1 Redis rate-limit policy fix completed locally
 
 - Confirmed the defect: `checkRateLimit(identifier, maxRequests, windowMs)` passed endpoint-specific limits through to the Redis branch but enforced one shared `slidingWindow(60, '60 s')` limiter. The response advertised 10 or 30 while production allowed up to 60 requests per minute.

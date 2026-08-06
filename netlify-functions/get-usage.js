@@ -197,7 +197,9 @@ exports.handler = async (event, context) => {
       body: JSON.stringify({
         success: true,
         data: {
-          credits_remaining: profile.credits_remaining || 0,
+          // Report the spendable balance for this cycle rather than exposing
+          // an aggregate that may include future subscription allowances.
+          credits_remaining: monthlyCreditState.monthly_credits_remaining,
           bonus_credits_remaining: monthlyCreditState.bonus_credits_remaining,
           purchased_credits_remaining: monthlyCreditState.purchased_credits_remaining,
           credits_used: creditsUsed,
