@@ -1,5 +1,20 @@
 # Progress
 
+## 2026-08-07: M5 API-key storage migration applied; app rollout pending
+
+- Production migration `20260806153415_secure_api_key_storage` is applied before the app rollout. It added the hash/encrypted/last-four columns, seeded hashes for all 23 active legacy keys, and preserved every existing raw key for lazy authorized migration.
+- The M5 application changes are isolated in commit `5098c89` on `codex/release-medium-batch-b`; they must be deployed only after this migration, which is now satisfied.
+- The production encryption secret is already configured. No production key was deleted or rotated; the approved migration was the only production change before deployment.
+- Existing-key verification remains the release gate: after the app rollout, confirm an existing WordPress plugin authenticates and the dashboard can still display its key through the authenticated key endpoint.
+
+## 2026-08-07: P7 Medium Batch A released
+
+- Isolated Batch A from the unreleased M3/M5 code, then released M1, M2, M4, M6, M7, M8, and the P2 record-first ordering reversal through Git-backed commit `1ed1abf` on `main`.
+- Applied production migrations M2 and M8 before the app release. The connected migration tool initially generated temporary ledger versions; those rows were corrected to the repository versions `20260806140000` and `20260807100000` without re-running SQL. M6's bootstrap ledger entry remained marked applied.
+- Production verification after migration: `public.users` is absent, legacy PayPal functions are absent, and no profile has a negative credit balance. The M8 guard therefore dropped only the empty legacy table.
+- Netlify Git deploy completed successfully. Live smoke checks returned 200 for the homepage, a Next static asset, JavaScript, the logo image, `/admin`, and `/api/health`; health reports `environment=production`, `branch=main`, `version=1ed1abf`, and Node 20.20.2.
+- M3 and M5 were intentionally excluded and remain queued for their own migration-first releases. No manual Netlify upload was used.
+
 ## 2026-08-06: M2 subscription-credit rollover fixed locally
 
 - Read-only production verification confirmed the failure on the live paid data: one active `tier2` annual profile stores 4,760 aggregate credits, has used 40 in the current cycle, and has only 360 usable; 4,400 are stranded future-plan allowance. The second active annual profile is at 0 usable credits after consuming its 400-credit cycle. No production data was changed.
