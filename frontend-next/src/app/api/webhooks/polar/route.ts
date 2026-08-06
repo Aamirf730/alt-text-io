@@ -116,6 +116,202 @@ async function recordMarketingEvent(
     }
 }
 
+type BillingProfile = {
+    id: string;
+    email: string | null;
+    subscription_id: string | null;
+    polar_customer_id: string | null;
+    bonus_credits_remaining: number | null;
+    purchased_credits_remaining: number | null;
+    next_billing_date: string | null;
+};
+
+const BILLING_PROFILE_COLUMNS = [
+    "id",
+    "email",
+    "subscription_id",
+    "polar_customer_id",
+    "bonus_credits_remaining",
+    "purchased_credits_remaining",
+    "next_billing_date",
+].join(", ");
+
+async function findProfileByBillingField(
+    field: "subscription_id" | "polar_customer_id" | "email",
+    value: string,
+): Promise<BillingProfile | null> {
+    const { data, error } = await getSupabase()
+        .from("profiles")
+        .select(BILLING_PROFILE_COLUMNS)
+        .eq(field, value)
+        .limit(1);
+
+    if (error) {
+        throw error;
+    }
+
+    return (data?.[0] as unknown as BillingProfile | undefined) || null;
+}
+
+async function findBillingProfile({
+    email,
+    subscriptionId,
+    customerId,
+}: {
+    email?: string | null;
+    subscriptionId?: string | null;
+    customerId?: string | null;
+}): Promise<BillingProfile | null> {
+    if (subscriptionId) {
+        const profile = await findProfileByBillingField("subscription_id", subscriptionId);
+        if (profile) return profile;
+    }
+
+    if (customerId) {
+        const profile = await findProfileByBillingField("polar_customer_id", customerId);
+        if (profile) return profile;
+    }
+
+    if (email) {
+        const profile = await findProfileByBillingField("email", email);
+        if (profile) return profile;
+
+        const { data: authData, error: authError } = await getSupabase().auth.admin.listUsers();
+        if (authError) {
+            throw authError;
+        }
+
+        const authUser = authData?.users.find((user) => user.email === email);
+        if (authUser?.id) {
+            const { data, error } = await getSupabase()
+                .from("profiles")
+                .select(BILLING_PROFILE_COLUMNS)
+                .eq("id", authUser.id)
+                .limit(1);
+
+            if (error) {
+                throw error;
+            }
+
+            return (data?.[0] as unknown as BillingProfile | undefined) || null;
+        }
+    }
+
+    return null;
+}
+
+function matchesSubscription(profile: BillingProfile, subscriptionId?: string | null): boolean {
+    return !subscriptionId || !profile.subscription_id || profile.subscription_id === subscriptionId;
+}
+
+function toIsoDate(value: unknown): string | null {
+    if (!value) return null;
+
+    const date = value instanceof Date ? value : new Date(String(value));
+    return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function getSubscriptionEnd(subscription: any): string | null {
+    return toIsoDate(subscription.endsAt || subscription.currentPeriodEnd);
+}
+
+async function updateProfile(userId: string, values: Record<string, unknown>): Promise<void> {
+    const { error } = await getSupabase()
+        .from("profiles")
+        .update(values)
+        .eq("id", userId);
+
+    if (error) {
+        throw error;
+    }
+}
+
+async function downgradeProfileToFree(
+    profile: BillingProfile,
+    subscriptionId?: string | null,
+): Promise<void> {
+    const { data, error } = await getSupabase().rpc("revoke_subscription_access", {
+        p_user_id: profile.id,
+        p_subscription_id: subscriptionId || null,
+    });
+
+    if (error) {
+        throw error;
+    }
+
+    if (!data?.success) {
+        throw new Error(data?.error || "Subscription revocation failed");
+    }
+}
+
+async function markPaymentStatus(paymentId: string, status: string): Promise<void> {
+    const { error } = await getSupabase()
+        .from("payments")
+        .update({
+            status,
+            updated_at: new Date().toISOString(),
+        })
+        .eq("payment_id", paymentId)
+        .eq("payment_method", "polar");
+
+    if (error) {
+        throw error;
+    }
+}
+
+async function revokeCreditPack(paymentId: string): Promise<void> {
+    const { data, error } = await getSupabase().rpc("revoke_credit_pack_purchase", {
+        p_payment_id: paymentId,
+    });
+
+    if (error) {
+        throw error;
+    }
+
+    if (!data?.success) {
+        throw new Error(data?.error || "Credit-pack revocation failed");
+    }
+}
+
+async function processRefund(
+    refund: any,
+    webhookName: string,
+    eventName: string,
+): Promise<void> {
+    logWebhookReceived(webhookName, refund);
+
+    const profile = await findBillingProfile({
+        subscriptionId: refund.subscriptionId,
+        customerId: refund.customerId,
+    });
+    const paymentId = `polar_ord_${refund.orderId}`;
+    const succeeded = refund.status === "succeeded";
+
+    if (succeeded) {
+        await markPaymentStatus(paymentId, "refunded");
+
+        if (refund.revokeBenefits && refund.subscriptionId && profile && matchesSubscription(profile, refund.subscriptionId)) {
+            await downgradeProfileToFree(profile, refund.subscriptionId);
+        } else if (refund.revokeBenefits && !refund.subscriptionId) {
+            await revokeCreditPack(paymentId);
+        }
+    }
+
+    if (profile) {
+        await recordMarketingEvent(eventName, profile.id, profile.email, {
+            provider: "polar",
+            refund_id: refund.id,
+            order_id: refund.orderId,
+            subscription_id: refund.subscriptionId,
+            amount: refund.amount,
+            currency: refund.currency,
+            status: refund.status,
+            reason: refund.reason,
+            revoke_benefits: refund.revokeBenefits,
+        }, { throwOnError: true });
+    }
+}
+
 // Helper to get credits from product name or metadata
 function getCreditsForProduct(
     productName: string,
@@ -235,8 +431,7 @@ async function updateUserCredits(
     console.log(`Successfully updated credits for user ${userId}`);
 }
 
-export const POST = Webhooks({
-    webhookSecret: process.env.POLAR_WEBHOOK_SECRET!,
+const polarWebhookHandlers = {
 
     // Handle successful order payment (one-time purchases ONLY)
     // Note: Subscriptions are handled by onSubscriptionActive to prevent double allocation
@@ -402,20 +597,12 @@ export const POST = Webhooks({
             const productName = subscription.product?.name || "";
             console.log(`✓ Processing subscription activation: ${productName} for ${customerEmail}`);
 
-            // Find user by email
-            const { data: users } = await getSupabase()
-                .from("profiles")
-                .select("id")
-                .eq("email", customerEmail);
-
-            let userId: string | null = null;
-            if (!users || users.length === 0) {
-                const { data: authData } = await getSupabase().auth.admin.listUsers();
-                const authUser = authData?.users.find(u => u.email === customerEmail);
-                userId = authUser?.id || null;
-            } else {
-                userId = users[0].id;
-            }
+            const profile = await findBillingProfile({
+                email: customerEmail,
+                subscriptionId: subscription.id,
+                customerId: subscription.customer?.id,
+            });
+            const userId = profile?.id || null;
 
             if (!userId) {
                 console.error(`No user found for email: ${customerEmail}`);
@@ -457,6 +644,7 @@ export const POST = Webhooks({
                     polar_customer_id: subscription.customer?.id || null,
                     billing_cycle: billingCycle,
                     monthly_credit_allowance: billingCycle === "annual" ? monthlyAllowance : null,
+                    next_billing_date: getSubscriptionEnd(subscription),
                     credits_last_renewed_at: new Date().toISOString(),
                     updated_at: new Date().toISOString(),
                 })
@@ -481,46 +669,215 @@ export const POST = Webhooks({
                 return;
             }
 
-            // Find user by email
-            const { data: users } = await getSupabase()
-                .from("profiles")
-                .select("id")
-                .eq("email", customerEmail);
+            const profile = await findBillingProfile({
+                email: customerEmail,
+                subscriptionId: subscription.id,
+                customerId: subscription.customer?.id,
+            });
 
-            let userId: string | null = null;
-            if (!users || users.length === 0) {
-                const { data: authData } = await getSupabase().auth.admin.listUsers();
-                const authUser = authData?.users.find(u => u.email === customerEmail);
-                userId = authUser?.id || null;
-            } else {
-                userId = users[0].id;
-            }
-
-            if (!userId) {
+            if (!profile) {
                 console.error(`No user found for email: ${customerEmail}`);
                 return;
             }
 
-            // Update profile to reflect cancellation and stop monthly drip
-            await getSupabase()
-                .from("profiles")
-                .update({
-                    subscription_status: "cancelled",
-                    billing_cycle: null,
-                    monthly_credit_allowance: null,
-                    updated_at: new Date().toISOString(),
-                })
-                .eq("id", userId);
+            if (!matchesSubscription(profile, subscription.id)) {
+                console.warn(`Ignoring cancellation for stale subscription ${subscription.id}`);
+                return;
+            }
 
-            await recordMarketingEvent("subscription_canceled", userId, customerEmail, {
+            const subscriptionEnd = getSubscriptionEnd(subscription) || profile.next_billing_date;
+
+            // Polar sends subscription.canceled when cancellation is requested,
+            // while the customer may retain access until this period ends. Keep
+            // the paid plan and annual drip metadata until subscription.revoked.
+            await updateProfile(profile.id, {
+                subscription_status: "cancelled",
+                next_billing_date: subscriptionEnd,
+                updated_at: new Date().toISOString(),
+            });
+
+            await recordMarketingEvent("subscription_canceled", profile.id, customerEmail, {
                 provider: "polar",
                 subscription_id: subscription.id,
                 product_name: subscription.product?.name || "",
-            });
+                ends_at: subscriptionEnd,
+            }, { throwOnError: true });
 
-            console.log(`Subscription cancelled for user ${userId}`);
+            console.log(`Subscription cancellation scheduled for user ${profile.id} at ${subscriptionEnd || "provider-reported end"}`);
         } catch (error) {
             console.error("Error processing subscription canceled webhook:", error);
+            throw error;
+        }
+    },
+
+    // Handle the point where Polar ends access. This is deliberately separate
+    // from subscription.canceled, which only schedules non-renewal.
+    onSubscriptionRevoked: async (payload) => {
+        try {
+            const subscription = payload.data;
+            logWebhookReceived("Subscription revoked", subscription);
+
+            const profile = await findBillingProfile({
+                email: subscription.customer?.email,
+                subscriptionId: subscription.id,
+                customerId: subscription.customer?.id,
+            });
+
+            if (!profile) {
+                console.error(`No user found for revoked subscription ${subscription.id}`);
+                return;
+            }
+
+            if (!matchesSubscription(profile, subscription.id)) {
+                console.warn(`Ignoring revocation for stale subscription ${subscription.id}`);
+                return;
+            }
+
+            await downgradeProfileToFree(profile, subscription.id);
+            await recordMarketingEvent("subscription_revoked", profile.id, profile.email, {
+                provider: "polar",
+                subscription_id: subscription.id,
+                product_name: subscription.product?.name || "",
+                ended_at: toIsoDate(subscription.endedAt || subscription.endsAt),
+            }, { throwOnError: true });
+
+            console.log(`Subscription revoked and downgraded to free for user ${profile.id}`);
+        } catch (error) {
+            console.error("Error processing subscription revoked webhook:", error);
+            throw error;
+        }
+    },
+
+    // Restore paid-plan metadata when a customer reverses a pending
+    // cancellation. Credits are not granted here because no new billing
+    // period has started.
+    onSubscriptionUncanceled: async (payload) => {
+        try {
+            const subscription = payload.data;
+            logWebhookReceived("Subscription uncanceled", subscription);
+
+            const profile = await findBillingProfile({
+                email: subscription.customer?.email,
+                subscriptionId: subscription.id,
+                customerId: subscription.customer?.id,
+            });
+
+            if (!profile) {
+                console.error(`No user found for uncanceled subscription ${subscription.id}`);
+                return;
+            }
+
+            if (!matchesSubscription(profile, subscription.id)) {
+                console.warn(`Ignoring uncancellation for stale subscription ${subscription.id}`);
+                return;
+            }
+
+            const productName = subscription.product?.name || "";
+            const mergedMetadata = {
+                ...(subscription.product?.metadata || {}),
+                ...(subscription.metadata || {}),
+            } as Record<string, string | number | boolean>;
+            const planId = resolvePolarPlanId(productName, mergedMetadata);
+            const isAnnual = productName.toLowerCase().includes("annual");
+
+            await updateProfile(profile.id, {
+                subscription_plan: planId,
+                subscription_status: "active",
+                subscription_id: subscription.id,
+                polar_customer_id: subscription.customer?.id || profile.polar_customer_id,
+                billing_cycle: isAnnual ? "annual" : "monthly",
+                monthly_credit_allowance: isAnnual ? (MONTHLY_CREDITS_MAP[planId] || null) : null,
+                next_billing_date: getSubscriptionEnd(subscription) || profile.next_billing_date,
+                updated_at: new Date().toISOString(),
+            });
+
+            await recordMarketingEvent("subscription_uncanceled", profile.id, profile.email, {
+                provider: "polar",
+                subscription_id: subscription.id,
+                product_name: productName,
+                ends_at: getSubscriptionEnd(subscription) || profile.next_billing_date,
+            }, { throwOnError: true });
+        } catch (error) {
+            console.error("Error processing subscription uncanceled webhook:", error);
+            throw error;
+        }
+    },
+
+    // Handle full/partial refunds for both subscription orders and one-time
+    // credit packs. A full order refund revokes benefits; partial refunds are
+    // recorded but do not remove an entire pack.
+    onOrderRefunded: async (payload) => {
+        try {
+            const order = payload.data;
+            logWebhookReceived("Order refunded", order);
+
+            const paymentId = `polar_ord_${order.id}`;
+            const refundedAmount = Number(order.refundedAmount || 0);
+            const totalAmount = Number(order.totalAmount || 0);
+            const isFullRefund = order.status === "refunded"
+                || (totalAmount > 0 && refundedAmount >= totalAmount);
+            const productName = order.product?.name || "";
+            const mergedMetadata = {
+                ...(order.product?.metadata || {}),
+                ...(order.metadata || {}),
+            } as Record<string, string | number | boolean>;
+            const isSubscription = Boolean(order.subscriptionId)
+                || isPolarSubscriptionProduct(productName, mergedMetadata);
+
+            await markPaymentStatus(
+                paymentId,
+                order.status === "partially_refunded" ? "partially_refunded" : "refunded",
+            );
+
+            const profile = await findBillingProfile({
+                email: order.customer?.email,
+                subscriptionId: order.subscriptionId,
+                customerId: order.customer?.id,
+            });
+
+            if (isFullRefund && isSubscription && profile && matchesSubscription(profile, order.subscriptionId)) {
+                await downgradeProfileToFree(profile, order.subscriptionId);
+            } else if (isFullRefund && !isSubscription) {
+                await revokeCreditPack(paymentId);
+            }
+
+            if (profile) {
+                await recordMarketingEvent("order_refunded", profile.id, profile.email, {
+                    provider: "polar",
+                    order_id: order.id,
+                    subscription_id: order.subscriptionId,
+                    product_name: productName,
+                    refunded_amount: refundedAmount,
+                    total_amount: totalAmount,
+                    full_refund: isFullRefund,
+                }, { throwOnError: true });
+            }
+        } catch (error) {
+            console.error("Error processing order refunded webhook:", error);
+            throw error;
+        }
+    },
+
+    // refund.created can arrive before or after order.refunded. Only a
+    // succeeded refund with revoke_benefits=true changes access/credits; the
+    // database RPC makes duplicate deliveries harmless.
+    onRefundCreated: async (payload) => {
+        try {
+            await processRefund(payload.data, "Refund created", "refund_created");
+        } catch (error) {
+            console.error("Error processing refund created webhook:", error);
+            throw error;
+        }
+    },
+
+    // A refund may be pending when refund.created arrives. Reprocess the
+    // provider's final status so a later success cannot leave benefits active.
+    onRefundUpdated: async (payload) => {
+        try {
+            await processRefund(payload.data, "Refund updated", "refund_updated");
+        } catch (error) {
+            console.error("Error processing refund updated webhook:", error);
+            throw error;
         }
     },
 
@@ -653,4 +1010,9 @@ export const POST = Webhooks({
             console.error("Error processing subscription updated webhook:", error);
         }
     },
+} satisfies Omit<Parameters<typeof Webhooks>[0], "webhookSecret">;
+
+export const POST = Webhooks({
+    webhookSecret: process.env.POLAR_WEBHOOK_SECRET!,
+    ...polarWebhookHandlers,
 });
