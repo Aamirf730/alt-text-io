@@ -1,5 +1,14 @@
 # Progress
 
+## 2026-08-06: M3 AI metering moved ahead of generation locally
+
+- Verified the race in the live code path: the handler performed advisory credit checks, called Gemini, and only then invoked `use_credit`. Concurrent requests could therefore all pay for an AI call before the row lock serialized the deductions; a post-generation database failure could also leave an AI call unmetered.
+- Decision: use a short-lived reservation rather than permanently charging failed AI attempts. `reserve_credit()` locks the profile, accounts for active plan reservations, and reduces the spendable balance before Gemini. Successful requests finalize into `usage_logs`; AI failures release the reservation. Abandoned reservations expire after ten minutes and are recovered on the user's next reservation.
+- Added migration `20260806143048_reserve_credits_before_ai_generation.sql`, with service-role-only `credit_reservations`, reserve/finalize/release RPCs, consistent profile-first locking, and persistent plan/bonus/purchased ledger handling.
+- Updated `generate-alt-text.js` and the credit utility adapters so reservation is authoritative for concurrency, Gemini runs only after reservation, failed generation releases the credit, and successful output finalizes the usage log. The existing WordPress response contract is unchanged.
+- Verification: focused reservation tests pass; the full function suite passes 18 files/155 tests; all Netlify-function JavaScript syntax checks and `git diff --check` pass. No frontend files changed in M3, so the prior M2 frontend/TypeScript/build verification remains applicable. Local Supabase lint could not run because this worktree has no local Postgres instance. No production migration, push, or deployment was performed.
+- Release state: local only. Apply the migration before deploying the matching Netlify function; do not deploy without explicit approval.
+
 ## 2026-08-06: M2 subscription-credit rollover fixed locally
 
 - Read-only production verification confirmed the failure on the live paid data: one active `tier2` annual profile stores 4,760 aggregate credits, has used 40 in the current cycle, and has only 360 usable; 4,400 are stranded future-plan allowance. The second active annual profile is at 0 usable credits after consuming its 400-credit cycle. No production data was changed.
