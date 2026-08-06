@@ -1,11 +1,11 @@
 # Progress
 
-## 2026-08-06: Git-backed production redeploy completed
+## 2026-08-06: Git-backed production redeploy and build metadata completed
 
-- Git release: `fix/subscription-lifecycle-refunds` was pushed to GitHub and fast-forwarded into `origin/main` at `a2f0dfc`. The Netlify automatic production deploy is `6a746cafcfea050008f200c8`, with `manual_deploy = false`, `branch = main`, and `commit_ref = a2f0dfc0d822c0520e93bfd3a6d4ddaf90c231e7`.
+- Code release: build metadata is committed as `1ae443c` on `fix/subscription-lifecycle-refunds` and was fast-forwarded into `origin/main`. Its metadata rollout deploy is `6a74705b541db90008b1d601`, with `manual_deploy = false`, `branch = main`, and `commit_ref = 1ae443c9123283de09ae28a09b8a61049a660da2`.
 - Runtime: the Git build honors the pinned Node `v20.20.2` instead of the local manual-upload Node 24 runtime.
-- Verification: public images, the plugin ZIP, every `/_next/static` admin chunk, homepage, health, checkout auth guard, unsigned Polar webhook guard, and admin-function auth guards all pass after the Git deploy.
-- Observability follow-up: Netlify records the commit correctly, but the health function still reports `environment: unknown` and `version: local` because `COMMIT_REF` is not available in the function runtime. This is reporting-only; the production code and Netlify deploy provenance are correct.
+- Build metadata: `scripts/write-build-info.mjs` now records the Git commit, context, and branch before Netlify packages the functions; `health.js` reads that file when runtime build variables are unavailable. The generated file is ignored and remains optional for local development.
+- Verification: `/api/health` reports `environment: production`, `version: 1ae443c9`, `branch: main`, and `node: v20.20.2`. Homepage, logo, grid asset, the plugin ZIP, all 11 `/_next/static` admin chunks, checkout auth, unsigned Polar webhook, and admin auth guards pass after the deploy.
 
 ## 2026-08-06: H1/H2/H3 and complete website release deployed
 
