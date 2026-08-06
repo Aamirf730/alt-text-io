@@ -77,7 +77,7 @@ exports.handler = async (event, context) => {
 
     // Check if this is an API key (starts with 'alt_')
     if (token.startsWith('alt_')) {
-      console.log('Validating API key format:', token.substring(0, 20) + '...');
+      console.log('Validating API key format');
 
       // Validate API key
       const { data: userIdData, error: apiKeyError } = await supabase
@@ -98,7 +98,7 @@ exports.handler = async (event, context) => {
       }
 
       if (!userIdData) {
-        console.error('API key not found or inactive:', token.substring(0, 20) + '...');
+        console.error('API key not found or inactive');
         return {
           statusCode: 401,
           headers,

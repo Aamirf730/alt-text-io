@@ -263,52 +263,24 @@ export default function Dashboard() {
 
     // Load API key for WordPress plugin
     const loadApiKey = async () => {
-        if (!user?.id) return;
+        if (!user?.id || !user?.token) return;
 
         setIsLoadingApiKey(true);
         try {
-            // First, try to get existing API key from Supabase
-            const { data: existingKeys, error: fetchError } = await supabase
-                .from('api_keys')
-                .select('api_key')
-                .eq('user_id', user.id)
-                .eq('is_active', true)
-                .order('created_at', { ascending: false })
-                .limit(1);
+            const response = await fetch(`${getApiBase()}/get-api-key`, {
+                method: 'GET',
+                headers: {
+                    Authorization: `Bearer ${user.token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+            const data = await response.json();
 
-            if (fetchError) {
-                console.error('Error fetching API key:', fetchError);
-                // If table doesn't exist or RLS issue, try using the function
-                const { data: functionResult, error: functionError } = await supabase
-                    .rpc('get_or_create_api_key', { p_user_id: user.id });
-
-                if (functionError) {
-                    console.error('Error calling get_or_create_api_key:', functionError);
-                    toast.error('Error loading API key');
-                    return;
-                }
-
-                setApiKey(functionResult);
-                return;
+            if (!response.ok || !data.success || !data.api_key) {
+                throw new Error(data.error || 'Failed to load API key');
             }
 
-            // If we have an existing key, use it
-            if (existingKeys && existingKeys.length > 0) {
-                setApiKey(existingKeys[0].api_key);
-                return;
-            }
-
-            // If no key exists, create one using the function
-            const { data: newKey, error: createError } = await supabase
-                .rpc('get_or_create_api_key', { p_user_id: user.id });
-
-            if (createError) {
-                console.error('Error creating API key:', createError);
-                toast.error('Error creating API key');
-                return;
-            }
-
-            setApiKey(newKey);
+            setApiKey(data.api_key);
         } catch (error) {
             console.error('Error loading API key:', error);
             toast.error('Error loading API key');
@@ -449,7 +421,7 @@ export default function Dashboard() {
     };
 
     const rotateApiKey = async () => {
-        if (!user?.id) return;
+        if (!user?.id || !user?.token) return;
 
         if (!confirm("Rotate your API key? Your old key will stop working immediately.")) {
             return;
@@ -457,21 +429,21 @@ export default function Dashboard() {
 
         setIsLoadingApiKey(true);
         try {
-            // First, deactivate all current keys for this user
-            const { error: deactivateError } = await supabase
-                .from('api_keys')
-                .update({ is_active: false })
-                .eq('user_id', user.id);
+            const response = await fetch(`${getApiBase()}/get-api-key`, {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${user.token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ rotate: true }),
+            });
+            const data = await response.json();
 
-            if (deactivateError) throw deactivateError;
+            if (!response.ok || !data.success || !data.api_key) {
+                throw new Error(data.error || 'Failed to rotate API key');
+            }
 
-            // Then call the RPC to create a fresh one
-            const { data: newKey, error: createError } = await supabase
-                .rpc('get_or_create_api_key', { p_user_id: user.id });
-
-            if (createError) throw createError;
-
-            setApiKey(newKey);
+            setApiKey(data.api_key);
             toast.success("API Key rotated successfully");
         } catch (error) {
             console.error('Error rotating API key:', error);

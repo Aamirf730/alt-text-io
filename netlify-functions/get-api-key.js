@@ -10,6 +10,12 @@ const {
   rateLimitExceededResponse,
   methodNotAllowedResponse,
 } = require('./utils/cors');
+const {
+  decryptApiKey,
+  encryptApiKey,
+  generateApiKey,
+  hashApiKey,
+} = require('./utils/api-key-secrets');
 
 // Initialize Supabase client
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -26,7 +32,7 @@ exports.handler = async (event, context) => {
 
   // Rate limiting
   const clientIp = getClientIp(event);
-  const rateLimit = await checkRateLimit(clientIp);
+  const rateLimit = await checkRateLimit(`get-api-key:ip:${clientIp}`);
   if (!rateLimit.allowed) {
     return rateLimitExceededResponse(headers, rateLimit);
   }
@@ -58,70 +64,128 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Get or create API key for the user
-    const { data: apiKeyData, error: apiKeyError } = await supabase
-      .rpc('get_or_create_api_key', { p_user_id: authUser.id });
+    let rotateRequested = false;
+    if (event.httpMethod === 'POST' && event.body) {
+      try {
+        rotateRequested = JSON.parse(event.body).rotate === true;
+      } catch (_error) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'Invalid request body' }),
+        };
+      }
+    }
+
+    if (rotateRequested) {
+      const { error: deactivateError } = await supabase
+        .from('api_keys')
+        .update({ is_active: false })
+        .eq('user_id', authUser.id)
+        .eq('is_active', true);
+
+      if (deactivateError) {
+        console.error('Error rotating API key:', deactivateError.message);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: 'Failed to rotate API key' }),
+        };
+      }
+    }
+
+    // Read the encrypted value only with the service-role client. The raw
+    // api_key column is selected solely to migrate legacy rows once, then is
+    // cleared in the same authorized request.
+    const { data: apiKeyRecord, error: apiKeyError } = await supabase
+      .from('api_keys')
+      .select('id, api_key, api_key_hash, api_key_encrypted, is_active')
+      .eq('user_id', authUser.id)
+      .eq('is_active', true)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (apiKeyError) {
+      console.error('Error querying API key metadata:', apiKeyError.message);
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Failed to get API key' }),
+      };
+    }
 
     let apiKey = null;
 
-    if (apiKeyError) {
-      console.error('Error calling RPC function:', apiKeyError);
-      // Fallback: try to query the table directly
-      const { data: apiKeys, error: keysError } = await supabase
-        .from('api_keys')
-        .select('api_key')
-        .eq('user_id', authUser.id)
-        .eq('is_active', true)
-        .order('created_at', { ascending: false })
-        .limit(1);
-
-      if (keysError) {
-        console.error('Error querying api_keys table:', keysError);
+    if (apiKeyRecord?.api_key_encrypted) {
+      apiKey = decryptApiKey(apiKeyRecord.api_key_encrypted);
+      if (!apiKey) {
+        console.error('API key decryption failed for user:', authUser.id);
         return {
           statusCode: 500,
           headers,
-          body: JSON.stringify({
-            error: 'Failed to get API key',
-            details: apiKeyError.message || keysError.message
-          }),
+          body: JSON.stringify({ error: 'Stored API key could not be recovered' }),
         };
       }
+    } else if (apiKeyRecord?.api_key) {
+      // Migrate a legacy plaintext key during an authorized retrieval. The
+      // plaintext is never returned from the database after this update.
+      apiKey = apiKeyRecord.api_key;
+      const apiKeyEncrypted = encryptApiKey(apiKey);
+      const { error: migrateError } = await supabase
+        .from('api_keys')
+        .update({
+          api_key: null,
+          api_key_hash: hashApiKey(apiKey),
+          api_key_encrypted: apiKeyEncrypted,
+          api_key_last4: apiKey.slice(-4),
+        })
+        .eq('id', apiKeyRecord.id)
+        .eq('user_id', authUser.id);
 
-      apiKey = apiKeys && apiKeys[0]?.api_key;
+      if (migrateError) {
+        console.error('Error migrating legacy API key:', migrateError.message);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: 'Failed to secure API key' }),
+        };
+      }
+    } else if (apiKeyRecord?.api_key_hash) {
+      // A one-way hash can validate a key but cannot reveal it. Require an
+      // explicit rotation rather than silently invalidating a live plugin key.
+      return {
+        statusCode: 409,
+        headers,
+        body: JSON.stringify({
+          success: false,
+          code: 'api_key_rotation_required',
+          error: 'Generate a new API key to continue.',
+        }),
+      };
     } else {
-      // RPC function returns the key directly as TEXT
-      apiKey = apiKeyData;
-    }
+      apiKey = generateApiKey();
 
-    // If still no key, try to create one manually
-    if (!apiKey) {
-      // Generate a simple API key
-      const generatedKey = `alt_${authUser.id.substring(0, 8)}_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 10)}`;
-
-      const { data: newKeyData, error: insertError } = await supabase
+      const { error: insertError } = await supabase
         .from('api_keys')
         .insert({
           user_id: authUser.id,
-          api_key: generatedKey,
+          api_key: null,
+          api_key_hash: hashApiKey(apiKey),
+          api_key_encrypted: encryptApiKey(apiKey),
+          api_key_last4: apiKey.slice(-4),
           name: 'WordPress Plugin',
-          is_active: true
-        })
-        .select('api_key')
-        .single();
+          is_active: true,
+        });
 
       if (insertError) {
-        console.error('Error creating API key:', insertError);
+        console.error('Error creating API key:', insertError.message);
         return {
           statusCode: 500,
           headers,
-          body: JSON.stringify({
-            error: 'Failed to create API key',
-            details: insertError.message
-          }),
+          body: JSON.stringify({ error: 'Failed to create API key' }),
         };
       }
-
-      apiKey = newKeyData?.api_key || generatedKey;
     }
 
     return {
@@ -144,4 +208,3 @@ exports.handler = async (event, context) => {
     };
   }
 };
-
