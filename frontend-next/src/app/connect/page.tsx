@@ -6,9 +6,10 @@ import { supabase } from "@/lib/supabase";
 import { getApiBase } from "@/lib/utils";
 import { trackMarketingEvent } from "@/lib/analytics";
 import { toast } from "sonner";
+import "./connect-states.css";
 import {
     Key, Eye, EyeOff, CheckCircle, Loader2, ArrowRight,
-    Shield, Zap, AlertTriangle
+    Shield, Zap, AlertTriangle, Copy
 } from "lucide-react";
 
 type CallbackTarget = {
@@ -126,6 +127,7 @@ function ConnectPageContent() {
     const [isAwaitingConfirmation, setIsAwaitingConfirmation] = useState(false);
     const [manualApiKey, setManualApiKey] = useState("");
     const [isApiKeyCopied, setIsApiKeyCopied] = useState(false);
+    const [isManualApiKeyVisible, setIsManualApiKeyVisible] = useState(false);
 
     useEffect(() => {
         if (typeof window === "undefined") {
@@ -217,6 +219,7 @@ function ConnectPageContent() {
         clearConnectContext();
         setManualApiKey(apiKey);
         setIsApiKeyCopied(false);
+        setIsManualApiKeyVisible(false);
         setIsAwaitingConfirmation(false);
         setCallbackTarget(null);
         setHasCallbackTarget(false);
@@ -677,26 +680,48 @@ function ConnectPageContent() {
     if (manualApiKey) {
         return (
             <div className="connect-page">
-                <div className="connect-card">
+                <div className="connect-card connect-card-recovery">
                     <div className="connect-recovery">
-                        <Key size={48} className="recovery-icon" />
+                        <div className="recovery-brand">
+                            <img src="/logo-alt-text-pro.png" alt="" className="recovery-brand-logo" />
+                            <span>Alt Text Pro</span>
+                        </div>
+                        <div className="recovery-icon-wrap" aria-hidden="true">
+                            <Key size={24} />
+                        </div>
+                        <p className="recovery-eyebrow">Connection needs one final step</p>
                         <h2>Finish connecting manually</h2>
-                        <p>{statusMessage}</p>
-                        <p className="recovery-note">
-                            The plugin may already have saved this key. If it still shows as disconnected, copy the key below and paste it into Alt Text Pro in your WordPress admin.
-                        </p>
+                        <div className="recovery-status" role="status">
+                            <AlertTriangle size={18} aria-hidden="true" />
+                            <span>{statusMessage}</span>
+                        </div>
+                        <p className="recovery-note">Your account is safe. If WordPress still shows as disconnected, use the key below to complete setup.</p>
                         <label className="recovery-key-label" htmlFor="manual-recovery-api-key">Your API key</label>
                         <div className="recovery-key-row">
-                            <input
-                                id="manual-recovery-api-key"
-                                type="text"
-                                value={manualApiKey}
-                                readOnly
-                                onFocus={(event) => event.currentTarget.select()}
-                                aria-label="API key"
-                            />
+                            <div className="recovery-key-field">
+                                <input
+                                    id="manual-recovery-api-key"
+                                    type={isManualApiKeyVisible ? "text" : "password"}
+                                    value={manualApiKey}
+                                    readOnly
+                                    autoComplete="off"
+                                    data-lpignore="true"
+                                    data-1p-ignore="true"
+                                    onFocus={(event) => event.currentTarget.select()}
+                                    aria-label="API key"
+                                />
+                                <button
+                                    type="button"
+                                    className="recovery-visibility-btn"
+                                    onClick={() => setIsManualApiKeyVisible((visible) => !visible)}
+                                    aria-label={isManualApiKeyVisible ? "Hide API key" : "Show API key"}
+                                >
+                                    {isManualApiKeyVisible ? <EyeOff size={18} /> : <Eye size={18} />}
+                                </button>
+                            </div>
                             <button type="button" className="recovery-copy-btn" onClick={copyManualApiKey}>
-                                {isApiKeyCopied ? "Copied" : "Copy key"}
+                                {isApiKeyCopied ? <CheckCircle size={17} /> : <Copy size={17} />}
+                                <span>{isApiKeyCopied ? "Copied" : "Copy key"}</span>
                             </button>
                         </div>
                         {error && (
@@ -705,7 +730,18 @@ function ConnectPageContent() {
                                 <span>{error}</span>
                             </div>
                         )}
-                        <p className="recovery-help">WordPress → Alt Text Pro → Settings → API key</p>
+                        <ol className="recovery-steps" aria-label="Manual connection steps">
+                            <li><span>1</span><p>Return to your WordPress admin.</p></li>
+                            <li><span>2</span><p>Open <strong>Alt Text Pro → Settings</strong>.</p></li>
+                            <li><span>3</span><p>Paste the key and choose <strong>Save API Key</strong>.</p></li>
+                        </ol>
+                        <div className="recovery-security-note">
+                            <Shield size={16} aria-hidden="true" />
+                            <span>Keep this key private. It provides access to your Alt Text Pro credits.</span>
+                        </div>
+                        <button type="button" className="recovery-close-btn" onClick={() => window.close()}>
+                            Close this window
+                        </button>
                     </div>
                 </div>
             </div>
@@ -910,9 +946,10 @@ function ConnectPageContent() {
         }
 
         .connect-logo {
+          display: block;
           width: 56px;
           height: 56px;
-          margin-bottom: 16px;
+          margin: 0 auto 16px;
           border-radius: 12px;
         }
 
@@ -1039,8 +1076,8 @@ function ConnectPageContent() {
         }
 
         .connect-field input:focus {
-          border-color: #6366f1;
-          box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+          border-color: #0f5b66;
+          box-shadow: 0 0 0 3px rgba(15, 91, 102, 0.12);
         }
 
         .connect-password-wrapper {
@@ -1076,7 +1113,7 @@ function ConnectPageContent() {
           justify-content: center;
           gap: 8px;
           padding: 12px 16px;
-          background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+          background: linear-gradient(135deg, #0f5b66 0%, #167b83 100%);
           color: white;
           border: none;
           border-radius: 10px;
@@ -1089,7 +1126,7 @@ function ConnectPageContent() {
 
         .connect-submit-btn:hover:not(:disabled) {
           transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
+          box-shadow: 0 4px 12px rgba(15, 91, 102, 0.32);
         }
 
         .connect-submit-btn:disabled {
@@ -1107,7 +1144,7 @@ function ConnectPageContent() {
         .connect-toggle button {
           background: none;
           border: none;
-          color: #6366f1;
+          color: #0f5b66;
           font-weight: 600;
           cursor: pointer;
           margin-left: 4px;
@@ -1158,7 +1195,7 @@ function ConnectPageContent() {
         }
 
         .confirmation-icon {
-          color: #6366f1;
+          color: #0f5b66;
           margin-bottom: 16px;
         }
 
@@ -1178,10 +1215,10 @@ function ConnectPageContent() {
 
         .confirmation-target {
           overflow-wrap: anywhere;
-          background: #eef2ff;
-          border: 1px solid #c7d2fe;
+          background: #eef9f7;
+          border: 1px solid #b8deda;
           border-radius: 10px;
-          color: #3730a3;
+          color: #0f5b66;
           font-size: 16px;
           font-weight: 700;
           padding: 12px 14px;
@@ -1197,7 +1234,7 @@ function ConnectPageContent() {
           width: 100%;
           background: transparent;
           border: 0;
-          color: #6366f1;
+          color: #0f5b66;
           cursor: pointer;
           font-size: 14px;
           font-weight: 600;
@@ -1215,7 +1252,7 @@ function ConnectPageContent() {
         }
 
         .recovery-icon {
-          color: #6366f1;
+          color: #0f5b66;
           margin-bottom: 16px;
         }
 
