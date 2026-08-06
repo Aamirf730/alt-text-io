@@ -13,6 +13,7 @@ const {
 const { recordPluginConnectCompleted } = require('./utils/plugin-connect-event');
 const { extractPluginVersion } = require('./utils/plugin-version');
 const { getMonthlyCreditState } = require('./utils/api-key-validator');
+const { hashApiKey } = require('./utils/api-key-secrets');
 
 // Initialize Supabase clients
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -79,7 +80,7 @@ exports.handler = async (event, context) => {
 
     // Check if this is an API key (starts with 'alt_' or legacy 'altai_')
     if (token.startsWith('alt_') || token.startsWith('altai_')) {
-      console.log('🔑 [auth-validate] Validating API key:', token.substring(0, 20) + '...');
+      console.log('🔑 [auth-validate] Validating API key');
 
       // First try RPC function
       let userId = null;
@@ -101,7 +102,7 @@ exports.handler = async (event, context) => {
         const { data: apiKeyRecord, error: directError } = await supabase
           .from('api_keys')
           .select('user_id, is_active')
-          .eq('api_key', token)
+          .eq('api_key_hash', hashApiKey(token))
           .single();
 
         if (directError) {
@@ -121,7 +122,7 @@ exports.handler = async (event, context) => {
       }
 
       if (!userId) {
-        console.error('❌ [auth-validate] API key validation failed completely for:', token.substring(0, 20) + '...');
+        console.error('❌ [auth-validate] API key validation failed completely');
         return {
           statusCode: 401,
           headers,

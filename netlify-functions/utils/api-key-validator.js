@@ -5,6 +5,7 @@
 // API keys are stored in the `api_keys` table and linked to profiles via user_id
 
 const { createClient } = require('@supabase/supabase-js');
+const { encryptApiKey, hashApiKey } = require('./api-key-secrets');
 
 // Initialize Supabase client
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -98,27 +99,65 @@ async function validateApiKey(apiKey) {
 
   // Validate API key format (accepts both altai_ and alt_ formats)
   if (!apiKey || (!apiKey.startsWith('altai_') && !apiKey.startsWith('alt_'))) {
-    console.log('❌ [validateApiKey] API key format invalid:', apiKey ? apiKey.substring(0, 10) + '...' : 'empty');
+    console.log('❌ [validateApiKey] API key format invalid');
     return null;
   }
 
-  console.log('🔑 [validateApiKey] Validating key:', apiKey.substring(0, 20) + '...');
+  console.log('🔑 [validateApiKey] Validating API key');
 
   try {
-    // Find API key in api_keys table
-    const { data: apiKeyRecord, error: apiKeyError } = await supabase
+    const apiKeyHash = hashApiKey(apiKey);
+
+    // Validate against the one-way hash. The legacy lookup is retained only
+    // for rows not yet migrated by an authorized request.
+    let { data: apiKeyRecord, error: apiKeyError } = await supabase
       .from('api_keys')
-      .select('user_id, api_key, is_active, created_at')
-      .eq('api_key', apiKey)
+      .select('id, user_id, api_key_hash, is_active, created_at')
+      .eq('api_key_hash', apiKeyHash)
       .eq('is_active', true)
-      .single();
+      .maybeSingle();
 
     if (apiKeyError) {
       console.error('❌ [validateApiKey] Query error:', apiKeyError.message, apiKeyError.details || '');
     }
 
     if (!apiKeyRecord) {
-      console.log('❌ [validateApiKey] API key not found or inactive:', apiKey.substring(0, 15) + '...');
+      const legacyLookup = await supabase
+        .from('api_keys')
+        .select('id, user_id, api_key, is_active, created_at')
+        .eq('api_key', apiKey)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      apiKeyRecord = legacyLookup.data;
+      apiKeyError = legacyLookup.error;
+
+      if (apiKeyRecord) {
+        try {
+          const { error: migrationError } = await supabase
+            .from('api_keys')
+            .update({
+              api_key: null,
+              api_key_hash: apiKeyHash,
+              api_key_encrypted: encryptApiKey(apiKey),
+              api_key_last4: apiKey.slice(-4),
+            })
+            .eq('id', apiKeyRecord.id)
+            .eq('user_id', apiKeyRecord.user_id);
+
+          if (migrationError) {
+            console.error('⚠️ [validateApiKey] Legacy key migration failed:', migrationError.message);
+          }
+        } catch (migrationError) {
+          // Validation remains available if a deployment is missing the
+          // encryption secret; the next authorized request can retry migration.
+          console.error('⚠️ [validateApiKey] Legacy key encryption failed:', migrationError.message);
+        }
+      }
+    }
+
+    if (!apiKeyRecord) {
+      console.log('❌ [validateApiKey] API key not found or inactive');
       return null;
     }
 
@@ -142,7 +181,7 @@ async function validateApiKey(apiKey) {
     return {
       id: profile.id,
       email: profile.email,
-      apiKey: apiKeyRecord.api_key,
+      apiKey,
       credits_remaining: profile.credits_remaining ?? 0,
       bonus_credits_remaining: profile.bonus_credits_remaining ?? 0,
       purchased_credits_remaining: profile.purchased_credits_remaining ?? 0,

@@ -11,6 +11,7 @@ const {
   methodNotAllowedResponse,
 } = require('./utils/cors');
 const { getMonthlyCreditState } = require('./utils/api-key-validator');
+const { hashApiKey } = require('./utils/api-key-secrets');
 const { recordPluginConnectCompleted } = require('./utils/plugin-connect-event');
 const { extractPluginVersion } = require('./utils/plugin-version');
 
@@ -29,7 +30,7 @@ exports.handler = async (event, context) => {
 
   // Rate limiting
   const clientIp = getClientIp(event);
-  const rateLimit = await checkRateLimit(clientIp);
+  const rateLimit = await checkRateLimit(`get-usage:ip:${clientIp}`);
   if (!rateLimit.allowed) {
     return rateLimitExceededResponse(headers, rateLimit);
   }
@@ -59,10 +60,9 @@ exports.handler = async (event, context) => {
     // Check if this is an API key (starts with 'alt_' or legacy 'altai_')
     if (token.startsWith('alt_') || token.startsWith('altai_')) {
       isApiKeyAuth = true;
-      console.log('🔑 [get-usage] Validating API key:', token.substring(0, 20) + '...');
+      console.log('🔑 [get-usage] Validating API key');
 
       // First try RPC function
-      let userId = null;
       const { data: userIdData, error: apiKeyError } = await supabase
         .rpc('validate_api_key', { p_api_key: token });
 
@@ -79,7 +79,7 @@ exports.handler = async (event, context) => {
         const { data: apiKeyRecord, error: directError } = await supabase
           .from('api_keys')
           .select('user_id')
-          .eq('api_key', token)
+          .eq('api_key_hash', hashApiKey(token))
           .eq('is_active', true)
           .single();
 

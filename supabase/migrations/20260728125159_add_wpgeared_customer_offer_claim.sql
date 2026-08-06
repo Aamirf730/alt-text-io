@@ -606,6 +606,11 @@ grant execute on function public.use_credit(uuid, text, text)
 
 -- Free-plan renewal restores the normal 30-credit allowance without deleting
 -- any unspent promotional credits.
+-- PostgreSQL does not allow CREATE OR REPLACE FUNCTION to rename an OUT
+-- parameter. The bootstrap function used the historical user_ids name, so
+-- drop the zero-argument overload before replacing it with renewed_user_ids.
+drop function if exists public.renew_monthly_credits();
+
 create or replace function public.renew_monthly_credits()
 returns table (
   renewed_count integer,

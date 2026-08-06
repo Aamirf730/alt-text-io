@@ -20,6 +20,10 @@ const {
   rateLimitExceededResponse,
   methodNotAllowedResponse,
 } = require('./utils/cors');
+const { getCredentialRateLimitKey } = require('./utils/rate-limiter');
+
+const GENERATION_RATE_LIMIT = 60;
+const GENERATION_RATE_WINDOW_MS = 60000;
 
 // Initialize Supabase client
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -724,9 +728,14 @@ exports.handler = async (event, context) => {
   const preflightResponse = handlePreflight(event);
   if (preflightResponse) return preflightResponse;
 
-  // Rate limiting (60 requests per minute for main API)
+  // Keep a source-level safety limit, scoped only to generation traffic. This
+  // prevents read-only endpoints from consuming the generation budget.
   const clientIp = getClientIp(event);
-  const rateLimit = await checkRateLimit(clientIp, 60);
+  const rateLimit = await checkRateLimit(
+    `generate-alt-text:ip:${clientIp}`,
+    GENERATION_RATE_LIMIT,
+    GENERATION_RATE_WINDOW_MS
+  );
   if (!rateLimit.allowed) {
     return rateLimitExceededResponse(headers, rateLimit);
   }
@@ -770,7 +779,7 @@ exports.handler = async (event, context) => {
       // API key authentication
       user = await validateApiKey(token);
       if (!user) {
-        console.error('API key validation failed for:', token.substring(0, 20) + '...');
+        console.error('API key validation failed');
         return {
           statusCode: 401,
           headers,
@@ -829,6 +838,21 @@ exports.handler = async (event, context) => {
           body: JSON.stringify({ error: 'Authentication failed' }),
         };
       }
+    }
+
+    // Apply a second limit to the authenticated credential. API keys are
+    // hashed before becoming rate-limit identifiers, so the same key remains
+    // throttled when a caller moves across IPs without exposing the secret to
+    // Redis or logs. Supabase sessions use the stable profile ID instead of a
+    // rotating access token.
+    const credential = isApiKeyAuth ? token : user.id;
+    const credentialRateLimit = await checkRateLimit(
+      getCredentialRateLimitKey('generate-alt-text', credential),
+      GENERATION_RATE_LIMIT,
+      GENERATION_RATE_WINDOW_MS
+    );
+    if (!credentialRateLimit.allowed) {
+      return rateLimitExceededResponse(headers, credentialRateLimit);
     }
 
     // Check if user has sufficient credits for this billing cycle.

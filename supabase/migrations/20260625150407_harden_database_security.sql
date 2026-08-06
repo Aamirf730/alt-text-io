@@ -178,19 +178,33 @@ create policy "Users can insert own payments"
   to authenticated
   with check ((select auth.uid()) = user_id);
 
-alter table public.users enable row level security;
-drop policy if exists "Allow all operations for users" on public.users;
-create policy "Users can view own legacy user"
-  on public.users
-  for select
-  to authenticated
-  using ((select auth.uid()) = id);
-create policy "Users can update own legacy user"
-  on public.users
-  for update
-  to authenticated
-  using ((select auth.uid()) = id)
-  with check ((select auth.uid()) = id);
+-- The old public.users table was part of the hand-applied schema but is not
+-- used by the current application. Keep this historical hardening step
+-- conditional so a fresh bootstrap does not need to recreate that retired,
+-- broadly writable table just to replay an unrelated security migration.
+do $users_policy$
+begin
+  if to_regclass('public.users') is not null then
+    execute 'alter table public.users enable row level security';
+    execute 'drop policy if exists "Allow all operations for users" on public.users';
+    execute $policy$
+      create policy "Users can view own legacy user"
+        on public.users
+        for select
+        to authenticated
+        using ((select auth.uid()) = id)
+    $policy$;
+    execute $policy$
+      create policy "Users can update own legacy user"
+        on public.users
+        for update
+        to authenticated
+        using ((select auth.uid()) = id)
+        with check ((select auth.uid()) = id)
+    $policy$;
+  end if;
+end
+$users_policy$;
 
 -- Cover the only remaining unindexed foreign key advisor.
 create index if not exists payments_plan_id_idx

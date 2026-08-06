@@ -100,7 +100,7 @@ exports.handler = async (event, context) => {
     }
 
     const token = authHeader.replace('Bearer ', '').trim();
-    console.log('Token preview:', token ? (token.substring(0, 20) + '...') : 'NO TOKEN');
+    console.log('Token received:', token ? 'yes' : 'no');
 
     // Validate JWT token and get user
     console.log('Validating JWT token with Supabase...');

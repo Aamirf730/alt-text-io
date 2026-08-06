@@ -77,17 +77,17 @@ const ALLOWED_PREVIEW_PREFIXES = (
 const { checkRateLimit: distributedRateLimit, checkStrictRateLimit, getRateLimitInfo, INSTANCE_ID } = require('./rate-limiter');
 
 /**
- * Check rate limit for a client IP.
+ * Check rate limit for a request identifier.
  * NOW ASYNC — delegates to distributed rate limiter (Upstash Redis)
  * with in-memory fallback.
  *
- * @param {string} clientIp - Client IP address
+ * @param {string} identifier - IP, endpoint-scoped identifier, or credential key
  * @param {number} maxRequests - Maximum requests allowed (default: 60)
  * @param {number} windowMs - Time window in ms (default: 60000)
  * @returns {Promise<Object>} - { allowed, remaining, resetAt, backend }
  */
-async function checkRateLimit(clientIp, maxRequests = 60, windowMs = 60000) {
-  return distributedRateLimit(clientIp, maxRequests, windowMs);
+async function checkRateLimit(identifier, maxRequests = 60, windowMs = 60000) {
+  return distributedRateLimit(identifier, maxRequests, windowMs);
 }
 
 /**

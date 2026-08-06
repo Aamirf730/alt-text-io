@@ -1,5 +1,49 @@
 # Progress
 
+## 2026-08-07: M8 stale legacy surface removed locally
+
+- Verified the four dead surfaces: the `activate-subscription` redirect had no function target, the dashboard had localhost-only direct Supabase branches for usage/subscription loading, and no active application code called the PayPal-era subscription functions or `public.users`.
+- Removed the dead Netlify redirect. Dashboard usage and subscription loading now use the same `getApiBase()` Netlify-function path in local development and production; the existing error fallback remains unchanged.
+- Added migration `20260807100000_remove_legacy_paypal_objects.sql` to drop the unreferenced `upgrade_subscription` and `cancel_subscription` signatures and to drop `public.users` only when it exists and is empty. A populated table aborts the migration with an actionable error.
+- Read-only production verification against project `qurbdtzrngzfzevgoolp` found `public.users` present with `0` rows, one legacy `upgrade_subscription(uuid, text, text, text)` signature, and no `cancel_subscription` function. No production schema or data was changed.
+- Verification: migration-chain tests pass 5/5; frontend tests pass 7 files/52 tests; TypeScript passes; `git diff --check` passes.
+- Release state: local only. Apply the guarded cleanup migration only in the approved migration-first release; do not apply it directly through the SQL connector.
+
+## 2026-08-07: M7 get-usage user ID shadow removed locally
+
+- Verified the defect: the API-key branch redeclared `userId`, so its RPC/direct-table assignments stayed in the inner scope while later profile and usage queries used the outer variable, currently masked by the equivalent `authUser.id` fallback.
+- Removed the inner declaration so API-key and JWT authentication share the same request-scoped user ID. No behavior or response contract changed for valid requests.
+- Verification: `get-usage.js` syntax check passes; the complete Netlify-function suite passes 20 files/163 tests; `git diff --check` passes; no production code or deployment change was made.
+- Release state: local only; include with the explicitly approved Medium-issue release.
+
+## 2026-08-06: M6 migration history made bootstrappable locally
+
+- Verified the gap: the first 15 tracked migrations assumed tables, functions, views, and operational tables that existed only in hand-applied `supabase-migration/*.sql` or production. The repository also had no `supabase/config.toml`, so a fresh Supabase CLI reset was not defined.
+- Added the first ordered migration, `20260625140000_bootstrap_schema.sql`, as the canonical foundation for plans, profiles, usage logs, payments, API keys, audit logs, marketing tables, the `user_usage_stats` view, legacy function signatures, RLS/grants, and renewal cron jobs. The retired insecure `public.users` table is intentionally excluded.
+- Made `20260728125159_add_wpgeared_customer_offer_claim.sql` replay-safe by dropping the zero-argument `renew_monthly_credits()` function before changing its OUT column from `user_ids` to `renewed_user_ids`. Added `20260806182541_repair_renew_monthly_credits_signature.sql` for databases whose migration ledger already records the historical file.
+- Added Supabase CLI project configuration, a migration-chain test, and a README that marks `supabase-migration/` as historical. Existing production migration history was not changed; a reviewed reconciliation is required before applying the newly ordered chain.
+- Verification: migration-chain tests pass 4/4; the complete Netlify-function suite passes 20 files/163 tests; frontend tests pass 7 files/52 tests; TypeScript passes; `git diff --check` is clean; and the first migration sorts before every prior tracked migration. A real `supabase db reset`/SQL lint remains blocked by the absence of local Postgres/Docker in this worktree; no production migration, push, or deployment was performed.
+- 2026-08-07 recheck: Docker is not installed and the Supabase local service cannot connect to its PostgreSQL daemon, so the bootstrap has not yet been replayed against a real database. M6 is implemented locally but remains unverified at the SQL execution level.
+- Release state: local only. Do not apply the older bootstrap migration to production or run a linked `supabase db push` until the remote migration ledger/schema has been reviewed and explicitly approved.
+
+## 2026-08-06: M5 API-key issuance and storage hardened locally
+
+- Verified the finding: the Netlify fallback built keys from a UUID prefix, timestamp, and `Math.random()`, while the primary database RPC already used 32 random bytes. Every validation and dashboard path previously compared or selected the raw `api_key` column.
+- Added `api-key-secrets.js`: 256-bit `crypto.randomBytes` issuance, SHA-256 lookup hashes, and AES-256-GCM ciphertext for the authorized dashboard and `/connect` reveal flow. New API-key rows store `api_key_hash` and `api_key_encrypted` with `api_key` set to `NULL`.
+- Added migration `20260806153415_secure_api_key_storage.sql`: nullable/encrypted storage columns, legacy hash backfill, hash-based `validate_api_key`, active-key hash uniqueness, and revocation of the old plaintext-creating RPC. Legacy plaintext rows are migrated lazily on authorized retrieval or API-key validation because the database migration cannot access the application encryption secret.
+- Reworked `get-api-key` and dashboard key loading/rotation to use the authenticated Netlify endpoint; updated API-key validation fallbacks to use hashes. Added crypto, source-wiring, and migration regression tests; documented the preferred `API_KEY_ENCRYPTION_SECRET` setting.
+- Verification: M5-focused tests pass 7/7; the complete root-invoked Netlify-function suite passes 20 files/163 tests; frontend tests pass 7 files/52 tests; TypeScript, changed-file syntax checks, and `git diff --check` pass. `supabase db lint --local` could not run because this worktree has no local Postgres instance (`127.0.0.1:54322` refused the connection). No production migration, key rotation, push, or deployment was performed.
+- Release state: local only. Apply the migration before the matching Netlify/frontend deploy, set a stable encryption secret, then verify the remaining legacy plaintext count is driven down by authorized retrieval/validation.
+
+## 2026-08-06: M4 authenticated and endpoint-scoped rate limits fixed locally
+
+- Verified the remaining M4 exposure: generation and four read endpoints used the same raw IP identifier, while generation had no authenticated identity bucket. A caller could consume generation capacity through unrelated reads, and a stolen API key could distribute requests across IPs without one shared credential limit.
+- Added endpoint-specific IP namespaces for generation, subscription, API-key, usage, and plan reads. Existing stricter admin/lifecycle namespaces remain unchanged.
+- Added a second 60-per-minute generation bucket keyed by a one-way SHA-256 digest: API-key requests follow the API key across IPs; Supabase-session requests follow the stable profile ID rather than a rotating access token. Secrets are not written to Redis identifiers or logs.
+- Added rate-limiter coverage for deterministic credential keys, secret non-disclosure, credential cutoff, and endpoint isolation. No production rate-limit state, configuration, push, or deployment was changed.
+- Verification: focused rate-limiter tests pass 8/8; the complete root-invoked Netlify-function suite passes 18 files/156 tests; all changed JavaScript files pass syntax checks and `git diff --check` is clean. Running Vitest from `netlify-functions/` alone still hits the existing M3 test path assumption (`netlify-functions/supabase/...`), so the repository-root invocation is the valid full-suite command.
+- Release state: local only. No production rate-limit state, configuration, push, migration, or deployment was changed; M4 remains queued for the explicitly approved Medium-issue release.
+
 ## 2026-08-06: M3 AI metering moved ahead of generation locally
 
 - Verified the race in the live code path: the handler performed advisory credit checks, called Gemini, and only then invoked `use_credit`. Concurrent requests could therefore all pay for an AI call before the row lock serialized the deductions; a post-generation database failure could also leave an AI call unmetered.
@@ -43,11 +87,12 @@
 - Added regression coverage for payment-before-grant ordering, duplicate-payment retry recovery, and the migration's payment/grant idempotency keys. Focused webhook tests pass 20/20; the full frontend suite passes 7 files/48 tests; TypeScript and the local production build pass.
 - No Supabase write, migration application, push to `main`, or Netlify deployment was performed for this local hardening. It remains pending explicit release approval.
 
-## 2026-08-06: Partial-refund status constraint fixed locally; not deployed
+## 2026-08-07: V1 partial-refund status constraint applied
 
 - Production read-only verification found `payments_status_check` still allows only `pending`, `completed`, `failed`, `cancelled`, and `refunded`. The live `onOrderRefunded` path writes `partially_refunded`, so a partial refund currently fails before reconciliation, benefit handling, or event recording.
-- Added local migration `20260806125120_allow_partial_refund_payment_status.sql` to extend the check constraint, and aligned the two legacy schema definitions. The partial-refund handler test now verifies that the status is recorded without revoking the entire pack.
-- This work is separate from H5: the existing H5 fix remains the C2/P1 release; commit `41f6f90` is a P2 ordering reversal with retry coverage. The partial-refund constraint migration is local only and awaits explicit release approval.
+- Applied `20260806125120_allow_partial_refund_payment_status.sql` to production after confirming the existing constraint name and value list. The partial-refund handler test verifies that the status is recorded without revoking the entire pack.
+- Post-apply verification confirms `payments_status_check` now allows `partially_refunded`. The migration is recorded remotely as version `20260806192235` with name `allow_partial_refund_payment_status`; the repository file remains timestamped `20260806125120`, so this ledger mismatch must be reconciled before a future CLI sync.
+- This work is separate from H5: the existing H5 fix remains the C2/P1 release; commit `41f6f90` is a P2 ordering reversal with retry coverage. No app deployment was required or performed.
 
 ## 2026-08-06: H4 order-amount concern reconciled
 

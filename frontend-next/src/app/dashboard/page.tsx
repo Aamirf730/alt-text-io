@@ -115,33 +115,8 @@ export default function Dashboard() {
     // Load subscription data from API
     const loadSubscriptionData = async (token: string) => {
         try {
-            // On localhost, query Supabase directly instead of Netlify function
-            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-                console.log('Using direct Supabase query for localhost subscription data');
-                const { data: { session } } = await supabase.auth.getSession();
-                if (session) {
-                    const { data: profile } = await supabase
-                        .from('profiles')
-                        .select('subscription_plan, subscription_status, subscription_id, next_billing_date, polar_customer_id, billing_cycle, monthly_credit_allowance')
-                        .eq('id', session.user.id)
-                        .single();
-                    setSubscriptionData({
-                        subscription: {
-                            plan: profile?.subscription_plan || 'free',
-                            status: profile?.subscription_status || 'active',
-                            subscription_id: profile?.subscription_id || null,
-                            next_billing_date: profile?.next_billing_date || null,
-                            polar_customer_id: profile?.polar_customer_id || null,
-                            billing_cycle: profile?.billing_cycle || null,
-                            monthly_credit_allowance: profile?.monthly_credit_allowance || null
-                        }
-                    });
-                }
-                return;
-            }
-
-            // Production: call Netlify function
-            const response = await fetch(`/.netlify/functions/get-subscription`, {
+            // Use the same Netlify function path in local development and production.
+            const response = await fetch(`${getApiBase()}/get-subscription`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`
@@ -288,52 +263,24 @@ export default function Dashboard() {
 
     // Load API key for WordPress plugin
     const loadApiKey = async () => {
-        if (!user?.id) return;
+        if (!user?.id || !user?.token) return;
 
         setIsLoadingApiKey(true);
         try {
-            // First, try to get existing API key from Supabase
-            const { data: existingKeys, error: fetchError } = await supabase
-                .from('api_keys')
-                .select('api_key')
-                .eq('user_id', user.id)
-                .eq('is_active', true)
-                .order('created_at', { ascending: false })
-                .limit(1);
+            const response = await fetch(`${getApiBase()}/get-api-key`, {
+                method: 'GET',
+                headers: {
+                    Authorization: `Bearer ${user.token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+            const data = await response.json();
 
-            if (fetchError) {
-                console.error('Error fetching API key:', fetchError);
-                // If table doesn't exist or RLS issue, try using the function
-                const { data: functionResult, error: functionError } = await supabase
-                    .rpc('get_or_create_api_key', { p_user_id: user.id });
-
-                if (functionError) {
-                    console.error('Error calling get_or_create_api_key:', functionError);
-                    toast.error('Error loading API key');
-                    return;
-                }
-
-                setApiKey(functionResult);
-                return;
+            if (!response.ok || !data.success || !data.api_key) {
+                throw new Error(data.error || 'Failed to load API key');
             }
 
-            // If we have an existing key, use it
-            if (existingKeys && existingKeys.length > 0) {
-                setApiKey(existingKeys[0].api_key);
-                return;
-            }
-
-            // If no key exists, create one using the function
-            const { data: newKey, error: createError } = await supabase
-                .rpc('get_or_create_api_key', { p_user_id: user.id });
-
-            if (createError) {
-                console.error('Error creating API key:', createError);
-                toast.error('Error creating API key');
-                return;
-            }
-
-            setApiKey(newKey);
+            setApiKey(data.api_key);
         } catch (error) {
             console.error('Error loading API key:', error);
             toast.error('Error loading API key');
@@ -358,9 +305,39 @@ export default function Dashboard() {
                 token: session.access_token
             });
 
-            // On localhost, skip Netlify function and use direct Supabase query
-            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-                console.log('Using direct Supabase query for localhost');
+            // Use the same Netlify function path in local development and production.
+            try {
+                const usageResponse = await fetch(`${getApiBase()}/get-usage`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${session.access_token}`
+                    }
+                });
+
+                if (usageResponse.ok) {
+                    const usageData = await usageResponse.json();
+                    if (usageData.success && usageData.data) {
+                        setUsageStats({
+                            credits_remaining: usageData.data.credits_remaining || 0,
+                            bonus_credits_remaining: usageData.data.bonus_credits_remaining || 0,
+                            purchased_credits_remaining: usageData.data.purchased_credits_remaining || 0,
+                            monthly_credits_remaining: usageData.data.monthly_credits_remaining,
+                            monthly_credit_limit: usageData.data.monthly_credit_limit,
+                            monthly_credits_used: usageData.data.monthly_credits_used,
+                            total_processed: usageData.data.total_processed || usageData.data.credits_used || 0,
+                            plan: usageData.data.subscription_plan || 'free',
+                            billing_cycle: usageData.data.billing_cycle || null,
+                            monthly_credit_allowance: usageData.data.monthly_credit_allowance || null
+                        });
+                    } else {
+                        throw new Error('Invalid API response format');
+                    }
+                } else {
+                    throw new Error(`API returned status ${usageResponse.status}`);
+                }
+            } catch (error) {
+                console.error('Error loading usage data from API:', error);
+                // Fallback: try direct Supabase query as backup
                 const { data: profile, error: profileError } = await supabase
                     .from('profiles')
                     .select('credits_remaining, bonus_credits_remaining, purchased_credits_remaining, total_processed, subscription_plan, subscription_status, next_billing_date, subscription_id, billing_cycle, monthly_credit_allowance')
@@ -384,65 +361,6 @@ export default function Dashboard() {
                         billing_cycle: profile.billing_cycle || null,
                         monthly_credit_allowance: profile.monthly_credit_allowance || null
                     });
-                }
-            } else {
-                // Production: try Netlify function first, fallback to Supabase
-                try {
-                    const usageResponse = await fetch(`/.netlify/functions/get-usage`, {
-                        method: 'GET',
-                        headers: {
-                            'Authorization': `Bearer ${session.access_token}`
-                        }
-                    });
-
-                    if (usageResponse.ok) {
-                        const usageData = await usageResponse.json();
-                        if (usageData.success && usageData.data) {
-                            setUsageStats({
-                                credits_remaining: usageData.data.credits_remaining || 0,
-                                bonus_credits_remaining: usageData.data.bonus_credits_remaining || 0,
-                                purchased_credits_remaining: usageData.data.purchased_credits_remaining || 0,
-                                monthly_credits_remaining: usageData.data.monthly_credits_remaining,
-                                monthly_credit_limit: usageData.data.monthly_credit_limit,
-                                monthly_credits_used: usageData.data.monthly_credits_used,
-                                total_processed: usageData.data.total_processed || usageData.data.credits_used || 0,
-                                plan: usageData.data.subscription_plan || 'free',
-                                billing_cycle: usageData.data.billing_cycle || null,
-                                monthly_credit_allowance: usageData.data.monthly_credit_allowance || null
-                            });
-                        } else {
-                            throw new Error('Invalid API response format');
-                        }
-                    } else {
-                        throw new Error(`API returned status ${usageResponse.status}`);
-                    }
-                } catch (error) {
-                    console.error('Error loading usage data from API:', error);
-                    // Fallback: try direct Supabase query as backup
-                    const { data: profile, error: profileError } = await supabase
-                        .from('profiles')
-                        .select('credits_remaining, bonus_credits_remaining, purchased_credits_remaining, total_processed, subscription_plan, subscription_status, next_billing_date, subscription_id, billing_cycle, monthly_credit_allowance')
-                        .eq('id', session.user.id)
-                        .single();
-
-                    if (profileError || !profile) {
-                        console.error('Error loading profile:', profileError);
-                        setUsageStats({
-                            credits_remaining: 0,
-                            total_processed: 0,
-                            plan: 'free'
-                        });
-                    } else {
-                        setUsageStats({
-                            credits_remaining: profile.credits_remaining || 0,
-                            bonus_credits_remaining: profile.bonus_credits_remaining || 0,
-                            purchased_credits_remaining: profile.purchased_credits_remaining || 0,
-                            total_processed: profile.total_processed || 0,
-                            plan: profile.subscription_plan || 'free',
-                            billing_cycle: profile.billing_cycle || null,
-                            monthly_credit_allowance: profile.monthly_credit_allowance || null
-                        });
-                    }
                 }
             }
 
@@ -511,21 +429,21 @@ export default function Dashboard() {
 
         setIsLoadingApiKey(true);
         try {
-            // First, deactivate all current keys for this user
-            const { error: deactivateError } = await supabase
-                .from('api_keys')
-                .update({ is_active: false })
-                .eq('user_id', user.id);
+            const response = await fetch(`${getApiBase()}/get-api-key`, {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${user.token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ rotate: true }),
+            });
+            const data = await response.json();
 
-            if (deactivateError) throw deactivateError;
+            if (!response.ok || !data.success || !data.api_key) {
+                throw new Error(data.error || 'Failed to rotate API key');
+            }
 
-            // Then call the RPC to create a fresh one
-            const { data: newKey, error: createError } = await supabase
-                .rpc('get_or_create_api_key', { p_user_id: user.id });
-
-            if (createError) throw createError;
-
-            setApiKey(newKey);
+            setApiKey(data.api_key);
             toast.success("API Key rotated successfully");
         } catch (error) {
             console.error('Error rotating API key:', error);

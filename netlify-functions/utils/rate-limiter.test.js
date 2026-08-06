@@ -110,6 +110,24 @@ describe('rate-limiter (in-memory fallback)', () => {
         const r3 = await checkStrictRateLimit('strict-ip', 2, 60000);
         expect(r3.allowed).toBe(false);
     });
+
+    it('keeps a credential quota stable across IPs without exposing the credential', async () => {
+        const { checkRateLimit, getCredentialRateLimitKey } = await import('./rate-limiter.js');
+        const credential = 'alt_test_secret_should_not_be_in_a_rate_limit_key';
+        const credentialKey = getCredentialRateLimitKey('generate-alt-text', credential);
+
+        expect(credentialKey).toMatch(/^generate-alt-text:credential:[a-f0-9]{64}$/);
+        expect(credentialKey).not.toContain(credential);
+
+        await checkRateLimit(credentialKey, 2, 60000);
+        await checkRateLimit(credentialKey, 2, 60000);
+        const blocked = await checkRateLimit(credentialKey, 2, 60000);
+
+        expect(blocked.allowed).toBe(false);
+        expect(getCredentialRateLimitKey('generate-alt-text', credential)).toBe(credentialKey);
+        expect(getCredentialRateLimitKey('generate-alt-text', 'a-different-credential')).not.toBe(credentialKey);
+        expect(getCredentialRateLimitKey('get-usage', credential)).not.toBe(credentialKey);
+    });
 });
 
 describe('rate-limiter (Upstash Redis)', () => {

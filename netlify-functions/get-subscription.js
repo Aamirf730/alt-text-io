@@ -27,7 +27,7 @@ exports.handler = async (event, context) => {
 
   // Rate limiting
   const clientIp = getClientIp(event);
-  const rateLimit = await checkRateLimit(clientIp);
+  const rateLimit = await checkRateLimit(`get-subscription:ip:${clientIp}`);
   if (!rateLimit.allowed) {
     return rateLimitExceededResponse(headers, rateLimit);
   }

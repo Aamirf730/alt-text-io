@@ -176,6 +176,7 @@ curl -X POST https://www.alt-text.pro/.netlify/functions/auth/validate \
 Required environment variables:
 - `SUPABASE_URL` - Your Supabase project URL
 - `SUPABASE_SERVICE_ROLE_KEY` - Supabase service role key
+- `API_KEY_ENCRYPTION_SECRET` - Optional dedicated secret used to encrypt recoverable API keys at rest; if omitted, the service-role key is used as the stable fallback
 - `AI_API_KEY` - Our core AI service API key
 - `SUPERUSER_EMAILS` - Comma-separated admin emails allowed to open admin reports
 - `MARKETING_REPORT_EMAILS` - Optional comma-separated recipients for the daily funnel email; falls back to `SUPERUSER_EMAILS`

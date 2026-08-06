@@ -86,11 +86,6 @@
   to = "/.netlify/functions/send-contact-email"
   status = 200
 
-[[redirects]]
-  from = "/api/activate-subscription"
-  to = "/.netlify/functions/activate-subscription"
-  status = 200
-
 # Next.js plugin handles everything else (including new /api/checkout)
 [[plugins]]
   package = "@netlify/plugin-nextjs"
