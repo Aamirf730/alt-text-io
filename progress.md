@@ -1,5 +1,19 @@
 # Progress
 
+## 2026-08-07: P7 Batch A release preflight
+
+- Compared the release branch with `origin/main` and confirmed Batch A contains M1, M2, M4, M6, M7, M8, and the P2 record-first ordering reversal (`41f6f90`). The branch is ahead of `origin/main`; no merge or production deploy was performed.
+- Production read-only checks confirmed `public.users` contains `0` rows, `20260625140000` is already recorded as applied, and the M2 (`20260806140000`) and M8 (`20260807100000`) migrations are not yet recorded.
+- Verification passed: targeted Netlify function syntax checks, the five-test migration-chain suite, and `git diff --check`.
+- Release state: Batch A is ready for the required migration-first, Git-backed release approval. No production migration or application change was made.
+
+## 2026-08-07: Netlify production preflight for M5 and M1
+
+- Linked the repository to the production Netlify site `alt-text-ai` (`www.alt-text.pro`) and inspected production environment variable names without reading secret values.
+- P5 complete: `API_KEY_ENCRYPTION_SECRET` was absent, so a new 256-bit random secret was generated locally and stored as a hidden production Netlify variable before the M5 migration/app release. The secret value was not printed or committed.
+- P6 complete: `UPSTASH_REDIS_REST_URL` is present in production, confirming the Upstash-backed rate limiter path is active and M1 changes production behavior.
+- No application deploy, database migration, or production data change was performed. M1/M5 code remains queued for the explicitly approved release.
+
 ## 2026-08-07: M8 stale legacy surface removed locally
 
 - Verified the four dead surfaces: the `activate-subscription` redirect had no function target, the dashboard had localhost-only direct Supabase branches for usage/subscription loading, and no active application code called the PayPal-era subscription functions or `public.users`.
@@ -21,12 +35,13 @@
 - Verified the gap: the first 15 tracked migrations assumed tables, functions, views, and operational tables that existed only in hand-applied `supabase-migration/*.sql` or production. The repository also had no `supabase/config.toml`, so a fresh Supabase CLI reset was not defined.
 - Added the first ordered migration, `20260625140000_bootstrap_schema.sql`, as the canonical foundation for plans, profiles, usage logs, payments, API keys, audit logs, marketing tables, the `user_usage_stats` view, legacy function signatures, RLS/grants, and renewal cron jobs. The retired insecure `public.users` table is intentionally excluded.
 - Made `20260728125159_add_wpgeared_customer_offer_claim.sql` replay-safe by dropping the zero-argument `renew_monthly_credits()` function before changing its OUT column from `user_ids` to `renewed_user_ids`. Added `20260806182541_repair_renew_monthly_credits_signature.sql` for databases whose migration ledger already records the historical file.
-- Added Supabase CLI project configuration, a migration-chain test, and a README that marks `supabase-migration/` as historical. Existing production migration history was not changed; a reviewed reconciliation is required before applying the newly ordered chain.
+- Added Supabase CLI project configuration, a migration-chain test, and a README that marks `supabase-migration/` as historical. Existing production migration history was left unchanged pending the reviewed reconciliation recorded below.
 - Verification: migration-chain tests pass 5/5; the complete Netlify-function suite passes 20 files/163 tests; frontend tests pass 7 files/52 tests; TypeScript passes; `git diff --check` is clean; and the first migration sorts before every prior tracked migration.
 - 2026-08-07 replay verification: installed temporary Docker CLI/Colima, started a Postgres-only Supabase local stack, and ran `supabase db reset --local --no-seed`. All 17 tracked SQL migrations executed successfully, including the bootstrap, renewal-signature repair, partial-refund constraint, and M8 cleanup migration. Auxiliary Supabase services were excluded because the older CLI's generated host-socket mount is incompatible with Colima; they are not required to verify Postgres migration replay.
 - Post-reset checks confirmed all foundational tables and the `user_usage_stats` view exist, `renew_monthly_credits()` returns `TABLE(renewed_count integer, renewed_user_ids uuid[])`, `payments_status_check` includes `partially_refunded`, and `public.users` is absent. No production or staging database was changed.
 - Cleanup completed: stopped the local Supabase stack with its temporary data volumes, deleted the Colima VM, uninstalled the Docker/Colima/Lima formulas installed for this verification, and moved the newly created Colima state to Trash. A pre-existing Colima cache was preserved.
-- Release state: M6 replay is verified locally. Production migration-ledger/schema reconciliation remains a separate release gate; no linked `supabase db push` or deployment was performed.
+- 2026-08-07 production ledger reconciliation: confirmed project `qurbdtzrngzfzevgoolp` had no `20260625140000` row, then marked `20260625140000` / `bootstrap_schema` as applied without executing the bootstrap SQL. The operation changed only `supabase_migrations.schema_migrations`; no linked `supabase db push`, schema DDL, policy change, or deployment was performed.
+- Release state: M6 replay is verified locally and the production migration ledger is reconciled. The bootstrap remains a repository-only foundation; later local fixes still require their separately approved migration-first release.
 
 ## 2026-08-06: M5 API-key issuance and storage hardened locally
 
@@ -35,7 +50,7 @@
 - Added migration `20260806153415_secure_api_key_storage.sql`: nullable/encrypted storage columns, legacy hash backfill, hash-based `validate_api_key`, active-key hash uniqueness, and revocation of the old plaintext-creating RPC. Legacy plaintext rows are migrated lazily on authorized retrieval or API-key validation because the database migration cannot access the application encryption secret.
 - Reworked `get-api-key` and dashboard key loading/rotation to use the authenticated Netlify endpoint; updated API-key validation fallbacks to use hashes. Added crypto, source-wiring, and migration regression tests; documented the preferred `API_KEY_ENCRYPTION_SECRET` setting.
 - Verification: M5-focused tests pass 7/7; the complete root-invoked Netlify-function suite passes 20 files/163 tests; frontend tests pass 7 files/52 tests; TypeScript, changed-file syntax checks, and `git diff --check` pass. `supabase db lint --local` could not run because this worktree has no local Postgres instance (`127.0.0.1:54322` refused the connection). No production migration, key rotation, push, or deployment was performed.
-- Release state: local only. Apply the migration before the matching Netlify/frontend deploy, set a stable encryption secret, then verify the remaining legacy plaintext count is driven down by authorized retrieval/validation.
+- Release state: local only. The production encryption-secret prerequisite is now satisfied; apply the migration before the matching Netlify/frontend deploy, then verify the remaining legacy plaintext count is driven down by authorized retrieval/validation.
 
 ## 2026-08-06: M4 authenticated and endpoint-scoped rate limits fixed locally
 
