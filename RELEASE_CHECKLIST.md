@@ -1,7 +1,7 @@
 # Release Checklist
 
 **Last updated:** 2026-08-07
-**Status:** RELEASED — the approved C1/C2/C3 and H1/H2/H3/H4 fix sets are live; production evidence and follow-up observations are recorded below.
+**Status:** RELEASED — the approved C1/C2/C3, H1/H2/H3/H4, and M3 fix sets are live; production evidence and follow-up observations are recorded below.
 
 ## H1/H2/H3/H4 and complete website release — live
 
@@ -36,7 +36,10 @@ The H1/H2/H3/H4 SaaS fixes and the complete website release are live. The releas
 - The prior incomplete Netlify upload was corrected by requiring the full `netlify deploy --build` flow for this Next.js site; future manual deployments must not upload the raw `.next` directory without the framework build step.
 - P7 Medium Batch A is live from Git commit `1ed1abf`: M1, M2, M4, M6, M7, M8, and the P2 ordering reversal. M2 and M8 were applied before the app deploy; the production ledger now matches repository versions `20260806140000` and `20260807100000`. M3 is isolated in the current release branch and remains pending its migration-first rollout and live generation gates.
 - M5 migration `20260806153415_secure_api_key_storage` is applied in production before app rollout. It hashed all 23 active legacy keys without deleting or rotating them; lazy encryption remains pending each authorized key retrieval.
-- Post-deploy smoke checks passed for the homepage, Next static assets, logo image, `/admin`, and `/api/health`; health reports production, `main`, commit `1ed1abf`, and Node 20.20.2.
+- M3 migration `20260806143048_reserve_credits_before_ai_generation` is applied in production before the matching app deploy. Supabase recorded the application under generated version `20260806220451`; the ledger was reconciled to the repository version and name. The reservation table and all three service-role-only RPCs are present with RLS enabled.
+- M3 production gates passed on a controlled existing-key account: one valid generation returned HTTP 200 with `credits_used = 1`, one completed reservation, one usage row, and a plan-balance decrease of exactly one; a forced provider failure returned HTTP 500 with no net credit or usage change, one released reservation, and no usage row.
+- Netlify deploy `6a75054644b2f70007e8fd60` was Git-backed from commit `5dc6eee`, not a manual upload. Post-deploy health, homepage, `/admin`, `/connect`, and a Next static asset all returned HTTP 200; health reported production, `main`, commit `5dc6eeeb`, and Node 20.20.2.
+- Earlier Batch A post-deploy smoke checks passed for the homepage, Next static assets, logo image, `/admin`, and `/api/health`; the current M3 deploy supersedes that build and is recorded above.
 - The Git-backed code release is the production source of truth: the H4 release is committed as `7e038cdd`, and deploy `6a747c918021c80008f634ec` verified it on `main`. Build-generated metadata makes the health endpoint report `environment = production`, `version = 7e038cdd`, and `branch = main` even though `COMMIT_REF` is not present in the function runtime.
 
 ## Purpose
@@ -49,8 +52,8 @@ This file is the release queue for the current round of SaaS and plugin fixes. A
 | --- | --- | --- | --- | --- |
 | H4 | Record subscription revenue only from canonical Polar order-paid events; do not create a second payment row from subscription lifecycle updates. | Next.js Polar webhook and admin revenue | Released to production | Commit `7e038cdd`; Netlify deploy `6a747c918021c80008f634ec`; focused route test and production read-only reconciliation passed. |
 | M2 | Stop subscription plan credits from accumulating as unusable rollover; repair existing paid aggregates and expose only the spendable current-cycle balance. | Supabase migration `20260806140000_fix_subscription_credit_rollover.sql`, Polar webhook, Netlify credit APIs | Released to production | Migration `20260806140000` applied before commit `1ed1abf`; post-release verification found no negative credit balances. |
-| M5 | Store API-key hashes and encrypted recoverable values, issue cryptographically random keys, and preserve lazy migration for existing customers. | Supabase migration `20260806153415_secure_api_key_storage.sql`, Netlify key/auth functions, dashboard | Released; dashboard verification pending | Migration applied before commit `6a1dcb5`; deploy `6a74fd284b8a3b0008870853`; all 23 active keys remain intact and the live plugin authentication check passed. |
-| M3 | Reserve one usable credit before Gemini, finalize it into usage only after successful generation, and release it on provider failure. | Supabase migration `20260806143048_reserve_credits_before_ai_generation.sql`, Netlify generation path | Fixed locally; approved for migration-first release | Local Netlify suite passes 17 files/139 tests, frontend suite passes 7 files/50 tests, TypeScript and syntax checks pass; production gate is one success with exactly one finalized credit and one forced provider failure with no net credit loss. |
+| M5 | Store API-key hashes and encrypted recoverable values, issue cryptographically random keys, and preserve lazy migration for existing customers. | Supabase migration `20260806153415_secure_api_key_storage.sql`, Netlify key/auth functions, dashboard | Released and verified | Migration applied before commit `6a1dcb5`; deploy `6a74fd284b8a3b0008870853`; all 23 active keys remain intact, the live plugin authentication check passed, and the dashboard still shows the masked key controls. |
+| M3 | Reserve one usable credit before Gemini, finalize it into usage only after successful generation, and release it on provider failure. | Supabase migration `20260806143048_reserve_credits_before_ai_generation.sql`, Netlify generation path | Released to production | Migration ledger reconciled to `20260806143048`; deploy `6a75054644b2f70007e8fd60` from `5dc6eee`; local suites pass 17 files/139 tests and 7 files/50 tests, TypeScript/syntax checks pass, and both live reservation gates passed. |
 | C1/N1–N5 | Harden the `/connect` flow, support opener loss, require acknowledgements only for compatible plugins, use the longer acknowledgement window, and correct legacy success wording. | Netlify Next.js app and WordPress plugin | Released to production with plugin 1.7.12 | Netlify deploy `6a730485df0401d83198e2dd`; WordPress.org tag `1.7.12`. |
 | C2/O1–O4/P1/P2/P3/P4/P5/Q1/Q2 | Move one-time credit packs into an idempotent paid ledger, classify discounted packs using product/discount identity before legacy amount fallbacks, preserve balances on renewal, make webhook bookkeeping retry-safe, archive duplicate payment rows before deduplication, scope reconciliation to paid-ledger owners, consume promotional credits before purchased credits, and reserve the Polar webhook event source. | Supabase migration `20260805094230_fix_purchased_credit_pack_ledger.sql`, Polar webhook, and public event endpoint | Released; migration applied before the matching app/webhook deploy | Supabase migration `20260805094230`; archive count 2; remaining duplicate payment/event groups 0. |
 | O5 | Keep purchased and WPGeared promotional balances separate in the profile/API response so the dashboard uses accurate copy. | Supabase profile field, usage API, SaaS dashboard | Released to production | `purchased_credits_remaining`, grant/use/renew RPCs, and dashboard paths verified in production. |
@@ -112,6 +115,13 @@ An issue is not release-ready merely because its code is fixed locally; its migr
 - The public event tracker rejects the reserved `polar_webhook` source; authoritative purchase events continue to be written by the verified webhook handler.
 - `marketing_events_signup_per_user_uidx` exists on `(user_id)` for verified `signup_created` rows, and the public tracker treats a signup insert `23505` as an idempotent duplicate.
 - The migration ranks and removes duplicate per-user `signup_created` rows immediately before creating `marketing_events_signup_per_user_uidx`; the retained row is deterministic.
+
+### Credit reservation accounting
+
+- Every generation reserves one usable credit through the profile-row lock before calling Gemini; concurrent requests cannot all pass the advisory pre-check and spend the same credit.
+- A successful generation finalizes exactly one reservation into one usage row and deducts exactly one plan/bonus/purchased credit.
+- Provider failure, rate limiting, or an unexpected generation error releases the reservation and leaves the customer with no net credit or usage loss.
+- Expired reservations are recovered on the next reservation attempt, and only service-role execution is granted for the reservation table and lifecycle RPCs.
 
 ### Connect compatibility
 

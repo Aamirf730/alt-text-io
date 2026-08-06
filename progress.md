@@ -1,5 +1,13 @@
 # Progress
 
+## 2026-08-07: M3 credit reservations released
+
+- Status: M3 is live. The reviewed reservation path was isolated from the older source commit so the released M4 per-credential limiter and M5 hash-based API-key validation remained intact. Source, migration, regression test, and release documentation are committed as `5dc6eee` and pushed to `main`.
+- Production migration: the preflight confirmed that `credit_reservations`, `reserve_credit`, `finalize_credit_reservation`, and `release_credit_reservation` were absent. The migration applied successfully; the table and all three RPCs are present, RLS is enabled, and only `service_role` can execute the lifecycle operations. Supabase initially recorded generated version `20260806220451`; the ledger was reconciled to repository version `20260806143048` and name `reserve_credits_before_ai_generation`.
+- Production deploy: Netlify deploy `6a75054644b2f70007e8fd60` was Git-backed from `main` commit `5dc6eee`, with `manual_deploy = false`. Health reports `production`, `main`, version `5dc6eeeb`, and Node `v20.20.2`; homepage, `/admin`, `/connect`, and a Next static asset returned HTTP 200.
+- Generation gate: one controlled existing-key account successfully generated alt text with HTTP 200, `credits_used = 1`, a one-credit plan-balance decrease, one completed reservation, and one usage row. A forced provider failure returned HTTP 500 with no net credit or usage change, one released reservation, and no usage row. No account identity or API key was exposed in the verification output.
+- Advisors after migration report the expected informational RLS-without-policy notice for the service-role-only reservation table; no new blocking security or performance issue was introduced by this migration.
+
 ## 2026-08-07: M3 credit-reservation preflight
 
 - Production currently has no `credit_reservations` table and none of the `reserve_credit`, `finalize_credit_reservation`, or `release_credit_reservation` RPCs. No production change was made.
