@@ -15,4 +15,3 @@ Run risk-proportionate test suites, confirm a clean source snapshot, verify remo
 ## Acceptance and exit gate
 
 Required checks pass, source is remotely recoverable, archives are independently verified, release notes and progress evidence are current, and production changes have explicit authorization.
-

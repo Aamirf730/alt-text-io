@@ -19,11 +19,23 @@
 
         // Initialize admin interface
         init: function () {
+            this.normalizeBulkHeaderStats();
             this.bindEvents();
             this.initTooltips();
             this.initMediaFields();
             this.initOnboarding();
             this.updateSelectionCount();
+        },
+
+        // Keep bulk-processing counters in the progress card, even if a site-level
+        // customization or older template places one inside the shared header.
+        normalizeBulkHeaderStats: function () {
+            var $progressStats = $('#progress-card .bulk-progress-stats');
+            if (!$progressStats.length) return;
+
+            $('.alt-text-pro-header .bulk-progress-stat').each(function () {
+                $progressStats.append(this);
+            });
         },
 
         // Bind all event handlers
@@ -109,7 +121,12 @@
                         return;
                     }
 
-                    AltTextProAdmin.handleConnectCallback(event.data.api_key);
+                    AltTextProAdmin.handleConnectCallback(event.data.api_key, {
+                        sourceWindow: event.source,
+                        sourceOrigin: event.origin,
+                        requestId: event.data.request_id || '',
+                        state: event.data.state || ''
+                    });
                 }
             });
 
@@ -465,11 +482,14 @@
         showNotification: function (message, type) {
             type = type || 'info';
 
-            var $notification = $('<div class="alt-text-pro-notification notice notice-' + type + ' is-dismissible">')
-                .html('<p>' + message + '</p>')
+            $('.alt-text-pro-notification').remove();
+
+            var $notification = $('<div class="alt-text-pro-notification notice notice-' + type + '" role="alert">')
+                .append($('<p>').text(message))
+                .append($('<button type="button" class="notice-dismiss"><span class="screen-reader-text">Dismiss this notice.</span></button>'))
                 .hide();
 
-            $('.wrap').prepend($notification);
+            $('body').append($notification);
             $notification.slideDown();
 
             // Auto-hide after 5 seconds
@@ -831,8 +851,25 @@
             }, 1000);
         },
 
+        // Acknowledge a connect popup only after the API key has been saved.
+        sendConnectAcknowledgement: function (ackContext, success, message) {
+            if (!ackContext || !ackContext.sourceWindow || !ackContext.sourceOrigin) return;
+
+            try {
+                ackContext.sourceWindow.postMessage({
+                    type: 'ALT_TEXT_PRO_CONNECT_ACK',
+                    request_id: ackContext.requestId || '',
+                    state: ackContext.state || '',
+                    success: !!success,
+                    message: message || ''
+                }, ackContext.sourceOrigin);
+            } catch (error) {
+                console.warn('Alt Text Pro: could not acknowledge connect popup', error);
+            }
+        },
+
         // Handle API key received from connect popup or redirect
-        handleConnectCallback: function (apiKey) {
+        handleConnectCallback: function (apiKey, ackContext) {
             if (!apiKey) return;
 
             // Clear state
@@ -854,6 +891,7 @@
                 },
                 success: function (response) {
                     if (response.success) {
+                        AltTextProAdmin.sendConnectAcknowledgement(ackContext, true);
                         $('#auto-connect-status').html(
                             '<span style="color: var(--success-color, #16a34a); font-weight: 600;">&#10003; Connected successfully!</span>'
                         );
@@ -870,12 +908,22 @@
                             location.reload();
                         }, 1500);
                     } else {
+                        AltTextProAdmin.sendConnectAcknowledgement(
+                            ackContext,
+                            false,
+                            response.data || 'WordPress could not save the API key.'
+                        );
                         $('#auto-connect-status').html(
                             '<span style="color: var(--error-color, #dc2626);">&#10007; ' + (response.data || 'Invalid API key') + '</span>'
                         );
                     }
                 },
                 error: function () {
+                    AltTextProAdmin.sendConnectAcknowledgement(
+                        ackContext,
+                        false,
+                        'WordPress could not save the API key.'
+                    );
                     $('#auto-connect-status').html(
                         '<span style="color: var(--error-color, #dc2626);">&#10007; Failed to save. Please try manual entry.</span>'
                     );
@@ -959,13 +1007,17 @@
         cancelRequested: false,
         pendingCancel: false,
         startRequest: null,
+        cancelRequest: null,
         pendingBatchRequests: [],
         statusInterval: null,
         processingBatches: {},
         notificationsShown: {},
         nextBatchTimer: null,
         scheduledBatchOffset: null,
-        batchDelayMs: 15000,
+        // Keep bulk jobs sequential for credit-accurate cancellation, but do not
+        // impose a provider-agnostic 15-second pause after every successful image.
+        // Provider 429 responses still supply the longer delay when it is needed.
+        batchDelayMs: 750,
 
         init: function () {
             debugLog('Alt Text Pro: Initializing bulk processor');
@@ -997,6 +1049,7 @@
             this.cancelRequested = false;
             this.pendingCancel = false;
             this.processId = null;
+            this.cancelRequest = null;
             this.pendingBatchRequests = [];
             this.processingBatches = {};
             this.clearScheduledBatch();
@@ -1010,8 +1063,10 @@
             $('#progress-fill').css('width', '0%');
             $('#progress-text').text('0%');
             $('#processed-count').text('0 / 0');
-            $('#successful-count').text('0');
-            $('#error-count').text('0');
+            $('#processed-stat-count, #successful-count, #error-count, #remaining-stat-count, #live-remaining-count').text('0');
+            $('#process-progress-container, #bulk-current-task, .bulk-progress-stats, .bulk-stop-hint').show();
+            $('#process-summary-container').hide();
+            this.updateLiveTask(null, 'The first image will begin shortly.', 'Preparing');
             $('#progress-log').empty().append('<div>Starting bulk optimization...</div>');
 
             this.startRequest = $.ajax({
@@ -1034,6 +1089,8 @@
                         var creditsRemaining = response.data.credits_remaining;
 
                         $('#processed-count').text('0 / ' + processableTotal);
+                        $('#remaining-stat-count, #live-remaining-count').text(processableTotal);
+                        self.updateLiveTask(1, 'Waiting to begin the first image.', 'Queued');
                         self.updateProcessLimitNote({
                             queue_total_images: queueTotal,
                             processable_images: processableTotal,
@@ -1079,28 +1136,14 @@
             this.isProcessing = false;
             this.clearScheduledBatch();
 
-            if (this.statusInterval) {
-                clearInterval(this.statusInterval);
-                this.statusInterval = null;
-            }
-
-            if (this.startRequest && this.processId) {
-                this.startRequest.abort();
-            }
-
-            if (this.statusRequest) {
-                this.statusRequest.abort();
-            }
-
-            // If we have any pending batch requests, abort them
-            this.pendingBatchRequests.forEach(function (req) {
-                if (req && req.abort) req.abort();
-            });
-            this.pendingBatchRequests = [];
-            this.processingBatches = {};
+            // Do not abort a billable request that has already reached WordPress.
+            // Aborting only hides its response; PHP and the AI request continue,
+            // which previously made the displayed result lag one credit behind.
+            $('#cancel-bulk-process').prop('disabled', true);
+            $('#progress-status').text('Stopping after current image...').removeClass('success error').addClass('warning');
+            this.updateLiveTask(null, 'Finishing the current image before stopping.', 'Stopping');
 
             if (!this.processId) {
-                $('#progress-status').text('Cancelling...').removeClass('success').addClass('warning');
                 return;
             }
 
@@ -1115,9 +1158,12 @@
                 return;
             }
 
-            $('#progress-status').text('Cancelling...').removeClass('success').addClass('warning');
+            if (this.cancelRequest) return;
 
-            $.ajax({
+            $('#progress-status').text('Stopping after current image...').removeClass('success error').addClass('warning');
+            this.updateLiveTask(null, 'Finishing the current image before stopping.', 'Stopping');
+
+            this.cancelRequest = $.ajax({
                 url: altTextAI.ajaxUrl,
                 type: 'POST',
                 data: {
@@ -1127,13 +1173,27 @@
                 },
                 success: function (response) {
                     if (response.success) {
-                        self.finishProcess(response.data || { status: 'cancelled' });
+                        var data = response.data || { status: 'cancelled' };
+                        self.updateProgress(data);
+
+                        // A running AI request cannot be recalled by aborting the
+                        // browser request. Wait for it to return so any charged
+                        // result is included in the final WordPress count.
+                        if (data.status === 'cancelling' || self.pendingBatchRequests.length > 0) {
+                            $('#progress-status').text('Stopping after current image...').removeClass('success error').addClass('warning');
+                            return;
+                        }
+
+                        self.finishProcess(data);
                     } else {
-                        self.resetUI();
+                        $('#progress-status').text('Unable to stop yet—retrying...').removeClass('success error').addClass('warning');
                     }
                 },
                 error: function () {
-                    self.resetUI();
+                    $('#progress-status').text('Unable to stop yet—retrying...').removeClass('success error').addClass('warning');
+                },
+                complete: function () {
+                    self.cancelRequest = null;
                 }
             });
         },
@@ -1148,7 +1208,7 @@
 
         pollStatus: function () {
             var self = this;
-            if (!this.processId || !this.isProcessing || this.cancelRequested) return;
+            if (!this.processId || (!this.isProcessing && !this.pendingCancel)) return;
 
             this.statusRequest = $.ajax({
                 url: altTextAI.ajaxUrl,
@@ -1160,9 +1220,26 @@
                 },
                 success: function (response) {
                     if (response.success) {
-                        if (self.cancelRequested || self.pendingCancel) return;
-
                         self.updateProgress(response.data);
+
+                        if (self.pendingCancel) {
+                            var cancelStatus = response.data.status;
+                            var cancelFinished = cancelStatus === 'completed' ||
+                                cancelStatus === 'cancelled' ||
+                                cancelStatus === 'error' ||
+                                cancelStatus === 'stopped_no_credits';
+
+                            if (cancelFinished && self.pendingBatchRequests.length === 0) {
+                                self.finishProcess(response.data);
+                            } else {
+                                $('#progress-status').text('Stopping after current image...').removeClass('success error').addClass('warning');
+                                self.updateLiveTask(null, 'Finishing the current image before stopping.', 'Stopping');
+                                if (cancelStatus === 'cancelling' && self.pendingBatchRequests.length === 0) {
+                                    self.sendCancelRequest();
+                                }
+                            }
+                            return;
+                        }
 
                         if (response.data.status === 'completed' || response.data.status === 'cancelled' || response.data.status === 'error' || response.data.status === 'stopped_no_credits') {
                             self.finishProcess(response.data);
@@ -1188,6 +1265,9 @@
             if (retryAfterSeconds) {
                 delayMs = Math.max(delayMs, parseInt(retryAfterSeconds, 10) * 1000);
                 $('#progress-status').text('Waiting for AI rate limit reset...');
+                this.updateLiveTask(offset + 1, 'Waiting for the AI rate limit to reset.', 'Waiting');
+            } else {
+                this.updateLiveTask(offset + 1, 'Ready to start after the latest update.', 'Queued');
             }
 
             this.clearScheduledBatch();
@@ -1218,6 +1298,8 @@
             this.processingBatches[offset] = true;
 
             debugLog('Alt Text Pro: Triggering batch at offset ' + offset);
+            $('#progress-status').text('Processing image ' + (parseInt(offset, 10) + 1) + '...').removeClass('success error').addClass('warning');
+            this.updateLiveTask(parseInt(offset, 10) + 1, 'Alt Text Pro AI is analysing this image.', 'Generating');
 
             var batchReq = $.ajax({
                 url: altTextAI.ajaxUrl,
@@ -1228,12 +1310,12 @@
                     batch_offset: offset,
                     nonce: altTextAI.nonce
                 },
+                timeout: 75000,
                 success: function (response) {
                     // Remove from pending list
                     var idx = self.pendingBatchRequests.indexOf(batchReq);
                     if (idx > -1) self.pendingBatchRequests.splice(idx, 1);
                     delete self.processingBatches[offset];
-                    if (self.cancelRequested || self.pendingCancel) return;
 
                     if (response.success && response.data && response.data.batch_results) {
                         self.appendBatchResults(response.data.batch_results);
@@ -1242,7 +1324,19 @@
                     if (response.success && response.data) {
                         self.updateProgress(response.data);
 
-                        if (response.data.status === 'completed' || response.data.status === 'cancelled' || response.data.status === 'stopped_no_credits') {
+                        if (self.pendingCancel) {
+                            var cancelStatus = response.data.status;
+                            if (cancelStatus === 'completed' || cancelStatus === 'cancelled' || cancelStatus === 'error' || cancelStatus === 'stopped_no_credits') {
+                                self.finishProcess(response.data);
+                            } else {
+                                $('#progress-status').text('Stopping after current image...').removeClass('success error').addClass('warning');
+                                self.updateLiveTask(null, 'Finishing the current image before stopping.', 'Stopping');
+                                self.sendCancelRequest();
+                            }
+                            return;
+                        }
+
+                        if (response.data.status === 'completed' || response.data.status === 'cancelled' || response.data.status === 'error' || response.data.status === 'stopped_no_credits') {
                             self.finishProcess(response.data);
                             return;
                         }
@@ -1251,13 +1345,35 @@
                             self.scheduleNextBatch(response.data.next_batch_offset, response.data.retry_after_seconds);
                         }
                     } else {
-                        self.pollStatus();
+                        self.handleBatchRequestFailure('Bulk request failed. Please try again.');
                     }
                 },
-                error: function () {
+                error: function (xhr, textStatus) {
                     var idx = self.pendingBatchRequests.indexOf(batchReq);
                     if (idx > -1) self.pendingBatchRequests.splice(idx, 1);
                     delete self.processingBatches[offset];
+                    if (self.pendingCancel) {
+                        $('#progress-status').text('Stopping after current image...').removeClass('success error').addClass('warning');
+                        self.updateLiveTask(null, 'Finishing the current image before stopping.', 'Stopping');
+                        self.sendCancelRequest();
+                        return;
+                    }
+
+                    // A timeout or server-side 5xx/413 can happen after the
+                    // image request has reached WordPress but before the
+                    // browser receives JSON. Recover that one image through a
+                    // guarded server-side skip so the queue can continue.
+                    var recoverableFailure = textStatus === 'timeout' ||
+                        (xhr && [413, 500, 502, 503, 504].indexOf(parseInt(xhr.status, 10)) !== -1);
+                    if (recoverableFailure) {
+                        self.skipFailedBatch(offset, xhr && parseInt(xhr.status, 10) === 413 ? 'too_large' : '', 0);
+                        return;
+                    }
+
+                    var failureMessage = textStatus === 'timeout'
+                        ? 'Bulk request timed out. Please try again.'
+                        : 'Bulk request failed. Please try again.';
+                    self.handleBatchRequestFailure(failureMessage);
                 },
                 complete: function () {
                     // Remove from pending list
@@ -1267,6 +1383,114 @@
             });
 
             this.pendingBatchRequests.push(batchReq);
+        },
+
+        skipFailedBatch: function (offset, failureType, attempt) {
+            var self = this;
+            var retryAttempt = attempt || 0;
+            var maxAttempts = 45;
+            var failureMessage = failureType === 'too_large'
+                ? 'Image too large to process.'
+                : 'Image could not be processed.';
+
+            if (this.cancelRequested || this.pendingCancel || !this.isProcessing || !this.processId) return;
+            if (this.processingBatches[offset]) return;
+
+            this.processingBatches[offset] = true;
+            $('#progress-status').text('Skipping failed image...').removeClass('success error').addClass('warning');
+            this.updateLiveTask(parseInt(offset, 10) + 1, 'Recording the failed image and continuing.', 'Skipping');
+
+            var skipReq = $.ajax({
+                url: altTextAI.ajaxUrl,
+                type: 'POST',
+                data: {
+                    action: 'alt_text_pro_bulk_skip_failed_image',
+                    process_id: this.processId,
+                    batch_offset: offset,
+                    failure_type: failureType,
+                    nonce: altTextAI.nonce
+                },
+                timeout: 15000
+            }).done(function (response) {
+                delete self.processingBatches[offset];
+
+                if (response.success && response.data && response.data.busy) {
+                    if (retryAttempt >= maxAttempts) {
+                        self.handleBatchRequestFailure(failureMessage);
+                        return;
+                    }
+
+                    setTimeout(function () {
+                        self.skipFailedBatch(offset, failureType, retryAttempt + 1);
+                    }, 2000);
+                    return;
+                }
+
+                if (!response.success || !response.data) {
+                    self.handleBatchRequestFailure(failureMessage);
+                    return;
+                }
+
+                if (response.data.batch_results) {
+                    self.appendBatchResults(response.data.batch_results);
+                }
+                self.updateProgress(response.data);
+
+                if (response.data.status === 'completed' || response.data.status === 'cancelled' || response.data.status === 'error' || response.data.status === 'stopped_no_credits') {
+                    self.finishProcess(response.data);
+                    return;
+                }
+
+                if (response.data.needs_next_batch && response.data.next_batch_offset !== null) {
+                    self.scheduleNextBatch(response.data.next_batch_offset, response.data.retry_after_seconds);
+                    return;
+                }
+
+                self.pollStatus();
+            }).fail(function () {
+                delete self.processingBatches[offset];
+                if (retryAttempt >= maxAttempts) {
+                    self.handleBatchRequestFailure(failureMessage);
+                    return;
+                }
+
+                setTimeout(function () {
+                    self.skipFailedBatch(offset, failureType, retryAttempt + 1);
+                }, 2000);
+            }).always(function () {
+                var idx = self.pendingBatchRequests.indexOf(skipReq);
+                if (idx > -1) self.pendingBatchRequests.splice(idx, 1);
+            });
+
+            this.pendingBatchRequests.push(skipReq);
+        },
+
+        handleBatchRequestFailure: function (message) {
+            var processed = parseInt($('#processed-stat-count').text(), 10) || 0;
+            var successful = parseInt($('#successful-count').text(), 10) || 0;
+            var errors = parseInt($('#error-count').text(), 10) || 0;
+            var progressText = $('#processed-count').text();
+            var totalMatch = progressText.match(/\/\s*(\d+)/);
+            var total = totalMatch ? parseInt(totalMatch[1], 10) : 0;
+
+            if (!total || total < processed) {
+                total = Math.max(processed + 1, 1);
+            }
+
+            this.appendBatchResults([{
+                filename: 'Bulk processing',
+                status: 'error',
+                error: message
+            }]);
+            this.finishProcess({
+                status: 'error',
+                total_images: total,
+                processable_images: total,
+                processed_count: processed,
+                successful_count: successful,
+                error_count: errors + 1,
+                errors: [message]
+            });
         },
 
         updateProgress: function (data) {
@@ -1279,18 +1503,26 @@
             $('#progress-fill').css('width', percent + '%');
             $('#progress-text').text(percent + '%');
             $('#processed-count').text(processed + ' / ' + displayTotal);
-            $('#successful-count').text(data.successful_count !== undefined ? data.successful_count : (data.successful || 0));
-            $('#error-count').text(data.error_count !== undefined ? data.error_count : (data.errors ? data.errors.length : 0));
+            var successful = data.successful_count !== undefined ? data.successful_count : (data.successful || 0);
+            var errors = data.error_count !== undefined ? data.error_count : (data.errors ? data.errors.length : 0);
+            var remaining = Math.max(0, displayTotal - processed);
+            $('#processed-stat-count').text(processed);
+            $('#successful-count').text(successful);
+            $('#error-count').text(errors);
+            $('#remaining-stat-count, #live-remaining-count').text(remaining);
             this.updateProcessLimitNote(data);
 
             if (data.retry_after_seconds) {
                 $('#progress-status').text('Waiting for AI rate limit reset...');
+                this.updateLiveTask(null, 'Waiting for the AI rate limit to reset.', 'Waiting');
                 return;
             }
+        },
 
-            if (data.status === 'processing' || data.status === 'running') {
-                $('#progress-status').text('Processing...');
-            }
+        updateLiveTask: function (position, stage, state) {
+            $('#active-image-position').text(position ? 'Image ' + position : 'Processing update');
+            $('#active-image-stage').text(stage || '');
+            $('#active-image-state').text(state || 'Working');
         },
 
         appendBatchResults: function (results) {
@@ -1316,6 +1548,10 @@
                     icon = 'dashicons-warning';
                     statusClass = 'skipped';
                     statusText = 'Skipped';
+                } else if (result.status === 'cancelled') {
+                    icon = 'dashicons-controls-pause';
+                    statusClass = 'skipped';
+                    statusText = 'Stopped before generation';
                 }
 
                 var html = '<div class="log-item ' + statusClass + '">' +
@@ -1337,6 +1573,10 @@
 
         finishProcess: function (data) {
             this.isProcessing = false;
+            this.cancelRequested = false;
+            this.pendingCancel = false;
+            this.pendingBatchRequests = [];
+            this.processingBatches = {};
             this.clearScheduledBatch();
             if (this.statusInterval) {
                 clearInterval(this.statusInterval);
@@ -1344,8 +1584,9 @@
             }
 
             $('#start-bulk-process').show();
-            $('#cancel-bulk-process').attr('style', 'display: none !important;').hide();
+            $('#cancel-bulk-process').prop('disabled', false).attr('style', 'display: none !important;').hide();
 
+            this.updateProgress(data);
             this.updateProcessLimitNote(data);
 
             var processed = data.processed_count !== undefined ? data.processed_count : (data.processed || 0);
@@ -1354,34 +1595,42 @@
 
             if (data.success || data.status === 'completed') {
                 $('#progress-status').text('Completed').removeClass('warning error').addClass('success');
+                this.updateLiveTask(null, 'Every scheduled image has finished.', 'Complete');
                 $('#progress-log').append('<div style="color: var(--success-color); font-weight: bold;">Bulk optimization completed!</div>');
             } else if (data.status === 'cancelled') {
                 $('#progress-status').text('Cancelled').removeClass('warning success').addClass('error');
 
-                // Show summary instead of progress bar
-                $('#process-progress-container').hide();
                 $('#process-summary-container').show();
                 $('#process-summary-text').text('Process Cancelled');
                 $('#process-summary-details').text('Processed ' + processed + ' images (' + successful + ' successful, ' + errors + ' errors) before stopping.');
+                this.updateLiveTask(null, 'No additional images will start. Any active image is included above.', 'Stopped');
                 $('#progress-log').append('<div style="color: var(--danger-color); font-weight: bold;">Bulk optimization cancelled by user.</div>');
             } else if (data.status === 'stopped_no_credits') {
                 $('#progress-status').text('Credits Exhausted').removeClass('warning success').addClass('error');
-                $('#process-progress-container').hide();
                 $('#process-summary-container').show();
                 $('#process-summary-text').text('Credits Used Up');
                 $('#process-summary-details').text(data.stopped_reason || ('Processed ' + processed + ' images before available credits ran out.'));
+                this.updateLiveTask(null, 'The run stopped because there are no credits remaining.', 'Stopped');
                 $('#progress-log').append('<div style="color: var(--danger-color); font-weight: bold;">Bulk optimization stopped because the account ran out of credits.</div>');
             } else {
                 $('#progress-status').text('Error').removeClass('warning success').addClass('error');
+                this.updateLiveTask(null, 'The run ended before all scheduled images completed.', 'Needs attention');
                 $('#progress-log').append('<div style="color: var(--danger-color);">Process ended with errors or was interrupted.</div>');
+
+                if (window.AltTextProAdmin && typeof window.AltTextProAdmin.showNotification === 'function') {
+                    var attentionMessage = errors > 0
+                        ? errors + (errors === 1 ? ' image needs attention. Review the activity list for details.' : ' images need attention. Review the activity list for details.')
+                        : 'Bulk processing needs attention. Review the activity list for details.';
+                    window.AltTextProAdmin.showNotification(attentionMessage, 'warning');
+                }
             }
         },
 
         resetUI: function () {
             $('#start-bulk-process').show();
-            $('#cancel-bulk-process').attr('style', 'display: none !important;').hide();
+            $('#cancel-bulk-process').prop('disabled', false).attr('style', 'display: none !important;').hide();
             $('#progress-card').hide();
-            $('#process-progress-container').show();
+            $('#process-progress-container, #bulk-current-task, .bulk-progress-stats, .bulk-stop-hint').show();
             $('#process-summary-container').hide();
             $('#process-limit-note').hide().text('');
             this.isProcessing = false;

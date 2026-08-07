@@ -5,8 +5,12 @@ const { createClient } = require('@supabase/supabase-js');
 const { getEmailFrom } = require('./utils/email-config');
 const {
   buildLifecycleCandidates,
+  fetchAuthUsers,
+  fetchLifecycleUsageCounts,
   fetchRecentMarketingEvents,
+  filterCandidatesByAuthUsers,
   renderLifecycleEmail,
+  selectLifecycleCandidatePerActor,
 } = require('./utils/lifecycle-automation');
 
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -210,9 +214,15 @@ exports.handler = async (event) => {
     const maxPerRun = parsePositiveInt(process.env.LIFECYCLE_AUTOMATION_MAX_SENDS, 25, 1, 100);
 
     const events = await fetchRecentMarketingEvents(supabase, { days });
-    const candidates = buildLifecycleCandidates(events);
-    const existingSends = await getExistingSendSet(candidates);
-    const unsentCandidates = candidates
+    const usageCountsByUserId = events.some(event => event.event_name === 'connect_completed')
+      ? await fetchLifecycleUsageCounts(supabase)
+      : new Map();
+    const candidates = buildLifecycleCandidates(events, { usageCountsByUserId });
+    const authUsers = candidates.length > 0 ? await fetchAuthUsers(supabase) : [];
+    const verifiedCandidates = filterCandidatesByAuthUsers(candidates, authUsers);
+    const eligibleCandidates = selectLifecycleCandidatePerActor(verifiedCandidates);
+    const existingSends = await getExistingSendSet(eligibleCandidates);
+    const unsentCandidates = eligibleCandidates
       .filter(candidate => !existingSends.has(`${candidate.automation_key}:${candidate.actor_key}`))
       .slice(0, maxPerRun);
 
@@ -225,6 +235,10 @@ exports.handler = async (event) => {
           dry_run: true,
           mode: auth.mode,
           candidates: candidates.length,
+          verified_candidates: verifiedCandidates.length,
+          eligible_candidates: eligibleCandidates.length,
+          suppressed_competing_candidates: verifiedCandidates.length - eligibleCandidates.length,
+          rejected_recipients: candidates.length - verifiedCandidates.length,
           unsent: unsentCandidates.length,
           preview: includePreview
             ? unsentCandidates.map(candidate => ({
@@ -241,6 +255,7 @@ exports.handler = async (event) => {
     const results = {
       sent: 0,
       skipped: candidates.length - unsentCandidates.length,
+      rejected_recipients: candidates.length - verifiedCandidates.length,
       failed: 0,
     };
 
@@ -270,6 +285,9 @@ exports.handler = async (event) => {
     console.log('lifecycle-automation completed', {
       mode: auth.mode,
       candidates: candidates.length,
+      verified_candidates: verifiedCandidates.length,
+      eligible_candidates: eligibleCandidates.length,
+      suppressed_competing_candidates: verifiedCandidates.length - eligibleCandidates.length,
       ...results,
     });
 
@@ -279,6 +297,9 @@ exports.handler = async (event) => {
         success: true,
         mode: auth.mode,
         candidates: candidates.length,
+        verified_candidates: verifiedCandidates.length,
+        eligible_candidates: eligibleCandidates.length,
+        suppressed_competing_candidates: verifiedCandidates.length - eligibleCandidates.length,
         ...results,
       }),
     };

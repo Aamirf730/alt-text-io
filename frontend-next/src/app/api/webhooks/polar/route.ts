@@ -56,11 +56,41 @@ function logWebhookReceived(eventName: string, data: any) {
     });
 }
 
+function isUniqueViolation(error: unknown): boolean {
+    return Boolean(
+        error &&
+        typeof error === "object" &&
+        "code" in error &&
+        (error as { code?: string }).code === "23505"
+    );
+}
+
+async function recordPayment(payment: Record<string, unknown>) {
+    const { error } = await getSupabase()
+        .from("payments")
+        .insert(payment);
+
+    if (!error) {
+        console.log(`✓ Recorded payment ${String(payment.payment_id)}`);
+        return;
+    }
+
+    // A replayed Polar webhook is already fulfilled if this payment exists.
+    // The unique index added by the accompanying migration makes this safe.
+    if (isUniqueViolation(error)) {
+        console.log(`↺ Payment ${String(payment.payment_id)} was already recorded`);
+        return;
+    }
+
+    throw error;
+}
+
 async function recordMarketingEvent(
     eventName: string,
     userId: string,
     userEmail: string | null,
-    properties: Record<string, string | number | boolean | null | undefined>
+    properties: Record<string, string | number | boolean | null | undefined>,
+    options: { throwOnError?: boolean } = {}
 ) {
     const { error } = await getSupabase()
         .from("marketing_events")
@@ -73,8 +103,16 @@ async function recordMarketingEvent(
             occurred_at: new Date().toISOString(),
         });
 
+    if (error && isUniqueViolation(error)) {
+        console.log(`↺ Marketing event ${eventName} was already recorded`);
+        return;
+    }
+
     if (error) {
         console.warn(`Could not record marketing event ${eventName}:`, error.message);
+        if (options.throwOnError) {
+            throw error;
+        }
     }
 }
 
@@ -132,27 +170,34 @@ function getCreditsForProduct(
 }
 
 // Helper to update user credits
-async function updateUserCredits(userId: string, credits: number, isSubscription: boolean) {
+async function updateUserCredits(
+    userId: string,
+    credits: number,
+    isSubscription: boolean,
+    paymentId?: string,
+) {
     console.log(`Updating credits for user ${userId}: +${credits} credits, isSubscription: ${isSubscription}`);
 
     if (isSubscription) {
-        // Reset plan credits while preserving any unspent promotional balance.
+        // Reset plan credits while preserving unspent promotional and paid
+        // pack balances.
         const { data: profile, error: fetchError } = await getSupabase()
             .from("profiles")
-            .select("bonus_credits_remaining")
+            .select("bonus_credits_remaining, purchased_credits_remaining")
             .eq("id", userId)
             .single();
 
         if (fetchError) {
-            console.error("Error fetching promotional credit balance:", fetchError);
+            console.error("Error fetching persistent credit balances:", fetchError);
             throw fetchError;
         }
 
         const bonusCredits = Number(profile?.bonus_credits_remaining || 0);
+        const purchasedCredits = Number(profile?.purchased_credits_remaining || 0);
         const { error } = await getSupabase()
             .from("profiles")
             .update({
-                credits_remaining: credits + bonusCredits,
+                credits_remaining: credits + bonusCredits + purchasedCredits,
                 total_processed: 0,
                 subscription_status: "active",
                 updated_at: new Date().toISOString(),
@@ -164,31 +209,26 @@ async function updateUserCredits(userId: string, credits: number, isSubscription
             throw error;
         }
     } else {
-        // For one-time purchases, add credits to existing
-        const { data: profile, error: fetchError } = await getSupabase()
-            .from("profiles")
-            .select("credits_remaining")
-            .eq("id", userId)
-            .single();
-
-        if (fetchError) {
-            console.error("Error fetching profile:", fetchError);
-            throw fetchError;
+        if (!paymentId) {
+            throw new Error("One-time credit purchases require a payment ID");
         }
 
-        const newCredits = (profile?.credits_remaining || 0) + credits;
-
-        const { error } = await getSupabase()
-            .from("profiles")
-            .update({
-                credits_remaining: newCredits,
-                updated_at: new Date().toISOString(),
-            })
-            .eq("id", userId);
+        // Credit packs are persistent credits. The database function updates
+        // both the aggregate balance and the persistent ledger atomically,
+        // and ignores duplicate webhook deliveries for the same payment.
+        const { data, error } = await getSupabase().rpc("grant_credit_pack_purchase", {
+            p_user_id: userId,
+            p_payment_id: paymentId,
+            p_credits: credits,
+        });
 
         if (error) {
             console.error("Error updating one-time credits:", error);
             throw error;
+        }
+
+        if (!data?.success) {
+            throw new Error(data?.error || "Credit-pack grant failed");
         }
     }
 
@@ -243,39 +283,30 @@ export const POST = Webhooks({
                 return;
             }
 
-            // RECORD PAYMENT: Ensure every payment is recorded for admin dashboard stats
             const paymentAmount = billingSnapshot.paymentAmount;
             const currency = billingSnapshot.currency;
             const planId = resolvePolarPlanId(productName, mergedMetadata);
             const subscriptionId = order.subscriptionId || (order as { subscription_id?: string | null }).subscription_id || null;
+            const paymentId = `polar_ord_${order.id}`;
+            const payment = {
+                user_id: userId,
+                payment_id: paymentId,
+                subscription_id: subscriptionId,
+                plan_id: planId,
+                amount: paymentAmount,
+                currency,
+                polar_product_id: billingSnapshot.productId,
+                product_name: billingSnapshot.productName || productName,
+                discount_id: billingSnapshot.discountId,
+                discount_code: billingSnapshot.discountCode,
+                discount_name: billingSnapshot.discountName,
+                discount_amount: billingSnapshot.discountAmount,
+                status: "completed",
+                payment_method: "polar",
+                created_at: new Date().toISOString(),
+            };
 
-            const { error: paymentError } = await getSupabase()
-                .from("payments")
-                .insert({
-                    user_id: userId,
-                    payment_id: `polar_ord_${order.id}`,
-                    subscription_id: subscriptionId,
-                    plan_id: planId,
-                    amount: paymentAmount,
-                    currency: currency,
-                    polar_product_id: billingSnapshot.productId,
-                    product_name: billingSnapshot.productName || productName,
-                    discount_id: billingSnapshot.discountId,
-                    discount_code: billingSnapshot.discountCode,
-                    discount_name: billingSnapshot.discountName,
-                    discount_amount: billingSnapshot.discountAmount,
-                    status: "completed",
-                    payment_method: "polar",
-                    created_at: new Date().toISOString(),
-                });
-
-            if (paymentError) {
-                console.error(`Error recording payment for user ${userId}:`, paymentError);
-            } else {
-                console.log(`✓ Recorded payment of ${currency} ${paymentAmount} for user ${userId} (Order ID: ${order.id})`);
-            }
-
-            await recordMarketingEvent("purchase_completed", userId, customerEmail, {
+            const marketingProperties = {
                 provider: "polar",
                 product_id: billingSnapshot.productId,
                 product_name: billingSnapshot.productName || productName,
@@ -288,7 +319,46 @@ export const POST = Webhooks({
                 discount_name: billingSnapshot.discountName,
                 discount_amount: billingSnapshot.discountAmount,
                 is_subscription: isSubscription,
-            });
+            };
+
+            // Subscription orders are only bookkeeping here; allocation is
+            // handled by onSubscriptionActive. Keep this path idempotent too.
+            if (isSubscription) {
+                await recordPayment(payment);
+                await recordMarketingEvent(
+                    "purchase_completed",
+                    userId,
+                    customerEmail,
+                    marketingProperties,
+                    { throwOnError: true }
+                );
+            }
+
+            if (!isSubscription) {
+                // Fulfill first. The grant RPC is idempotent by payment ID, so
+                // a retry after a bookkeeping failure cannot double-credit.
+                console.log(`✓ Processing one-time purchase: ${productName}`);
+                const credits = getCreditsForProduct(productName, mergedMetadata);
+
+                if (credits > 0) {
+                    await updateUserCredits(userId, credits, false, paymentId);
+                    console.log(`✓ Added ${credits} credits to user ${userId} for one-time purchase "${productName}"`);
+                } else {
+                    console.warn(`No credits found for product: ${productName}`);
+                }
+
+                // Record only after fulfillment. Non-duplicate failures are
+                // thrown so Polar retries; the grant and payment are both
+                // idempotent on that retry.
+                await recordPayment(payment);
+                await recordMarketingEvent(
+                    "purchase_completed",
+                    userId,
+                    customerEmail,
+                    marketingProperties,
+                    { throwOnError: true }
+                );
+            }
 
             // Save customer ID if available
             if (order.customer?.id) {
@@ -307,21 +377,12 @@ export const POST = Webhooks({
                 console.log(`⚠️ Skipping credit allocation in onOrderPaid for subscription "${productName}" - will be handled by onSubscriptionActive`);
                 return;
             }
-
-            // Only process one-time purchases (credit packs) from this point
-            console.log(`✓ Processing one-time purchase: ${productName}`);
-
-            // Prefer product metadata (configured in Polar catalog), allow order metadata to override.
-            const credits = getCreditsForProduct(productName, mergedMetadata);
-
-            if (credits > 0) {
-                await updateUserCredits(userId, credits, false);
-                console.log(`✓ Added ${credits} credits to user ${userId} for one-time purchase "${productName}"`);
-            } else {
-                console.warn(`No credits found for product: ${productName}`);
-            }
         } catch (error) {
             console.error("Error processing order paid webhook:", error);
+            // Do not swallow credit-allocation failures. Returning 200 here
+            // would prevent Polar from retrying a payment that was not
+            // recorded or granted successfully.
+            throw error;
         }
     },
 

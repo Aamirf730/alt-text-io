@@ -21,7 +21,7 @@
   # Runs daily at 08:30 Asia/Kolkata. Netlify schedules use UTC.
   schedule = "0 3 * * *"
 
-[functions."lifecycle-automation"]
+[functions."lifecycle-automation-scheduled"]
   # Runs every two hours. Netlify schedules use UTC.
   schedule = "0 */2 * * *"
 

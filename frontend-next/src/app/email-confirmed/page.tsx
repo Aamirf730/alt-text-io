@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from '@/lib/supabase';
+import { trackMarketingEvent } from '@/lib/analytics';
 import { CheckCircle, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -36,6 +37,16 @@ export default function EmailConfirmation() {
                     }
 
                     if (data.session) {
+                        // Email-confirmation signups have no session at the
+                        // original sign-up form. Record the funnel event only
+                        // after Supabase has confirmed and established the user
+                        // session, so the server can verify its identity.
+                        trackMarketingEvent('signup_created', {
+                            source: 'landing_page',
+                            properties: {
+                                signup_method: 'email_confirmation',
+                            },
+                        });
                         setIsConfirmed(true);
                         // Clear URL hash/query to clean up the URL
                         window.history.replaceState({}, document.title, '/email-confirmed');
@@ -44,6 +55,14 @@ export default function EmailConfirmation() {
                     // Check if user is already confirmed (might have been redirected here after confirmation)
                     const { data: { session } } = await supabase.auth.getSession();
                     if (session) {
+                        if (type === 'signup') {
+                            trackMarketingEvent('signup_created', {
+                                source: 'landing_page',
+                                properties: {
+                                    signup_method: 'email_confirmation',
+                                },
+                            });
+                        }
                         setIsConfirmed(true);
                         // Clear URL hash/query to clean up the URL
                         window.history.replaceState({}, document.title, '/email-confirmed');

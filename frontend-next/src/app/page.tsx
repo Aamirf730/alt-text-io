@@ -240,7 +240,7 @@ export default function LandingPage() {
       if (result.error) {
         toast.error(result.error.message);
       } else if (result.data.user) {
-        if (!isLogin) {
+        if (!isLogin && result.data.session) {
           trackMarketingEvent("signup_created", {
             source: "landing_page",
             userId: result.data.user.id,

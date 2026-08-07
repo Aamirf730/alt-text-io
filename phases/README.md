@@ -19,4 +19,3 @@
 - Next.js customer flows and dashboard: Phase 2.
 - Plugin API contract and WordPress release: Phase 3.
 - Testing, deployment, backups, and operational readiness: Phase 4.
-

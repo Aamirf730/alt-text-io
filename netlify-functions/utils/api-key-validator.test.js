@@ -14,6 +14,7 @@ describe('monthly credit state with promotional credits', () => {
       monthly_credits_used: 20,
       monthly_credits_remaining: 1010,
       bonus_credits_remaining: 1000,
+      purchased_credits_remaining: 0,
       is_monthly_limited: true,
     });
   });
@@ -29,6 +30,7 @@ describe('monthly credit state with promotional credits', () => {
       monthly_credits_used: 105,
       monthly_credits_remaining: 925,
       bonus_credits_remaining: 925,
+      purchased_credits_remaining: 0,
       is_monthly_limited: true,
     });
   });
@@ -39,5 +41,18 @@ describe('monthly credit state with promotional credits', () => {
       credits_remaining: 12,
       total_processed: 18,
     }).monthly_credits_remaining).toBe(12);
+  });
+
+  it('keeps purchased packs usable after the monthly allowance is exhausted', () => {
+    expect(getMonthlyCreditState({
+      subscription_plan: 'free',
+      credits_remaining: 250,
+      purchased_credits_remaining: 250,
+      total_processed: 30,
+    })).toMatchObject({
+      monthly_credits_remaining: 250,
+      bonus_credits_remaining: 0,
+      purchased_credits_remaining: 250,
+    });
   });
 });

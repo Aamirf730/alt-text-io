@@ -1,9 +1,9 @@
 <?php
 /**
- * Plugin Name: AI Alt Text Pro
+ * Plugin Name: Alt Text Pro
  * Plugin URI: https://www.alt-text.pro
  * Description: Generate accurate AI alt text for WordPress images, improve accessibility, and bulk-fix missing media-library alt text for SEO.
- * Version:           1.7.0
+ * Version:           1.7.12
  * Author: Alt Text Pro
  * Author URI: https://www.alt-text.pro/about
  * License: GPL v2 or later
@@ -20,7 +20,19 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('ALT_TEXT_PRO_VERSION', '1.7.0');
+define('ALT_TEXT_PRO_VERSION', '1.7.12');
+// Version 1.7.12 - UX: distinguish confirmed acknowledgement success from legacy key delivery and normalize connect-handler formatting.
+// Version 1.7.11 - Security/UX: confirm popup delivery after the API key is saved and provide manual recovery when the opener is unavailable.
+// Version 1.7.10 - Fix: preserve bulk-process state when Redis or another persistent object cache is enabled.
+// Version 1.7.9 - Release: bundle oversized-image recovery and bulk-header cleanup into the next public package.
+// Version 1.7.8 - Reliability: skip oversized images with a clear error and end failed bulk requests visibly.
+// Version 1.7.7 - Branding: use the public display name Alt Text Pro while preserving the alt-text-pro slug and text domain.
+// Version 1.7.6 - Docs: document current bulk-processing behavior and user-facing status feedback.
+// Version 1.7.5 - UX: show genuine bulk-processing warnings as compact, dismissible bottom-right notifications.
+// Version 1.7.4 - UX: remove redundant pre-run image summary cards from bulk generation.
+// Version 1.7.3 - UX: clarify live bulk processing with current-work, progress, outcome, and remaining-work details.
+// Version 1.7.2 - Fix: reconcile in-flight bulk results before reporting cancellation so visible generations match credits used.
+// Version 1.7.1 - Performance: use adaptive bulk pacing instead of a fixed 15-second pause between successful images.
 // Version 1.7.0 - UX: redesigned the account onboarding and fixed automatic verified-key saving.
 // Version 1.6.0 - UX: refine dashboard credits meta sizing for cleaner visual hierarchy.
 // Version 1.5.9 - UX: simplify plugin dashboard stats and track plugin version in SaaS admin views.

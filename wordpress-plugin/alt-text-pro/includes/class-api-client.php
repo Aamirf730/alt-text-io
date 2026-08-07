@@ -52,11 +52,10 @@ class AltTextPro_API_Client
             if ($file_size > $max_size) {
                 return array(
                     'success' => false,
-                    'message' => sprintf(
-                    // translators: %s: File size in human-readable format
-                    esc_html__('Image file is too large (%1$s). Maximum size is 15MB.', 'alt-text-pro'),
-                    esc_html(size_format($file_size))
-                )
+                    'message' => esc_html__('Image too large to process.', 'alt-text-pro'),
+                    'status_code' => 413,
+                    'image_too_large' => true,
+                    'retryable' => false
                 );
             }
 
@@ -131,7 +130,8 @@ class AltTextPro_API_Client
             'status_code' => $response['status_code'] ?? null,
             'retryable' => $response['retryable'] ?? false,
             'retry_after_seconds' => $response['retry_after_seconds'] ?? null,
-            'code' => $response['code'] ?? null
+            'code' => $response['code'] ?? null,
+            'image_too_large' => $response['image_too_large'] ?? false
         );
     }
 
@@ -280,12 +280,28 @@ class AltTextPro_API_Client
 
         // Handle WordPress errors
         if (is_wp_error($response)) {
+            $request_error = $response->get_error_message();
+            $normalized_request_error = strtolower($request_error);
+            $is_payload_too_large = strpos($normalized_request_error, '413') !== false ||
+                strpos($normalized_request_error, 'payload too large') !== false ||
+                strpos($normalized_request_error, 'request entity too large') !== false;
+
+            if ($is_payload_too_large) {
+                return array(
+                    'success' => false,
+                    'message' => esc_html__('Image too large to process.', 'alt-text-pro'),
+                    'status_code' => 413,
+                    'image_too_large' => true,
+                    'retryable' => false
+                );
+            }
+
             return array(
                 'success' => false,
                 'message' => sprintf(
                 // translators: %s: Error message
                 esc_html__('Request failed: %1$s', 'alt-text-pro'),
-                esc_html($response->get_error_message())
+                esc_html($request_error)
             )
             );
         }
@@ -356,6 +372,9 @@ class AltTextPro_API_Client
                         esc_url($this->api_base)
                     );
                     break;
+                case 413:
+                    $error_message = esc_html__('Image too large to process.', 'alt-text-pro');
+                    break;
                 case 429:
                     $retry_after_seconds = null;
                     if (is_array($decoded_body) && isset($decoded_body['retry_after_seconds'])) {
@@ -399,6 +418,7 @@ class AltTextPro_API_Client
                 'retryable' => is_array($decoded_body) ? (bool) ($decoded_body['retryable'] ?? false) : false,
                 'retry_after_seconds' => is_array($decoded_body) ? ($decoded_body['retry_after_seconds'] ?? null) : null,
                 'code' => is_array($decoded_body) ? ($decoded_body['code'] ?? null) : null,
+                'image_too_large' => $status_code === 413,
                 'raw_response' => substr($body, 0, 1000), // Limit size
                 'url_attempted' => $url
             );

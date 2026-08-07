@@ -11,6 +11,97 @@ import {
     Shield, Zap, AlertTriangle
 } from "lucide-react";
 
+type CallbackTarget = {
+    origin: string;
+    host: string;
+};
+
+const CONNECT_ACK_MINIMUM_VERSION = [1, 7, 11] as const;
+const PENDING_SIGNUP_KEY = "alt_text_pro_pending_signup";
+const PENDING_SIGNUP_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+function rememberPendingSignup(emailAddress: string) {
+    if (typeof window === "undefined") return;
+
+    window.localStorage.setItem(PENDING_SIGNUP_KEY, JSON.stringify({
+        email: emailAddress.trim().toLowerCase(),
+        createdAt: Date.now(),
+    }));
+}
+
+function consumePendingSignup(emailAddress: string) {
+    if (typeof window === "undefined") return false;
+
+    const raw = window.localStorage.getItem(PENDING_SIGNUP_KEY);
+    window.localStorage.removeItem(PENDING_SIGNUP_KEY);
+    if (!raw) return false;
+
+    try {
+        const pending = JSON.parse(raw);
+        const isRecent = Number.isFinite(pending.createdAt)
+            && Date.now() - pending.createdAt <= PENDING_SIGNUP_MAX_AGE_MS;
+        const isSameAccount = typeof pending.email === "string"
+            && pending.email === emailAddress.trim().toLowerCase();
+        return isRecent && isSameAccount;
+    } catch {
+        return false;
+    }
+}
+
+function hasWordPressConnectContext(queryCallbackUrl: string, querySource: string) {
+    if (queryCallbackUrl || querySource === "wordpress_plugin") return true;
+    if (typeof window === "undefined") return false;
+
+    return Boolean(
+        window.sessionStorage.getItem("alt_text_pro_callback")
+        || window.sessionStorage.getItem("alt_text_pro_source") === "wordpress_plugin"
+    );
+}
+
+const pluginSupportsConnectAcknowledgement = (version: string) => {
+    const match = version.trim().match(/^(\d+)\.(\d+)\.(\d+)/);
+    if (!match) {
+        return false;
+    }
+
+    const current = match.slice(1, 4).map(Number);
+    for (let index = 0; index < CONNECT_ACK_MINIMUM_VERSION.length; index += 1) {
+        if (current[index] > CONNECT_ACK_MINIMUM_VERSION[index]) {
+            return true;
+        }
+        if (current[index] < CONNECT_ACK_MINIMUM_VERSION[index]) {
+            return false;
+        }
+    }
+
+    return true;
+};
+
+const getCallbackTarget = (callbackUrl: string): CallbackTarget | null => {
+    if (!callbackUrl) {
+        return null;
+    }
+
+    try {
+        const url = new URL(callbackUrl);
+        if (
+            !["http:", "https:"].includes(url.protocol) ||
+            !url.hostname ||
+            url.username ||
+            url.password
+        ) {
+            return null;
+        }
+
+        return {
+            origin: url.origin,
+            host: url.host,
+        };
+    } catch {
+        return null;
+    }
+};
+
 function ConnectPageContent() {
     const searchParams = useSearchParams();
     const queryCallbackUrl = searchParams.get("callback_url") || "";
@@ -30,15 +121,24 @@ function ConnectPageContent() {
     const [error, setError] = useState("");
     const [statusMessage, setStatusMessage] = useState("Connecting your account...");
     const [hasCallbackTarget, setHasCallbackTarget] = useState(Boolean(queryCallbackUrl));
+    const [callbackTarget, setCallbackTarget] = useState<CallbackTarget | null>(null);
+    const [pendingAccessToken, setPendingAccessToken] = useState("");
+    const [isAwaitingConfirmation, setIsAwaitingConfirmation] = useState(false);
+    const [manualApiKey, setManualApiKey] = useState("");
+    const [isApiKeyCopied, setIsApiKeyCopied] = useState(false);
 
     useEffect(() => {
         if (typeof window === "undefined") {
             return;
         }
 
-        if (queryCallbackUrl) {
+        if (queryCallbackUrl && getCallbackTarget(queryCallbackUrl)) {
             setHasCallbackTarget(true);
             sessionStorage.setItem("alt_text_pro_callback", queryCallbackUrl);
+        } else if (queryCallbackUrl) {
+            setHasCallbackTarget(false);
+            sessionStorage.removeItem("alt_text_pro_callback");
+            setError("Invalid callback destination. Please start the connection again from your WordPress plugin.");
         }
 
         if (queryState) {
@@ -102,6 +202,184 @@ function ConnectPageContent() {
         };
     };
 
+    const clearConnectContext = () => {
+        if (typeof window === "undefined") {
+            return;
+        }
+
+        sessionStorage.removeItem("alt_text_pro_callback");
+        sessionStorage.removeItem("alt_text_pro_state");
+        sessionStorage.removeItem("alt_text_pro_source");
+        sessionStorage.removeItem("alt_text_pro_plugin_version");
+    };
+
+    const showManualRecovery = (apiKey: string, message: string) => {
+        clearConnectContext();
+        setManualApiKey(apiKey);
+        setIsApiKeyCopied(false);
+        setIsAwaitingConfirmation(false);
+        setCallbackTarget(null);
+        setHasCallbackTarget(false);
+        setConnected(false);
+        setIsConnecting(false);
+        setError("");
+        setStatusMessage(message);
+    };
+
+    const createConnectRequestId = () => {
+        if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+            return crypto.randomUUID();
+        }
+
+        return `atp_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    };
+
+    const sendKeyToOpener = (
+        target: CallbackTarget,
+        apiKey: string,
+        state: string,
+        requestId: string,
+    ) => {
+        const opener = window.opener;
+        if (!opener || opener.closed) {
+            return false;
+        }
+
+        try {
+            opener.postMessage(
+                {
+                    type: "ALT_TEXT_PRO_CONNECTED",
+                    api_key: apiKey,
+                    state,
+                    request_id: requestId,
+                },
+                target.origin,
+            );
+            return true;
+        } catch (error) {
+            console.error("Connect message failed", error);
+            return false;
+        }
+    };
+
+    const sendKeyAndWaitForAcknowledgement = (
+        target: CallbackTarget,
+        apiKey: string,
+        state: string,
+        requestId: string,
+    ) => new Promise<void>((resolve, reject) => {
+        const opener = window.opener;
+        if (!opener || opener.closed) {
+            reject(new Error("The WordPress window is no longer available."));
+            return;
+        }
+
+        let settled = false;
+
+        const cleanup = () => {
+            window.removeEventListener("message", handleAcknowledgement);
+            window.clearTimeout(timeoutId);
+            window.clearTimeout(waitingMessageTimeoutId);
+        };
+
+        const finish = (callback: () => void) => {
+            if (settled) {
+                return;
+            }
+
+            settled = true;
+            cleanup();
+            callback();
+        };
+
+        const handleAcknowledgement = (event: MessageEvent) => {
+            if (event.source !== opener || event.origin !== target.origin) {
+                return;
+            }
+
+            const data = event.data;
+            if (
+                !data ||
+                data.type !== "ALT_TEXT_PRO_CONNECT_ACK" ||
+                data.request_id !== requestId ||
+                data.state !== state
+            ) {
+                return;
+            }
+
+            if (data.success) {
+                finish(resolve);
+            } else {
+                finish(() => reject(new Error(data.message || "WordPress could not save the API key.")));
+            }
+        };
+
+        window.addEventListener("message", handleAcknowledgement);
+        const timeoutId = window.setTimeout(() => {
+            finish(() => reject(new Error("WordPress did not confirm that it received the API key.")));
+        }, 25000);
+        const waitingMessageTimeoutId = window.setTimeout(() => {
+            setStatusMessage("Still waiting for WordPress to confirm the key...");
+        }, 4000);
+
+        try {
+            if (!sendKeyToOpener(target, apiKey, state, requestId)) {
+                finish(() => reject(new Error("The API key could not be sent to WordPress.")));
+            }
+        } catch (error) {
+            finish(() => reject(error instanceof Error ? error : new Error("The API key could not be sent to WordPress.")));
+        }
+    });
+
+    const prepareAuthenticatedConnection = async (accessToken: string) => {
+        const { callbackUrl } = resolveConnectContext();
+        const target = getCallbackTarget(callbackUrl);
+
+        if (callbackUrl && !target) {
+            setError("Invalid callback destination. Please start the connection again from your WordPress plugin.");
+            setIsConnecting(false);
+            return;
+        }
+
+        if (target) {
+            setCallbackTarget(target);
+            setPendingAccessToken(accessToken);
+            setHasCallbackTarget(true);
+            setStatusMessage(`Your account is ready. Confirm that ${target.host} is your WordPress site.`);
+            setIsAwaitingConfirmation(true);
+            return;
+        }
+
+        await fetchKeyAndRedirect(accessToken);
+    };
+
+    const confirmConnection = async () => {
+        if (!pendingAccessToken || !callbackTarget) {
+            return;
+        }
+
+        setIsAwaitingConfirmation(false);
+        await fetchKeyAndRedirect(pendingAccessToken);
+    };
+
+    const cancelConnection = () => {
+        clearConnectContext();
+        setPendingAccessToken("");
+        setCallbackTarget(null);
+        setIsAwaitingConfirmation(false);
+        setHasCallbackTarget(false);
+        setError("Connection cancelled. No API key was sent.");
+    };
+
+    const copyManualApiKey = async () => {
+        try {
+            await navigator.clipboard.writeText(manualApiKey);
+            setIsApiKeyCopied(true);
+        } catch {
+            setError("Copy was blocked by your browser. Select the key and copy it manually.");
+        }
+    };
+
     // Check if user is already logged in
     useEffect(() => {
         const checkAuth = async () => {
@@ -109,8 +387,19 @@ function ConnectPageContent() {
                 const { data: { session } } = await supabase.auth.getSession();
                 if (session?.user) {
                     setUser(session.user);
-                    // Auto-fetch API key and redirect
-                    await fetchKeyAndRedirect(session.access_token);
+                    const wasPendingEmailSignup = consumePendingSignup(session.user.email || "");
+                    if (hasWordPressConnectContext(queryCallbackUrl, querySource)) {
+                        trackMarketingEvent("signup_created", {
+                            source: "wordpress_connect",
+                            properties: {
+                                signup_method: wasPendingEmailSignup
+                                    ? "email_confirmation"
+                                    : "authenticated_connect_visit",
+                                source: "wordpress_plugin_connect",
+                            },
+                        });
+                    }
+                    await prepareAuthenticatedConnection(session.access_token);
                 }
             } catch (err) {
                 console.error("Auth check error:", err);
@@ -119,6 +408,8 @@ function ConnectPageContent() {
             }
         };
         checkAuth();
+        // Auth bootstrap intentionally runs once for the initial connect context.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // Fetch API key from backend and redirect back to WordPress
@@ -129,7 +420,12 @@ function ConnectPageContent() {
 
         try {
             const { callbackUrl, state, source, pluginVersion } = resolveConnectContext();
-            setHasCallbackTarget(Boolean(callbackUrl));
+            const requiresConnectAcknowledgement = pluginSupportsConnectAcknowledgement(pluginVersion);
+            const target = getCallbackTarget(callbackUrl);
+            if (callbackUrl && !target) {
+                throw new Error("Invalid callback destination. Please start the connection again from your WordPress plugin.");
+            }
+            setHasCallbackTarget(Boolean(target));
             const apiBase = getApiBase();
             const response = await fetch(`${apiBase}/get-api-key`, {
                 method: "GET",
@@ -146,38 +442,48 @@ function ConnectPageContent() {
             const data = await response.json();
 
             if (data.success && data.api_key) {
-                setConnected(true);
+                if (target && (!window.opener || window.opener.closed)) {
+                    showManualRecovery(
+                        data.api_key,
+                        "The WordPress window closed before the connection could be confirmed.",
+                    );
+                    return;
+                }
+
                 setStatusMessage(
-                    callbackUrl
+                    target
                         ? "Sending your API key back to WordPress..."
                         : "Your API key is ready."
                 );
 
-                let postedToOpener = false;
-
-                // 1. Try postMessage flow first (for popups)
-                if (window.opener && !window.opener.closed) {
-                    try {
-                        window.opener.postMessage(
-                            {
-                                type: "ALT_TEXT_PRO_CONNECTED",
-                                api_key: data.api_key,
-                                state: state,
-                            },
-                            "*"
+                if (target) {
+                    const requestId = createConnectRequestId();
+                    if (requiresConnectAcknowledgement) {
+                        try {
+                            // Newer plugins acknowledge only after saving the key.
+                            await sendKeyAndWaitForAcknowledgement(target, data.api_key, state, requestId);
+                        } catch (deliveryError) {
+                            console.error("Connect acknowledgement failed", deliveryError);
+                            showManualRecovery(
+                                data.api_key,
+                                "We could not confirm that WordPress saved your key. You can copy it below and finish manually.",
+                            );
+                            return;
+                        }
+                    } else if (!sendKeyToOpener(target, data.api_key, state, requestId)) {
+                        // Older plugins do not send acknowledgements, so retain
+                        // the legacy post-and-assume-success behavior for them.
+                        showManualRecovery(
+                            data.api_key,
+                            "The WordPress window closed before the connection could be confirmed.",
                         );
-                        postedToOpener = true;
-                    } catch (e) {
-                        console.error("postMessage failed", e);
+                        return;
                     }
                 }
 
-                if (typeof window !== "undefined") {
-                    sessionStorage.removeItem("alt_text_pro_callback");
-                    sessionStorage.removeItem("alt_text_pro_state");
-                    sessionStorage.removeItem("alt_text_pro_source");
-                    sessionStorage.removeItem("alt_text_pro_plugin_version");
-                }
+                setConnected(true);
+
+                clearConnectContext();
 
                 trackMarketingEvent("connect_completed", {
                     source: "wordpress_connect",
@@ -190,57 +496,21 @@ function ConnectPageContent() {
                     },
                 });
 
-                const redirectToWordPress = () => {
-                    try {
-                        const url = new URL(callbackUrl);
-                        if (url.protocol !== "http:" && url.protocol !== "https:") {
-                            throw new Error("Invalid callback URL protocol");
-                        }
-
-                        url.searchParams.set("alt_text_pro_api_key", data.api_key);
-                        if (state) {
-                            url.searchParams.set("state", state);
-                        }
-
-                        window.location.href = url.toString();
-                    } catch (urlError) {
-                        setError("Invalid callback URL. Please copy the API key manually.");
-                        setIsConnecting(false);
-                    }
-                };
-
-                // 2. Keep redirect fallback even if postMessage was posted.
-                if (callbackUrl) {
-                    if (postedToOpener) {
-                        setStatusMessage("Connected. Closing this window, or redirecting back to WordPress if needed...");
-                        setTimeout(() => {
-                            try {
-                                window.close();
-                            } catch (closeError) {
-                                console.error("window.close failed", closeError);
-                            }
-                        }, 1500);
-                        setTimeout(() => {
-                            redirectToWordPress();
-                        }, 2200);
-                    } else {
-                        setStatusMessage("Connected. Redirecting you back to WordPress...");
-                        setTimeout(() => {
-                            redirectToWordPress();
-                        }, 1500);
-                    }
-                } else if (postedToOpener) {
-                    setStatusMessage("Connected. Closing this window...");
+                if (target) {
+                    setStatusMessage(
+                        requiresConnectAcknowledgement
+                            ? "Connected. WordPress confirmed the key was saved. Closing this window..."
+                            : "Key sent to WordPress. Closing this window..."
+                    );
                     setTimeout(() => {
                         try {
                             window.close();
                         } catch (closeError) {
                             console.error("window.close failed", closeError);
-                            setIsConnecting(false);
                         }
                     }, 1500);
                 } else {
-                    // No callback, no opener - just stop loading
+                    // Direct visits do not deliver the key to an opener.
                     setIsConnecting(false);
                 }
             } else {
@@ -287,15 +557,7 @@ function ConnectPageContent() {
                 setError(result.error.message);
             } else if (result.data.user) {
                 if (!isLogin && !result.data.session) {
-                    trackMarketingEvent("signup_created", {
-                        source: "wordpress_connect",
-                        userId: result.data.user.id,
-                        userEmail: result.data.user.email,
-                        properties: {
-                            signup_method: "email",
-                            source: "wordpress_plugin_connect",
-                        },
-                    });
+                    rememberPendingSignup(result.data.user.email || "");
 
                     // Sign up — needs email confirmation
                     setError("");
@@ -315,11 +577,11 @@ function ConnectPageContent() {
                         });
                     }
 
-                    // Logged in — fetch API key
+                    // Logged in — require destination confirmation before fetching the API key.
                     setUser(result.data.user);
                     const session = result.data.session;
                     if (session) {
-                        await fetchKeyAndRedirect(session.access_token);
+                        await prepareAuthenticatedConnection(session.access_token);
                     }
                 }
             }
@@ -382,6 +644,74 @@ function ConnectPageContent() {
         );
     }
 
+    if (isAwaitingConfirmation && callbackTarget) {
+        return (
+            <div className="connect-page">
+                <div className="connect-card">
+                    <div className="connect-confirmation">
+                        <Shield size={52} className="confirmation-icon" />
+                        <h2>Confirm WordPress connection</h2>
+                        <p>Your account is signed in. Send your API key to this WordPress site?</p>
+                        <div className="confirmation-target">{callbackTarget.host}</div>
+                        <p className="confirmation-note">
+                            Continue only if you recognize this site. The key will be sent only to this site and will not be placed in a URL.
+                        </p>
+                        {error && (
+                            <div className="connect-error">
+                                <AlertTriangle size={16} />
+                                <span>{error}</span>
+                            </div>
+                        )}
+                        <button type="button" className="connect-submit-btn" onClick={confirmConnection}>
+                            Send API Key to {callbackTarget.host}
+                        </button>
+                        <button type="button" className="connect-cancel-btn" onClick={cancelConnection}>
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    if (manualApiKey) {
+        return (
+            <div className="connect-page">
+                <div className="connect-card">
+                    <div className="connect-recovery">
+                        <Key size={48} className="recovery-icon" />
+                        <h2>Finish connecting manually</h2>
+                        <p>{statusMessage}</p>
+                        <p className="recovery-note">
+                            The plugin may already have saved this key. If it still shows as disconnected, copy the key below and paste it into Alt Text Pro in your WordPress admin.
+                        </p>
+                        <label className="recovery-key-label" htmlFor="manual-recovery-api-key">Your API key</label>
+                        <div className="recovery-key-row">
+                            <input
+                                id="manual-recovery-api-key"
+                                type="text"
+                                value={manualApiKey}
+                                readOnly
+                                onFocus={(event) => event.currentTarget.select()}
+                                aria-label="API key"
+                            />
+                            <button type="button" className="recovery-copy-btn" onClick={copyManualApiKey}>
+                                {isApiKeyCopied ? "Copied" : "Copy key"}
+                            </button>
+                        </div>
+                        {error && (
+                            <div className="connect-error">
+                                <AlertTriangle size={16} />
+                                <span>{error}</span>
+                            </div>
+                        )}
+                        <p className="recovery-help">WordPress → Alt Text Pro → Settings → API key</p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     // Connected successfully
     if (connected) {
         return (
@@ -393,7 +723,7 @@ function ConnectPageContent() {
                         <p>
                             {hasCallbackTarget
                                 ? statusMessage
-                                : "Your API key has been sent to your plugin. You can close this window."}
+                                : "Your API key is ready. You can close this window."}
                         </p>
                     </div>
                 </div>
@@ -820,6 +1150,141 @@ function ConnectPageContent() {
           color: #64748b;
           font-size: 14px;
           margin: 0;
+        }
+
+        .connect-confirmation {
+          text-align: center;
+          padding: 24px 0 8px;
+        }
+
+        .confirmation-icon {
+          color: #6366f1;
+          margin-bottom: 16px;
+        }
+
+        .connect-confirmation h2 {
+          font-size: 22px;
+          font-weight: 700;
+          color: #0f172a;
+          margin: 0 0 10px;
+        }
+
+        .connect-confirmation p {
+          color: #64748b;
+          font-size: 14px;
+          line-height: 1.5;
+          margin: 0 auto 16px;
+        }
+
+        .confirmation-target {
+          overflow-wrap: anywhere;
+          background: #eef2ff;
+          border: 1px solid #c7d2fe;
+          border-radius: 10px;
+          color: #3730a3;
+          font-size: 16px;
+          font-weight: 700;
+          padding: 12px 14px;
+          margin: 0 0 14px;
+        }
+
+        .connect-confirmation .confirmation-note {
+          font-size: 12px;
+          margin-bottom: 20px;
+        }
+
+        .connect-cancel-btn {
+          width: 100%;
+          background: transparent;
+          border: 0;
+          color: #6366f1;
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 600;
+          margin-top: 14px;
+          padding: 8px;
+        }
+
+        .connect-cancel-btn:hover {
+          text-decoration: underline;
+        }
+
+        .connect-recovery {
+          text-align: center;
+          padding: 24px 0 8px;
+        }
+
+        .recovery-icon {
+          color: #6366f1;
+          margin-bottom: 16px;
+        }
+
+        .connect-recovery h2 {
+          font-size: 22px;
+          font-weight: 700;
+          color: #0f172a;
+          margin: 0 0 10px;
+        }
+
+        .connect-recovery p {
+          color: #64748b;
+          font-size: 14px;
+          line-height: 1.5;
+          margin: 0 auto 16px;
+        }
+
+        .connect-recovery .recovery-note {
+          font-size: 13px;
+          margin-bottom: 20px;
+        }
+
+        .recovery-key-label {
+          display: block;
+          color: #334155;
+          font-size: 13px;
+          font-weight: 700;
+          margin-bottom: 7px;
+          text-align: left;
+        }
+
+        .recovery-key-row {
+          display: flex;
+          gap: 8px;
+          align-items: stretch;
+        }
+
+        .recovery-key-row input {
+          min-width: 0;
+          flex: 1;
+          border: 1px solid #cbd5e1;
+          border-radius: 8px;
+          color: #334155;
+          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+          font-size: 12px;
+          padding: 11px 12px;
+        }
+
+        .recovery-copy-btn {
+          flex: 0 0 auto;
+          background: #0f5b66;
+          border: 0;
+          border-radius: 8px;
+          color: #fff;
+          cursor: pointer;
+          font-size: 13px;
+          font-weight: 700;
+          padding: 0 15px;
+        }
+
+        .recovery-copy-btn:hover {
+          background: #0b4b55;
+        }
+
+        .connect-recovery .recovery-help {
+          color: #64748b;
+          font-size: 12px;
+          margin-top: 16px;
+          margin-bottom: 0;
         }
 
         @keyframes spin {

@@ -1,10 +1,10 @@
-=== AI Alt Text Pro ===
+=== Alt Text Pro ===
 Contributors: aamirfaiz
 Tags: alt text, accessibility, image seo, ai, media library
 Requires at least: 5.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.7.0
+Stable tag: 1.7.12
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -25,6 +25,14 @@ Use it when you are launching a new site, cleaning up an old media library, mana
 * Connects to your Alt Text Pro account with a guided setup flow
 * Helps improve accessibility basics for content and product images
 * Supports image SEO workflows by filling missing alt attributes
+
+### Bulk processing experience
+
+Bulk processing is designed to keep credit usage and cancellation behavior predictable. The plugin processes one billable image at a time, starts the next image shortly after a successful result, and honors provider rate-limit retry windows when needed.
+
+During a run, the live panel shows the current image state, overall progress, generated results, issues, remaining images, and recent activity. Choosing "Stop after current image" prevents the next image from starting while allowing an image already being generated to finish and be counted accurately.
+
+If a run ends with an error, Alt Text Pro shows a compact, dismissible warning in the bottom-right corner and keeps the details in the activity list. A zero-error run does not show an attention warning.
 
 ### Why better alt text matters
 
@@ -150,6 +158,46 @@ Yes, you can cancel your subscription at any time from your Alt Text Pro dashboa
 6. Responsive admin interface for managing alt text from different screen sizes.
 
 == Changelog ==
+= 1.7.12 =
+* UX: Distinguish confirmed popup connections from legacy key delivery and normalize the connect-handler formatting.
+
+= 1.7.11 =
+* Security/UX: Confirm that the WordPress plugin saved the API key before reporting a successful popup connection, and provide a manual copy fallback when the popup opener is unavailable.
+
+= 1.7.10 =
+* Fix: Preserve bulk-process state on sites using Redis or another persistent object cache so each batch can continue normally.
+
+= 1.7.9 =
+* Reliability: Bundle the oversized-image recovery path so failed image requests are recorded and skipped while the remaining bulk queue continues.
+* UX: Keep stray bulk-processing counters out of the shared plugin header.
+
+= 1.7.8 =
+* Reliability: Show a short "Image too large to process." message for oversized image requests and surface failed bulk requests instead of leaving the run stuck on "Generating."
+* Reliability: Treat oversized images as per-image errors, skip them without retrying, and continue processing the remaining images.
+
+= 1.7.7 =
+* Branding: Updated the public plugin display name to "Alt Text Pro" while preserving the existing plugin slug and text domain.
+
+= 1.7.6 =
+* Documentation: Updated the plugin readme with the current bulk-processing behavior, credit-accurate stopping guidance, live progress details, and warning notifications.
+
+= 1.7.5 =
+* UX: Bulk-processing warnings now appear as compact, dismissible bottom-right notifications only when a process actually needs attention.
+
+= 1.7.4 =
+* UX: Removed the redundant total, missing-alt-text, and optimized summary cards from the bulk-generation page.
+
+= 1.7.3 =
+* UX: Redesigned the live bulk-processing view with the current task, overall progress, generated/error/remaining totals, activity feed, and clear stop-state information.
+
+= 1.7.2 =
+* Fix: Stopping a bulk process now waits for any already-running image to settle and includes a charged result in the final successful count.
+* UX: The stop action clearly states that it stops after the current image, and no later image is scheduled.
+
+= 1.7.1 =
+* Performance: Bulk processing now starts the next image shortly after a successful generation instead of waiting a fixed 15 seconds.
+* Reliability: Bulk processing remains one image at a time for safe cancellation and credit accounting, and honors the AI provider's retry window when rate-limited.
+
 = 1.7.0 =
 * UX: Redesigned the account onboarding into a compact, branded automatic/manual connection flow.
 * UX: Improved onboarding button alignment and removed unnecessary icon clutter.

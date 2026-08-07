@@ -70,31 +70,6 @@ $alt_text_pro_current_page = isset($_GET['page']) ? sanitize_text_field(wp_unsla
         </div>
     <?php else: ?>
 
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-header">
-                    <span class="stat-title"><?php esc_html_e('Total Images', 'alt-text-pro'); ?></span>
-                </div>
-                <div class="stat-value"><?php echo esc_html(number_format($total_images)); ?></div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-header">
-                    <span class="stat-title"><?php esc_html_e('Missing Alt-Text', 'alt-text-pro'); ?></span>
-                </div>
-                <div class="stat-value" style="color: var(--warning-color);">
-                    <?php echo esc_html(number_format($total_without_alt)); ?>
-                </div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-header">
-                    <span class="stat-title"><?php esc_html_e('Optimized', 'alt-text-pro'); ?></span>
-                </div>
-                <div class="stat-value" style="color: var(--success-color);">
-                    <?php echo esc_html(number_format($total_images - $total_without_alt)); ?>
-                </div>
-            </div>
-        </div>
-
         <div class="alt-text-pro-card">
             <div class="card-header">
                 <h3><?php esc_html_e('Bulk Generation', 'alt-text-pro'); ?></h3>
@@ -187,7 +162,7 @@ $alt_text_pro_current_page = isset($_GET['page']) ? sanitize_text_field(wp_unsla
                             style="display: none !important; color: var(--danger-color) !important; border-color: var(--danger-color) !important;"
                             onclick="if(typeof bulkProcessor !== 'undefined' && bulkProcessor.cancelProcessing) { bulkProcessor.cancelProcessing(); return false; } else { console.error('Alt Text Pro: bulkProcessor not available'); return false; }">
                             <span class="dashicons dashicons-no"></span>
-                            <?php esc_html_e('Cancel', 'alt-text-pro'); ?>
+                            <?php esc_html_e('Stop after current image', 'alt-text-pro'); ?>
                         </button>
                     </div>
                 </form>
@@ -197,51 +172,78 @@ $alt_text_pro_current_page = isset($_GET['page']) ? sanitize_text_field(wp_unsla
         <!-- Progress Card (Hidden by default) -->
         <div class="alt-text-pro-card" id="progress-card" style="display: none;">
             <div class="card-header">
-                <h3><?php esc_html_e('Progress', 'alt-text-pro'); ?></h3>
+                <div class="bulk-progress-title">
+                    <span class="bulk-live-indicator" aria-hidden="true"></span>
+                    <div>
+                        <span class="bulk-live-label"><?php esc_html_e('LIVE PROCESSING', 'alt-text-pro'); ?></span>
+                        <h3><?php esc_html_e('Generating alt text', 'alt-text-pro'); ?></h3>
+                    </div>
+                </div>
                 <span id="progress-status" class="status-badge warning">Initializing...</span>
             </div>
             <div class="card-content">
-                <div class="usage-progress-container" id="process-progress-container">
-                    <div class="progress-bar" style="height: 12px;">
+                <div class="bulk-progress-overview usage-progress-container" id="process-progress-container">
+                    <div class="bulk-progress-overview-header">
+                        <div>
+                            <span class="bulk-progress-kicker"><?php esc_html_e('Overall progress', 'alt-text-pro'); ?></span>
+                            <div class="bulk-progress-count" id="processed-count">0 / 0</div>
+                        </div>
+                        <div class="bulk-progress-percent"><span id="progress-text">0%</span><small><?php esc_html_e('complete', 'alt-text-pro'); ?></small></div>
+                    </div>
+                    <div class="progress-bar bulk-progress-bar">
                         <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
                     </div>
-                    <div class="progress-label">
-                        <span id="progress-text">0%</span>
-                        <span id="processed-count">0 / 0</span>
+                    <div class="bulk-progress-meta">
+                        <span><span class="dashicons dashicons-images-alt2" aria-hidden="true"></span> <strong id="live-remaining-count">0</strong> <?php esc_html_e('images left in this run', 'alt-text-pro'); ?></span>
+                        <span id="process-limit-note" style="display: none;"></span>
                     </div>
-                    <div id="process-limit-note"
-                        style="display: none; margin-top: 10px; color: var(--text-secondary); font-size: 13px;"></div>
+                </div>
+
+                <div class="bulk-current-task" id="bulk-current-task">
+                    <div class="bulk-current-task-icon"><span class="dashicons dashicons-format-image" aria-hidden="true"></span></div>
+                    <div class="bulk-current-task-copy">
+                        <span class="bulk-current-task-label"><?php esc_html_e('CURRENT TASK', 'alt-text-pro'); ?></span>
+                        <strong id="active-image-position"><?php esc_html_e('Preparing your images', 'alt-text-pro'); ?></strong>
+                        <span id="active-image-stage"><?php esc_html_e('The first image will begin shortly.', 'alt-text-pro'); ?></span>
+                    </div>
+                    <span class="bulk-current-task-state" id="active-image-state"><?php esc_html_e('Preparing', 'alt-text-pro'); ?></span>
                 </div>
 
                 <div id="process-summary-container"
-                    style="display: none; padding: 15px; background: var(--bg-light); border-radius: var(--radius-sm); margin-bottom: 20px; text-align: center;">
-                    <div id="process-summary-text" style="font-weight: 600; font-size: 16px; margin-bottom: 5px;"></div>
-                    <div id="process-summary-details" style="color: var(--text-secondary); font-size: 14px;"></div>
+                    class="bulk-process-summary">
+                    <div id="process-summary-text"></div>
+                    <div id="process-summary-details"></div>
                 </div>
 
-                <div
-                    style="margin-top: 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px;">
-                    <div class="stat-card" style="padding: 16px; align-items: center; text-align: center;">
-                        <span
-                            style="font-size: 12px; color: var(--text-secondary); text-transform: uppercase;"><?php esc_html_e('Successful', 'alt-text-pro'); ?></span>
-                        <span id="successful-count"
-                            style="font-size: 24px; font-weight: 700; color: var(--success-color);">0</span>
+                <div class="bulk-progress-stats" aria-label="<?php esc_attr_e('Processing statistics', 'alt-text-pro'); ?>">
+                    <div class="bulk-progress-stat">
+                        <span class="dashicons dashicons-update" aria-hidden="true"></span>
+                        <span class="bulk-progress-stat-label"><?php esc_html_e('Processed', 'alt-text-pro'); ?></span>
+                        <strong id="processed-stat-count">0</strong>
                     </div>
-                    <div class="stat-card" style="padding: 16px; align-items: center; text-align: center;">
-                        <span
-                            style="font-size: 12px; color: var(--text-secondary); text-transform: uppercase;"><?php esc_html_e('Errors', 'alt-text-pro'); ?></span>
-                        <span id="error-count"
-                            style="font-size: 24px; font-weight: 700; color: var(--danger-color);">0</span>
+                    <div class="bulk-progress-stat success">
+                        <span class="dashicons dashicons-yes-alt" aria-hidden="true"></span>
+                        <span class="bulk-progress-stat-label"><?php esc_html_e('Generated', 'alt-text-pro'); ?></span>
+                        <strong id="successful-count">0</strong>
                     </div>
-                    <div class="stat-card" style="padding: 16px; align-items: center; text-align: center;">
-                        <span
-                            style="font-size: 12px; color: var(--text-secondary); text-transform: uppercase;"><?php esc_html_e('Est. Time', 'alt-text-pro'); ?></span>
-                        <span id="estimated-time" style="font-size: 18px; font-weight: 600;">-</span>
+                    <div class="bulk-progress-stat error">
+                        <span class="dashicons dashicons-warning" aria-hidden="true"></span>
+                        <span class="bulk-progress-stat-label"><?php esc_html_e('Needs attention', 'alt-text-pro'); ?></span>
+                        <strong id="error-count">0</strong>
+                    </div>
+                    <div class="bulk-progress-stat remaining">
+                        <span class="dashicons dashicons-images-alt2" aria-hidden="true"></span>
+                        <span class="bulk-progress-stat-label"><?php esc_html_e('Remaining', 'alt-text-pro'); ?></span>
+                        <strong id="remaining-stat-count">0</strong>
                     </div>
                 </div>
 
-                <div id="progress-log"
-                    style="margin-top: 20px; max-height: 200px; overflow-y: auto; background: var(--bg-light); padding: 12px; border-radius: var(--radius-sm); font-family: monospace; font-size: 12px; color: var(--text-secondary);">
+                <p class="bulk-stop-hint"><span class="dashicons dashicons-info-outline" aria-hidden="true"></span><?php esc_html_e('Stopping prevents the next image from starting. If one is already generating, it will finish and be included in the final count.', 'alt-text-pro'); ?></p>
+
+                <div class="bulk-activity">
+                    <div class="bulk-activity-header"><span><?php esc_html_e('Activity', 'alt-text-pro'); ?></span><small><?php esc_html_e('Newest events appear here', 'alt-text-pro'); ?></small></div>
+                    <div id="progress-log">
+                    </div>
                 </div>
             </div>
         </div>

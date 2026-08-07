@@ -54,6 +54,37 @@
     box-shadow: var(--shadow-sm);
 }
 
+.alt-text-pro-notification {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    z-index: 100000;
+    width: min(390px, calc(100vw - 32px));
+    margin: 0;
+    padding: 12px 44px 12px 14px;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+}
+
+.alt-text-pro-notification p {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.alt-text-pro-notification .notice-dismiss {
+    top: 50%;
+    right: 8px;
+    transform: translateY(-50%);
+}
+
+@media (max-width: 600px) {
+    .alt-text-pro-notification {
+        right: 16px;
+        bottom: 16px;
+    }
+}
+
 /*
  * Safety-net: hide any admin notices that appear OUTSIDE our dedicated container.
  * These can leak from third-party plugins/themes or WordPress core despite
@@ -91,6 +122,11 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+}
+
+/* Bulk counters belong to the progress card, never the shared page header. */
+.alt-text-pro-header .bulk-progress-stat {
+    display: none !important;
 }
 
 .alt-text-pro-logo {
@@ -563,6 +599,297 @@
     }
 }
 
+/* ===== LIVE BULK PROCESSING ===== */
+.bulk-progress-title {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+}
+
+.bulk-progress-title h3 {
+    margin: 2px 0 0;
+}
+
+.bulk-live-label,
+.bulk-progress-kicker,
+.bulk-current-task-label,
+.bulk-progress-stat-label {
+    display: block;
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    line-height: 1.15;
+    text-transform: uppercase;
+}
+
+.bulk-live-indicator {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--success-color);
+    box-shadow: 0 0 0 5px rgba(16, 185, 129, 0.13);
+    animation: bulk-live-pulse 1.8s ease-out infinite;
+}
+
+@keyframes bulk-live-pulse {
+    0%, 100% { box-shadow: 0 0 0 5px rgba(16, 185, 129, 0.13); }
+    50% { box-shadow: 0 0 0 9px rgba(16, 185, 129, 0.03); }
+}
+
+.bulk-progress-overview {
+    margin: 0;
+    padding: 20px;
+    border: 1px solid var(--primary-border);
+    border-radius: var(--radius-md);
+    background: linear-gradient(135deg, #F9FEFD 0%, var(--primary-soft) 100%);
+}
+
+.bulk-progress-overview-header,
+.bulk-progress-meta,
+.bulk-activity-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.bulk-progress-count {
+    margin-top: 4px;
+    color: var(--text-primary);
+    font-size: 22px;
+    font-weight: 750;
+    letter-spacing: -0.02em;
+}
+
+.bulk-progress-percent {
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+    color: var(--primary-color);
+}
+
+.bulk-progress-percent span {
+    font-size: 30px;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+}
+
+.bulk-progress-percent small {
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.bulk-progress-bar {
+    height: 12px;
+    margin: 18px 0 10px;
+    background: rgba(13, 79, 94, 0.1);
+    border-radius: 999px;
+}
+
+.bulk-progress-bar .progress-fill {
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--primary-color), #13869A);
+}
+
+.bulk-progress-meta {
+    flex-wrap: wrap;
+    color: var(--text-secondary);
+    font-size: 12px;
+}
+
+.bulk-progress-meta span {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.bulk-progress-meta .dashicons {
+    width: 16px;
+    height: 16px;
+    font-size: 16px;
+    color: var(--primary-color);
+}
+
+.bulk-progress-meta strong {
+    color: var(--text-primary);
+}
+
+.bulk-current-task {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-top: 16px;
+    padding: 16px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-white);
+}
+
+.bulk-current-task-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 42px;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: var(--primary-soft);
+    color: var(--primary-color);
+}
+
+.bulk-current-task-icon .dashicons {
+    width: 21px;
+    height: 21px;
+    font-size: 21px;
+}
+
+.bulk-current-task-copy {
+    display: grid;
+    min-width: 0;
+    gap: 3px;
+}
+
+.bulk-current-task-copy strong {
+    color: var(--text-primary);
+    font-size: 15px;
+}
+
+.bulk-current-task-copy > span:last-child {
+    overflow: hidden;
+    color: var(--text-secondary);
+    font-size: 13px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.bulk-current-task-state {
+    margin-left: auto;
+    padding: 5px 9px;
+    border-radius: 999px;
+    background: var(--primary-soft);
+    color: var(--primary-color);
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.bulk-progress-stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 16px;
+}
+
+.bulk-progress-stat {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 7px 8px;
+    min-width: 0;
+    padding: 15px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-white);
+}
+
+.bulk-progress-stat > .dashicons {
+    grid-row: span 2;
+    width: 20px;
+    height: 20px;
+    color: var(--primary-color);
+    font-size: 20px;
+}
+
+.bulk-progress-stat strong {
+    color: var(--text-primary);
+    font-size: 23px;
+    line-height: 1;
+}
+
+.bulk-progress-stat.success > .dashicons,
+.bulk-progress-stat.success strong { color: var(--success-color); }
+
+.bulk-progress-stat.error > .dashicons,
+.bulk-progress-stat.error strong { color: var(--danger-color); }
+
+.bulk-progress-stat.remaining > .dashicons,
+.bulk-progress-stat.remaining strong { color: var(--primary-color); }
+
+.bulk-stop-hint {
+    display: flex;
+    align-items: flex-start;
+    gap: 7px;
+    margin: 16px 0 0;
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.bulk-stop-hint .dashicons {
+    flex: 0 0 16px;
+    width: 16px;
+    height: 16px;
+    margin-top: 1px;
+    color: var(--primary-color);
+    font-size: 16px;
+}
+
+.bulk-activity {
+    margin-top: 18px;
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-light);
+}
+
+.bulk-activity-header {
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--border-color);
+    background: rgba(255, 255, 255, 0.66);
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.bulk-activity-header small {
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 500;
+}
+
+.bulk-activity #progress-log {
+    max-height: 170px;
+    overflow-y: auto;
+    padding: 12px 14px;
+    color: var(--text-secondary);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 12px;
+}
+
+.bulk-process-summary {
+    display: none;
+    margin-top: 16px;
+    padding: 18px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-light);
+    text-align: center;
+}
+
+.bulk-process-summary #process-summary-text {
+    margin-bottom: 5px;
+    color: var(--text-primary);
+    font-size: 16px;
+    font-weight: 700;
+}
+
+.bulk-process-summary #process-summary-details {
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
 /* ===== RESPONSIVE ===== */
 @media (max-width: 768px) {
     .alt-text-pro-header {
@@ -579,6 +906,10 @@
 
     .stats-grid {
         grid-template-columns: 1fr;
+    }
+
+    .bulk-progress-stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 
