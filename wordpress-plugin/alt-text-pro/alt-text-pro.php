@@ -3,7 +3,7 @@
  * Plugin Name: Alt Text Pro
  * Plugin URI: https://www.alt-text.pro
  * Description: Generate accurate AI alt text for WordPress images, improve accessibility, and bulk-fix missing media-library alt text for SEO.
- * Version:           1.7.14
+ * Version:           1.7.16
  * Author: Alt Text Pro
  * Author URI: https://www.alt-text.pro/about
  * License: GPL v2 or later
@@ -20,7 +20,9 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('ALT_TEXT_PRO_VERSION', '1.7.14');
+define('ALT_TEXT_PRO_VERSION', '1.7.16');
+// Version 1.7.16 - Pricing: add Agency plan support and align free signup credits with the SaaS catalogue.
+// Version 1.7.15 - Branding: align the plugin UI, logo, and distribution artwork with the white, yellow, and black brand palette.
 // Version 1.7.14 - UX: restore the polished shared onboarding modal and stable responsive action layout.
 // Version 1.7.13 - Fix: preserve validated encrypted API keys when WordPress sanitizes plugin settings.
 // Version 1.7.12 - UX: distinguish confirmed acknowledgement success from legacy key delivery and normalize connect-handler formatting.

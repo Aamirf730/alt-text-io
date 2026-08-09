@@ -184,7 +184,7 @@ exports.handler = async (event, context) => {
       .eq('id', profile.subscription_plan)
       .single();
 
-    const totalCredits = planDetails ? planDetails.credits : 100; // Default to 100 if plan not found
+    const totalCredits = planDetails ? planDetails.credits : 15; // Default to 15 if plan not found
     const monthlyCreditState = getMonthlyCreditState(
       { ...profile, total_processed: creditsUsed },
       totalCredits

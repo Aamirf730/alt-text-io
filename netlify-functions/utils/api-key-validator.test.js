@@ -10,9 +10,9 @@ describe('monthly credit state with promotional credits', () => {
       bonus_credits_remaining: 1000,
       total_processed: 20,
     })).toEqual({
-      monthly_credit_limit: 30,
+      monthly_credit_limit: 15,
       monthly_credits_used: 20,
-      monthly_credits_remaining: 1010,
+      monthly_credits_remaining: 1000,
       bonus_credits_remaining: 1000,
       purchased_credits_remaining: 0,
       is_monthly_limited: true,
@@ -26,7 +26,7 @@ describe('monthly credit state with promotional credits', () => {
       bonus_credits_remaining: 925,
       total_processed: 105,
     })).toEqual({
-      monthly_credit_limit: 30,
+      monthly_credit_limit: 15,
       monthly_credits_used: 105,
       monthly_credits_remaining: 925,
       bonus_credits_remaining: 925,
@@ -35,12 +35,12 @@ describe('monthly credit state with promotional credits', () => {
     });
   });
 
-  it('does not change normal free-plan behavior without a bonus', () => {
+  it('reports an exhausted free plan without a persistent bonus', () => {
     expect(getMonthlyCreditState({
       subscription_plan: 'free',
       credits_remaining: 12,
       total_processed: 18,
-    }).monthly_credits_remaining).toBe(12);
+    }).monthly_credits_remaining).toBe(0);
   });
 
   it('keeps purchased packs usable after the monthly allowance is exhausted', () => {
@@ -48,7 +48,7 @@ describe('monthly credit state with promotional credits', () => {
       subscription_plan: 'free',
       credits_remaining: 250,
       purchased_credits_remaining: 250,
-      total_processed: 30,
+      total_processed: 15,
     })).toMatchObject({
       monthly_credits_remaining: 250,
       bonus_credits_remaining: 0,

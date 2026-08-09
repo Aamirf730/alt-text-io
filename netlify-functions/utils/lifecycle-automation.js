@@ -294,14 +294,14 @@ function filterCandidatesByAuthUsers(candidates, authUsers) {
 
 function renderLifecycleEmail(candidate) {
   const html = `
-    <div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;color:#0f172a;">
+    <div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;color:#000000;">
       <div style="padding:24px 0;border-bottom:1px solid #e5e7eb;">
-        <h1 style="margin:0;color:#0D4F5E;font-size:26px;">Alt Text Pro</h1>
+        <h1 style="margin:0;color:#000000;font-size:26px;">Alt Text Pro</h1>
       </div>
       <div style="padding:28px 0;">
-        <h2 style="margin:0 0 12px;font-size:22px;color:#0f172a;">${candidate.subject}</h2>
+        <h2 style="margin:0 0 12px;font-size:22px;color:#000000;">${candidate.subject}</h2>
         <p style="font-size:16px;line-height:1.6;color:#475569;">${candidate.preview}</p>
-        <a href="${candidate.cta_url}" style="display:inline-block;margin-top:16px;background:#0D4F5E;color:#ffffff;text-decoration:none;padding:12px 18px;border-radius:8px;font-weight:700;">${candidate.cta_text}</a>
+        <a href="${candidate.cta_url}" style="display:inline-block;margin-top:16px;background:#FEE11C;color:#000000;text-decoration:none;padding:12px 18px;border-radius:8px;font-weight:700;">${candidate.cta_text}</a>
         <p style="margin-top:24px;font-size:14px;color:#64748b;">Need help? Reply to this email and we will help you finish the setup.</p>
       </div>
       <div style="padding-top:16px;border-top:1px solid #e5e7eb;color:#94a3b8;font-size:12px;">

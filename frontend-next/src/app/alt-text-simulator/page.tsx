@@ -154,7 +154,7 @@ export default function AltTextSimulatorPage() {
                     <div className="bg-white rounded-[2.5rem] shadow-notebook border border-gray-100 overflow-hidden flex flex-col transition-all duration-500 hover:border-notebook-blue/20 group">
                         <div className="bg-notebook-surface px-8 py-5 border-b border-gray-100 flex items-center justify-between">
                             <h2 className="font-bold text-notebook-slate text-sm font-outfit uppercase tracking-widest flex items-center gap-3">
-                                <div className="w-2 h-2 rounded-full bg-notebook-blue shadow-[0_0_10px_rgba(32,192,176,0.45)]"></div>
+                                <div className="w-2 h-2 rounded-full bg-notebook-blue shadow-[0_0_10px_rgba(254,225,28,0.45)]"></div>
                                 What Users See
                             </h2>
                             <span className="text-[10px] font-bold px-3 py-1 bg-white text-notebook-blue rounded-lg border border-gray-100 shadow-sm font-outfit tracking-widest uppercase">Visual</span>
@@ -210,7 +210,7 @@ export default function AltTextSimulatorPage() {
                     <div className="bg-white rounded-[2.5rem] shadow-notebook border border-gray-100 overflow-hidden flex flex-col transition-all duration-500 hover:border-notebook-blue/20">
                         <div className="bg-notebook-surface px-8 py-5 border-b border-gray-100 flex items-center justify-between">
                             <h2 className="font-bold text-notebook-slate text-sm font-outfit uppercase tracking-widest flex items-center gap-3">
-                                <div className="w-2 h-2 rounded-full bg-notebook-blue shadow-[0_0_10px_rgba(32,192,176,0.45)]"></div>
+                                <div className="w-2 h-2 rounded-full bg-notebook-blue shadow-[0_0_10px_rgba(254,225,28,0.45)]"></div>
                                 Google's View
                             </h2>
                             <span className="text-[10px] font-bold px-3 py-1 bg-white text-notebook-blue rounded-lg border border-gray-100 shadow-sm font-outfit tracking-widest uppercase">SEO</span>
@@ -268,7 +268,7 @@ export default function AltTextSimulatorPage() {
                     <div className="bg-white rounded-[2.5rem] shadow-notebook border border-gray-100 overflow-hidden flex flex-col transition-all duration-500 hover:border-notebook-blue/20">
                         <div className="bg-notebook-surface px-8 py-5 border-b border-gray-100 flex items-center justify-between">
                             <h2 className="font-bold text-notebook-slate text-sm font-outfit uppercase tracking-widest flex items-center gap-3">
-                                <div className="w-2 h-2 rounded-full bg-notebook-blue shadow-[0_0_10px_rgba(32,192,176,0.45)]"></div>
+                                <div className="w-2 h-2 rounded-full bg-notebook-blue shadow-[0_0_10px_rgba(254,225,28,0.45)]"></div>
                                 How Screen Readers Hear It
                             </h2>
                             <span className="text-[10px] font-bold px-3 py-1 bg-white text-notebook-blue rounded-lg border border-gray-100 shadow-sm font-outfit tracking-widest uppercase">Audio</span>
@@ -283,7 +283,7 @@ export default function AltTextSimulatorPage() {
                                         className={`bar ${isSpeaking ? 'speaking' : ''}`}
                                         style={{
                                             animationDelay: `-${1.2 - i * 0.15}s`,
-                                            background: '#0D4F5E'
+                                            background: '#000000'
                                         }}
                                     ></div>
                                 ))}
@@ -408,7 +408,7 @@ export default function AltTextSimulatorPage() {
             <style jsx>{`
                 .bar {
                     width: 6px;
-                    background: #0D4F5E;
+                    background: #000000;
                     margin: 0 3px;
                     border-radius: 999px;
                     animation: sound 0ms -800ms linear infinite alternate;
@@ -427,11 +427,11 @@ export default function AltTextSimulatorPage() {
                 .scan-line {
                     width: 100%;
                     height: 2px;
-                    background: #0D4F5E;
+                    background: #000000;
                     position: absolute;
                     top: 0;
                     left: 0;
-                    box-shadow: 0 0 20px #0D4F5E;
+                    box-shadow: 0 0 20px #000000;
                     z-index: 20;
                     animation: scan 2.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
                 }

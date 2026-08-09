@@ -22,7 +22,7 @@ const pageUrl = "https://www.alt-text.pro/ai-alt-text-generator-for-wordpress";
 export const metadata: Metadata = {
   title: "AI Alt Text Generator for WordPress | Alt Text Pro",
   description:
-    "Use Alt Text Pro to generate AI alt text for WordPress images, bulk-fix missing media-library alt text, and improve accessibility with 30 free credits.",
+    "Use Alt Text Pro to generate AI alt text for WordPress images, bulk-fix missing media-library alt text, and improve accessibility with 150 free signup credits plus 15 every month.",
   alternates: {
     canonical: pageUrl,
   },
@@ -45,7 +45,7 @@ export const metadata: Metadata = {
 const setupSteps = [
   {
     title: "Create your free account",
-    copy: "Start with 30 free credits so you can test the complete WordPress workflow before upgrading.",
+    copy: "Start with 150 free credits, then 15 free credits every month, so you can test the complete WordPress workflow before upgrading.",
     icon: Sparkles,
   },
   {
@@ -110,7 +110,7 @@ export default function AiAltTextGeneratorForWordPressPage() {
       "@type": "Offer",
       price: "0",
       priceCurrency: "USD",
-      description: "Free account includes 30 credits.",
+      description: "Free account includes 150 signup credits plus 15 every month.",
     },
   };
 
@@ -148,7 +148,7 @@ export default function AiAltTextGeneratorForWordPressPage() {
                     href="/"
                     className="inline-flex h-14 items-center justify-center rounded-full bg-notebook-blue px-8 text-sm font-bold uppercase tracking-widest text-white shadow-notebook hover:bg-notebook-blue/90 transition-colors font-outfit"
                   >
-                    Get 30 Free Credits
+                    Get 150 Free Credits
                     <ArrowRight className="ml-3 h-4 w-4" />
                   </Link>
                   <a
@@ -162,7 +162,7 @@ export default function AiAltTextGeneratorForWordPressPage() {
                 </div>
 
                 <div className="grid sm:grid-cols-3 gap-3 max-w-2xl">
-                  {["30 free credits", "No credit card", "WordPress plugin"].map((item) => (
+                  {["150 free signup credits", "No credit card", "WordPress plugin"].map((item) => (
                     <div key={item} className="flex items-center gap-2 text-sm font-semibold text-slate-500">
                       <CheckCircle className="h-4 w-4 text-notebook-blue" />
                       {item}
@@ -349,7 +349,7 @@ export default function AiAltTextGeneratorForWordPressPage() {
                   href="/"
                   className="inline-flex h-14 items-center justify-center rounded-full bg-notebook-blue px-8 py-4 text-sm font-bold uppercase tracking-widest text-white shadow-notebook hover:bg-notebook-blue/90 transition-colors font-outfit"
                 >
-                  Get 30 Free Credits
+                  Get 150 Free Credits
                 </Link>
                 <Link
                   href="/docs#installation"

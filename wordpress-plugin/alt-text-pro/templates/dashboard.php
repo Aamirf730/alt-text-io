@@ -105,9 +105,11 @@ else: ?>
         'tier1' => __('Lite', 'alt-text-pro'),
         'tier2' => __('Standard', 'alt-text-pro'),
         'tier3' => __('Pro', 'alt-text-pro'),
+        'tier4' => __('Agency', 'alt-text-pro'),
         'lite' => __('Lite', 'alt-text-pro'),
         'standard' => __('Standard', 'alt-text-pro'),
         'pro' => __('Pro', 'alt-text-pro'),
+        'agency' => __('Agency', 'alt-text-pro'),
         'small_pack' => __('Credit Pack', 'alt-text-pro'),
         'pay_as_go' => __('Credit Pack', 'alt-text-pro'),
     );

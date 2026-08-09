@@ -5,50 +5,50 @@
 @layer base {
   :root {
     --radius: 1rem;
-    --background: 40 18% 97%;
-    --foreground: 210 11% 11%;
+    --background: 0 0% 100%;
+    --foreground: 0 0% 4%;
     --card: 0 0% 100%;
-    --card-foreground: 210 11% 11%;
+    --card-foreground: 0 0% 4%;
     --popover: 0 0% 100%;
-    --popover-foreground: 210 11% 11%;
-    --primary: 191 76% 21%;
-    /* #0D4F5E - Alt Text Pro logo navy */
-    --primary-foreground: 210 40% 98%;
+    --popover-foreground: 0 0% 4%;
+    --primary: 52 99% 55%;
+    /* #FEE11C - Alt Text Pro brand yellow */
+    --primary-foreground: 0 0% 0%;
     --secondary: 0 0% 100%;
-    --secondary-foreground: 210 11% 11%;
-    --muted: 220 14% 96%;
-    --muted-foreground: 215 16% 47%;
-    --accent: 174 71% 44%;
-    /* #20C0B0 - Alt Text Pro logo teal */
-    --accent-foreground: 210 40% 98%;
+    --secondary-foreground: 0 0% 4%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 40%;
+    --accent: 52 99% 55%;
+    /* #FEE11C - Alt Text Pro brand yellow */
+    --accent-foreground: 0 0% 0%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
-    --border: 210 11% 11% / 0.05;
+    --border: 0 0% 0% / 0.08;
     /* Ultra-subtle border */
     --input: 214 32% 91%;
-    --ring: 191 76% 21%;
+    --ring: 52 99% 55%;
 
     /* Custom Palette for Direct Usage (space-separated HSL for opacity support) */
-    --paper-bg: 40 18% 97%;
-    /* #FAF9F6 */
+    --paper-bg: 0 0% 100%;
+    /* #FFFFFF */
     --pearl-surface: 0 0% 100%;
     /* #FFFFFF */
-    --precision-blue: 191 76% 21%;
-    /* #0D4F5E */
-    --slate-accent: 191 81% 16%;
-    /* #083F4B */
-    --cloud-gray: 210 14% 95%;
+    --precision-blue: 0 0% 0%;
+    /* #000000 */
+    --slate-accent: 0 0% 0%;
+    /* #000000 */
+    --cloud-gray: 0 0% 95%;
     /* #F1F3F4 */
-    --brand-teal: 174 71% 44%;
-    /* #20C0B0 */
-    --brand-navy: 191 81% 16%;
-    /* #083F4B */
-    --logo-blue-start: #0D4F5E;
-    --logo-blue-gradient: linear-gradient(135deg, #0D4F5E 0%, #20C0B0 100%);
-    --logo-navy-gradient: linear-gradient(135deg, #083F4B 0%, #0D4F5E 100%);
-    --logo-green-gradient: linear-gradient(135deg, #20C0B0 0%, #0D4F5E 100%);
-    --primary-blue: #0D4F5E;
-    --primary-blue-dark: #083F4B;
+    --brand-yellow: 52 99% 55%;
+    /* #FEE11C */
+    --brand-black: 0 0% 0%;
+    /* #000000 */
+    --logo-blue-start: #000000;
+    --logo-blue-gradient: linear-gradient(135deg, #FEE11C 0%, #000000 100%);
+    --logo-black-gradient: linear-gradient(135deg, #000000 0%, #000000 100%);
+    --logo-yellow-gradient: linear-gradient(135deg, #FEE11C 0%, #000000 100%);
+    --primary-blue: #000000;
+    --primary-blue-dark: #000000;
     --text-medium: #4b5563;
     --background-light: #f8fafc;
     --border-light: #E0E0E0;
@@ -66,19 +66,19 @@
   --card-foreground: 0 0% 9%;
   --popover: 0 0% 100%;
   --popover-foreground: 0 0% 9%;
-  --primary: 191 76% 21%;
-  --primary-foreground: 0 0% 98%;
+  --primary: 52 99% 55%;
+  --primary-foreground: 0 0% 0%;
   --secondary: 0 0% 96%;
   --secondary-foreground: 0 0% 9%;
   --muted: 0 0% 96%;
   --muted-foreground: 0 0% 45%;
-  --accent: 174 71% 44%;
-  --accent-foreground: 0 0% 98%;
+  --accent: 52 99% 55%;
+  --accent-foreground: 0 0% 0%;
   --destructive: 14 100% 57%;
   --destructive-foreground: 0 0% 98%;
   --border: 0 0% 90%;
   --input: 0 0% 90%;
-  --ring: 191 76% 21%;
+  --ring: 52 99% 55%;
 }
 
 @layer base {
@@ -93,7 +93,7 @@
 
 /* Custom Utilities */
 .btn-primary {
-  @apply bg-notebook-blue text-white font-semibold py-3 px-8 rounded-full transition-all duration-300 shadow-notebook hover:shadow-notebook-lg transform hover:-translate-y-0.5 active:scale-95;
+  @apply bg-notebook-teal text-notebook-black font-semibold py-3 px-8 rounded-full transition-all duration-300 shadow-notebook hover:shadow-notebook-lg transform hover:-translate-y-0.5 active:scale-95;
 }
 
 .btn-secondary {
@@ -114,7 +114,7 @@
 }
 
 .card-hover:hover {
-  border-color: rgba(13, 79, 94, 0.24);
+  border-color: rgba(254, 225, 28, 0.7);
 }
 
 .input-field {
@@ -142,7 +142,7 @@
 }
 
 .hero-section {
-  background: linear-gradient(135deg, rgba(13, 79, 94, 0.05) 0%, rgba(32, 192, 176, 0.05) 100%);
+  background: linear-gradient(135deg, rgba(254, 225, 28, 0.12) 0%, rgba(0, 0, 0, 0.03) 100%);
   @apply py-20 px-4;
 }
 
@@ -162,12 +162,12 @@
   background: var(--logo-blue-gradient);
 }
 
-.gradient-navy {
-  background: var(--logo-navy-gradient);
+.gradient-black {
+  background: var(--logo-black-gradient);
 }
 
-.gradient-green {
-  background: var(--logo-green-gradient);
+.gradient-yellow {
+  background: var(--logo-yellow-gradient);
 }
 
 .shadow-professional {
@@ -234,8 +234,8 @@
 
 .badge-professional {
   @apply inline-flex items-center px-3 py-1 rounded-full text-sm font-medium;
-  background-color: rgba(13,79,94,0.10);
-  color: var(--logo-blue-start);
+  background-color: rgba(254,225,28,0.22);
+  color: #000000;
 }
 
 .badge-success {
@@ -254,8 +254,8 @@
   @apply border-t border-gray-200 my-8;
 }
 
-.divider-teal {
-  border-top: 2px solid rgba(13,79,94,0.18);
+.divider-yellow {
+  border-top: 2px solid rgba(254,225,28,0.8);
   @apply my-8;
 }
 
@@ -302,7 +302,7 @@
 
 /* From App.css */
 .gradient-text {
-  background: linear-gradient(45deg, #0D4F5E, #20C0B0, #083F4B);
+  background: linear-gradient(45deg, #000000, #FEE11C, #000000);
   background-size: 200% 200%;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;

@@ -550,7 +550,7 @@ function ConnectPageContent() {
                         emailRedirectTo: window.location.href, // Redirect back to /connect after email confirmation
                         data: {
                             subscription_plan: "free",
-                            credits_remaining: 30,
+                            credits_remaining: 165,
                         },
                     },
                 });
@@ -806,7 +806,7 @@ function ConnectPageContent() {
                 {/* Benefits pills */}
                 <div className="connect-benefits">
                     <span className="benefit-pill">
-                        <Zap size={14} /> 30 Free Credits
+                        <Zap size={14} /> 150 Free Credits
                     </span>
                     <span className="benefit-pill">
                         <Shield size={14} /> Secure Connection
@@ -926,7 +926,7 @@ function ConnectPageContent() {
           display: flex;
           align-items: center;
           justify-content: center;
-          background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+          background: linear-gradient(135deg, #000000 0%, #222222 50%, #000000 100%);
           padding: 20px;
           font-family: 'Inter', -apple-system, sans-serif;
         }
@@ -956,7 +956,7 @@ function ConnectPageContent() {
         .connect-header h1 {
           font-size: 22px;
           font-weight: 700;
-          color: #0f172a;
+          color: #000000;
           margin: 0 0 6px 0;
         }
 
@@ -978,13 +978,13 @@ function ConnectPageContent() {
           display: flex;
           align-items: center;
           gap: 4px;
-          background: #f0fdf4;
-          color: #16a34a;
+          background: #FFF9C4;
+          color: #000000;
           font-size: 12px;
           font-weight: 600;
           padding: 4px 10px;
           border-radius: 20px;
-          border: 1px solid #bbf7d0;
+          border: 1px solid #FEE11C;
         }
 
         .connect-error {
@@ -1010,7 +1010,7 @@ function ConnectPageContent() {
           border: 1px solid #e2e8f0;
           border-radius: 10px;
           background: #ffffff;
-          color: #334155;
+          color: #000000;
           font-size: 14px;
           font-weight: 600;
           cursor: pointer;
@@ -1018,8 +1018,8 @@ function ConnectPageContent() {
         }
 
         .connect-google-btn:hover:not(:disabled) {
-          background: #f8fafc;
-          border-color: #cbd5e1;
+          background: #FFFFFF;
+          border-color: #FEE11C;
           box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
         }
 
@@ -1058,7 +1058,7 @@ function ConnectPageContent() {
           display: block;
           font-size: 13px;
           font-weight: 600;
-          color: #334155;
+          color: #000000;
           margin-bottom: 6px;
         }
 
@@ -1068,16 +1068,16 @@ function ConnectPageContent() {
           border: 1px solid #e2e8f0;
           border-radius: 10px;
           font-size: 14px;
-          color: #0f172a;
-          background: #f8fafc;
+          color: #000000;
+          background: #FFFFFF;
           transition: border-color 0.2s;
           outline: none;
           box-sizing: border-box;
         }
 
         .connect-field input:focus {
-          border-color: #0f5b66;
-          box-shadow: 0 0 0 3px rgba(15, 91, 102, 0.12);
+          border-color: #FEE11C;
+          box-shadow: 0 0 0 3px rgba(254, 225, 28, 0.28);
         }
 
         .connect-password-wrapper {
@@ -1113,9 +1113,9 @@ function ConnectPageContent() {
           justify-content: center;
           gap: 8px;
           padding: 12px 16px;
-          background: linear-gradient(135deg, #0f5b66 0%, #167b83 100%);
-          color: white;
-          border: none;
+          background: #FEE11C;
+          color: #000000;
+          border: 1px solid #FEE11C;
           border-radius: 10px;
           font-size: 14px;
           font-weight: 600;
@@ -1126,7 +1126,10 @@ function ConnectPageContent() {
 
         .connect-submit-btn:hover:not(:disabled) {
           transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(15, 91, 102, 0.32);
+          background: #000000;
+          color: #FFFFFF;
+          border-color: #000000;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.22);
         }
 
         .connect-submit-btn:disabled {
@@ -1144,7 +1147,7 @@ function ConnectPageContent() {
         .connect-toggle button {
           background: none;
           border: none;
-          color: #0f5b66;
+          color: #000000;
           font-weight: 600;
           cursor: pointer;
           margin-left: 4px;
@@ -1172,14 +1175,14 @@ function ConnectPageContent() {
         }
 
         .success-icon {
-          color: #16a34a;
+          color: #000000;
           margin-bottom: 16px;
         }
 
         .connect-success h2 {
           font-size: 24px;
           font-weight: 700;
-          color: #0f172a;
+          color: #000000;
           margin: 0 0 8px;
         }
 
@@ -1195,14 +1198,14 @@ function ConnectPageContent() {
         }
 
         .confirmation-icon {
-          color: #0f5b66;
+          color: #000000;
           margin-bottom: 16px;
         }
 
         .connect-confirmation h2 {
           font-size: 22px;
           font-weight: 700;
-          color: #0f172a;
+          color: #000000;
           margin: 0 0 10px;
         }
 
@@ -1215,10 +1218,10 @@ function ConnectPageContent() {
 
         .confirmation-target {
           overflow-wrap: anywhere;
-          background: #eef9f7;
-          border: 1px solid #b8deda;
+          background: #FFF9C4;
+          border: 1px solid #FEE11C;
           border-radius: 10px;
-          color: #0f5b66;
+          color: #000000;
           font-size: 16px;
           font-weight: 700;
           padding: 12px 14px;
@@ -1234,7 +1237,7 @@ function ConnectPageContent() {
           width: 100%;
           background: transparent;
           border: 0;
-          color: #0f5b66;
+          color: #000000;
           cursor: pointer;
           font-size: 14px;
           font-weight: 600;
@@ -1252,14 +1255,14 @@ function ConnectPageContent() {
         }
 
         .recovery-icon {
-          color: #0f5b66;
+          color: #000000;
           margin-bottom: 16px;
         }
 
         .connect-recovery h2 {
           font-size: 22px;
           font-weight: 700;
-          color: #0f172a;
+          color: #000000;
           margin: 0 0 10px;
         }
 
@@ -1303,7 +1306,7 @@ function ConnectPageContent() {
 
         .recovery-copy-btn {
           flex: 0 0 auto;
-          background: #0f5b66;
+          background: #000000;
           border: 0;
           border-radius: 8px;
           color: #fff;
@@ -1314,7 +1317,7 @@ function ConnectPageContent() {
         }
 
         .recovery-copy-btn:hover {
-          background: #0b4b55;
+          background: #222222;
         }
 
         .connect-recovery .recovery-help {
@@ -1346,7 +1349,7 @@ export default function ConnectPage() {
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    background: "linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)",
+                    background: "linear-gradient(135deg, #000000 0%, #222222 50%, #000000 100%)",
                 }}>
                     <div style={{
                         background: "#ffffff",

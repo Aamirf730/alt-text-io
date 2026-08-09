@@ -9,7 +9,7 @@ export default function PaymentCancelled() {
     const router = useRouter();
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-cyan-50 to-teal-50">
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-yellow-50 to-white">
             <div className="text-center max-w-md mx-auto p-6">
                 <X className="h-12 w-12 text-orange-500 mx-auto mb-4" />
                 <h2 className="text-2xl font-bold text-gray-800 mb-2">Payment Cancelled</h2>

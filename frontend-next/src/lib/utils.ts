@@ -9,13 +9,15 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export const PLAN_CREDIT_LIMITS: Record<string, number> = {
-  free: 30,
+  free: 15,
   lite: 150,
-  standard: 400,
-  pro: 1000,
+  standard: 1000,
+  pro: 2000,
+  agency: 3500,
   tier1: 150,
-  tier2: 400,
-  tier3: 1000,
+  tier2: 1000,
+  tier3: 2000,
+  tier4: 3500,
 };
 
 /**

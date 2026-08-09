@@ -59,7 +59,7 @@ export default function DocsPage() {
                     {/* Table of Contents - Sidebar */}
                     <aside className="lg:w-64 flex-shrink-0">
                         <div className="sticky top-24 bg-white rounded-2xl shadow-lg p-6 border border-gray-100">
-                            <h2 className="text-lg font-bold mb-4" style={{ color: '#003a42' }}>
+                            <h2 className="text-lg font-bold mb-4" style={{ color: '#000000' }}>
                                 <Book className="h-5 w-5 inline-block mr-2" />
                                 Documentation
                             </h2>
@@ -74,7 +74,7 @@ export default function DocsPage() {
                                                 ? 'bg-teal-50 text-teal-700'
                                                 : 'text-gray-700 hover:bg-gray-50'
                                                 }`}
-                                            style={activeSection === section.id ? { color: '#003a42', backgroundColor: 'rgba(13, 79, 94, 0.1)' } : {}}
+                                                style={activeSection === section.id ? { color: '#000000', backgroundColor: 'rgba(254, 225, 28, 0.22)' } : {}}
                                         >
                                             <Icon className="h-4 w-4 mr-2" />
                                             {section.title}
@@ -90,7 +90,7 @@ export default function DocsPage() {
                         <div className="bg-white rounded-2xl shadow-lg p-8 md:p-12">
                             {/* Getting Started Section */}
                             <section id="getting-started" className="mb-16">
-                                <h1 className="text-4xl font-bold mb-4" style={{ color: '#003a42' }}>
+                                <h1 className="text-4xl font-bold mb-4" style={{ color: '#000000' }}>
                                     Getting Started with Alt Text Pro
                                 </h1>
                                 <p className="text-xl text-gray-600 mb-8">
@@ -98,50 +98,50 @@ export default function DocsPage() {
                                 </p>
 
                                 <div className="prose max-w-none">
-                                    <h2 className="text-2xl font-bold mt-8 mb-4" style={{ color: '#003a42' }}>What is Alt Text Pro?</h2>
+                                    <h2 className="text-2xl font-bold mt-8 mb-4" style={{ color: '#000000' }}>What is Alt Text Pro?</h2>
                                     <p className="text-gray-700 mb-4">
                                         <strong>Alt Text Pro</strong> is a powerful SaaS platform that automatically generates high-quality alt-text for your images using advanced AI technology. Whether you're using our WordPress plugin or our API, Alt Text Pro helps improve your website's accessibility, SEO, and user experience with professionally written alt-text descriptions.
                                     </p>
 
-                                    <h2 className="text-2xl font-bold mt-8 mb-4" style={{ color: '#003a42' }}>Why Use Alt Text Pro?</h2>
+                                    <h2 className="text-2xl font-bold mt-8 mb-4" style={{ color: '#000000' }}>Why Use Alt Text Pro?</h2>
                                     <div className="grid md:grid-cols-2 gap-6 my-6">
                                         <Card className="p-6">
                                             <div className="flex items-center mb-3">
-                                                <Shield className="h-6 w-6 mr-3" style={{ color: '#0D4F5E' }} />
+                                                <Shield className="h-6 w-6 mr-3" style={{ color: '#000000' }} />
                                                 <h3 className="text-lg font-semibold">Accessibility Compliance</h3>
                                             </div>
                                             <p className="text-gray-600">Meet WCAG guidelines and make your website accessible to screen readers and assistive technologies.</p>
                                         </Card>
                                         <Card className="p-6">
                                             <div className="flex items-center mb-3">
-                                                <Search className="h-6 w-6 mr-3" style={{ color: '#0D4F5E' }} />
+                                                <Search className="h-6 w-6 mr-3" style={{ color: '#000000' }} />
                                                 <h3 className="text-lg font-semibold">SEO Optimization</h3>
                                             </div>
                                             <p className="text-gray-600">Improve search engine rankings with better image descriptions that help search engines understand your content.</p>
                                         </Card>
                                         <Card className="p-6">
                                             <div className="flex items-center mb-3">
-                                                <Zap className="h-6 w-6 mr-3" style={{ color: '#0D4F5E' }} />
+                                                <Zap className="h-6 w-6 mr-3" style={{ color: '#000000' }} />
                                                 <h3 className="text-lg font-semibold">Save Time</h3>
                                             </div>
                                             <p className="text-gray-600">Process hundreds of images in minutes instead of hours of manual work.</p>
                                         </Card>
                                         <Card className="p-6">
                                             <div className="flex items-center mb-3">
-                                                <Brain className="h-6 w-6 mr-3" style={{ color: '#0D4F5E' }} />
+                                                <Brain className="h-6 w-6 mr-3" style={{ color: '#000000' }} />
                                                 <h3 className="text-lg font-semibold">AI-Powered Quality</h3>
                                             </div>
                                             <p className="text-gray-600">Leverage advanced AI to generate accurate, context-aware descriptions.</p>
                                         </Card>
                                     </div>
 
-                                    <h2 className="text-2xl font-bold mt-8 mb-4" style={{ color: '#003a42' }}>Quick Start Guide</h2>
+                                    <h2 className="text-2xl font-bold mt-8 mb-4" style={{ color: '#000000' }}>Quick Start Guide</h2>
                                     <div className="bg-teal-50 border-l-4 border-teal-500 p-6 rounded-lg my-6">
                                         <p className="text-gray-700 mb-5">
                                             Use this path if you want the fastest first result: create the account, install the plugin, connect from WordPress, then generate one manual alt text before starting a bulk job.
                                         </p>
                                         <ol className="list-decimal list-inside space-y-3 text-gray-700">
-                                            <li><strong>Create your free account</strong> and start with 30 credits. No credit card is required.</li>
+                                            <li><strong>Create your free account</strong> and start with 150 signup credits. No credit card is required.</li>
                                             <li><strong>Install the WordPress plugin</strong> from WordPress.org or download version {PLUGIN_VERSION} from your dashboard.</li>
                                             <li><strong>Click Connect to Alt Text Pro</strong> inside WordPress so the plugin can save your API key automatically.</li>
                                             <li><strong>Generate one image alt text</strong> and review it before using bulk processing.</li>
@@ -149,13 +149,13 @@ export default function DocsPage() {
                                         <div className="flex flex-col sm:flex-row gap-3 mt-6">
                                             <Link
                                                 href="/dashboard"
-                                                className="inline-flex items-center justify-center rounded-xl bg-[#0D4F5E] px-5 py-3 text-sm font-semibold text-white hover:bg-[#003a42] transition-colors"
+                                                className="inline-flex items-center justify-center rounded-xl bg-[#000000] px-5 py-3 text-sm font-semibold text-white hover:bg-[#000000] transition-colors"
                                             >
                                                 Open Dashboard
                                             </Link>
                                             <a
                                                 href={`/wordpress-plugin/alt-text-pro-plugin-${PLUGIN_VERSION}.zip`}
-                                                className="inline-flex items-center justify-center rounded-xl border border-teal-200 bg-white px-5 py-3 text-sm font-semibold text-[#0D4F5E] hover:bg-teal-50 transition-colors"
+                                                className="inline-flex items-center justify-center rounded-xl border border-teal-200 bg-white px-5 py-3 text-sm font-semibold text-[#000000] hover:bg-teal-50 transition-colors"
                                                 download={`alt-text-pro-plugin-${PLUGIN_VERSION}.zip`}
                                             >
                                                 Download Plugin
@@ -167,16 +167,16 @@ export default function DocsPage() {
 
                             {/* Installation Section */}
                             <section id="installation" className="mb-16 pt-8 border-t border-gray-200">
-                                <h2 className="text-3xl font-bold mb-6" style={{ color: '#003a42' }}>
+                                <h2 className="text-3xl font-bold mb-6" style={{ color: '#000000' }}>
                                     <Settings className="h-8 w-8 inline-block mr-3" />
                                     Installation & Setup
                                 </h2>
                                 <div className="prose max-w-none">
-                                    <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#003a42' }}>Step 1: Create Your Account</h3>
+                                    <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#000000' }}>Step 1: Create Your Account</h3>
                                     <p className="text-gray-700 mb-4">
-                                        Visit <a href="https://www.alt-text.pro" className="text-teal-600 hover:underline">www.alt-text.pro</a> and sign up for a free account. You'll receive 30 credits to get started - no credit card required.
+                                        Visit <a href="https://www.alt-text.pro" className="text-teal-600 hover:underline">www.alt-text.pro</a> and sign up for a free account. You'll receive 150 signup credits, plus 15 more every month - no credit card required.
                                     </p>
-                                    <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#003a42' }}>Step 2: Install WordPress Plugin</h3>
+                                    <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#000000' }}>Step 2: Install WordPress Plugin</h3>
                                     <div className="bg-gray-50 p-6 rounded-lg my-4">
                                         <h4 className="font-semibold mb-3">Method 1: WordPress.org Directory</h4>
                                         <ol className="list-decimal list-inside space-y-2 text-gray-700">
@@ -194,7 +194,7 @@ export default function DocsPage() {
                                             <li>Activate the plugin after installation</li>
                                         </ol>
                                     </div>
-                                    <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#003a42' }}>Step 3: Connect Your Site</h3>
+                                    <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#000000' }}>Step 3: Connect Your Site</h3>
                                     <ol className="list-decimal list-inside space-y-2 text-gray-700 mb-4">
                                         <li>In WordPress admin, go to <strong>Alt Text Pro</strong></li>
                                         <li>Click <strong>Connect to Alt Text Pro</strong></li>
@@ -210,7 +210,7 @@ export default function DocsPage() {
                                             <li>Click <strong>Test Connection</strong> before running bulk processing</li>
                                         </ol>
                                     </div>
-                                    <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#003a42' }}>Step 4: Configure the Plugin</h3>
+                                    <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#000000' }}>Step 4: Configure the Plugin</h3>
                                     <ol className="list-decimal list-inside space-y-2 text-gray-700 mb-4">
                                         <li>In WordPress admin, go to <strong>Alt Text Pro → Settings</strong></li>
                                         <li>Confirm the connection status is active</li>
@@ -224,46 +224,46 @@ export default function DocsPage() {
                                         </li>
                                         <li>Click <strong>Save Settings</strong></li>
                                     </ol>
-                                    <div className="bg-notebook-teal/10 border-l-4 border-[#0D4F5E] p-4 rounded-lg my-4">
-                                        <p className="text-[#0D4F5E]"><strong>Note:</strong> The plugin requires WordPress 5.0+ and PHP 7.4+.</p>
+                                    <div className="bg-notebook-teal/10 border-l-4 border-[#000000] p-4 rounded-lg my-4">
+                                        <p className="text-[#000000]"><strong>Note:</strong> The plugin requires WordPress 5.0+ and PHP 7.4+.</p>
                                     </div>
                                 </div>
                             </section>
 
                             {/* Features Section */}
                             <section id="features" className="mb-16 pt-8 border-t border-gray-200">
-                                <h2 className="text-3xl font-bold mb-6" style={{ color: '#003a42' }}>
+                                <h2 className="text-3xl font-bold mb-6" style={{ color: '#000000' }}>
                                     <Zap className="h-8 w-8 inline-block mr-3" />
                                     Features
                                 </h2>
                                 <div className="grid md:grid-cols-2 gap-6">
                                     <Card className="p-6">
-                                        <Brain className="h-8 w-8 mb-4" style={{ color: '#0D4F5E' }} />
+                                        <Brain className="h-8 w-8 mb-4" style={{ color: '#000000' }} />
                                         <h3 className="text-xl font-bold mb-3">AI-Powered Generation</h3>
                                         <p className="text-gray-600">Uses advanced AI to create accurate, descriptive alt-text that understands image content and context.</p>
                                     </Card>
                                     <Card className="p-6">
-                                        <Upload className="h-8 w-8 mb-4" style={{ color: '#0D4F5E' }} />
+                                        <Upload className="h-8 w-8 mb-4" style={{ color: '#000000' }} />
                                         <h3 className="text-xl font-bold mb-3">Automatic Processing</h3>
                                         <p className="text-gray-600">Generate alt-text automatically when uploading images to WordPress. Set it and forget it!</p>
                                     </Card>
                                     <Card className="p-6">
-                                        <RefreshCw className="h-8 w-8 mb-4" style={{ color: '#0D4F5E' }} />
+                                        <RefreshCw className="h-8 w-8 mb-4" style={{ color: '#000000' }} />
                                         <h3 className="text-xl font-bold mb-3">Bulk Processing</h3>
                                         <p className="text-gray-600">Process hundreds of existing images at once. Perfect for retrofitting alt-text to existing websites.</p>
                                     </Card>
                                     <Card className="p-6">
-                                        <Eye className="h-8 w-8 mb-4" style={{ color: '#0D4F5E' }} />
+                                        <Eye className="h-8 w-8 mb-4" style={{ color: '#000000' }} />
                                         <h3 className="text-xl font-bold mb-3">Context-Aware</h3>
                                         <p className="text-gray-600">Provides better descriptions using page context and metadata for more relevant alt-text.</p>
                                     </Card>
                                     <Card className="p-6">
-                                        <TrendingUp className="h-8 w-8 mb-4" style={{ color: '#0D4F5E' }} />
+                                        <TrendingUp className="h-8 w-8 mb-4" style={{ color: '#000000' }} />
                                         <h3 className="text-xl font-bold mb-3">Usage Tracking</h3>
                                         <p className="text-gray-600">Monitor your API usage, credit consumption, and generation history with detailed logs.</p>
                                     </Card>
                                     <Card className="p-6">
-                                        <Globe className="h-8 w-8 mb-4" style={{ color: '#0D4F5E' }} />
+                                        <Globe className="h-8 w-8 mb-4" style={{ color: '#000000' }} />
                                         <h3 className="text-xl font-bold mb-3">Multi-Language Support</h3>
                                         <p className="text-gray-600">Generate alt-text in over 130 languages to reach a global audience.</p>
                                     </Card>
@@ -272,12 +272,12 @@ export default function DocsPage() {
 
                             {/* WordPress Plugin Section */}
                             <section id="wordpress-plugin" className="mb-16 pt-8 border-t border-gray-200">
-                                <h2 className="text-3xl font-bold mb-6" style={{ color: '#003a42' }}>
+                                <h2 className="text-3xl font-bold mb-6" style={{ color: '#000000' }}>
                                     <Chrome className="h-8 w-8 inline-block mr-3" />
                                     WordPress Plugin Guide
                                 </h2>
                                 <div className="prose max-w-none">
-                                    <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#003a42' }}>Dashboard Overview</h3>
+                                    <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#000000' }}>Dashboard Overview</h3>
                                     <p className="text-gray-700 mb-4">The Alt Text Pro dashboard provides a comprehensive overview of your account and usage:</p>
                                     <ul className="list-disc list-inside space-y-2 text-gray-700 mb-4">
                                         <li><strong>Credits Remaining:</strong> See how many credits you have left</li>
@@ -286,7 +286,7 @@ export default function DocsPage() {
                                         <li><strong>Recent Activity:</strong> View your latest alt-text generations</li>
                                         <li><strong>Quick Actions:</strong> Access bulk processing and settings quickly</li>
                                     </ul>
-                                    <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#003a42' }}>Settings Configuration</h3>
+                                    <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#000000' }}>Settings Configuration</h3>
                                     <p className="text-gray-700 mb-4">Configure the plugin to work exactly how you need it:</p>
                                     <div className="bg-gray-50 p-6 rounded-lg my-4">
                                         <h4 className="font-semibold mb-3">Available Settings:</h4>
@@ -298,7 +298,7 @@ export default function DocsPage() {
                                             <li><strong>Batch Size:</strong> Number of images to process per batch (1-50)</li>
                                         </ul>
                                     </div>
-                                    <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#003a42' }}>Bulk Processing Workflow</h3>
+                                    <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#000000' }}>Bulk Processing Workflow</h3>
                                     <ol className="list-decimal list-inside space-y-2 text-gray-700 mb-4">
                                         <li>Go to <strong>Alt Text Pro → Bulk Process</strong></li>
                                         <li>Choose your processing option:
@@ -312,7 +312,7 @@ export default function DocsPage() {
                                         <li>Click <strong>Start Processing</strong> and monitor progress</li>
                                         <li>Review generated alt-text and edit as needed</li>
                                     </ol>
-                                    <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#003a42' }}>Best Practices</h3>
+                                    <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#000000' }}>Best Practices</h3>
                                     <div className="bg-teal-50 border-l-4 border-teal-500 p-6 rounded-lg my-4">
                                         <ul className="space-y-2 text-gray-700">
                                             <li>✓ Review generated alt-text for accuracy, especially for complex images</li>
@@ -327,17 +327,17 @@ export default function DocsPage() {
 
                             {/* API Documentation Section */}
                             <section id="api" className="mb-16 pt-8 border-t border-gray-200">
-                                <h2 className="text-3xl font-bold mb-6" style={{ color: '#003a42' }}>
+                                <h2 className="text-3xl font-bold mb-6" style={{ color: '#000000' }}>
                                     <Code className="h-8 w-8 inline-block mr-3" />
                                     API Documentation
                                 </h2>
                                 <div className="prose max-w-none">
-                                    <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#003a42' }}>Authentication</h3>
+                                    <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#000000' }}>Authentication</h3>
                                     <p className="text-gray-700 mb-4">All API requests require authentication using your API key. Include it in the <code className="bg-gray-200 px-2 py-1 rounded">Authorization</code> header:</p>
                                     <div className="bg-gray-900 text-gray-100 p-4 rounded-lg my-4 overflow-x-auto">
                                         <pre className="text-sm">Authorization: Bearer YOUR_API_KEY</pre>
                                     </div>
-                                    <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#003a42' }}>Generate Alt-Text Endpoint</h3>
+                                    <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#000000' }}>Generate Alt-Text Endpoint</h3>
                                     <div className="bg-gray-50 p-6 rounded-lg my-4">
                                         <p className="font-mono text-sm mb-2"><strong>POST</strong> <code className="text-teal-600">/.netlify/functions/generate-alt-text</code></p>
                                         <p className="text-gray-700 mb-4">Generates alt-text for an image using AI.</p>
@@ -354,7 +354,7 @@ export default function DocsPage() {
                                             <pre className="text-sm">{`{\n  "error": "Insufficient credits",\n  "details": "You have 0 credits remaining"\n}`}</pre>
                                         </div>
                                     </div>
-                                    <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#003a42' }}>Code Examples</h3>
+                                    <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#000000' }}>Code Examples</h3>
                                     <div className="my-6">
                                         <h4 className="font-semibold mb-2">JavaScript (Fetch API)</h4>
                                         <div className="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto">
@@ -367,7 +367,7 @@ export default function DocsPage() {
                                             <pre className="text-sm">{`curl -X POST https://www.alt-text.pro/.netlify/functions/generate-alt-text \\\n  -H "Content-Type: application/json" \\\n  -H "Authorization: Bearer YOUR_API_KEY" \\\n  -d '{\n    "image_base64": "base64_encoded_image",\n    "context": "Landscape photo"\n  }'`}</pre>
                                         </div>
                                     </div>
-                                    <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#003a42' }}>Error Codes</h3>
+                                    <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#000000' }}>Error Codes</h3>
                                     <div className="bg-gray-50 p-6 rounded-lg my-4">
                                         <table className="w-full text-sm">
                                             <thead>
@@ -390,25 +390,25 @@ export default function DocsPage() {
 
                             {/* Pricing Section */}
                             <section id="pricing" className="mb-16 pt-8 border-t border-gray-200">
-                                <h2 className="text-3xl font-bold mb-6" style={{ color: '#003a42' }}>
+                                <h2 className="text-3xl font-bold mb-6" style={{ color: '#000000' }}>
                                     <DollarSign className="h-8 w-8 inline-block mr-3" />
                                     Pricing & Credits
                                 </h2>
                                 <div className="prose max-w-none">
-                                    <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#003a42' }}>Pricing Plans</h3>
-                                    <div className="grid md:grid-cols-4 gap-6 my-6">
+                                    <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#000000' }}>Pricing Plans</h3>
+                                    <div className="grid md:grid-cols-2 xl:grid-cols-5 gap-6 my-6">
                                         <Card className="p-6 border-2">
                                             <h4 className="text-xl font-bold mb-2">Free</h4>
-                                            <div className="text-3xl font-bold mb-4" style={{ color: '#003a42' }}>$0</div>
+                                            <div className="text-3xl font-bold mb-4" style={{ color: '#000000' }}>$0</div>
                                             <ul className="space-y-2 text-gray-700 mb-4">
-                                                <li className="flex items-center text-sm"><Check className="h-4 w-4 mr-2 text-green-500" /> 30 Free SEO Alt Texts</li>
+                                                <li className="flex items-center text-sm"><Check className="h-4 w-4 mr-2 text-green-500" /> 15 Credits/month + 150 on signup</li>
                                                 <li className="flex items-center text-sm"><Check className="h-4 w-4 mr-2 text-green-500" /> Full WordPress Plugin</li>
                                                 <li className="flex items-center text-sm"><Check className="h-4 w-4 mr-2 text-green-500" /> Media Library Sync</li>
                                             </ul>
                                         </Card>
                                         <Card className="p-6 border-2">
                                             <h4 className="text-xl font-bold mb-2">Lite</h4>
-                                            <div className="text-3xl font-bold mb-4" style={{ color: '#003a42' }}>$3<span className="text-sm text-gray-500">/mo</span></div>
+                                            <div className="text-3xl font-bold mb-4" style={{ color: '#000000' }}>$4<span className="text-sm text-gray-500">/mo</span></div>
                                             <ul className="space-y-2 text-gray-700 mb-4">
                                                 <li className="flex items-center text-sm"><Check className="h-4 w-4 mr-2 text-green-500" /> 150 Credits</li>
                                                 <li className="flex items-center text-sm"><Check className="h-4 w-4 mr-2 text-green-500" /> Auto-generate on upload</li>
@@ -416,37 +416,46 @@ export default function DocsPage() {
                                             </ul>
                                         </Card>
                                         <Card className="p-6 border-2 border-teal-500">
-                                            <Badge className="mb-2" style={{ backgroundColor: '#0D4F5E', color: 'white' }}>Popular</Badge>
+                                            <Badge className="mb-2" style={{ backgroundColor: '#000000', color: 'white' }}>Popular</Badge>
                                             <h4 className="text-xl font-bold mb-2">Standard</h4>
-                                            <div className="text-3xl font-bold mb-4" style={{ color: '#003a42' }}>$5<span className="text-sm text-gray-500">/mo</span></div>
+                                            <div className="text-3xl font-bold mb-4" style={{ color: '#000000' }}>$9<span className="text-sm text-gray-500">/mo</span></div>
                                             <ul className="space-y-2 text-gray-700 mb-4">
-                                                <li className="flex items-center text-sm"><Check className="h-4 w-4 mr-2 text-green-500" /> 400 Credits</li>
+                                                <li className="flex items-center text-sm"><Check className="h-4 w-4 mr-2 text-green-500" /> 1,000 Credits</li>
                                                 <li className="flex items-center text-sm"><Check className="h-4 w-4 mr-2 text-green-500" /> Bulk One-Click Library Fix</li>
                                                 <li className="flex items-center text-sm"><Check className="h-4 w-4 mr-2 text-green-500" /> Multi-Language AI (130+)</li>
                                             </ul>
                                         </Card>
                                         <Card className="p-6 border-2">
                                             <h4 className="text-xl font-bold mb-2">Pro</h4>
-                                            <div className="text-3xl font-bold mb-4" style={{ color: '#003a42' }}>$9<span className="text-sm text-gray-500">/mo</span></div>
+                                            <div className="text-3xl font-bold mb-4" style={{ color: '#000000' }}>$14<span className="text-sm text-gray-500">/mo</span></div>
                                             <ul className="space-y-2 text-gray-700 mb-4">
-                                                <li className="flex items-center text-sm"><Check className="h-4 w-4 mr-2 text-green-500" /> 1,000 Credits</li>
+                                                <li className="flex items-center text-sm"><Check className="h-4 w-4 mr-2 text-green-500" /> 2,000 Credits</li>
                                                 <li className="flex items-center text-sm"><Check className="h-4 w-4 mr-2 text-green-500" /> Advanced Context-Aware AI</li>
                                                 <li className="flex items-center text-sm"><Check className="h-4 w-4 mr-2 text-green-500" /> Premium 24/7 Support</li>
                                             </ul>
                                         </Card>
+                                        <Card className="p-6 border-2">
+                                            <h4 className="text-xl font-bold mb-2">Agency</h4>
+                                            <div className="text-3xl font-bold mb-4" style={{ color: '#000000' }}>$19<span className="text-sm text-gray-500">/mo</span></div>
+                                            <ul className="space-y-2 text-gray-700 mb-4">
+                                                <li className="flex items-center text-sm"><Check className="h-4 w-4 mr-2 text-green-500" /> 3,500 Credits</li>
+                                                <li className="flex items-center text-sm"><Check className="h-4 w-4 mr-2 text-green-500" /> Multi-site workflows</li>
+                                                <li className="flex items-center text-sm"><Check className="h-4 w-4 mr-2 text-green-500" /> Premium 24/7 Support</li>
+                                            </ul>
+                                        </Card>
                                     </div>
-                                    <p className="text-gray-700 mb-4">Annual billing is available at $30/year for Lite, $48/year for Standard, and $86/year for Pro. The listed monthly credit allowance still renews monthly on subscription plans. One-time credit packs are also available: $5 for 100 credits or $10 for 250 credits.</p>
-                                    <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#003a42' }}>Credit System</h3>
+                                    <p className="text-gray-700 mb-4">Annual billing is available at $43.20/year for Lite, $97.20/year for Standard, $151.20/year for Pro, and $205.20/year for Agency — a 10% saving. The listed monthly credit allowance still renews monthly on subscription plans. One-time credit packs are also available: $5 for 500 credits or $10 for 1,200 credits. Pack credits never expire and are only used up when you generate.</p>
+                                    <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#000000' }}>Credit System</h3>
                                     <p className="text-gray-700 mb-4">Each alt-text generation consumes <strong>1 credit</strong>. Credits are used when:</p>
                                     <ul className="list-disc list-inside space-y-2 text-gray-700 mb-4">
                                         <li>Generating alt-text for a new image</li>
                                         <li>Regenerating alt-text for an existing image (if overwrite is enabled)</li>
                                         <li>Using the API to generate alt-text</li>
                                     </ul>
-                                    <div className="bg-notebook-teal/10 border-l-4 border-[#0D4F5E] p-4 rounded-lg my-4">
-                                        <p className="text-[#0D4F5E]"><strong>Note:</strong> Failed generations (due to errors) do not consume credits.</p>
+                                    <div className="bg-notebook-teal/10 border-l-4 border-[#000000] p-4 rounded-lg my-4">
+                                        <p className="text-[#000000]"><strong>Note:</strong> Failed generations (due to errors) do not consume credits.</p>
                                     </div>
-                                    <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#003a42' }}>Upgrading Your Plan</h3>
+                                    <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#000000' }}>Upgrading Your Plan</h3>
                                     <ol className="list-decimal list-inside space-y-2 text-gray-700 mb-4">
                                         <li>Go to your dashboard at <a href="https://www.alt-text.pro/dashboard" className="text-teal-600 hover:underline">alt-text.pro/dashboard</a></li>
                                         <li>Click "Upgrade Plan" or visit the Pricing section</li>
@@ -459,12 +468,12 @@ export default function DocsPage() {
 
                             {/* Troubleshooting Section */}
                             <section id="troubleshooting" className="mb-16 pt-8 border-t border-gray-200">
-                                <h2 className="text-3xl font-bold mb-6" style={{ color: '#003a42' }}>
+                                <h2 className="text-3xl font-bold mb-6" style={{ color: '#000000' }}>
                                     <Wrench className="h-8 w-8 inline-block mr-3" />
                                     Troubleshooting
                                 </h2>
                                 <div className="prose max-w-none">
-                                    <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#003a42' }}>Common Issues</h3>
+                                    <h3 className="text-2xl font-bold mt-6 mb-4" style={{ color: '#000000' }}>Common Issues</h3>
                                     <div className="space-y-6">
                                         <Card className="p-6">
                                             <h4 className="font-bold text-lg mb-2">"Error loading API key" or Connection Failed</h4>
@@ -516,7 +525,7 @@ export default function DocsPage() {
                                             </ul>
                                         </Card>
                                     </div>
-                                    <h3 className="text-2xl font-bold mt-8 mb-4" style={{ color: '#003a42' }}>Getting Help</h3>
+                                    <h3 className="text-2xl font-bold mt-8 mb-4" style={{ color: '#000000' }}>Getting Help</h3>
                                     <p className="text-gray-700 mb-4">If you're still experiencing issues, we're here to help:</p>
                                     <ul className="list-disc list-inside space-y-2 text-gray-700 mb-4">
                                         <li>Email us at <a href="mailto:support@alt-text.pro" className="text-teal-600 hover:underline">support@alt-text.pro</a></li>
@@ -528,12 +537,12 @@ export default function DocsPage() {
 
                             {/* FAQ Section */}
                             <section id="faq" className="mb-16 pt-8 border-t border-gray-200">
-                                <h2 className="text-3xl font-bold mb-6" style={{ color: '#003a42' }}>
+                                <h2 className="text-3xl font-bold mb-6" style={{ color: '#000000' }}>
                                     <HelpCircle className="h-8 w-8 inline-block mr-3" />
                                     Frequently Asked Questions
                                 </h2>
                                 <div className="space-y-6">
-                                    <Card className="p-6"><h3 className="font-bold text-lg mb-2">Do I need an Alt Text Pro account?</h3><p className="text-gray-700">Yes, you need a free Alt Text Pro account to use the plugin or API. Sign up at <a href="https://www.alt-text.pro" className="text-teal-600 hover:underline">alt-text.pro</a> and get 30 free credits to start.</p></Card>
+                                    <Card className="p-6"><h3 className="font-bold text-lg mb-2">Do I need an Alt Text Pro account?</h3><p className="text-gray-700">Yes, you need a free Alt Text Pro account to use the plugin or API. Sign up at <a href="https://www.alt-text.pro" className="text-teal-600 hover:underline">alt-text.pro</a> and get 150 free signup credits to start.</p></Card>
                                     <Card className="p-6"><h3 className="font-bold text-lg mb-2">How accurate is the AI-generated alt-text?</h3><p className="text-gray-700">Our service uses advanced AI models and provides highly accurate descriptions. However, we always recommend reviewing and editing the generated text to ensure it fits your specific context perfectly.</p></Card>
                                     <Card className="p-6"><h3 className="font-bold text-lg mb-2">Can I edit the generated alt-text?</h3><p className="text-gray-700">Absolutely! The plugin generates alt-text as a starting point. You can always edit, refine, or completely rewrite the descriptions in WordPress media library.</p></Card>
                                     <Card className="p-6"><h3 className="font-bold text-lg mb-2">What happens if I run out of credits?</h3><p className="text-gray-700">If you run out of credits, the plugin will stop generating new alt-text. You can purchase more credits or upgrade your plan from your dashboard.</p></Card>

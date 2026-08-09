@@ -62,15 +62,16 @@ export default function TermsPage() {
                             </p>
                             <div className="bg-gray-50 rounded-lg p-6 mb-4">
                                 <ul className="space-y-3 text-gray-700">
-                                    <li><strong>Free Plan:</strong> $0/month - 30 credits per month</li>
-                                    <li><strong>Lite:</strong> $3/month ($30/year) - 150 images per month</li>
-                                    <li><strong>Standard:</strong> $5/month ($48/year) - 400 images per month</li>
-                                    <li><strong>Pro:</strong> $9/month ($86/year) - 1,000 images per month</li>
-                                    <li><strong>Pay as you go:</strong> $5 for 100 images or $10 for 250 images (never expire)</li>
+                                    <li><strong>Free Plan:</strong> $0/month - 15 credits per month, plus a one-time 150-credit signup bonus that does not expire</li>
+                                    <li><strong>Lite:</strong> $4/month ($43.20/year) - 150 images per month</li>
+                                    <li><strong>Standard:</strong> $9/month ($97.20/year) - 1,000 images per month</li>
+                                    <li><strong>Pro:</strong> $14/month ($151.20/year) - 2,000 images per month</li>
+                                    <li><strong>Agency:</strong> $19/month ($205.20/year) - 3,500 images per month</li>
+                                    <li><strong>Pay as you go:</strong> $5 for 500 images or $10 for 1,200 images (one-time, never expire)</li>
                                 </ul>
                             </div>
                             <p className="text-gray-700 leading-relaxed">
-                                All prices are in USD. Subscription plans renew automatically on a monthly basis unless cancelled. Credits reset at the beginning of each billing cycle for subscription plans. One-time credit packs do not expire.
+                                All prices are in USD. Subscription plans renew automatically on a monthly basis unless cancelled. Credits reset at the beginning of each billing cycle for subscription plans. Existing subscribers keep the price and monthly credit allowance of the plan they purchased for as long as that subscription remains active. Signup bonus credits and purchased credit packs never expire and are not reset by a billing cycle.
                             </p>
                         </section>
 

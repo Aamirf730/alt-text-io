@@ -4,7 +4,7 @@ Tags: alt text, accessibility, image seo, ai, media library
 Requires at least: 5.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.7.14
+Stable tag: 1.7.16
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -58,7 +58,7 @@ Alt Text Pro is designed to speed up the repetitive work while still keeping you
 
 ### Credits and plans
 
-New accounts include free credits for testing. Each successful alt text generation uses 1 credit. Paid plans and credit packs are available from the Alt Text Pro dashboard.
+New accounts include 150 free signup credits plus 15 free credits every month. Each successful alt text generation uses 1 credit. Paid plans and credit packs are available from the Alt Text Pro dashboard.
 
 ### Technical Requirements
 
@@ -158,6 +158,9 @@ Yes, you can cancel your subscription at any time from your Alt Text Pro dashboa
 6. Responsive admin interface for managing alt text from different screen sizes.
 
 == Changelog ==
+= 1.7.15 =
+* Branding: align the plugin UI, logo, and WordPress.org artwork with the white, yellow, and black brand palette.
+
 = 1.7.14 =
 * UX: Restored the polished shared connection modal with consistent icons, balanced cards, card-local actions, and responsive layouts that do not compress controls.
 * UX: Improved automatic-connection loading, popup-blocked, success, and error feedback without changing the connection flow.

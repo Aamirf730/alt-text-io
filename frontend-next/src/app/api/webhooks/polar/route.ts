@@ -18,33 +18,38 @@ const getSupabase = (): SupabaseClient => {
 };
 
 // Credit mapping based on product/plan
-// Updated Feb 2026: Lite/Standard/Pro plans
+// Updated Aug 2026: Lite/Standard/Pro/Agency plans
 const CREDITS_MAP: Record<string, number> = {
-    // New plan names (Feb 2026)
+    // Current plan names
     lite_monthly: 150,
-    standard_monthly: 400,
-    pro_monthly: 1000,
+    standard_monthly: 1000,
+    pro_monthly: 2000,
+    agency_monthly: 3500,
     // Annual subscriptions (monthly credits × 12)
     lite_annual: 1800,      // 150 × 12
-    standard_annual: 4800,  // 400 × 12
-    pro_annual: 12000,      // 1000 × 12
-    // Legacy aliases (maps old tier names to new credits)
+    standard_annual: 12000, // 1000 × 12
+    pro_annual: 24000,      // 2000 × 12
+    agency_annual: 42000,   // 3500 × 12
+    // Plan-id aliases
     tier1_monthly: 150,
-    tier2_monthly: 400,
-    tier3_monthly: 1000,
+    tier2_monthly: 1000,
+    tier3_monthly: 2000,
+    tier4_monthly: 3500,
     tier1_annual: 1800,
-    tier2_annual: 4800,
-    tier3_annual: 12000,
-    // One-time purchases (Feb 2026 update)
-    small_pack: 100,   // $5 for 100 images
-    credit_pack: 250,  // $10 for 250 images
+    tier2_annual: 12000,
+    tier3_annual: 24000,
+    tier4_annual: 42000,
+    // One-time purchases (prices unchanged; credits increased)
+    small_pack: 500,   // $5
+    credit_pack: 1200, // $10
 };
 
-// Monthly credit allowance for annual plans (used by pg_cron monthly drip)
+// Monthly allowance per plan. Used by the annual drip and monthly plans.
 const MONTHLY_CREDITS_MAP: Record<string, number> = {
     tier1: 150,
-    tier2: 400,
-    tier3: 1000,
+    tier2: 1000,
+    tier3: 2000,
+    tier4: 3500,
 };
 
 function logWebhookReceived(eventName: string, data: any) {
@@ -123,6 +128,7 @@ type BillingProfile = {
     email: string | null;
     subscription_id: string | null;
     polar_customer_id: string | null;
+    polar_product_id: string | null;
     bonus_credits_remaining: number | null;
     purchased_credits_remaining: number | null;
     credits_remaining: number | null;
@@ -136,6 +142,7 @@ const BILLING_PROFILE_COLUMNS = [
     "email",
     "subscription_id",
     "polar_customer_id",
+    "polar_product_id",
     "bonus_credits_remaining",
     "purchased_credits_remaining",
     "credits_remaining",
@@ -492,35 +499,84 @@ function getCreditsForProduct(
     }
 
     // Fallback based on common naming patterns
-    // New naming: lite/standard/pro
+    // Current naming: Agency must be checked before Pro because the product
+    // brand itself contains the word "Pro".
+    if (normalizedName.includes("agency")) {
+        return normalizedName.includes("annual") ? 42000 : 3500;
+    }
     if (normalizedName.includes("lite")) {
         return normalizedName.includes("annual") ? 1800 : 150;
     }
     if (normalizedName.includes("standard")) {
-        return normalizedName.includes("annual") ? 4800 : 400;
-    }
-    if (normalizedName.includes("pro")) {
         return normalizedName.includes("annual") ? 12000 : 1000;
     }
-    // Legacy naming: tier1/tier2/tier3
+    if (normalizedName.includes("pro")) {
+        return normalizedName.includes("annual") ? 24000 : 2000;
+    }
+    // Legacy tierN naming
     if (normalizedName.includes("tier1") || normalizedName.includes("tier_1")) {
         return normalizedName.includes("annual") ? 1800 : 150;
     }
     if (normalizedName.includes("tier2") || normalizedName.includes("tier_2")) {
-        return normalizedName.includes("annual") ? 4800 : 400;
-    }
-    if (normalizedName.includes("tier3") || normalizedName.includes("tier_3")) {
         return normalizedName.includes("annual") ? 12000 : 1000;
     }
+    if (normalizedName.includes("tier3") || normalizedName.includes("tier_3")) {
+        return normalizedName.includes("annual") ? 24000 : 2000;
+    }
+    if (normalizedName.includes("tier4") || normalizedName.includes("tier_4")) {
+        return normalizedName.includes("annual") ? 42000 : 3500;
+    }
     if (normalizedName.includes("small")) {
-        return 100;
+        return 500;
     }
     if (normalizedName.includes("credit") || normalizedName.includes("pack")) {
-        return 250;
+        return 1200;
     }
 
     console.warn(`Unknown product: ${productName}, defaulting to 0 credits`);
     return 0;
+}
+
+function getPolarProductId(subscription: any): string | null {
+    const id = subscription?.product?.id || subscription?.productId || null;
+    return id ? String(id) : null;
+}
+
+/**
+ * Resolve the monthly allowance for a billing event.
+ *
+ * A legacy customer keeps the allowance pinned on their profile only while
+ * both the Polar subscription and product remain unchanged. A new checkout
+ * or product switch adopts the current catalogue allowance.
+ */
+function resolveMonthlyAllowance({
+    profile,
+    planId,
+    productId,
+    subscriptionId,
+    productCredits,
+    isAnnual,
+}: {
+    profile: BillingProfile;
+    planId: string;
+    productId: string | null;
+    subscriptionId: string | null;
+    productCredits: number;
+    isAnnual: boolean;
+}): number {
+    const catalogueAllowance =
+        MONTHLY_CREDITS_MAP[planId]
+        || (isAnnual ? Math.round(productCredits / 12) : productCredits);
+
+    const pinned = Number(profile.monthly_credit_allowance || 0);
+    if (pinned <= 0) return catalogueAllowance;
+
+    const sameSubscription =
+        Boolean(subscriptionId) && profile.subscription_id === subscriptionId;
+    const sameProduct =
+        !profile.polar_product_id || !productId || profile.polar_product_id === productId;
+
+    return sameSubscription && sameProduct ? pinned : catalogueAllowance;
 }
 
 // Helper to update user credits
@@ -771,11 +827,20 @@ const polarWebhookHandlers = {
 
             const rawCredits = getCreditsForProduct(productName, mergedMetadata);
 
-            // Determine billing cycle
             const billingCycle = isAnnual ? "annual" : "monthly";
+            const productId = getPolarProductId(subscription);
+            const monthlyAllowance = resolveMonthlyAllowance({
+                profile: profile!,
+                planId,
+                productId,
+                subscriptionId: subscription.id,
+                productCredits: rawCredits,
+                isAnnual,
+            });
 
-            // For Monthly Drip, annual plans only get the monthly portion initially (e.g. 150 instead of 1800)
-            const creditsToGrant = isAnnual ? (MONTHLY_CREDITS_MAP[planId] || rawCredits) : rawCredits;
+            // Monthly and annual plans both start with one monthly allowance;
+            // annual plans receive the remaining months through the drip job.
+            const creditsToGrant = monthlyAllowance;
 
             if (creditsToGrant > 0) {
                 await updateUserCredits(userId, creditsToGrant, true);
@@ -784,9 +849,6 @@ const polarWebhookHandlers = {
                 console.warn(`No credits found for subscription product: ${productName}`);
             }
 
-            // Update profile with subscription info and drip metadata
-            const monthlyAllowance = MONTHLY_CREDITS_MAP[planId] || null;
-
             await getSupabase()
                 .from("profiles")
                 .update({
@@ -794,8 +856,9 @@ const polarWebhookHandlers = {
                     subscription_status: "active",
                     subscription_id: subscription.id,
                     polar_customer_id: subscription.customer?.id || null,
+                    polar_product_id: productId,
                     billing_cycle: billingCycle,
-                    monthly_credit_allowance: billingCycle === "annual" ? monthlyAllowance : null,
+                    monthly_credit_allowance: monthlyAllowance,
                     next_billing_date: getSubscriptionEnd(subscription),
                     credits_last_renewed_at: new Date().toISOString(),
                     updated_at: new Date().toISOString(),
@@ -942,14 +1005,24 @@ const polarWebhookHandlers = {
             } as Record<string, string | number | boolean>;
             const planId = resolvePolarPlanId(productName, mergedMetadata);
             const isAnnual = productName.toLowerCase().includes("annual");
+            const productId = getPolarProductId(subscription);
+            const monthlyAllowance = resolveMonthlyAllowance({
+                profile,
+                planId,
+                productId,
+                subscriptionId: subscription.id,
+                productCredits: getCreditsForProduct(productName, mergedMetadata),
+                isAnnual,
+            });
 
             await updateProfile(profile.id, {
                 subscription_plan: planId,
                 subscription_status: "active",
                 subscription_id: subscription.id,
                 polar_customer_id: subscription.customer?.id || profile.polar_customer_id,
+                polar_product_id: productId || profile.polar_product_id,
                 billing_cycle: isAnnual ? "annual" : "monthly",
-                monthly_credit_allowance: isAnnual ? (MONTHLY_CREDITS_MAP[planId] || null) : null,
+                monthly_credit_allowance: monthlyAllowance,
                 next_billing_date: getSubscriptionEnd(subscription) || profile.next_billing_date,
                 updated_at: new Date().toISOString(),
             });
@@ -1088,15 +1161,17 @@ const polarWebhookHandlers = {
                     // Determine planId
                     const planId = resolvePolarPlanId(productName, mergedMetadata);
 
-                    // Billing cycle check
                     const billingCycle = isAnnual ? "annual" : "monthly";
-
-                    // Check for profile-level credit override (for legacy plans like Nedra's $20/2300)
-                    const profileOverride = user.monthly_credit_allowance;
-                    // For Monthly Drip, annual renewals only get the monthly portion initially
-                    const creditsToGrant = (profileOverride && profileOverride > 0)
-                        ? profileOverride
-                        : (isAnnual ? (MONTHLY_CREDITS_MAP[planId] || rawCredits) : rawCredits);
+                    const productId = getPolarProductId(subscription);
+                    const monthlyAllowance = resolveMonthlyAllowance({
+                        profile: user,
+                        planId,
+                        productId,
+                        subscriptionId: subscription.id,
+                        productCredits: rawCredits,
+                        isAnnual,
+                    });
+                    const creditsToGrant = monthlyAllowance;
 
                     console.log(`Processing subscription update for ${customerEmail}:`, {
                         productName,
@@ -1133,10 +1208,11 @@ const polarWebhookHandlers = {
                                 total_processed: 0,
                                 subscription_status: "active",
                                 subscription_id: subscription.id,
+                                subscription_plan: planId,
+                                polar_product_id: productId,
                                 next_billing_date: subscription.currentPeriodEnd,
-                                // Update metadata for drip
                                 billing_cycle: billingCycle,
-                                monthly_credit_allowance: billingCycle === "annual" ? (MONTHLY_CREDITS_MAP[planId] || null) : null,
+                                monthly_credit_allowance: monthlyAllowance,
                                 credits_last_renewed_at: new Date().toISOString(),
                                 updated_at: new Date().toISOString(),
                             })

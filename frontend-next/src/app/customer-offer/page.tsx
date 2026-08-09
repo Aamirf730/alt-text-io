@@ -172,16 +172,16 @@ export default function CustomerOfferPage() {
     );
 
     return (
-        <main className="min-h-screen overflow-hidden bg-[#edf6f5] text-[#102f3b]">
+        <main className="min-h-screen overflow-hidden bg-[#FFF9C4] text-[#000000]">
             <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
-                <div className="absolute -left-40 -top-40 h-96 w-96 rounded-full bg-[#32c3b4]/15 blur-3xl" />
-                <div className="absolute -bottom-52 -right-24 h-[32rem] w-[32rem] rounded-full bg-[#178e91]/10 blur-3xl" />
+                <div className="absolute -left-40 -top-40 h-96 w-96 rounded-full bg-[#FEE11C]/15 blur-3xl" />
+                <div className="absolute -bottom-52 -right-24 h-[32rem] w-[32rem] rounded-full bg-[#000000]/10 blur-3xl" />
             </div>
 
             <div className="relative mx-auto flex min-h-screen max-w-6xl items-center px-5 py-10 sm:px-8 lg:py-16">
-                <div className="grid w-full overflow-hidden rounded-[2rem] border border-white/80 bg-white shadow-[0_30px_90px_rgba(16,47,59,0.14)] lg:grid-cols-[1.06fr_0.94fr]">
-                    <section className="relative bg-[#102f3b] px-7 py-10 text-white sm:px-12 sm:py-14 lg:px-14 lg:py-16">
-                        <div className="absolute right-0 top-0 h-52 w-52 rounded-bl-full bg-[#2fc6b5]/10" aria-hidden="true" />
+                <div className="grid w-full overflow-hidden rounded-[2rem] border border-white/80 bg-white shadow-[0_30px_90px_rgba(0,0,0,0.14)] lg:grid-cols-[1.06fr_0.94fr]">
+                    <section className="relative bg-[#000000] px-7 py-10 text-white sm:px-12 sm:py-14 lg:px-14 lg:py-16">
+                        <div className="absolute right-0 top-0 h-52 w-52 rounded-bl-full bg-[#FEE11C]/10" aria-hidden="true" />
                         <Link href="/" className="relative inline-flex items-center gap-3">
                             <Image
                                 src="/logo-alt-text-pro.png"
@@ -197,7 +197,7 @@ export default function CustomerOfferPage() {
                         </Link>
 
                         <div className="relative mt-14 max-w-xl">
-                            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-[#7ee0d5]/25 bg-[#2fc6b5]/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] text-[#8be5da]">
+                            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-[#FEE11C]/25 bg-[#FEE11C]/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] text-[#FEE11C]">
                                 <Gift className="h-4 w-4" />
                                 WPGeared customer gift
                             </div>
@@ -216,7 +216,7 @@ export default function CustomerOfferPage() {
                                     "Keep unused bonus credits across monthly refills",
                                 ].map((benefit) => (
                                     <div key={benefit} className="flex items-start gap-3 text-slate-200">
-                                        <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-[#2fc6b5]/15 text-[#7ee0d5]">
+                                        <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-[#FEE11C]/15 text-[#FEE11C]">
                                             <Check className="h-4 w-4" strokeWidth={3} />
                                         </span>
                                         <span className="leading-6">{benefit}</span>
@@ -226,7 +226,7 @@ export default function CustomerOfferPage() {
                         </div>
 
                         <div className="relative mt-14 flex items-center gap-3 border-t border-white/10 pt-7 text-sm text-slate-400">
-                            <ShieldCheck className="h-5 w-5 text-[#7ee0d5]" />
+                            <ShieldCheck className="h-5 w-5 text-[#FEE11C]" />
                             One claim per invited customer account.
                         </div>
                     </section>
@@ -235,15 +235,15 @@ export default function CustomerOfferPage() {
                         <div className="w-full">
                             {isCheckingSession ? (
                                 <div className="flex min-h-[420px] flex-col items-center justify-center text-center">
-                                    <Loader2 className="h-10 w-10 animate-spin text-[#178e91]" />
+                                    <Loader2 className="h-10 w-10 animate-spin text-[#000000]" />
                                     <p className="mt-5 text-slate-600">Checking your account…</p>
                                 </div>
                             ) : claimComplete ? (
                                 <div className="text-center">
-                                    <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#dff7f2] text-[#11877f]">
+                                    <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#FFF9C4] text-[#000000]">
                                         <CheckCircle2 className="h-11 w-11" />
                                     </div>
-                                    <p className="mt-7 text-xs font-bold uppercase tracking-[0.2em] text-[#178e91]">
+                                    <p className="mt-7 text-xs font-bold uppercase tracking-[0.2em] text-[#000000]">
                                         Offer claimed
                                     </p>
                                     <h2 className="mt-3 font-outfit text-3xl font-semibold tracking-tight">
@@ -255,18 +255,18 @@ export default function CustomerOfferPage() {
                                             : claimResult?.message}
                                     </p>
 
-                                    <div className="my-8 rounded-2xl border border-[#cce9e5] bg-[#effaf8] p-6">
-                                        <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#178e91]">
+                                    <div className="my-8 rounded-2xl border border-[#FEE11C] bg-[#FFF9C4] p-6">
+                                        <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#000000]">
                                             Available credits
                                         </p>
-                                        <p className="mt-2 font-outfit text-5xl font-semibold text-[#102f3b]">
+                                        <p className="mt-2 font-outfit text-5xl font-semibold text-[#000000]">
                                             {Number(claimResult?.credits_remaining || 0).toLocaleString()}
                                         </p>
                                     </div>
 
                                     <Link
                                         href="/dashboard"
-                                        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#102f3b] px-6 py-4 font-semibold text-white transition hover:bg-[#174552]"
+                                        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#000000] px-6 py-4 font-semibold text-white transition hover:bg-[#222222]"
                                     >
                                         Go to my dashboard
                                         <ArrowRight className="h-5 w-5" />
@@ -276,19 +276,19 @@ export default function CustomerOfferPage() {
                                 <div>
                                     <div className="flex items-center justify-between gap-4">
                                         <div>
-                                            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#178e91]">
+                                            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#000000]">
                                                 Welcome back
                                             </p>
                                             <h2 className="mt-2 font-outfit text-3xl font-semibold tracking-tight">
                                                 Claim your customer bonus
                                             </h2>
                                         </div>
-                                        <Sparkles className="h-9 w-9 text-[#2aaba1]" />
+                                        <Sparkles className="h-9 w-9 text-[#000000]" />
                                     </div>
 
                                     <div className="mt-7 rounded-2xl border border-slate-200 bg-slate-50 p-4">
                                         <div className="flex items-start gap-3">
-                                            <Mail className="mt-0.5 h-5 w-5 shrink-0 text-[#178e91]" />
+                                            <Mail className="mt-0.5 h-5 w-5 shrink-0 text-[#000000]" />
                                             <div className="min-w-0">
                                                 <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                                                     Signed in as
@@ -318,7 +318,7 @@ export default function CustomerOfferPage() {
                                         type="button"
                                         onClick={handleClaim}
                                         disabled={isClaiming}
-                                        className="mt-7 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#2fc6b5] px-6 py-4 font-bold text-[#102f3b] shadow-[0_12px_30px_rgba(47,198,181,0.25)] transition hover:bg-[#49d3c3] disabled:cursor-wait disabled:opacity-65"
+                                        className="mt-7 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#FEE11C] px-6 py-4 font-bold text-[#000000] shadow-[0_12px_30px_rgba(254,225,28,0.30)] transition hover:bg-[#000000] disabled:cursor-wait disabled:opacity-65"
                                     >
                                         {isClaiming ? (
                                             <>
@@ -344,7 +344,7 @@ export default function CustomerOfferPage() {
                                 </div>
                             ) : (
                                 <div>
-                                    <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#178e91]">
+                                    <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#000000]">
                                         Invitation only
                                     </p>
                                     <h2 className="mt-2 font-outfit text-3xl font-semibold tracking-tight">
@@ -388,7 +388,7 @@ export default function CustomerOfferPage() {
                                                 required
                                                 autoComplete="email"
                                                 placeholder="you@example.com"
-                                                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 outline-none transition placeholder:text-slate-400 focus:border-[#2aaba1] focus:ring-4 focus:ring-[#2fc6b5]/10"
+                                                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 outline-none transition placeholder:text-slate-400 focus:border-[#000000] focus:ring-4 focus:ring-[#FEE11C]/10"
                                             />
                                         </label>
 
@@ -405,7 +405,7 @@ export default function CustomerOfferPage() {
                                                     minLength={6}
                                                     autoComplete={isLogin ? "current-password" : "new-password"}
                                                     placeholder={isLogin ? "Your password" : "At least 6 characters"}
-                                                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pr-12 outline-none transition placeholder:text-slate-400 focus:border-[#2aaba1] focus:ring-4 focus:ring-[#2fc6b5]/10"
+                                                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pr-12 outline-none transition placeholder:text-slate-400 focus:border-[#000000] focus:ring-4 focus:ring-[#FEE11C]/10"
                                                 />
                                                 <button
                                                     type="button"
@@ -419,7 +419,7 @@ export default function CustomerOfferPage() {
                                         </label>
 
                                         {authMessage && (
-                                            <div role="status" className="rounded-xl border border-[#cce9e5] bg-[#effaf8] p-4 text-sm leading-6 text-[#155f61]">
+                                            <div role="status" className="rounded-xl border border-[#FEE11C] bg-[#FFF9C4] p-4 text-sm leading-6 text-[#000000]">
                                                 {authMessage}
                                             </div>
                                         )}
@@ -427,7 +427,7 @@ export default function CustomerOfferPage() {
                                         <button
                                             type="submit"
                                             disabled={isAuthenticating}
-                                            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#102f3b] px-6 py-4 font-semibold text-white transition hover:bg-[#174552] disabled:cursor-wait disabled:opacity-60"
+                                            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#000000] px-6 py-4 font-semibold text-white transition hover:bg-[#222222] disabled:cursor-wait disabled:opacity-60"
                                         >
                                             {isAuthenticating ? (
                                                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -444,7 +444,7 @@ export default function CustomerOfferPage() {
                                             setIsLogin((login) => !login);
                                             setAuthMessage("");
                                         }}
-                                        className="mx-auto mt-5 block text-sm font-semibold text-[#178e91] hover:text-[#106f72]"
+                                        className="mx-auto mt-5 block text-sm font-semibold text-[#000000] hover:text-[#222222]"
                                     >
                                         {isLogin
                                             ? "New to Alt Text Pro? Create a free account"

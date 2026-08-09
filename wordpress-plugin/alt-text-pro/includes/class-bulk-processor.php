@@ -119,7 +119,7 @@ class AltTextPro_Bulk_Processor
         $monthly_credits_remaining = isset($usage_stats['data']['monthly_credits_remaining']) ? intval($usage_stats['data']['monthly_credits_remaining']) : null;
         $monthly_credits_used = isset($usage_stats['data']['monthly_credits_used']) ? intval($usage_stats['data']['monthly_credits_used']) : $credits_used;
         $subscription_plan = isset($usage_stats['data']['subscription_plan']) ? sanitize_text_field($usage_stats['data']['subscription_plan']) : 'free';
-        $subscription_plans = array('free', 'tier1', 'tier2', 'tier3', 'lite', 'standard', 'pro');
+        $subscription_plans = array('free', 'tier1', 'tier2', 'tier3', 'tier4', 'lite', 'standard', 'pro', 'agency');
 
         if ($credits_remaining <= 0) {
             wp_send_json_error(esc_html__('No credits remaining. Please upgrade your plan before starting bulk processing.', 'alt-text-pro'));

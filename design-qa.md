@@ -1,96 +1,101 @@
-# Alt Text Pro onboarding modal design QA
+# Design QA — Homepage hero reference
 
-- Source visual truth: `/var/folders/jq/fxyb971556jblqw43sff4fnr0000gn/T/TemporaryItems/NSIRD_screencaptureui_ULDTIk/Screenshot 2026-08-06 at 2.21.39 AM.png`
-- Browser-rendered implementation: `wordpress-plugin/tests/onboarding-modal-mobile.png`
-- Source pixels: 2360 × 1172. The source is the reported broken desktop state, not a fidelity target.
-- Implementation pixels/CSS viewport: 390 × 844 at 1× density.
-- Additional desktop evidence: browser-rendered 1440 × 900 inspection measured a 720 × 453 modal, two equal 319 × 236 cards, and equal 281 × 44 primary actions.
-- State: default connection modal, no validation or network response shown.
+## Latest addition — Screenshot-matched pricing section
 
-## Full-view comparison
+### Result
 
-The source establishes the defects to remove: mixed old markup/new styles, a wrapped connect icon, an orphaned manual-save action, uneven card rhythm, and a password-manager badge occupying the input. The implementation uses one shared modal structure on Dashboard and Settings, keeps both actions inside equal-height cards at desktop, and stacks the cards without horizontal overflow at 390 px.
+passed
 
-The comparison is improvement-based rather than a pixel-for-pixel recreation because the user explicitly asked to replace the broken visual treatment. No density normalization was used between the desktop defect reference and mobile responsive evidence. Desktop proportions were checked separately in the browser at the measurements recorded above.
+### Evidence
 
-## Focused region comparison
+- Source visual: `/Users/aamirfaiz/Desktop/Screenshot 2026-08-09 at 5.04.10 PM.png` (2126×1180).
+- Implementation capture: `/Users/aamirfaiz/Desktop/Projects/Alt-text/v3 - react to next - working/app-main/design-qa-pricing-local.png` (1485×942 browser viewport, logged-out localhost state).
+- Route: `http://localhost:3000/`, pricing section at `#pricing`.
+- Interaction check: Monthly is selected by default; Annual switches the Lite price to `$30` and Monthly returns it to `$3`. Plan CTAs remain wired to the existing selection flow.
+- Browser console check: zero errors after the local dev server restart.
 
-- Header: a dedicated fixed-size Dashicon now sits above a single unbroken heading; the close action uses a real Dashicon and a 36 × 36 target.
-- Automatic card: the recommendation label, copy, and full-width action form one vertical hierarchy; the arrow icon cannot shrink or wrap below the label.
-- Manual card: the API-key icon, input, dashboard help, validation region, and save action are grouped in one card. Supported password managers are asked not to inject controls into the API-key field.
-- Footer: the security statement is secondary and the defer action remains visually quiet.
-- Responsive layout: the 390 × 844 capture keeps all content and controls visible with no horizontal clipping.
+### Fidelity review
 
-## Required fidelity surfaces
+- Typography and hierarchy: centered `Pricing` eyebrow, oversized two-line headline, muted subtitle, and compact billing control follow the supplied composition.
+- Layout: four equal-height cards sit in one desktop row with generous gutters; card actions are anchored at the bottom and the Standard card uses the requested yellow outline, badge, and primary action.
+- Colors: warm off-white section background, white cards, black structure/text, muted gray secondary text, and `#FEE11C` brand accents match the reference and existing site tokens.
+- Copy and states: Free, Lite, Standard, and Pro labels, credit allowances, features, annual savings label, and disclaimer are represented; the active billing state is visible.
+- Remaining differences: the local viewport includes the existing sticky site navigation above the section, while the supplied visual is a section-only crop. This is intentional product chrome rather than a pricing fidelity issue.
 
-- Fonts and typography: preserves the WordPress/Alt Text Pro font stack and existing weights; heading, card title, body, label, and helper-text hierarchy remain distinct with controlled wrapping.
-- Spacing and layout rhythm: desktop cards are equal height with equal action dimensions; mobile cards use consistent internal padding and a centered divider.
-- Colors and visual tokens: preserves the existing primary teal, soft teal, neutral borders, white surfaces, and semantic success/error colors.
-- Image and icon quality: no new raster assets or approximated icons were introduced. Visible icons use the installed WordPress Dashicons library with explicit fixed sizing.
-- Copy and content: automatic and manual paths are named by outcome, the manual instructions point to the dashboard, and the storage note accurately says the key is encrypted before storage.
+### Comparison history
+
+1. Initial pricing pass — no P0/P1/P2 findings after aligning the card grid, heading scale, toggle, and featured-card treatment with the source visual.
+
+## Result
+
+passed
+
+## Latest addition — Media library showcase
+
+### Result
+
+passed
+
+### Evidence
+
+- Source visual: `/Users/aamirfaiz/Desktop/Screenshot 2026-08-09 at 1.13.52 PM.png` (1952×1216).
+- Desktop implementation capture: `/Users/aamirfaiz/Desktop/Projects/Alt-text/v3 - react to next - working/app-main/design-qa-media-library.png` (1952×1216 browser viewport, default density).
+- Mobile implementation capture: `/Users/aamirfaiz/Desktop/Projects/Alt-text/v3 - react to next - working/app-main/design-qa-media-library-mobile.png` (390×844 CSS viewport, default density).
+- Route: `http://localhost:3000/`, logged-out state.
+- Desktop comparison state: section heading, WordPress-style media-library shell, two media rows, centered “After Alt Text Pro” marker, and generated-alt-text card visible together. The existing sticky site navbar remains intentional product chrome; the supplied source is a section-only crop.
+- Responsive check: 390×844 document scroll width matched the viewport width with no horizontal overflow; the sidebar reflows into a compact two-column navigation and the media table remains contained in its own horizontal scroll region.
+- Browser console check: zero errors during the desktop and mobile captures.
+
+### Fidelity review
+
+- Typography: bold Outfit display heading and compact UI labels preserve the source hierarchy and wrapping.
+- Spacing and layout: centered heading/subtitle, rounded bordered shell, dark sidebar, table rhythm, overlap pill, and yellow result card follow the supplied composition.
+- Colors and tokens: white canvas, black structure, WordPress-style dark rail, muted blue UI labels, and `#FEE11C` result accent are consistent with the screenshot and current brand.
+- Image quality: existing `mountain-landscape.jpg` is reused for both media rows; the existing WordPress logo asset is cropped to its icon mark rather than replaced with a placeholder.
+- Copy: “Better alt text, automatically.”, “Media Library”, “After Alt Text Pro”, and generated description text match the supplied reference.
+
+### Comparison history
+
+1. Initial section pass — no P0/P1/P2 findings. The wide table is contained on mobile while preserving the desktop composition; remaining differences are limited to existing navbar chrome and the project’s available mountain asset.
+
+## Result
+
+passed
+
+## Evidence
+
+- Source visual: `/Users/aamirfaiz/Desktop/Screenshot 2026-08-09 at 3.15.15 AM.png` (2048×922).
+- Implementation capture: `/Users/aamirfaiz/Desktop/Projects/Alt-text/v3 - react to next - working/app-main/design-qa-hero-implementation.png` (2048×922, browser viewport, default density).
+- Responsive issue source: `/Users/aamirfaiz/Desktop/Screenshot 2026-08-09 at 11.15.37 AM.png` (2048×922 including browser chrome and display scaling).
+- Responsive implementation capture: `/Users/aamirfaiz/Desktop/Projects/Alt-text/v3 - react to next - working/app-main/design-qa-hero-responsive-1327x631.png` (1327×631 CSS viewport).
+- Responsive comparison: `/Users/aamirfaiz/Desktop/Projects/Alt-text/v3 - react to next - working/app-main/design-qa-responsive-comparison.jpg`. Because the source includes browser chrome and display scaling, the comparison evaluates normalized composition rather than one-to-one pixel density.
+- Local route: `http://localhost:3000/`.
+- Responsive check: 390×844 viewport; document scroll width matched the 390px client width with no horizontal overflow.
+- Responsive desktop check: at the user's 1327×631 CSS viewport, the headline, copy, both CTAs, credit note, image, and generated-alt-text card all end within the 631px fold, with no horizontal overflow.
+- Wide desktop check: 2048×922 retained the intended oversized two-line composition without overflow.
+- Interaction check: the image chooser, primary CTA, plugin link, copy control, sample alt text, and generated-alt-text panel were present; copy action displayed “Copied to clipboard!”.
+- Browser console check: zero errors after the responsive correction.
+
+## Comparison notes
+
+- The hero now follows the requested hierarchy: oversized two-line “Make Every Image Speak” headline, supporting copy, yellow/white CTAs, credit note, tilted image frame, and overlapping generated-alt-text card. The previously added WordPress publisher badge was removed after review.
+- Desktop geometry was tuned against the supplied 2048×922 reference after an initial pass exposed excess max-width margins. The final pass widened the hero canvas, matched the left-column rhythm, and aligned the image/card overlap.
+- The existing site navigation remains visible above the hero as product chrome; the supplied reference is a hero-only crop.
 
 ## Comparison history
 
-1. Initial review found a P1 markup/stylesheet mismatch, P1 detached manual action and wrapped icon, and P2 incorrect `aria-hidden` state when the dialog opened.
-2. Restored a shared modal template, moved actions into their cards, fixed icon sizing and responsive rules, replaced text-symbol status marks with Dashicons, and synchronized the dialog's accessibility state.
-3. Post-fix browser review found no actionable P0/P1/P2 visual issues. The mobile screenshot and desktop measurements confirm stable sizing and responsive behavior.
+1. Initial implementation — P1: hero was constrained by the previous `max-w-7xl` wrapper and sat too far inward at the reference viewport.
+2. Wide-canvas pass — resolved the P1 by using a 1920px hero canvas and rebalancing the desktop columns and visual panel widths.
+3. Typography/rhythm pass — resolved remaining P2 spacing and scale differences by matching the headline, paragraph line height, CTA rhythm, and panel overlap at the reference viewport.
+4. Final QA — no remaining P0/P1/P2 findings. P3 follow-ups are limited to the reference photo being represented by the existing `mountain-landscape.jpg` asset and the WordPress marks using lightweight text treatments because the project’s existing logo asset is a horizontal lockup.
+5. Review adjustment — removed the full-width publisher badge and left the existing navbar dimensions unchanged; the top navigation remains the same 106px rendered height at the reference desktop viewport.
+6. Responsive fold correction — P1: the 1280px `xl` breakpoint changed the headline to a fixed 160px size, wrapping it across four lines and pushing the supporting content below the user's 631px-high viewport. Replaced the breakpoint jump with fluid headline scaling, reserved ultra-wide offsets for viewports of at least 1800px, and tightened medium-desktop vertical spacing and card padding. Rechecked the logged-out localhost homepage at the top of the page; no P0/P1/P2 findings remain.
 
-## Residual test limits
+## Release state
 
-- Opening the real Alt Text Pro authentication popup was not exercised because it would enter an external account flow. Its default, loading, blocked-popup, success, and error presentation is implemented with the same fixed icon/status system.
-- Browser console inspection during the stable desktop capture showed no warnings or errors.
+- Local-only change; no production site, Netlify deploy, Supabase data, or WordPress.org content was mutated.
+- `npx tsc --noEmit`: passed.
+- `npm test -- --run`: passed (7 files, 52 tests).
+- `npm run build`: passed; existing lint warnings remain outside this hero change.
 
-final result: passed
-
----
-
-# Alt Text Pro automatic-connect recovery design QA
-
-- Source visual truth: `/var/folders/jq/fxyb971556jblqw43sff4fnr0000gn/T/TemporaryItems/NSIRD_screencaptureui_maqn4U/Screenshot 2026-08-06 at 2.22.45 AM.png`
-- State: authenticated automatic-connect fallback after WordPress acknowledgement could not be confirmed.
-- Source pixels: 1000 × 1178. The screenshot is defect evidence, not a fidelity target.
-
-## Full-view comparison
-
-The source shows raw, unstyled markup: an oversized key icon, edge-to-edge text, a fully visible API key, and no trustworthy product framing. Code inspection confirmed that this was deterministic: the fallback returned before the page's scoped stylesheet mounted.
-
-The corrected state uses the existing Alt Text Pro teal and neutral palette in a centered 470 px card, constrains typography and spacing, groups the warning and recovery actions, and responds below 520 px without horizontal overflow. Shared styling now covers loading, confirmation, connecting, success, and recovery states instead of only the sign-in form.
-
-## Focused region comparison
-
-- Brand and hierarchy: the real Alt Text Pro logo, a fixed-size Lucide key icon, an eyebrow, and a concise heading establish product context.
-- Status: the failed acknowledgement is presented as a contained warning, followed by reassurance that the account is safe.
-- Secret handling: the API key is password-masked by default, supports deliberate reveal/hide, and has a separate copy action. Password-manager suppression attributes reduce intrusive overlays.
-- Instructions: three numbered steps replace the long inline path and keep the fallback actionable.
-- Accessibility: visible keyboard focus, semantic labels, a status region, hidden decorative icons, and full-width mobile actions are included.
-
-## Comparison history
-
-1. The defect screenshot and source review identified a P1 stylesheet lifecycle failure and a P1 secret-exposure problem.
-2. Added a shared state stylesheet and redesigned the fallback around a compact recovery card.
-3. Added regression checks for shared state styling and default key masking; TypeScript, the full test suite, and a production build pass.
-
-## Residual test limits
-
-- The authenticated failure state was not recreated with a real account because that would resend a live API key during verification.
-- Responsive behavior was reviewed from the rendered CSS rules and production compilation, not a second browser screenshot. A post-deploy smoke test with a rotated test key remains the release gate.
-
-final result: passed with post-deploy visual smoke test required
-
----
-
-# Alt Text Pro connection form branding polish
-
-- Source visual truth: `/var/folders/jq/fxyb971556jblqw43sff4fnr0000gn/T/TemporaryItems/NSIRD_screencaptureui_Cx9GpW/Screenshot 2026-08-06 at 2.54.01 AM.png`
-- State: unauthenticated connection form in the local preview.
-
-## Focused review
-
-The review found two visual inconsistencies: the logo did not have an explicit centered block layout, and the primary form action still used an unrelated indigo-to-purple gradient. The logo now centers against the form content column, while the primary action, focus treatment, confirmation state, and account toggle use the existing Alt Text Pro teal family.
-
-## Verification
-
-- Added focused regression assertions for centered logo layout and removal of the stale purple palette.
-- Full frontend suite passes 7 files/32 tests; TypeScript passes; and `git diff --check` passes.
-
-final result: passed
+Final result: passed

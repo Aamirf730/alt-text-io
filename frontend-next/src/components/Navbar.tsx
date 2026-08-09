@@ -132,7 +132,7 @@ const Navbar = ({ onSignInClick, onSignUpClick }: NavbarProps) => {
                                         Dashboard
                                     </Button>
                                     <Button
-                                        className="bg-notebook-blue text-white hover:bg-notebook-blue/90 font-semibold px-6 py-2.5 rounded-full shadow-notebook transition-all duration-300"
+                                        className="bg-notebook-teal text-notebook-black hover:bg-notebook-teal/90 font-semibold px-6 py-2.5 rounded-full shadow-notebook transition-all duration-300"
                                         onClick={handleSignOut}
                                     >
                                         Sign Out
@@ -148,10 +148,10 @@ const Navbar = ({ onSignInClick, onSignUpClick }: NavbarProps) => {
                                         Sign In
                                     </Button>
                                     <Button
-                                        className="bg-notebook-blue text-white hover:bg-notebook-blue/90 font-semibold px-6 py-2.5 rounded-full shadow-notebook transition-all duration-300 flex items-center gap-2"
+                                        className="bg-notebook-teal text-notebook-black hover:bg-notebook-teal/90 font-semibold px-6 py-2.5 rounded-full shadow-notebook transition-all duration-300 flex items-center gap-2"
                                         onClick={handleSignUp}
                                     >
-                                        Get 30 Free Credits
+                                        Get 150 Free Credits
                                     </Button>
                                 </>
                             )}
@@ -229,7 +229,7 @@ const Navbar = ({ onSignInClick, onSignUpClick }: NavbarProps) => {
                                             Dashboard
                                         </Button>
                                         <Button
-                                            className="w-full bg-notebook-blue text-white hover:bg-notebook-blue/90 font-semibold px-6 py-2.5 rounded-full"
+                                            className="w-full bg-notebook-teal text-notebook-black hover:bg-notebook-teal/90 font-semibold px-6 py-2.5 rounded-full"
                                             onClick={handleSignOut}
                                         >
                                             Sign Out
@@ -245,10 +245,10 @@ const Navbar = ({ onSignInClick, onSignUpClick }: NavbarProps) => {
                                             Sign In
                                         </Button>
                                         <Button
-                                            className="w-full bg-notebook-blue text-white hover:bg-notebook-blue/90 font-semibold px-6 py-2.5 rounded-full"
+                                            className="w-full bg-notebook-teal text-notebook-black hover:bg-notebook-teal/90 font-semibold px-6 py-2.5 rounded-full"
                                             onClick={handleSignUp}
                                         >
-                                            Get 30 Free Credits
+                                            Get 150 Free Credits
                                         </Button>
                                     </>
                                 )}

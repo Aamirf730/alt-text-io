@@ -1,6 +1,313 @@
 # Progress
 
-## 2026-08-07: M3 credit reservations released
+## 2026-08-10: Production checkout variables aligned; deploy upload blocked
+
+- Verified access to the correct Netlify production project `www.alt-text.pro` and updated all eight production-context subscription variables to the new Polar product IDs; unchanged Free and credit-pack IDs were left intact.
+- Three local-source deploy attempts reached Netlify but returned HTTP 500 from the deployment upload endpoint before a deploy ID was created. Direct public verification still shows the previous Free/Lite/Standard/Pro catalogue, so the production site still serves the previous code build; old Polar subscription products remain active to protect existing checkout.
+- Added explicit generated/local-directory exclusions to `.netlifyignore`; local build, tests, typecheck, migration checks, and Polar/Supabase verification remain passing.
+
+## 2026-08-10: Applied pricing catalogue to Polar and Supabase
+
+- Created and verified eight new Polar subscription products with the requested monthly/yearly prices, intervals, `plan_id`, `type`, and annual/monthly `credits` metadata; updated the existing $5 and $10 pack names, metadata, and Polar meter benefits to 500 and 1,200 credits.
+- Updated the local `frontend-next/.env.local` checkout IDs to the new Polar subscription products; existing pack IDs remain unchanged.
+- Applied Supabase migration `apply_2026_08_pricing_packages` to production project `ALT-Text-Ai`, verified the new catalogue, Agency constraint support, `polar_product_id`, paid-profile allowance pins, and reservation functions. Applied follow-up `activate_tier4_catalogue` after verification caught the pre-existing inactive tier4 row; Agency is now active.
+- Old Polar subscription products remain active until the new code build is live and a checkout smoke test can be completed; no customer-facing checkout was broken.
+
+## 2026-08-10: Kept Standard allowance label on one line
+
+- Reduced the Standard pricing card’s “1,000 credits every month” label to 14px and prevented wrapping so the annual pricing view keeps the allowance on a single line.
+- Verification: frontend tests (7 files/55 tests), TypeScript typecheck, `git diff --check`, and local desktop browser verification passed; the rendered label measured one line with `white-space: nowrap`.
+- Release state: local implementation only; no production system was mutated.
+
+## 2026-08-10: Pricing and packages update planning completed
+
+- Read `PRICING_PACKAGES_UPDATE_PLAN.md` from line 1 through line 1254 and mapped its catalogue, grandfathering, signup-bonus, credit-pack, UI, plugin, test, deployment, verification, and rollback requirements into an execution sequence.
+- Repository preflight found one required addition to the supplied plan: the active `reserve_credit()` and `finalize_credit_reservation()` definitions still recognize monthly plans through a hardcoded list that omits `tier4`; the new pricing migration must preserve those functions while adding `tier4` to the recognized-plan checks.
+- Planning only: no application code, database, Polar, Netlify, WordPress.org, or live WordPress changes were made.
+
+## 2026-08-10: Pricing and packages implementation in progress
+
+- Added the forward Supabase migration for the 2026-08 catalogue, grandfathered allowances, persistent signup bonus, free-plan renewal/revocation behavior, and Agency plan constraint support.
+- Preserved the reservation engine while adding `tier4`/`agency` to the active reservation and finalization plan checks; historical migrations remain unchanged.
+- Updated local Polar mappings, webhook allowance resolution, API limits, pricing cards, checkout copy, dashboard upgrade options, documentation, terms, and WordPress plugin Agency support/version metadata.
+- Verification so far: pricing-plan mapping tests, Polar webhook tests, API-key limit tests, migration-chain tests, JavaScript syntax checks, PHP syntax check, and `git diff --check` pass.
+- Release state: local implementation only; no Supabase, Polar, Netlify, WordPress.org, or live WordPress mutation has been performed.
+
+## 2026-08-09: Softened featured pricing card background locally
+
+- Added a pale-yellow background to the highlighted Standard pricing card while preserving the yellow border, “Most popular” badge, and primary CTA.
+- Release state: local change pending the next production deploy; no live system was mutated in this edit.
+
+## 2026-08-09: Applied supplied logo across website and plugin locally
+
+- Replaced the shared website logo, Next.js app icon, plugin admin logo, and WordPress.org icon assets with the supplied `alt-text-pro.png` artwork.
+- Rebuilt the plugin ZIPs and frontend download copies so distributed plugin packages include the new logo.
+- Verification: asset hashes match the supplied source for the full-size website/plugin logos; TypeScript and `git diff --check` passed.
+- Release state: local change pending an explicitly requested production deploy; no live site or WordPress.org mutation was performed.
+
+## 2026-08-09: Highlighted one-credit image pricing locally
+
+- Added prominent yellow “1 credit per image” messaging below the hero CTAs, in the benefits strip, and beneath the pricing cards.
+- Kept the message positive and clear: “Simple, transparent pricing for every image.”
+- Release state: local change pending the next production deploy; no live system was mutated in this edit.
+
+## 2026-08-09: Removed duplicate dashboard plugin download action
+
+- Kept the primary “Download Plugin” action in the dashboard header and removed the duplicate download button from the first-run setup card, leaving its Setup Guide link in place.
+- Release state: local change pending the next production deploy; no live system was mutated in this edit.
+
+## 2026-08-09: Published current design to production
+
+- Deployed the current original `frontend-next` design to the linked Netlify production site `https://www.alt-text.pro` using deploy `6a7885ca3bceee54d9c19a0c` and unique URL `https://6a7885ca3bceee54d9c19a0c--alt-text-ai.netlify.app`.
+- Verification: frontend tests passed (7 files/52 tests), the full Netlify build completed successfully, the public homepage returned HTTP 200 with “Good answers”, “Transparent Usage”, and the FAQ copy, and `/api/health` reported production healthy.
+- Release state: live production deployment completed; no Supabase schema/data mutation was performed.
+
+## 2026-08-09: Renamed credit benefit locally
+
+- Renamed the benefit to exactly “Transparent Usage,” keeping its explanatory line unchanged.
+- Release state: local only at `http://localhost:3000/`; no live site or production system was changed.
+
+## 2026-08-09: Reframed credit transparency benefit locally
+
+- Replaced the negative “Failed requests use 0 credits” benefit with “Transparent use of credits” and “See exactly how each credit is used.”
+- Release state: local only at `http://localhost:3000/`; no live site or production system was changed.
+
+## 2026-08-09: Replaced final CTA with FAQ section locally
+
+- Replaced the “Connect Your Site / And Generate One.” CTA with the supplied FAQ composition: left-side “Good answers, before you start.” copy and CTA, plus an interactive accordion for credit usage, media-library processing, WooCommerce support, and credit rollover.
+- Release state: local only at `http://localhost:3000/`; no live site or production system was changed.
+
+## 2026-08-09: Clarified social-proof section copy locally
+
+- Replaced the vague “Loved by early adopters” message with clearer, evidence-neutral copy focused on accessible WordPress workflows and accurate SEO-friendly alt text.
+- Release state: local only at `http://localhost:3000/`; no live site or production system was changed.
+
+## 2026-08-09: Branded all toast notifications locally
+
+- Updated the shared Sonner notification layer so success, error, warning, info, and loading notifications use the brand yellow `#FEE11C` background, black text/icons, and a visible yellow border.
+- Kept the existing notification behavior and dismissal controls unchanged.
+- Release state: local only at `http://localhost:3000/`; no live site or production system was changed.
+
+## 2026-08-09: Moved benefits strip below hero locally
+
+- Repositioned the benefits strip directly after the hero and before the media-library showcase so the key value points appear earlier in the page flow.
+- Release state: local only at `http://localhost:3000/`; no live site or production system was changed.
+
+## 2026-08-09: Added benefits strip locally
+
+- Added a four-column benefits strip between the media-library showcase and setup steps, matching the supplied reference with bulk generation, 130+ languages, context-aware generation, and zero-credit failed requests messaging.
+- The strip is responsive: columns stack on narrow screens and use separators on desktop.
+- Release state: local only at `http://localhost:3000/`; no live site or production system was changed.
+
+## 2026-08-09: Removed the reliability feature section locally
+
+- Removed the complete “Built for Reliability” section, including its heading, description, and four feature cards, as requested.
+- Release state: local only at `http://localhost:3000/`; no live site or production system was changed.
+
+## 2026-08-09: Removed remaining showcase title icons locally
+
+- Removed the sparkle, checkmark, and arrow symbols from the media-library showcase labels so “Generated alt text”, “Ready to use”, and “After Alt Text Pro” display as plain text.
+- Functional controls such as the search affordance and copy control remain available.
+- Release state: local only at `http://localhost:3000/`; no live site or production system was changed.
+
+## 2026-08-09: Clarified setup section copy locally
+
+- Replaced the abstract “First Alt Text” heading and longer setup-path sentence with clearer outcome-focused copy: “From Upload to Alt Text” and “Connect WordPress, generate accurate descriptions, and keep every image accessible from the start.”
+- Release state: local only at `http://localhost:3000/`; no live site or production system was changed.
+
+## 2026-08-09: Normalized section spacing locally
+
+- Reduced the bottom space after the media-library showcase so “First Alt Text Without Guesswork.” starts closer to the preceding section.
+- Standardized the visible long-form sections on the same `py-24` vertical rhythm so their top and bottom spacing stays consistent across the page.
+- Release state: local only at `http://localhost:3000/`; no live site or production system was changed.
+
+## 2026-08-09: Simplified decorative text icons locally
+
+- Removed decorative icons before “Generated alt text”, “Ready to use”, “Optimized Alt Text”, and research “Generated Alt Text” labels.
+- Kept the copy icon and loading spinner because they communicate functional controls and in-progress state.
+- Release state: local only at `http://localhost:3000/`; no live site or production system was changed.
+
+## 2026-08-09: Matched setup status yellow to primary buttons locally
+
+- Updated the SEO status control to use the same `#FEE11C` yellow as the primary “Get 30 Free Credits” button, with black text and a slightly darker yellow border.
+- Release state: local only at `http://localhost:3000/`; no live site or production system was changed.
+
+## 2026-08-09: Improved setup status contrast locally
+
+- Removed the decorative check icons from the “Accessibility Standards” and “SEO Rank 1” status controls.
+- Replaced the pale SEO accent with a darker yellow (`#D4B000`) and black text for clearer readability.
+- Release state: local only at `http://localhost:3000/`; no live site or production system was changed.
+
+## 2026-08-09: Aligned the third setup marker locally
+
+- Anchored the large `03` background numeral to the “Review + Save” text block so it sits behind the heading like the first two setup steps.
+- Release state: local only at `http://localhost:3000/`; no live site or production system was changed.
+
+## 2026-08-09: Removed duplicate setup step markers locally
+
+- Removed the smaller yellow `01`, `02`, and `03` pills from the setup headings, leaving the large background numerals as the single step markers.
+- Release state: local only at `http://localhost:3000/`; no live site or production system was changed.
+
+## 2026-08-09: Setup step numbers switched to brand yellow locally
+
+- Updated the `01`, `02`, and `03` markers in the homepage setup path to use `#FEE11C` with black text, and changed their oversized background numerals to a soft yellow tint.
+- Release state: local only at `http://localhost:3000/`; no live site or production system was changed.
+
+## 2026-08-09: Gave media search group a responsive width locally
+
+- Added a responsive max-width to the search-label/input group so the field no longer collapses to its icon when the row is laid out at the right edge of the media panel.
+- Release state: local only at `http://localhost:3000/`; no live site or production system was changed.
+
+## 2026-08-09: Made media search width responsive locally
+
+- Replaced the fixed minimum width with a flexible search field that fills the remaining row space up to 300px, preventing narrow viewports from pushing the input off-screen.
+- Release state: local only at `http://localhost:3000/`; no live site or production system was changed.
+
+## 2026-08-09: Prevented media search field compression locally
+
+- Added a 220px minimum width and disabled flex shrinking on the media-library search field so the input remains visibly wide beside the “Search media” label instead of collapsing to an icon-sized box.
+- Release state: local only at `http://localhost:3000/`; no live site or production system was changed.
+
+## 2026-08-09: Media search field widened locally
+
+- Increased the media-library search field from 220px to 300px so it has the wider proportion shown in the supplied reference while keeping the “Search media” label on one line.
+- Release state: local only at `http://localhost:3000/`; no live site or production system was changed.
+
+## 2026-08-09: Media search label kept on one line locally
+
+- Prevented the “Search media” label in the media-library showcase from wrapping by preserving its intrinsic width at narrower desktop layouts.
+- Release state: local only at `http://localhost:3000/`; no live site or production system was changed.
+
+## 2026-08-09: Screenshot-matched pricing section added locally
+
+- Replaced the active homepage pricing presentation with a warm four-card Free/Lite/Standard/Pro layout matching the supplied reference, including the centered heading, black monthly/annual toggle, yellow Standard highlight, “Most popular” badge, and screenshot-aligned copy.
+- Preserved the existing monthly/annual price data and plan-selection behavior; the previous markup remains hidden under `legacy-pricing` for safe reference.
+- Verification: TypeScript, frontend tests (7 files/52 tests), production build, and `git diff --check` passed. Local browser shows the pricing cards and toggle with no console errors.
+- Release state: local only at `http://localhost:3000/`; no live site or production system was changed.
+
+## 2026-08-09: Showcase section moved closer to the hero locally
+
+- Reduced only the top padding above “Better alt text, automatically.”, bringing the showcase closer to the hero while preserving its internal heading-to-card spacing and bottom rhythm.
+- Verification: at the current 995×631 localhost viewport, the hero-to-showcase heading gap is now approximately 64px with no horizontal overflow; TypeScript and `git diff --check` passed.
+- Release state: local only at `http://localhost:3000/`; no live site or production system was changed.
+
+## 2026-08-09: Hero side spacing made visible at normal desktop widths
+
+- Reworked the previous wide-only adjustment so the hero now adds approximately 15px of left/right padding at desktop widths generally, including the current sub-1024px browser viewport.
+- Restored the 1800px canvas, applied `sm:px-[47px]`, and kept `calc(2vw + 15px)` at the large breakpoint so the change is visible in localhost while preserving the tighter center relationship.
+- Release state: local only at `http://localhost:3000/`; no live site or production system was changed.
+
+## 2026-08-09: Hero side spacing nudged further locally
+
+- Reduced the wide hero canvas from `1800px` to `1770px`, adding approximately 15px more margin on both sides while preserving the existing column alignment and header sizing.
+- Release state: local only at `http://localhost:3000/`; no live site or production system was changed.
+
+## 2026-08-09: Hero side margins increased locally
+
+- Narrowed the wide desktop hero canvas from `1920px` to `1800px`, adding balanced left/right breathing room so the headline and visual panel sit closer together through the center.
+- Kept the existing header, copy, image treatment, and responsive breakpoints unchanged.
+- Verification: at 2048×922 the hero content now sits inside a 1800px canvas with the headline and image panel visibly closer; TypeScript and `git diff --check` passed.
+- Release state: local only at `http://localhost:3000/`; no live site or production system was changed.
+
+## 2026-08-09: Local preview asset manifest refreshed
+
+- The localhost tab briefly rendered unstyled HTML because the running Next dev process held an outdated CSS manifest after the production build regenerated `.next` assets.
+- Restarted only the local `frontend-next` dev server. CSS now returns successfully and the showcase renders both mountain thumbnails, the generated-alt-text card, and the full layout again.
+- Release state: local only at `http://localhost:3000/`; no application code or live system was changed for this recovery.
+
+## 2026-08-09: Media library showcase section added locally
+
+- Added a responsive WordPress media-library proof section to the original `frontend-next` homepage directly below the hero and above the existing “How It Works” section.
+- Matched the supplied reference with the centered “Better alt text, automatically.” heading, WordPress-style sidebar, media table, before/after rows, and yellow generated-alt-text result card using existing project imagery and brand tokens.
+- Verification: browser-rendered desktop capture at 1952×1216 and mobile capture at 390×844; no horizontal overflow or browser console errors; TypeScript check, frontend tests (7 files/52 tests), production build, and `git diff --check` passed. Evidence is recorded in `design-qa.md`.
+- Release state: local only at `http://localhost:3000/`; no live site, deployment, or production system was changed.
+
+## 2026-08-09: Homepage hero columns brought closer locally
+
+- Reduced the horizontal gap between the hero's left text column and right visual column on the original homepage by tightening the hero grid spacing in `frontend-next/src/app/page.tsx` and nudging the right visual block left on desktop.
+- Scope stayed limited to the top hero layout; no content, branding, or lower-page sections were changed.
+- Release state: local only at `http://localhost:3000/`; no live site, deployment, or production system was changed.
+
+## 2026-08-09: Responsive hero fold fix completed locally
+
+- Corrected the homepage hero at the user's 1327×631 CSS viewport, where the previous 1280px breakpoint enlarged the headline to 160px, wrapped it across four lines, and pushed the supporting content below the fold.
+- Replaced the fixed desktop jump with fluid headline scaling, limited ultra-wide spacing and offsets to viewports of at least 1800px, and tightened the medium-desktop CTA, note, visual-panel, and generated-text-card spacing.
+- Verified the logged-out localhost homepage at the top of the page: headline, copy, both CTAs, credit note, image, and generated-alt-text card all fit within the 631px fold with no horizontal overflow. Mobile 390×844 and wide desktop 2048×922 checks also pass, and the browser console reports zero errors.
+- Evidence: `design-qa-hero-responsive-1327x631.png`, `design-qa-responsive-comparison.jpg`, and the updated `design-qa.md` with final result `passed`.
+- Verification: TypeScript passed; frontend tests passed 7 files/52 tests; `git diff --check` passed.
+- Release state: local only at `http://localhost:3000/`; no live site or production system was changed.
+
+## 2026-08-09: Live header sizing comparison completed
+
+- Compared `https://www.alt-text.pro/` and `http://localhost:3000/` at the same 1280px viewport.
+- Both headers render the same 960×74 inner menu and 106px total navigation height. No header sizing change was made.
+- Correction: authentication changes the positions of the inner link group but does not change the header's outer dimensions. The misleading visual difference came from leaving the localhost preview at the 2048×922 QA viewport while comparing it with the live site at the normal 1280×720 viewport.
+- Reset the localhost preview to the normal viewport so the fixed-width header displays at the same apparent scale as the live site.
+- Release state: local only; no live-site mutation was performed.
+
+## 2026-08-09: Homepage hero review adjustment completed locally
+
+- Removed the full-width WordPress publisher badge from the original homepage hero at the user's request.
+- Kept the existing top navigation structure and sizing unchanged; only its already-approved yellow brand color remains.
+- Verified at `http://localhost:3000/` with the badge absent and the navbar still rendering at the existing 106px desktop height.
+- Release state: local only; no production or live system mutation was performed.
+
+## 2026-08-09: Homepage hero reference implementation in progress
+
+- Status: implementing the supplied 2048×922 hero reference in the original `frontend-next` homepage.
+- Scope: match the oversized two-line headline, WordPress publisher badge, yellow/white CTA pair, supporting credit note, tilted mountain image card, and generated-alt-text panel while keeping image upload, generation, and copy interactions functional.
+- Release state: local only; no production deployment or live system mutation is authorized.
+
+## 2026-08-09: Homepage hero reference implementation completed locally
+
+- Status: complete in the original `frontend-next` homepage.
+- Result: rebuilt the hero around the supplied reference with the WordPress publisher badge, `Make Every Image Speak` headline, yellow/white CTA pair, credit note, tilted mountain image panel, generated-alt-text card, and responsive mobile stacking.
+- Interaction coverage: preserved image selection and generation flow; verified the hero image chooser, CTAs, copy control, sample alt text, and clipboard toast in the localhost browser.
+- Visual QA: passed at 2048×922 against the supplied screenshot; mobile 390×844 has no horizontal overflow. Full evidence is recorded in `design-qa.md`.
+- Verification: TypeScript check passed; frontend tests passed 7 files/52 tests; production build passed with existing non-blocking lint warnings.
+- Release state: local only at `http://localhost:3000/`; no production site, Netlify, Supabase, WordPress.org, or live WordPress mutation was performed.
+
+## 2026-08-08: Full product brand rollout in progress
+
+- Status: implementation in progress across the original `frontend-next` app, WordPress plugin, reusable logo assets, generated WordPress.org artwork, Netlify email/report templates, and customer email templates.
+- Scope: standardize on white, black, and `#FEE11C` yellow; keep semantic status colors where they communicate success/warning/error; preserve the homepage hero copy `Make Every Image Speak`.
+- Completed in this pass: plugin CSS tokens and CTA treatments, plugin release metadata bump to 1.7.15, WordPress.org artwork generator palette, generated listing assets, shared logo recolor, lifecycle/contact/funnel email brand styles, and customer-offer email palette.
+- Release state: local only; no Netlify, Supabase, WordPress.org, or live WordPress mutation is authorized or performed. Rebuilds and verification remain before completion.
+
+## 2026-08-08: Full product brand rollout completed locally
+
+- Status: complete locally across the original website/SaaS app, customer-offer and WordPress connection flows, plugin admin UI, shared logo files, WordPress.org listing assets, Netlify email/report templates, and the customer-offer email.
+- Brand system: white canvas, black structure/text, and yellow `#FEE11C` for primary actions, highlights, borders, and brand accents. Semantic success, warning, and error colors remain where they convey state rather than brand identity.
+- Hero copy: homepage now reads `Make Every Image Speak`.
+- Plugin release: bumped source/readme metadata to 1.7.15 and rebuilt `wordpress-plugin/alt-text-pro-plugin-1.7.15.zip`, stable plugin ZIPs, and frontend download copies.
+- Verification: frontend production build passes; frontend tests pass 7 files/52 tests; Netlify-function tests pass 20 files/163 tests; all plugin PHP files lint clean; plugin JS and asset-generator Python syntax checks pass; ZIP contents/version/legacy-color checks pass; `git diff --check` passes; clean localhost browser preview at `http://localhost:3000/` shows the new headline and palette with no console errors.
+- Release state: local only. The live site and WordPress.org remain unchanged pending explicit deployment/release approval.
+
+## 2026-08-08: Original frontend brand revision completed locally
+
+- Status: complete locally in `frontend-next` after clarifying that the original application files are the target.
+- Scope: apply the white/black/`#FEE11C` brand palette across shared theme tokens and existing UI surfaces, and change the homepage hero headline to `Make Every Image Speak`.
+- Release state: local only; no Netlify, Supabase, WordPress.org, or live WordPress mutation is authorized or performed.
+- Verification: Next.js production build passes; frontend tests pass 7 files/52 tests; the original app is running at `http://localhost:3000/`.
+
+## 2026-08-08: Alt Text Pro prototype brand revision completed locally
+
+- Status: complete locally in `alt-text-pro-new-design/`.
+- Scope: replace the teal-led prototype accent system with white, `#FEE11C` yellow, and black, and change the hero headline to `Make Every Image Speak`.
+- Release state: local prototype only; no production website, deployment, Supabase, WordPress.org, or live WordPress changes are authorized or performed.
+- Verification: prototype production build passes; Sites packaging tests pass 4/4.
+
+## 2026-08-08: Isolated Alt Text Pro website redesign completed locally
+
+- Status: option 1 selected and implemented in the new `alt-text-pro-new-design/` prototype folder. No production, deployment, Supabase, WordPress.org, live WordPress, or existing `frontend-next` application changes were made.
+- Scope: create a completely new Alt Text Pro marketing-site concept in a separate folder, inspired by the supplied Hanzo Framer reference while retaining Alt Text Pro's WordPress, accessibility, image-SEO, 30-free-credit, and existing brand context.
+- Evidence: captured the supplied Hanzo reference at a 1440 px desktop canvas, reviewed its hero and section rhythm, inspected the local Alt Text Pro logo, brand tokens, current positioning, pricing, and core conversion path, then produced three independent 1440 px-wide, scrollable homepage concepts grounded in those inputs.
+- Decision: implement the first displayed concept, using the exact selected image `exec-4fd44629-b8cc-4789-8aff-8c173e147841.png` as the visual source of truth.
+- Result: the responsive React homepage includes the source-matched hero, media-library demonstration, workflow/proof strip, full pricing, FAQ, footer, local signup/sign-in flow, mobile menu, pricing switch, and generation replay.
+- Verification: the local production build passes; Sites packaging tests pass 4/4; browser interaction checks pass; the clean prototype-page run has no console warnings/errors and there is no horizontal overflow at 390, 834, and 864 px; `alt-text-pro-new-design/design-qa.md` records `final result: passed` after a responsive-fidelity fix iteration. The internal cross-frame comparison wrapper later produced four no-source browser-instrumentation `MutationObserver` errors, with no matching application code.
+- Next gate: user review. Sharing or deployment remains a separate, explicitly authorized action.
+
+## 2026-08-07: M8 stale legacy surface removed locally
 
 - Status: M3 is live. The reviewed reservation path was isolated from the older source commit so the released M4 per-credential limiter and M5 hash-based API-key validation remained intact. Source, migration, regression test, and release documentation are committed as `5dc6eee` and pushed to `main`.
 - Production migration: the preflight confirmed that `credit_reservations`, `reserve_credit`, `finalize_credit_reservation`, and `release_credit_reservation` were absent. The migration applied successfully; the table and all three RPCs are present, RLS is enabled, and only `service_role` can execute the lifecycle operations. Supabase initially recorded generated version `20260806220451`; the ledger was reconciled to repository version `20260806143048` and name `reserve_credits_before_ai_generation`.
