@@ -1,5 +1,11 @@
 # Progress
 
+## 2026-08-10: Staging verification found a stale deployment; refreshed deploy path
+
+- The first direct Agency monthly sandbox checkout against staging used the August 5 manual deployment `6a73430…`, which predated the pricing release. Its payment row incorrectly resolved the product name `Alt Text Pro — Agency Monthly` to `tier3` because that stale build did not contain the reviewed Agency-before-Pro matcher; no production data was affected.
+- Added `.git/` to `.netlifyignore` after the staging source-upload path returned HTTP 500 during a large local upload; this excludes repository internals from deploy payloads without changing the application bundle. The reviewed `main` code already contains the correct `tier4` mapping and passing regression tests.
+- A clean staging account and profile are ready for a retest after the current reviewed source is deployed. The earlier staging 1,200-credit pack smoke test already proved `credit_pack` payment completion, `credit_pack_grants.credits = 1200`, and `purchased_credits_remaining = 1200` on the isolated staging profile.
+
 ## 2026-08-10: WordPress.org 1.7.16 release published and verified
 
 - Corrected the release readme before finalizing: added the required 1.7.16 changelog entry covering Agency support and the 150 signup + 15 monthly free allowance. Rebuilt the distributed website plugin ZIPs so the same changelog is included in the downloadable package.
