@@ -1,5 +1,12 @@
 # Progress
 
+## 2026-08-10: Pricing catalogue deployed and live checks completed
+
+- Promoted the main-based release commit `c6212e5` to `origin/main` and published it through the documented Git-backed Netlify workflow. The first deploy reached the build stage but could not upload functions because inherited, unused PayPal variables exceeded AWS Lambda's 4 KB environment limit; removing only those 18 obsolete variables allowed the retry deploy `6a78f5bc831488169e4559e1` to complete with all 18 functions deployed and a clean secret scan.
+- Verified the live production page at `https://www.alt-text.pro`: Free 15 monthly + 150 signup bonus; Lite $4/150; Standard $9/1,000; Pro $14/2,000; Agency $19/3,500. Annual mode shows $43.20, $97.20, $151.20, and $205.20 respectively, with the Standard allowance rendered as one line at 14px with `white-space: nowrap`.
+- Verified production `/api/health`, `/api/get-plans`, both plugin ZIP endpoints, the 1.7.16 package contents, unsigned Polar webhook rejection (403), and unauthenticated checkout rejection (401). The catalogue includes the intentionally retained historical `pay_as_go` row; it remains excluded from the pricing UI and checkout mappings.
+- The eight new Polar subscription products and corrected credit packs are configured, and the old six subscription products remain active pending the required authorized checkout smoke test. No real customer charge was initiated.
+
 ## 2026-08-10: Production checkout variables aligned; deploy upload blocked
 
 - Verified access to the correct Netlify production project `www.alt-text.pro` and updated all eight production-context subscription variables to the new Polar product IDs; unchanged Free and credit-pack IDs were left intact.
