@@ -1,17 +1,24 @@
 # Progress
 
+## 2026-08-10: WordPress.org 1.7.16 release published and verified
+
+- Corrected the release readme before finalizing: added the required 1.7.16 changelog entry covering Agency support and the 150 signup + 15 monthly free allowance. Rebuilt the distributed website plugin ZIPs so the same changelog is included in the downloadable package.
+- Published the reviewed plugin trunk update to WordPress.org SVN (revision 3639810), created the 1.7.16 tag, and synchronized the tag readme correction (revisions 3639811, 3639813, and 3639815). The trunk/tag contain the intended six implementation files plus the required changelog documentation and no unrelated source files.
+- Verified the official versioned and latest WordPress.org ZIP downloads: both are valid archives, report plugin version 1.7.16, use Stable tag 1.7.16, and include the 1.7.16 changelog and 150 signup + 15 monthly copy. PHP lint passed for the SVN release checkout.
+- Pricing implementation, production Polar/Supabase catalogue, production deployment, checkout/webhook safeguards, product archival, website assets, downloadable plugin package, and WordPress.org publication are complete. The exact staging ledger-credit assertion remains unclaimed because the staging project has no `auth.users` rows for the QA fixture profiles; application-side tests and the successful sandbox webhook deliveries cover the code path, but this environment limitation prevents a direct staging ledger proof.
+
 ## 2026-08-10: Polar sandbox smoke test passed; legacy production products archived
 
 - Used the Polar QA sandbox, where payments are explicitly not processed, to create Agency monthly/annual test products with the requested intervals, prices, and metadata, plus a Credit Pack (1,200) test product. Completed paid sandbox checkouts for Agency monthly, Agency annual, and the $10 credit pack using test card data; the sandbox recorded both Agency subscriptions as active and the pack order as paid.
 - The sandbox webhook endpoint delivered all three `order.paid` events to `https://alt-text-pro-staging.netlify.app/api/webhooks/polar` with HTTP 200. The latest payload visibly contained `metadata.user_id`, `tier4`, `subscription`, and `3500` for Agency. Read-only staging checks found no ledger update because the QA profile fixtures have no corresponding rows in `auth.users`; application-side webhook/ledger behavior remains covered by the passing test suites, but this specific staging ledger proof is not claimed.
 - After the sandbox smoke test, archived only the six old production Polar subscription products (old Lite, Standard, and Pro monthly/annual IDs). Rechecked the production Active catalogue: exactly the eight new subscriptions, Free, Small Pack (500), and Credit Pack (1,200) remain active; old IDs are absent.
-- The WordPress.org 1.7.16 remote tag remains absent and is still pending explicit approval for that separate external publication.
+- At that checkpoint, the WordPress.org 1.7.16 remote tag was absent and the separate external publication was still pending.
 
 ## 2026-08-10: Final completion audit — checkout and plugin publication gates remain
 
 - Rechecked the Polar production catalogue: all eight new subscription products, Free, both corrected credit packs, and all six legacy subscription products are present under the Active filter. The legacy products have not been archived because the plan requires a completed Agency checkout, an annual/monthly checkout pair, and a $10 credit-pack purchase first.
 - Rechecked the live catalogue and deployment after the documentation-only rebuild; the public catalogue still matches the requested prices and allowances, and the health endpoint remains healthy.
-- Read-only WordPress.org preflight confirms the 1.7.16 remote tag does not yet exist. The local plugin metadata and website ZIPs are 1.7.16, but publishing the WordPress.org trunk/tag is intentionally pending explicit scoped approval for that external mutation.
+- At that checkpoint, read-only WordPress.org preflight confirmed that the 1.7.16 remote tag did not yet exist. The local plugin metadata and website ZIPs were 1.7.16, while publishing the WordPress.org trunk/tag was still pending.
 
 ## 2026-08-10: Pricing catalogue deployed and live checks completed
 

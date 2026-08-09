@@ -158,6 +158,9 @@ Yes, you can cancel your subscription at any time from your Alt Text Pro dashboa
 6. Responsive admin interface for managing alt text from different screen sizes.
 
 == Changelog ==
+= 1.7.16 =
+* Pricing: Added Agency plan support and aligned the free allowance copy with 150 signup credits plus 15 monthly credits.
+
 = 1.7.15 =
 * Branding: align the plugin UI, logo, and WordPress.org artwork with the white, yellow, and black brand palette.
 
