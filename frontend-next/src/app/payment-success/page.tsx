@@ -51,7 +51,7 @@ export default function PaymentSuccess() {
 
     if (status === 'success') {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-cyan-50 to-teal-50">
+            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-yellow-50 to-white">
                 <div className="text-center max-w-md mx-auto p-6">
                     <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
                     <h1 className="text-3xl font-bold text-gray-800 mb-2">Payment Successful!</h1>
@@ -72,7 +72,7 @@ export default function PaymentSuccess() {
 
     if (status === 'processing') {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-cyan-50 to-teal-50">
+            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-yellow-50 to-white">
                 <div className="text-center">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4"></div>
                     <p className="text-gray-700">Processing your payment...</p>
@@ -83,7 +83,7 @@ export default function PaymentSuccess() {
 
     if (status === 'error') {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-cyan-50 to-teal-50">
+            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-yellow-50 to-white">
                 <div className="text-center max-w-md mx-auto p-6">
                     <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
                     <h2 className="text-2xl font-bold text-gray-800 mb-2">Something went wrong</h2>

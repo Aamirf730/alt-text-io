@@ -4,17 +4,18 @@
  */
 
 :root {
-    --primary-color: #0D4F5E;
-    /* Alt Text Pro logo navy */
-    --primary-hover: #083F4B;
-    --primary-soft: #E7F7F5;
-    --primary-border: #BFEAE6;
+    --primary-color: #000000;
+    /* Brand palette: white, yellow, and black */
+    --primary-hover: #222222;
+    --primary-soft: #FFF9C4;
+    --primary-border: #FEE11C;
+    --brand-yellow: #FEE11C;
     --success-color: #10B981;
     --warning-color: #F59E0B;
     --danger-color: #EF4444;
-    --text-primary: #1F2937;
+    --text-primary: #000000;
     --text-secondary: #6B7280;
-    --bg-light: #F3F4F6;
+    --bg-light: #FFFFFF;
     --bg-white: #FFFFFF;
     --border-color: #E5E7EB;
     --radius-sm: 6px;
@@ -476,9 +477,9 @@
 
 /* ===== BUTTONS ===== */
 .button-primary-custom {
-    background: var(--primary-color) !important;
-    border-color: var(--primary-color) !important;
-    color: white !important;
+    background: var(--brand-yellow) !important;
+    border-color: var(--brand-yellow) !important;
+    color: #000000 !important;
     padding: 10px 20px !important;
     font-size: 14px !important;
     font-weight: 500 !important;
@@ -493,6 +494,7 @@
 .button-primary-custom:hover {
     background: var(--primary-hover) !important;
     border-color: var(--primary-hover) !important;
+    color: #FFFFFF !important;
 }
 
 .button-secondary-custom {
@@ -642,7 +644,7 @@
     padding: 20px;
     border: 1px solid var(--primary-border);
     border-radius: var(--radius-md);
-    background: linear-gradient(135deg, #F9FEFD 0%, var(--primary-soft) 100%);
+    background: linear-gradient(135deg, #FFFFFF 0%, var(--primary-soft) 100%);
 }
 
 .bulk-progress-overview-header,
@@ -684,13 +686,13 @@
 .bulk-progress-bar {
     height: 12px;
     margin: 18px 0 10px;
-    background: rgba(13, 79, 94, 0.1);
+    background: rgba(0, 0, 0, 0.1);
     border-radius: 999px;
 }
 
 .bulk-progress-bar .progress-fill {
     border-radius: 999px;
-    background: linear-gradient(90deg, var(--primary-color), #13869A);
+    background: var(--brand-yellow);
 }
 
 .bulk-progress-meta {
@@ -1015,7 +1017,7 @@
 .alt-text-pro-modal .onboarding-connect-button:focus-visible,
 .alt-text-pro-modal .onboarding-save-button:focus-visible,
 .alt-text-pro-modal .button-link:focus-visible {
-    outline: 3px solid rgba(13, 79, 94, 0.22);
+    outline: 3px solid rgba(254, 225, 28, 0.55);
     outline-offset: 2px;
 }
 
@@ -1039,7 +1041,7 @@
     color: var(--primary-color);
     font-size: 24px;
     line-height: 1;
-    box-shadow: 0 10px 24px rgba(13, 79, 94, 0.12);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
 }
 
 .alt-text-pro-modal .modal-header h2 {
@@ -1077,7 +1079,7 @@
 
 .alt-text-pro-modal .onboarding-step:hover {
     border-color: var(--primary-border);
-    box-shadow: 0 12px 32px rgba(13, 79, 94, 0.08);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.08);
 }
 
 .alt-text-pro-modal .onboarding-step-recommended {
@@ -1085,7 +1087,7 @@
     grid-template-columns: minmax(0, 1.35fr) minmax(150px, 0.85fr);
     gap: 18px;
     align-items: center;
-    background: linear-gradient(135deg, #FFFFFF 0%, #F0FAF8 100%);
+    background: linear-gradient(135deg, #FFFFFF 0%, #FFF9C4 100%);
     border-color: var(--primary-border);
 }
 
@@ -1242,7 +1244,7 @@
     border: 1px solid #D6E4E3;
     border-radius: 12px;
     background: rgba(255, 255, 255, 0.86);
-    box-shadow: 0 18px 38px rgba(13, 79, 94, 0.13);
+    box-shadow: 0 18px 38px rgba(0, 0, 0, 0.13);
 }
 
 .alt-text-pro-modal .illustration-browser-bar {
@@ -1418,7 +1420,7 @@
 
 .alt-text-pro-modal .onboarding-field input:focus {
     border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px rgba(13, 79, 94, 0.12);
+    box-shadow: 0 0 0 3px rgba(254, 225, 28, 0.45);
     outline: none;
 }
 

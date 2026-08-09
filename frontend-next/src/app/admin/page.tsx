@@ -304,7 +304,7 @@ export default function AdminDashboard() {
             <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
                 <div className="text-center">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4"
-                        style={{ borderColor: '#0D4F5E' }}></div>
+                        style={{ borderColor: '#000000' }}></div>
                     <p className="text-gray-600">Loading admin dashboard...</p>
                 </div>
             </div>
@@ -387,7 +387,7 @@ export default function AdminDashboard() {
                                 <CardTitle className="text-sm font-medium text-gray-600">Active Users</CardTitle>
                             </CardHeader>
                             <CardContent>
-                                <div className="text-3xl font-bold text-[#0D4F5E]">{stats.active_users}</div>
+                                <div className="text-3xl font-bold text-[#000000]">{stats.active_users}</div>
                             </CardContent>
                         </Card>
                         <Card>
@@ -433,6 +433,7 @@ export default function AdminDashboard() {
                                     <option value="tier1">Tier 1</option>
                                     <option value="tier2">Tier 2</option>
                                     <option value="tier3">Tier 3</option>
+                                    <option value="tier4">Tier 4 (Agency)</option>
                                     <option value="pay_as_go">Pay as You Go</option>
                                 </select>
                             </div>
@@ -605,7 +606,7 @@ export default function AdminDashboard() {
                                     <CardTitle className="text-sm font-medium text-gray-600">Unique Actors</CardTitle>
                                 </CardHeader>
                                 <CardContent>
-                                    <div className="text-3xl font-bold text-[#0D4F5E]">
+                                    <div className="text-3xl font-bold text-[#000000]">
                                         {formatNumber(funnelReport?.totals?.unique_actors)}
                                     </div>
                                 </CardContent>
@@ -635,7 +636,7 @@ export default function AdminDashboard() {
                         <Card>
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
-                                    <Activity className="h-5 w-5 text-[#0D4F5E]" />
+                                    <Activity className="h-5 w-5 text-[#000000]" />
                                     Funnel Stages
                                 </CardTitle>
                             </CardHeader>
@@ -824,7 +825,7 @@ export default function AdminDashboard() {
                                     <CardTitle className="text-sm font-medium text-gray-600">Plugin Connected</CardTitle>
                                 </CardHeader>
                                 <CardContent>
-                                    <div className="text-3xl font-bold text-[#0D4F5E]">
+                                    <div className="text-3xl font-bold text-[#000000]">
                                         {formatNumber(lifecycleReport?.summary?.plugin_connected)}
                                     </div>
                                 </CardContent>
@@ -902,7 +903,7 @@ export default function AdminDashboard() {
                         <Card>
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
-                                    <Plug className="h-5 w-5 text-[#0D4F5E]" />
+                                    <Plug className="h-5 w-5 text-[#000000]" />
                                     User Lifecycle Status ({filteredLifecycleUsers.length})
                                 </CardTitle>
                             </CardHeader>

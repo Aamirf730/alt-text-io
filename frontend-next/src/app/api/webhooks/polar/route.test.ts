@@ -7,6 +7,7 @@ type TestProfile = {
     email: string;
     subscription_id: string | null;
     polar_customer_id: string | null;
+    polar_product_id?: string | null;
     bonus_credits_remaining: number;
     purchased_credits_remaining: number;
     next_billing_date: string | null;
@@ -103,6 +104,13 @@ const mocks = vi.hoisted(() => {
                 filters.push([field, value]);
                 return query;
             }),
+            single: vi.fn(async () => {
+                const result = execute() as { data?: unknown[] | unknown; error?: unknown };
+                return {
+                    data: Array.isArray(result.data) ? result.data[0] || null : result.data || null,
+                    error: result.error || null,
+                };
+            }),
             limit: vi.fn(async () => execute()),
             then: (resolve: (value: unknown) => unknown) => Promise.resolve(execute()).then(resolve),
         };
@@ -159,6 +167,7 @@ import { POST } from "./route";
 
 const polarWebhookHandlers = POST as unknown as {
     onOrderPaid?: (payload: unknown) => Promise<void>;
+    onSubscriptionActive?: (payload: unknown) => Promise<void>;
     onSubscriptionUpdated?: (payload: unknown) => Promise<void>;
     onSubscriptionCanceled?: (payload: unknown) => Promise<void>;
     onSubscriptionRevoked?: (payload: unknown) => Promise<void>;
@@ -176,7 +185,7 @@ const annualSubscription = (overrides: Record<string, unknown> = {}) => ({
     endsAt: new Date("2027-07-23T16:10:49.335Z"),
     endedAt: null,
     customer: { id: "cus_1", email: "customer@example.com" },
-    product: { name: "Standard Annual", metadata: {} },
+    product: { id: "prod_standard_annual", name: "Standard Annual", metadata: {} },
     metadata: {},
     ...overrides,
 });
@@ -228,6 +237,39 @@ describe("Polar subscription lifecycle handlers", () => {
         mocks.state.authPageMode = "state";
     });
 
+    it("provisions an Agency subscription with the new monthly allowance", async () => {
+        mocks.state.profiles = [profile({
+            subscription_id: null,
+            polar_product_id: null,
+            bonus_credits_remaining: 150,
+            purchased_credits_remaining: 0,
+        })];
+
+        await polarWebhookHandlers.onSubscriptionActive?.({
+            data: {
+                id: "sub_agency_1",
+                status: "active",
+                currentPeriodStart: new Date("2026-08-10T00:00:00.000Z"),
+                currentPeriodEnd: new Date("2026-09-10T00:00:00.000Z"),
+                customer: { id: "cus_1", email: "customer@example.com" },
+                product: {
+                    id: "prod_agency_monthly",
+                    name: "Alt Text Pro — Agency Monthly",
+                    metadata: { plan_id: "tier4", type: "subscription", credits: 3500 },
+                },
+                metadata: {},
+            },
+        } as never);
+
+        const subscriptionUpdate = mocks.state.updates.find((entry) => entry.values.subscription_plan === "tier4");
+        expect(subscriptionUpdate?.values).toMatchObject({
+            subscription_plan: "tier4",
+            polar_product_id: "prod_agency_monthly",
+            monthly_credit_allowance: 3500,
+        });
+        expect(mocks.state.updates[0]?.values).toMatchObject({ credits_remaining: 3650 });
+    });
+
     it("keeps annual drip metadata through cancellation and stores the paid-period end", async () => {
         await polarWebhookHandlers.onSubscriptionCanceled?.({
             data: annualSubscription(),
@@ -266,7 +308,7 @@ describe("Polar subscription lifecycle handlers", () => {
             subscription_plan: "tier2",
             subscription_status: "active",
             billing_cycle: "annual",
-            monthly_credit_allowance: 400,
+            monthly_credit_allowance: 1000,
             next_billing_date: "2027-07-23T16:10:49.335Z",
         });
         expect(mocks.state.rpcCalls).toHaveLength(0);
@@ -343,8 +385,25 @@ describe("Polar subscription lifecycle handlers", () => {
             args: {
                 p_user_id: "user_1",
                 p_payment_id: "polar_ord_order_pack_1",
-                p_credits: 250,
+                p_credits: 1200,
             },
+        });
+    });
+
+    it("uses explicit Polar pack metadata before the fallback map", async () => {
+        await polarWebhookHandlers.onOrderPaid?.({
+            data: paidPackOrder({
+                product: {
+                    id: "prod_credit_pack",
+                    name: "Credit Pack",
+                    metadata: { credits: 100 },
+                },
+            }),
+        } as never);
+
+        expect(mocks.state.rpcCalls).toContainEqual({
+            name: "grant_credit_pack_purchase",
+            args: expect.objectContaining({ p_credits: 100 }),
         });
     });
 
@@ -375,14 +434,14 @@ describe("Polar subscription lifecycle handlers", () => {
         expect(polarWebhookHandlers.onRefundUpdated).toEqual(expect.any(Function));
     });
 
-    it("defines an immediate 30-credit free-tier allowance on revocation", () => {
+    it("defines an immediate 15-credit free-tier allowance on revocation", () => {
         const migrationPath = path.resolve(
             process.cwd(),
-            "../supabase/migrations/20260805202418_fix_subscription_lifecycle_refunds.sql",
+            "../supabase/migrations/20260809120000_apply_2026_08_pricing_packages.sql",
         );
         const migration = fs.readFileSync(migrationPath, "utf8");
 
-        expect(migration).toContain("credits_remaining = 30");
+        expect(migration).toContain("credits_remaining = 15");
         expect(migration).toContain("+ coalesce(bonus_credits_remaining, 0)");
         expect(migration).toContain("+ coalesce(purchased_credits_remaining, 0)");
     });

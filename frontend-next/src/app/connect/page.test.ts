@@ -26,8 +26,8 @@ describe("WordPress connect result screens", () => {
         expect(pageSource).toContain("data-1p-ignore=\"true\"");
     });
 
-    it("keeps the primary connection flow on the Alt Text Pro teal palette", () => {
-        expect(pageSource).toContain("background: linear-gradient(135deg, #0f5b66 0%, #167b83 100%)");
+    it("keeps the primary connection flow on the Alt Text Pro yellow and black palette", () => {
+        expect(pageSource).toContain("background: #FEE11C;");
         expect(pageSource).toContain("margin: 0 auto 16px");
         expect(pageSource).not.toContain("#6366f1");
         expect(pageSource).not.toContain("#8b5cf6");

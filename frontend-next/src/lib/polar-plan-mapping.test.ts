@@ -12,6 +12,11 @@ describe("resolvePolarPlanId", () => {
     expect(resolvePolarPlanId("Pro Annual")).toBe("tier3");
   });
 
+  it("maps Agency products before the Pro substring can match", () => {
+    expect(resolvePolarPlanId("Alt Text Pro — Agency Monthly", {})).toBe("tier4");
+    expect(resolvePolarPlanId("Alt Text Pro — Agency Annual", {})).toBe("tier4");
+  });
+
   it("maps one-time pack products correctly", () => {
     expect(resolvePolarPlanId("Small Pack")).toBe("small_pack");
     expect(resolvePolarPlanId("Credit Pack")).toBe("credit_pack");
@@ -25,6 +30,7 @@ describe("resolvePolarPlanId", () => {
 describe("isPolarSubscriptionProduct", () => {
   it("recognizes subscription plans from the resolved plan id", () => {
     expect(isPolarSubscriptionProduct("Standard Annual")).toBe(true);
+    expect(isPolarSubscriptionProduct("Alt Text Pro — Agency Monthly", {})).toBe(true);
   });
 
   it("recognizes metadata-driven subscriptions", () => {
@@ -35,4 +41,3 @@ describe("isPolarSubscriptionProduct", () => {
     expect(isPolarSubscriptionProduct("Credit Pack")).toBe(false);
   });
 });
-

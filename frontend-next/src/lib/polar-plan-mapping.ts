@@ -1,6 +1,7 @@
 const SUBSCRIPTION_PLAN_MATCHERS: Array<{ planId: string; terms: string[] }> = [
   { planId: "tier1", terms: ["tier1", "tier_1", "lite"] },
   { planId: "tier2", terms: ["tier2", "tier_2", "standard"] },
+  { planId: "tier4", terms: ["tier4", "tier_4", "agency"] },
   { planId: "tier3", terms: ["tier3", "tier_3", "pro"] },
 ];
 
@@ -78,6 +79,5 @@ export function isPolarSubscriptionProduct(
   if (metadata.type === "subscription") return true;
 
   const planId = resolvePolarPlanId(productName, metadata);
-  return planId === "tier1" || planId === "tier2" || planId === "tier3";
+  return planId === "tier1" || planId === "tier2" || planId === "tier3" || planId === "tier4";
 }
-

@@ -253,11 +253,11 @@ export default function PrivacyPage() {
                                     <p className="text-slate-600 leading-relaxed mt-6 flex flex-col gap-2">
                                         <span className="flex items-center gap-2">
                                             <strong className="text-slate-900">Email:</strong>
-                                            <a href="mailto:help@alt-text.pro" className="text-slate-900 hover:text-[#0D4F5E] underline underline-offset-4 decoration-slate-300 hover:decoration-slate-400 transition-colors">help@alt-text.pro</a>
+                                            <a href="mailto:help@alt-text.pro" className="text-slate-900 hover:text-[#000000] underline underline-offset-4 decoration-slate-300 hover:decoration-slate-400 transition-colors">help@alt-text.pro</a>
                                         </span>
                                         <span className="flex items-center gap-2">
                                             <strong className="text-slate-900">Website:</strong>
-                                            <Link href="/contact" className="text-slate-900 hover:text-[#0D4F5E] underline underline-offset-4 decoration-slate-300 hover:decoration-slate-400 transition-colors">www.alt-text.pro/contact</Link>
+                                            <Link href="/contact" className="text-slate-900 hover:text-[#000000] underline underline-offset-4 decoration-slate-300 hover:decoration-slate-400 transition-colors">www.alt-text.pro/contact</Link>
                                         </span>
                                     </p>
                                 </div>

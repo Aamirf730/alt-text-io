@@ -9,6 +9,19 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        teal: {
+          50: "#fffef0",
+          100: "#fff9c4",
+          200: "#fff0a1",
+          300: "#FEE11C",
+          400: "#FEE11C",
+          500: "#FEE11C",
+          600: "#000000",
+          700: "#000000",
+          800: "#000000",
+          900: "#000000",
+          950: "#000000",
+        },
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
@@ -46,12 +59,13 @@ module.exports = {
           paper: "hsl(var(--paper-bg))",
           surface: "hsl(var(--pearl-surface))",
           blue: "hsl(var(--precision-blue))",
-          teal: "hsl(var(--brand-teal))",
+          yellow: "hsl(var(--brand-yellow))",
+          teal: "hsl(var(--brand-yellow))",
           slate: "hsl(var(--slate-accent))",
           cloud: "hsl(var(--cloud-gray))",
-          black: "hsl(var(--brand-navy))",
+          black: "hsl(var(--brand-black))",
           pearl: "hsl(var(--pearl-surface))",
-          orange: "hsl(var(--brand-teal))",
+          orange: "hsl(var(--brand-yellow))",
         }
       },
       borderRadius: {

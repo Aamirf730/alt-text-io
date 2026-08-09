@@ -15,6 +15,8 @@ const POLAR_PRODUCTS = {
     tier2_annual: process.env.NEXT_PUBLIC_POLAR_TIER2_ANNUAL || '',
     tier3_monthly: process.env.NEXT_PUBLIC_POLAR_TIER3_MONTHLY || '',
     tier3_annual: process.env.NEXT_PUBLIC_POLAR_TIER3_ANNUAL || '',
+    tier4_monthly: process.env.NEXT_PUBLIC_POLAR_TIER4_MONTHLY || '',
+    tier4_annual: process.env.NEXT_PUBLIC_POLAR_TIER4_ANNUAL || '',
     small_pack: process.env.NEXT_PUBLIC_POLAR_SMALL_PACK || '',
     credit_pack: process.env.NEXT_PUBLIC_POLAR_CREDIT_PACK || '',
 };
@@ -78,9 +80,11 @@ export default function Dashboard() {
         tier1: 'Lite',
         tier2: 'Standard',
         tier3: 'Pro',
+        tier4: 'Agency',
         lite: 'Lite',
         standard: 'Standard',
         pro: 'Pro',
+        agency: 'Agency',
         small_pack: 'Credit Pack',
         pay_as_go: 'Credit Pack',
     };
@@ -246,6 +250,9 @@ export default function Dashboard() {
             tier3: POLAR_PRODUCTS.tier3_monthly,
             tier3_monthly: POLAR_PRODUCTS.tier3_monthly,
             tier3_annual: POLAR_PRODUCTS.tier3_annual,
+            tier4: POLAR_PRODUCTS.tier4_monthly,
+            tier4_monthly: POLAR_PRODUCTS.tier4_monthly,
+            tier4_annual: POLAR_PRODUCTS.tier4_annual,
             small_pack: POLAR_PRODUCTS.small_pack,
             credit_pack: POLAR_PRODUCTS.credit_pack,
         };
@@ -594,7 +601,7 @@ export default function Dashboard() {
         return (
             <div className="min-h-screen bg-slate-50 flex items-center justify-center">
                 <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0D4F5E] mx-auto mb-4"></div>
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#000000] mx-auto mb-4"></div>
                     <p className="text-slate-500">Loading dashboard...</p>
                 </div>
             </div>
@@ -697,23 +704,6 @@ export default function Dashboard() {
                                 </p>
                             </div>
                             <div className="flex flex-col sm:flex-row gap-3">
-                                <a
-                                    href={`/wordpress-plugin/alt-text-pro-plugin-${PLUGIN_VERSION}.zip`}
-                                    download={`alt-text-pro-plugin-${PLUGIN_VERSION}.zip`}
-                                    onClick={() => trackMarketingEvent("plugin_downloaded", {
-                                        source: "dashboard",
-                                        userId: user?.id,
-                                        userEmail: user?.email,
-                                        properties: {
-                                            plugin_version: PLUGIN_VERSION,
-                                            location: "dashboard_onboarding",
-                                        },
-                                    })}
-                                    className="inline-flex items-center justify-center px-5 py-3 text-xs font-bold text-white bg-notebook-blue hover:bg-notebook-blue/90 transition-all rounded-2xl shadow-sm uppercase tracking-widest font-outfit"
-                                >
-                                    <Download className="h-4 w-4 mr-2" />
-                                    Download Plugin
-                                </a>
                                 <Link
                                     href="/docs#installation"
                                     className="inline-flex items-center justify-center px-5 py-3 text-xs font-bold text-notebook-slate bg-notebook-cloud/30 hover:bg-notebook-cloud/60 border border-notebook-cloud transition-all rounded-2xl uppercase tracking-widest font-outfit"
@@ -1217,12 +1207,12 @@ export default function Dashboard() {
                             </button>
 
                             <div className="relative z-10 max-w-2xl">
-                                <div className="inline-flex items-center space-x-2 bg-notebook-teal/10 text-[#0D4F5E] px-4 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-widest mb-6 border border-notebook-teal/20">
+                                <div className="inline-flex items-center space-x-2 bg-notebook-teal/10 text-[#000000] px-4 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-widest mb-6 border border-notebook-teal/20">
                                     <Crown className="h-3.5 w-3.5" />
                                     <span>Plan Management</span>
                                 </div>
                                 <h2 className="text-4xl font-semibold text-[#1A1C1E] mb-4 tracking-tight font-outfit">
-                                    Choose a <span className="text-[#0D4F5E]">Plan</span>
+                                    Choose a <span className="text-[#000000]">Plan</span>
                                 </h2>
                                 <p className="text-[#5F6368] text-lg font-inter">
                                     Choose the best plan for your needs and generate more alt text.
@@ -1236,7 +1226,7 @@ export default function Dashboard() {
                                 <div className="max-w-md mx-auto">
                                     <div className="bg-[#FAF9F6] border border-[#F1F3F4] rounded-[2rem] p-10 mb-8 shadow-sm text-center">
                                         <div className="w-20 h-20 bg-notebook-teal/10 rounded-[1.5rem] flex items-center justify-center mx-auto mb-8">
-                                            <Crown className="h-10 w-10 text-[#0D4F5E]" />
+                                            <Crown className="h-10 w-10 text-[#000000]" />
                                         </div>
                                         <h3 className="text-2xl font-semibold text-[#1A1C1E] mb-2 font-outfit">
                                             {selectedUpgradePlan.name} Plan
@@ -1247,19 +1237,19 @@ export default function Dashboard() {
                                         <div className="space-y-5 text-left mb-10 pt-8 border-t border-[#F1F3F4] font-inter">
                                             <div className="flex items-center text-[#5F6368]">
                                                 <div className="w-5 h-5 rounded-full bg-notebook-teal/10 flex items-center justify-center mr-4 shrink-0">
-                                                    <Check className="h-3 w-3 text-[#0D4F5E]" />
+                                                    <Check className="h-3 w-3 text-[#000000]" />
                                                 </div>
                                                 <span>Better AI analysis</span>
                                             </div>
                                             <div className="flex items-center text-[#5F6368]">
                                                 <div className="w-5 h-5 rounded-full bg-notebook-teal/10 flex items-center justify-center mr-4 shrink-0">
-                                                    <Check className="h-3 w-3 text-[#0D4F5E]" />
+                                                    <Check className="h-3 w-3 text-[#000000]" />
                                                 </div>
                                                 <span>Full API Access</span>
                                             </div>
                                             <div className="flex items-center text-[#5F6368]">
                                                 <div className="w-5 h-5 rounded-full bg-notebook-teal/10 flex items-center justify-center mr-4 shrink-0">
-                                                    <Check className="h-3 w-3 text-[#0D4F5E]" />
+                                                    <Check className="h-3 w-3 text-[#000000]" />
                                                 </div>
                                                 <span>Priority Support</span>
                                             </div>
@@ -1270,7 +1260,7 @@ export default function Dashboard() {
                                                 const productId = getPolarProductId(selectedUpgradePlan.id);
                                                 void redirectToCheckout(productId);
                                             }}
-                                            className="w-full h-14 bg-[#0D4F5E] hover:bg-[#083F4B] text-white font-semibold text-lg rounded-xl transition-all shadow-[0_10px_24px_rgba(13,79,94,0.18)]"
+                                            className="w-full h-14 bg-[#000000] hover:bg-[#000000] text-white font-semibold text-lg rounded-xl transition-all shadow-[0_10px_24px_rgba(0,0,0,0.18)]"
                                         >
                                             Upgrade Now
                                             <ArrowRight className="h-5 w-5 ml-2" />
@@ -1290,27 +1280,27 @@ export default function Dashboard() {
                             ) : (
                                 <div className="space-y-12">
                                     <div>
-                                        <h3 className="text-lg font-semibold text-[#1A1C1E] mb-8 font-outfit border-l-4 border-[#0D4F5E] pl-4">Monthly Subscriptions</h3>
-                                        <div className="grid md:grid-cols-3 gap-8">
+                                        <h3 className="text-lg font-semibold text-[#1A1C1E] mb-8 font-outfit border-l-4 border-[#000000] pl-4">Monthly Subscriptions</h3>
+                                        <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-8">
                                             {/* Lite */}
-                                            <div className="bg-white border border-[#F1F3F4] rounded-[2rem] p-8 hover:border-[#0D4F5E]/20 hover:shadow-[0_16px_36px_rgba(13,79,94,0.08)] transition-all cursor-pointer group flex flex-col"
-                                                onClick={() => setSelectedUpgradePlan({ id: 'tier1_monthly', name: 'Lite', price: '$3' })}
+                                            <div className="bg-white border border-[#F1F3F4] rounded-[2rem] p-8 hover:border-[#000000]/20 hover:shadow-[0_16px_36px_rgba(0,0,0,0.08)] transition-all cursor-pointer group flex flex-col"
+                                                onClick={() => setSelectedUpgradePlan({ id: 'tier1_monthly', name: 'Lite', price: '$4' })}
                                             >
-                                                <h4 className="text-lg font-semibold text-[#1A1C1E] group-hover:text-[#0D4F5E] transition-colors font-outfit">Lite</h4>
+                                                <h4 className="text-lg font-semibold text-[#1A1C1E] group-hover:text-[#000000] transition-colors font-outfit">Lite</h4>
                                                 <div className="mt-4 mb-8">
-                                                    <span className="text-4xl font-semibold text-[#1A1C1E] font-outfit">$3</span>
+                                                    <span className="text-4xl font-semibold text-[#1A1C1E] font-outfit">$4</span>
                                                     <span className="text-[#5F6368] font-normal ml-1 font-inter">/mo</span>
                                                 </div>
                                                 <ul className="space-y-4 mb-10 flex-1 font-inter">
                                                     <li className="flex items-start text-sm text-[#5F6368]">
                                                         <div className="w-5 h-5 rounded-full bg-slate-50 flex items-center justify-center mr-3 mt-0.5 shrink-0">
-                                                            <Check className="h-3 w-3 text-[#0D4F5E]" />
+                                                            <Check className="h-3 w-3 text-[#000000]" />
                                                         </div>
                                                         <span className="font-medium text-[#1A1C1E] mr-1">150</span> Credits
                                                     </li>
                                                     <li className="flex items-start text-sm text-[#5F6368]">
                                                         <div className="w-5 h-5 rounded-full bg-slate-50 flex items-center justify-center mr-3 mt-0.5 shrink-0">
-                                                            <Check className="h-3 w-3 text-[#0D4F5E]" />
+                                                            <Check className="h-3 w-3 text-[#000000]" />
                                                         </div>
                                                         Standard Core Model
                                                     </li>
@@ -1321,57 +1311,85 @@ export default function Dashboard() {
                                             </div>
 
                                             {/* Standard - Popular */}
-                                            <div className="bg-white border-2 border-[#0D4F5E] rounded-[2.5rem] p-8 shadow-[0_20px_45px_rgba(13,79,94,0.10)] cursor-pointer relative group flex flex-col transform hover:-translate-y-2 transition-all"
-                                                onClick={() => setSelectedUpgradePlan({ id: 'tier2_monthly', name: 'Standard', price: '$5' })}
+                                            <div className="bg-white border-2 border-[#000000] rounded-[2.5rem] p-8 shadow-[0_20px_45px_rgba(0,0,0,0.10)] cursor-pointer relative group flex flex-col transform hover:-translate-y-2 transition-all"
+                                                onClick={() => setSelectedUpgradePlan({ id: 'tier2_monthly', name: 'Standard', price: '$9' })}
                                             >
-                                                <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-[#0D4F5E] text-white text-[10px] font-bold px-4 py-1.5 rounded-full uppercase tracking-[0.2em] shadow-lg">
+                                                <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-[#000000] text-white text-[10px] font-bold px-4 py-1.5 rounded-full uppercase tracking-[0.2em] shadow-lg">
                                                     Optimal Choice
                                                 </div>
                                                 <h4 className="text-lg font-semibold text-[#1A1C1E] font-outfit">Standard</h4>
-                                                <div className="mt-4 mb-8">
-                                                    <span className="text-4xl font-semibold text-[#1A1C1E] font-outfit">$5</span>
-                                                    <span className="text-[#5F6368] font-normal ml-1 font-inter">/mo</span>
-                                                </div>
-                                                <ul className="space-y-4 mb-10 flex-1 font-inter">
-                                                    <li className="flex items-start text-sm text-[#5F6368]">
-                                                        <div className="w-5 h-5 rounded-full bg-notebook-teal/10 flex items-center justify-center mr-3 mt-0.5 shrink-0">
-                                                            <Check className="h-3 w-3 text-[#0D4F5E]" />
-                                                        </div>
-                                                        <span className="font-medium text-[#1A1C1E] mr-1">400</span> Credits
-                                                    </li>
-                                                    <li className="flex items-start text-sm text-[#5F6368]">
-                                                        <div className="w-5 h-5 rounded-full bg-notebook-teal/10 flex items-center justify-center mr-3 mt-0.5 shrink-0">
-                                                            <Check className="h-3 w-3 text-[#0D4F5E]" />
-                                                        </div>
-                                                        Advanced AI Model
-                                                    </li>
-                                                </ul>
-                                                <Button className="w-full bg-[#0D4F5E] text-white hover:bg-[#083F4B] shadow-[0_10px_24px_rgba(13,79,94,0.18)] rounded-xl font-semibold">
-                                                    Select Plan
-                                                </Button>
-                                            </div>
-
-                                            {/* Pro */}
-                                            <div className="bg-white border border-[#F1F3F4] rounded-[2rem] p-8 hover:border-[#0D4F5E]/20 hover:shadow-[0_16px_36px_rgba(13,79,94,0.08)] transition-all cursor-pointer group flex flex-col"
-                                                onClick={() => setSelectedUpgradePlan({ id: 'tier3_monthly', name: 'Pro', price: '$9' })}
-                                            >
-                                                <h4 className="text-lg font-semibold text-[#1A1C1E] group-hover:text-[#0D4F5E] transition-colors font-outfit">Pro</h4>
                                                 <div className="mt-4 mb-8">
                                                     <span className="text-4xl font-semibold text-[#1A1C1E] font-outfit">$9</span>
                                                     <span className="text-[#5F6368] font-normal ml-1 font-inter">/mo</span>
                                                 </div>
                                                 <ul className="space-y-4 mb-10 flex-1 font-inter">
                                                     <li className="flex items-start text-sm text-[#5F6368]">
-                                                        <div className="w-5 h-5 rounded-full bg-slate-50 flex items-center justify-center mr-3 mt-0.5 shrink-0">
-                                                            <Check className="h-3 w-3 text-[#0D4F5E]" />
+                                                        <div className="w-5 h-5 rounded-full bg-notebook-teal/10 flex items-center justify-center mr-3 mt-0.5 shrink-0">
+                                                            <Check className="h-3 w-3 text-[#000000]" />
                                                         </div>
                                                         <span className="font-medium text-[#1A1C1E] mr-1">1,000</span> Credits
                                                     </li>
                                                     <li className="flex items-start text-sm text-[#5F6368]">
+                                                        <div className="w-5 h-5 rounded-full bg-notebook-teal/10 flex items-center justify-center mr-3 mt-0.5 shrink-0">
+                                                            <Check className="h-3 w-3 text-[#000000]" />
+                                                        </div>
+                                                        Advanced AI Model
+                                                    </li>
+                                                </ul>
+                                                <Button className="w-full bg-[#000000] text-white hover:bg-[#000000] shadow-[0_10px_24px_rgba(0,0,0,0.18)] rounded-xl font-semibold">
+                                                    Select Plan
+                                                </Button>
+                                            </div>
+
+                                            {/* Pro */}
+                                            <div className="bg-white border border-[#F1F3F4] rounded-[2rem] p-8 hover:border-[#000000]/20 hover:shadow-[0_16px_36px_rgba(0,0,0,0.08)] transition-all cursor-pointer group flex flex-col"
+                                                onClick={() => setSelectedUpgradePlan({ id: 'tier3_monthly', name: 'Pro', price: '$14' })}
+                                            >
+                                                <h4 className="text-lg font-semibold text-[#1A1C1E] group-hover:text-[#000000] transition-colors font-outfit">Pro</h4>
+                                                <div className="mt-4 mb-8">
+                                                    <span className="text-4xl font-semibold text-[#1A1C1E] font-outfit">$14</span>
+                                                    <span className="text-[#5F6368] font-normal ml-1 font-inter">/mo</span>
+                                                </div>
+                                                <ul className="space-y-4 mb-10 flex-1 font-inter">
+                                                    <li className="flex items-start text-sm text-[#5F6368]">
                                                         <div className="w-5 h-5 rounded-full bg-slate-50 flex items-center justify-center mr-3 mt-0.5 shrink-0">
-                                                            <Check className="h-3 w-3 text-[#0D4F5E]" />
+                                                            <Check className="h-3 w-3 text-[#000000]" />
+                                                        </div>
+                                                        <span className="font-medium text-[#1A1C1E] mr-1">2,000</span> Credits
+                                                    </li>
+                                                    <li className="flex items-start text-sm text-[#5F6368]">
+                                                        <div className="w-5 h-5 rounded-full bg-slate-50 flex items-center justify-center mr-3 mt-0.5 shrink-0">
+                                                            <Check className="h-3 w-3 text-[#000000]" />
                                                         </div>
                                                         Highest Quality Results
+                                                    </li>
+                                                </ul>
+                                                <Button className="w-full bg-[#FAF9F6] text-[#1A1C1E] hover:bg-[#F1F3F4] border border-[#F1F3F4] rounded-xl font-medium" variant="secondary">
+                                                    Select Plan
+                                                </Button>
+                                            </div>
+
+                                            {/* Agency */}
+                                            <div className="bg-white border border-[#F1F3F4] rounded-[2rem] p-8 hover:border-[#000000]/20 hover:shadow-[0_16px_36px_rgba(0,0,0,0.08)] transition-all cursor-pointer group flex flex-col"
+                                                onClick={() => setSelectedUpgradePlan({ id: 'tier4_monthly', name: 'Agency', price: '$19' })}
+                                            >
+                                                <h4 className="text-lg font-semibold text-[#1A1C1E] group-hover:text-[#000000] transition-colors font-outfit">Agency</h4>
+                                                <div className="mt-4 mb-8">
+                                                    <span className="text-4xl font-semibold text-[#1A1C1E] font-outfit">$19</span>
+                                                    <span className="text-[#5F6368] font-normal ml-1 font-inter">/mo</span>
+                                                </div>
+                                                <ul className="space-y-4 mb-10 flex-1 font-inter">
+                                                    <li className="flex items-start text-sm text-[#5F6368]">
+                                                        <div className="w-5 h-5 rounded-full bg-slate-50 flex items-center justify-center mr-3 mt-0.5 shrink-0">
+                                                            <Check className="h-3 w-3 text-[#000000]" />
+                                                        </div>
+                                                        <span className="font-medium text-[#1A1C1E] mr-1">3,500</span> Credits
+                                                    </li>
+                                                    <li className="flex items-start text-sm text-[#5F6368]">
+                                                        <div className="w-5 h-5 rounded-full bg-slate-50 flex items-center justify-center mr-3 mt-0.5 shrink-0">
+                                                            <Check className="h-3 w-3 text-[#000000]" />
+                                                        </div>
+                                                        Multi-site workflows
                                                     </li>
                                                 </ul>
                                                 <Button className="w-full bg-[#FAF9F6] text-[#1A1C1E] hover:bg-[#F1F3F4] border border-[#F1F3F4] rounded-xl font-medium" variant="secondary">
@@ -1398,7 +1416,7 @@ export default function Dashboard() {
                                                         <div className="w-5 h-5 rounded-full bg-amber-50 flex items-center justify-center mr-3 mt-0.5 shrink-0">
                                                             <Check className="h-3 w-3 text-amber-600" />
                                                         </div>
-                                                        <span className="font-medium text-[#1A1C1E] mr-1">100</span> credits
+                                                        <span className="font-medium text-[#1A1C1E] mr-1">500</span> credits
                                                     </li>
                                                     <li className="flex items-start text-sm text-[#5F6368]">
                                                         <div className="w-5 h-5 rounded-full bg-amber-50 flex items-center justify-center mr-3 mt-0.5 shrink-0">
@@ -1426,7 +1444,7 @@ export default function Dashboard() {
                                                         <div className="w-5 h-5 rounded-full bg-emerald-50 flex items-center justify-center mr-3 mt-0.5 shrink-0">
                                                             <Check className="h-3 w-3 text-emerald-600" />
                                                         </div>
-                                                        <span className="font-medium text-[#1A1C1E] mr-1">250</span> credits
+                                                        <span className="font-medium text-[#1A1C1E] mr-1">1,200</span> credits
                                                     </li>
                                                     <li className="flex items-start text-sm text-[#5F6368]">
                                                         <div className="w-5 h-5 rounded-full bg-emerald-50 flex items-center justify-center mr-3 mt-0.5 shrink-0">

@@ -73,7 +73,7 @@ export default function ContactPage() {
                 <div className="bg-white rounded-2xl shadow-xl p-8 md:p-12">
                     {/* Header */}
                     <div className="text-center mb-8">
-                        <h1 className="text-4xl font-bold mb-4" style={{ color: '#003a42' }}>
+                        <h1 className="text-4xl font-bold mb-4" style={{ color: '#000000' }}>
                             Get in Touch
                         </h1>
                         <p className="text-lg text-gray-600 max-w-2xl mx-auto">
@@ -158,7 +158,7 @@ export default function ContactPage() {
                                 type="submit"
                                 disabled={isSubmitting}
                                 className="w-full md:w-auto px-8 py-3 text-lg font-semibold text-white rounded-lg transition-all transform hover:scale-105"
-                                style={{ background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)' }}
+                                style={{ background: 'linear-gradient(135deg, #000000 0%, #000000 100%)' }}
                             >
                                 {isSubmitting ? (
                                     <>

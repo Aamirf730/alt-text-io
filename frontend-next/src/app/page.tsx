@@ -9,12 +9,12 @@ import { getApiBase } from '@/lib/utils';
 import { trackMarketingEvent } from '@/lib/analytics';
 import { toast } from "sonner";
 import {
-  Brain, Zap, CheckCircle, Star, ArrowRight, Users, Shield, Rocket,
+  Brain, CheckCircle, Star, ArrowRight, Users, Shield, Rocket,
   Chrome, Upload, Eye, EyeOff, Download, Check, X, Search,
   CreditCard, Calendar, TrendingUp, Key, Copy, Info, AlertTriangle,
   RefreshCw, Book, FileText, HelpCircle, Settings, Code, DollarSign,
-  Wrench, Globe, LogOut, MessageCircle, Image as ImageIcon,
-  Sparkles, Mail, BarChart3, Clock, Layers
+  Wrench, LogOut, MessageCircle, Image as ImageIcon,
+  Mail, BarChart3, Clock, Layers, Loader2, ChevronDown
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +24,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+import MediaLibraryShowcase from '@/components/MediaLibraryShowcase';
+import BenefitsStrip from '@/components/BenefitsStrip';
+import PricingSection from '@/components/PricingSection';
 // Polar.sh product IDs from environment variables
 const POLAR_PRODUCTS = {
   tier1_monthly: process.env.NEXT_PUBLIC_POLAR_TIER1_MONTHLY || '',
@@ -32,9 +35,13 @@ const POLAR_PRODUCTS = {
   tier2_annual: process.env.NEXT_PUBLIC_POLAR_TIER2_ANNUAL || '',
   tier3_monthly: process.env.NEXT_PUBLIC_POLAR_TIER3_MONTHLY || '',
   tier3_annual: process.env.NEXT_PUBLIC_POLAR_TIER3_ANNUAL || '',
+  tier4_monthly: process.env.NEXT_PUBLIC_POLAR_TIER4_MONTHLY || '',
+  tier4_annual: process.env.NEXT_PUBLIC_POLAR_TIER4_ANNUAL || '',
   small_pack: process.env.NEXT_PUBLIC_POLAR_SMALL_PACK || '',
   credit_pack: process.env.NEXT_PUBLIC_POLAR_CREDIT_PACK || '',
 };
+
+const HERO_SAMPLE_ALT_TEXT = "Turquoise alpine lake reflecting sunlit mountain peaks and pine trees under a clear sky.";
 
 export default function LandingPage() {
   const [email, setEmail] = useState("");
@@ -50,6 +57,7 @@ export default function LandingPage() {
   const [selectedPlan, setSelectedPlan] = useState<any>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [billingCycle, setBillingCycle] = useState('monthly');
+  const [openFaq, setOpenFaq] = useState(0);
 
   const router = useRouter();
 
@@ -231,7 +239,7 @@ export default function LandingPage() {
             emailRedirectTo: window.location.origin + '/email-confirmed',
             data: {
               subscription_plan: 'free',
-              credits_remaining: 30
+              credits_remaining: 165
             }
           }
         });
@@ -361,6 +369,9 @@ export default function LandingPage() {
     if (planId === 'tier3') {
       return cycle === 'annual' ? POLAR_PRODUCTS.tier3_annual : POLAR_PRODUCTS.tier3_monthly;
     }
+    if (planId === 'tier4') {
+      return cycle === 'annual' ? POLAR_PRODUCTS.tier4_annual : POLAR_PRODUCTS.tier4_monthly;
+    }
     if (planId === 'small_pack') {
       return POLAR_PRODUCTS.small_pack;
     }
@@ -407,176 +418,134 @@ export default function LandingPage() {
         {/* Notebook-style Subtle Background Accents */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-[1400px] h-[600px] bg-gradient-to-b from-notebook-blue/5 to-transparent blur-[120px] opacity-70 select-none pointer-events-none"></div>
 
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 z-10">
-          <section className="pt-8 pb-20 lg:pt-12 lg:pb-32">
-            <div className="grid lg:grid-cols-2 gap-16 items-center">
+        <div className="relative mx-auto w-full max-w-[1800px] px-5 sm:px-[47px] lg:px-[calc(2vw+15px)] z-10">
+          <section className="pt-8 pb-20 lg:pt-12 lg:pb-28">
+            <div className="grid items-center gap-6 lg:grid-cols-[0.94fr_1.06fr] lg:gap-4 xl:grid-cols-[1fr_1fr]">
               {/* Left Side - Content */}
-              <div className="space-y-10 animate-in fade-in slide-in-from-bottom-8 duration-700">
-                <div className="space-y-6">
-                  <div className="inline-flex rounded-full px-4 py-1.5 bg-notebook-blue/5 border border-notebook-blue/10 backdrop-blur-md">
-                    <span className="text-xs font-bold tracking-wider uppercase text-notebook-blue/80">WordPress Alt Text in Minutes</span>
-                  </div>
-
-                  <h1 className="text-6xl lg:text-8xl font-bold font-outfit text-notebook-slate leading-[1.05] tracking-tight mb-6">
-                    Generate WordPress <br />
-                    <span className="text-notebook-blue italic decoration-notebook-blue/10">Alt Text.</span>
+              <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 min-[1800px]:-translate-y-6">
+                <div className="flex flex-col">
+                  <h1 className="max-w-[900px] whitespace-nowrap text-[clamp(3.4rem,7.5vw,10rem)] font-bold font-outfit leading-[0.92] tracking-[-0.075em] text-black">
+                    Make Every <br />
+                    <span className="text-black">Image Speak</span>
                   </h1>
 
-                  <p className="text-xl lg:text-2xl text-slate-500 leading-relaxed max-w-2xl mb-10 font-normal">
-                    Install the plugin, connect your account, and generate accurate AI alt text for media-library, post, and product images.
+                  <p className="mt-6 max-w-2xl text-lg font-normal leading-relaxed text-slate-500 sm:text-xl lg:text-[1.7rem] min-[1800px]:mt-10 min-[1800px]:max-w-[900px] min-[1800px]:text-[2.15rem]" style={{ lineHeight: 1.2 }}>
+                    Generate accurate, context-aware alt text across your WordPress media library.
                   </p>
 
-                  <div className="flex flex-col sm:flex-row gap-5">
+                  <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:items-center min-[1800px]:mt-20">
                     <Button
                       size="lg"
-                      className="h-14 px-10 text-lg font-bold rounded-full bg-notebook-blue hover:bg-notebook-blue/90 text-white shadow-notebook transition-all duration-300 transform hover:-translate-y-1"
+                      className="h-16 rounded-full bg-notebook-teal px-9 text-base font-bold text-notebook-black shadow-[0_16px_32px_rgba(254,225,28,0.28)] transition-all duration-300 hover:-translate-y-1 hover:bg-notebook-teal/90 sm:text-lg"
                       onClick={() => {
                         setIsLogin(false);
                         setShowAuthForm(true);
                       }}
                     >
-                      Get 30 Free Credits
+                      Start with 150 free credits
                     </Button>
                     <Button
                       size="lg"
                       variant="outline"
-                      className="h-14 px-10 text-lg font-semibold rounded-full border-slate-200 bg-white shadow-sm hover:bg-slate-50 hover:text-notebook-blue transition-all duration-300 text-notebook-slate"
+                      className="h-16 rounded-full border-slate-200 bg-white px-9 text-base font-semibold text-black shadow-sm transition-all duration-300 hover:-translate-y-1 hover:bg-white hover:text-black sm:text-lg"
                       asChild
                     >
                       <a href="https://wordpress.org/plugins/alt-text-pro/" target="_blank" rel="noopener noreferrer">
-                        Install WordPress Plugin
+                        Install the WordPress plugin
                       </a>
                     </Button>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-8 mt-10">
-                    <div className="flex items-center space-x-2.5">
-                      <div className="h-5 w-5 rounded-full bg-notebook-blue/10 flex items-center justify-center">
-                        <Check className="h-3 w-3 text-notebook-blue" strokeWidth={3} />
-                      </div>
-                      <span className="text-sm font-semibold text-slate-400">One-Click WordPress Integration</span>
-                    </div>
-                    <div className="flex items-center space-x-2.5">
-                      <div className="h-5 w-5 rounded-full bg-notebook-blue/10 flex items-center justify-center">
-                        <Check className="h-3 w-3 text-notebook-blue" strokeWidth={3} />
-                      </div>
-                      <span className="text-sm font-semibold text-slate-400">Secure & Private Processing</span>
-                    </div>
-                    <div className="flex items-center space-x-2.5">
-                      <div className="h-5 w-5 rounded-full bg-notebook-blue/10 flex items-center justify-center">
-                        <Check className="h-3 w-3 text-notebook-blue" strokeWidth={3} />
-                      </div>
-                      <span className="text-sm font-semibold text-slate-400">No Credit Card Required</span>
-                    </div>
-                  </div>
+                  <p className="mt-6 flex flex-wrap items-center gap-3 text-sm font-medium text-slate-500 sm:text-base min-[1800px]:mt-12">
+                    <span className="inline-flex items-center rounded-full bg-[#FEE11C] px-4 py-2 font-bold text-black shadow-[0_8px_18px_rgba(254,225,28,0.2)]">1 credit per image</span>
+                    <span>No credit card required</span>
+                  </p>
                 </div>
               </div>
 
-              {/* Right Side - Premium Notebook Card */}
-              <div className="lg:pl-8 animate-in fade-in zoom-in-95 duration-1000 delay-150">
-                <div className="bg-white rounded-[2.5rem] p-10 relative z-10 border border-gray-100 shadow-notebook-lg">
-                  <div className="flex items-center justify-between mb-10">
-                    <h3 className="text-2xl font-bold font-outfit text-notebook-slate">
-                      Alt Text Generator
-                    </h3>
-                    <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-notebook-surface border border-gray-100">
-                      <div className="w-1.5 h-1.5 rounded-full bg-notebook-blue animate-pulse" />
-                      <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Online</span>
-                    </div>
-                  </div>
+              {/* Right Side - Reference hero visual */}
+              <div className="relative min-h-[570px] animate-in fade-in zoom-in-95 delay-150 duration-1000 sm:min-h-[500px] lg:ml-[-2.5rem] lg:min-h-[470px] min-[1800px]:ml-[-4rem] min-[1800px]:min-h-[670px] min-[1800px]:-translate-y-12">
+                <input
+                  type="file"
+                  id="image-upload"
+                  className="hidden"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleDemoImageSelect(file);
+                  }}
+                />
 
-                  {/* Upload Area */}
-                  <div
-                    className="border border-notebook-blue/10 rounded-3xl p-10 text-center cursor-pointer transition-all duration-300 bg-notebook-surface/50 hover:bg-white hover:border-notebook-blue/30 mb-8 relative overflow-hidden group/upload shadow-inner"
-                    onClick={() => document.getElementById('image-upload')?.click()}
-                  >
-                    <input
-                      type="file"
-                      id="image-upload"
-                      className="hidden"
-                      accept="image/*"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          handleDemoImageSelect(file);
-                        }
-                      }}
-                    />
+                <button
+                  type="button"
+                  className="absolute right-[7%] top-3 z-10 block w-[83%] rotate-[2deg] rounded-[2.6rem] border border-slate-200 bg-white p-3 text-left shadow-[0_28px_60px_rgba(15,23,42,0.12)] transition-transform duration-500 hover:rotate-0 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#FEE11C]/45 sm:right-[8%] sm:top-4 lg:right-[29%] lg:w-[56%] min-[1800px]:right-[32%] min-[1800px]:w-[59%]"
+                  onClick={() => document.getElementById("image-upload")?.click()}
+                  aria-label="Choose an image to generate alt text"
+                >
+                  <div className="relative aspect-[1.14] overflow-hidden rounded-[2.1rem] bg-slate-100">
                     {selectedImage ? (
-                      <div className="relative w-full h-52">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={selectedImage}
-                          alt="Selected"
-                          className="h-full w-full object-contain rounded-2xl"
-                        />
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedImage(null);
-                            setGeneratedAltText("");
-                          }}
-                          className="absolute -top-2 -right-2 bg-white rounded-full p-2 shadow-lg hover:bg-slate-50 border border-gray-100 transition-all hover:scale-110 active:scale-90"
-                        >
-                          <X className="h-4 w-4 text-slate-600" />
-                        </button>
-                      </div>
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={selectedImage} alt="Selected image" className="h-full w-full object-cover" />
                     ) : (
-                      <div className="space-y-4 relative z-10">
-                        <div className="bg-white rounded-2xl w-16 h-16 flex items-center justify-center mx-auto mb-4 group-hover/upload:scale-110 transition-transform duration-500 shadow-notebook border border-gray-100">
-                          <Upload className="h-8 w-8 text-notebook-blue" />
-                        </div>
-                        <div>
-                          <p className="text-lg font-bold text-notebook-slate font-outfit">Optimize an image</p>
-                          <p className="text-sm text-gray-400 font-normal">Drag & drop or <span className="text-notebook-blue hover:underline">browse files</span></p>
-                        </div>
-                      </div>
+                      <Image
+                        src="/mountain-landscape.jpg"
+                        alt="Mountain peaks reflected in an alpine lake"
+                        fill
+                        sizes="(min-width: 1024px) 42vw, 90vw"
+                        className="object-cover"
+                        priority
+                      />
                     )}
+                    <span className="absolute left-5 top-5 rounded-xl bg-slate-900/95 px-4 py-2 text-sm font-bold tracking-wide text-white shadow-lg">
+                      {selectedImage ? "YOUR_IMAGE" : "IMG_4821.jpg"}
+                    </span>
+                    <span className="absolute bottom-4 right-4 flex h-16 w-16 items-center justify-center rounded-full border-[5px] border-white bg-[#1976A8] font-serif text-4xl font-bold leading-none text-white shadow-xl" aria-hidden="true">
+                      W
+                    </span>
                   </div>
+                </button>
 
-                  {/* Generate Button */}
-                  <Button
-                    className="w-full h-14 text-white font-bold rounded-2xl transition-all duration-300 bg-notebook-blue hover:bg-notebook-blue/90 shadow-notebook group/btn"
-                    disabled={!selectedImage || isGenerating}
-                    onClick={generateDemoAltText}
-                  >
-                    {isGenerating ? (
-                      <div className="flex items-center gap-3">
-                        <div className="animate-spin rounded-full h-5 w-5 border-2 border-white/30 border-t-white"></div>
-                        <span className="font-outfit text-sm">Analyzing Image...</span>
-                      </div>
+                <div className="absolute bottom-0 right-0 z-20 w-[79%] rounded-[2rem] border border-slate-200 bg-white p-7 text-left shadow-[0_28px_70px_rgba(15,23,42,0.14)] sm:p-6 lg:w-[58%] min-[1800px]:bottom-[-72px] min-[1800px]:w-[60%] min-[1800px]:p-8">
+                  <div className="flex items-center gap-3 border-b border-slate-200 pb-4 min-[1800px]:pb-5">
+                    <h2 className="text-lg font-bold text-black">Generated alt text</h2>
+                  </div>
+                  <p className="min-h-[96px] py-5 text-lg leading-7 text-slate-600 min-[1800px]:min-h-[116px] min-[1800px]:py-7 min-[1800px]:text-xl min-[1800px]:leading-8">
+                    {generatedAltText || HERO_SAMPLE_ALT_TEXT}
+                  </p>
+                  <div className="flex items-center justify-between border-t border-slate-200 pt-4 min-[1800px]:pt-5">
+                    {selectedImage && !generatedAltText ? (
+                      <button
+                        type="button"
+                        onClick={generateDemoAltText}
+                        disabled={isGenerating}
+                        className="inline-flex items-center gap-2 rounded-full bg-notebook-teal px-4 py-2 text-sm font-bold text-notebook-black transition hover:bg-notebook-teal/90 disabled:cursor-wait disabled:opacity-60"
+                      >
+                        {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                        {isGenerating ? "Generating…" : "Generate alt text"}
+                      </button>
                     ) : (
-                      <span className="font-outfit uppercase tracking-wider text-xs">Get Alt Text</span>
+                      <span className="inline-flex items-center gap-2 text-base font-semibold text-black">Ready to use</span>
                     )}
-                  </Button>
-
-                  {/* Result Area */}
-                  {generatedAltText && (
-                    <div className="mt-8 animate-in fade-in slide-in-from-bottom-6 duration-700">
-                      <div className="bg-notebook-surface rounded-2xl p-6 border border-gray-100 relative group/result">
-                        <div className="flex items-center justify-between mb-4">
-                          <span className="text-[10px] font-bold text-notebook-blue uppercase tracking-widest font-outfit">
-                            Smart Alt Text
-                          </span>
-                          <button
-                            className="text-gray-400 hover:text-notebook-blue transition-colors"
-                            onClick={() => {
-                              navigator.clipboard.writeText(generatedAltText);
-                              toast.success("Copied to clipboard!");
-                            }}
-                          >
-                            <Copy className="h-4 w-4" />
-                          </button>
-                        </div>
-                        <p className="text-notebook-slate text-sm leading-relaxed font-normal italic">"{generatedAltText}"</p>
-                      </div>
-                    </div>
-                  )}
+                    <button
+                      type="button"
+                      className="rounded-lg p-2 text-black transition hover:bg-slate-100"
+                      onClick={() => {
+                        navigator.clipboard.writeText(generatedAltText || HERO_SAMPLE_ALT_TEXT);
+                        toast.success("Copied to clipboard!");
+                      }}
+                      aria-label="Copy generated alt text"
+                    >
+                      <Copy className="h-5 w-5" />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
           </section>
         </div>
+
+        <BenefitsStrip />
+        <MediaLibraryShowcase />
 
         {/* How It Works - Premium Design */}
         <section className="py-24 bg-white relative">
@@ -584,12 +553,12 @@ export default function LandingPage() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
             <div className="text-center mb-24">
               <h2 className="text-4xl lg:text-6xl font-bold text-notebook-slate mb-6 tracking-tight font-outfit">
-                First Alt Text
+                From Upload to Alt Text
                 <br />
                 <span className="text-notebook-blue italic">Without Guesswork.</span>
               </h2>
               <p className="text-slate-500 max-w-2xl mx-auto text-xl font-normal">
-                The setup path is built around one outcome: connect WordPress and generate your first useful image description fast.
+                Connect WordPress, generate accurate descriptions, and keep every image accessible from the start.
               </p>
             </div>
 
@@ -650,11 +619,10 @@ export default function LandingPage() {
                   <div className="lg:order-2 relative z-10 max-w-sm flex items-center h-full">
                     <div>
                       {/* Large background number */}
-                      <div className="absolute -top-10 -left-12 font-extrabold text-notebook-blue/5 select-none pointer-events-none z-0 font-outfit" style={{ fontSize: '10rem', lineHeight: '1' }}>
+                        <div className="absolute -top-10 -left-12 font-extrabold text-[#FEE11C]/20 select-none pointer-events-none z-0 font-outfit" style={{ fontSize: '10rem', lineHeight: '1' }}>
                         01
                       </div>
                       <h3 className="text-2xl font-bold text-notebook-slate mb-4 relative z-10 flex items-center gap-3 font-outfit uppercase tracking-wider">
-                        <div className="w-10 h-10 rounded-2xl bg-notebook-blue/5 flex items-center justify-center border border-notebook-blue/10 text-notebook-blue text-sm font-bold">01</div>
                         Install + Connect
                       </h3>
                       <p className="text-slate-500 text-lg leading-relaxed relative z-10 font-normal">
@@ -669,11 +637,10 @@ export default function LandingPage() {
                   <div className="lg:order-1 relative flex justify-center lg:justify-end items-center h-full">
                     <div className="max-w-sm relative pr-8">
                       {/* Large background number */}
-                      <div className="absolute -top-10 -left-12 font-extrabold text-notebook-blue/5 select-none pointer-events-none z-0 font-outfit" style={{ fontSize: '10rem', lineHeight: '1' }}>
+                      <div className="absolute -top-10 -left-12 font-extrabold text-[#FEE11C]/20 select-none pointer-events-none z-0 font-outfit" style={{ fontSize: '10rem', lineHeight: '1' }}>
                         02
                       </div>
                       <h3 className="text-2xl font-bold text-notebook-slate mb-4 relative z-10 flex items-center gap-3 font-outfit uppercase tracking-wider">
-                        <div className="w-10 h-10 rounded-2xl bg-notebook-blue/5 flex items-center justify-center border border-notebook-blue/10 text-notebook-blue text-sm font-bold">02</div>
                         Generate With Context
                       </h3>
                       <p className="text-slate-500 text-lg leading-relaxed relative z-10 font-normal">
@@ -734,7 +701,7 @@ export default function LandingPage() {
                         <div className="bg-white rounded-xl p-4 border border-notebook-blue/5 shadow-sm">
                           <div className="flex items-center justify-between mb-3">
                             <span className="text-[10px] font-bold text-notebook-blue uppercase tracking-[0.2em] flex items-center gap-1.5 font-outfit">
-                              <Sparkles className="w-3 h-3 text-notebook-orange" /> Optimized Alt Text
+                              Optimized Alt Text
                             </span>
                             <div className="h-5 w-5 rounded-full bg-notebook-blue/5 flex items-center justify-center hover:bg-notebook-blue/10 cursor-pointer transition-colors">
                               <Copy className="w-3 h-3 text-notebook-blue" />
@@ -746,13 +713,11 @@ export default function LandingPage() {
                         </div>
 
                         <div className="flex gap-2">
-                          <div className="flex-1 bg-notebook-blue/5 rounded-lg border border-notebook-blue/10 py-2 px-3 flex items-center gap-2">
-                            <CheckCircle className="w-3 h-3 text-notebook-blue" />
-                            <span className="text-[10px] font-bold text-notebook-black/60 font-outfit uppercase">Accessibility Standards</span>
+                          <div className="flex-1 bg-notebook-blue/5 rounded-lg border border-notebook-blue/10 py-2 px-3 flex items-center">
+                            <span className="text-[10px] font-bold text-notebook-black/70 font-outfit uppercase">Accessibility Standards</span>
                           </div>
-                          <div className="flex-1 bg-notebook-orange/5 rounded-lg border border-notebook-orange/10 py-2 px-3 flex items-center gap-2">
-                            <CheckCircle className="w-3 h-3 text-notebook-orange" />
-                            <span className="text-[10px] font-bold text-notebook-black/60 font-outfit uppercase">SEO Rank 1</span>
+                          <div className="flex-1 bg-[#FEE11C] rounded-lg border border-[#E8C900] py-2 px-3 flex items-center">
+                            <span className="text-[10px] font-bold text-black font-outfit uppercase">SEO Rank 1</span>
                           </div>
                         </div>
                       </div>
@@ -760,13 +725,12 @@ export default function LandingPage() {
                   </div>
 
                   <div className="lg:order-2 relative max-w-sm flex items-center h-full">
-                    <div>
+                    <div className="relative">
                       {/* Large background number */}
-                      <div className="absolute -top-10 -left-12 font-extrabold text-notebook-blue/5 select-none pointer-events-none z-0 font-outfit" style={{ fontSize: '10rem', lineHeight: '1' }}>
+                      <div className="absolute -top-10 -left-12 font-extrabold text-[#FEE11C]/20 select-none pointer-events-none z-0 font-outfit" style={{ fontSize: '10rem', lineHeight: '1' }}>
                         03
                       </div>
                       <h3 className="text-2xl font-bold text-notebook-slate mb-4 relative z-10 flex items-center gap-3 font-outfit uppercase tracking-wider">
-                        <div className="w-10 h-10 rounded-2xl bg-notebook-blue/5 flex items-center justify-center border border-notebook-blue/10 text-notebook-blue text-sm font-bold">03</div>
                         Review + Save
                       </h3>
                       <p className="text-slate-500 text-lg leading-relaxed relative z-10 font-normal">
@@ -780,66 +744,6 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Powerful Features Section */}
-        <section className="py-32 bg-notebook-paper relative overflow-hidden border-y border-notebook-blue/5">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-            <div className="text-center mb-20">
-              <h2 className="text-4xl lg:text-5xl font-bold text-notebook-slate mb-6 font-outfit tracking-tight">
-                Built for Reliability
-              </h2>
-              <p className="text-lg text-slate-500 max-w-2xl mx-auto font-normal">
-                Studio-grade tools for agencies and content teams who demand accessibility compliance with ranking authority.
-              </p>
-            </div>
-
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {/* Feature 1 */}
-              <div className="bg-white border border-gray-100 rounded-[2.5rem] p-10 hover:border-notebook-blue/20 transition-all duration-500 group shadow-sm hover:shadow-notebook">
-                <div className="w-14 h-14 bg-notebook-blue/5 border border-notebook-blue/10 rounded-2xl flex items-center justify-center mb-10 group-hover:scale-110 transition-transform duration-500">
-                  <Brain className="h-7 w-7 text-notebook-blue" />
-                </div>
-                <h3 className="text-sm font-bold text-notebook-slate mb-4 font-outfit uppercase tracking-widest">Advanced Technology</h3>
-                <p className="text-slate-500 leading-relaxed font-normal text-sm">
-                  Smart AI that understands your images. We don't just describe photos; we create SEO-friendly descriptions that rank.
-                </p>
-              </div>
-
-              {/* Feature 2 */}
-              <div className="bg-white border border-gray-100 rounded-[2.5rem] p-10 hover:border-notebook-blue/20 transition-all duration-500 group shadow-sm hover:shadow-notebook">
-                <div className="w-14 h-14 bg-notebook-blue/5 border border-notebook-blue/10 rounded-2xl flex items-center justify-center mb-10 group-hover:scale-110 transition-transform duration-500">
-                  <Globe className="h-7 w-7 text-notebook-blue" />
-                </div>
-                <h3 className="text-sm font-bold text-notebook-slate mb-4 font-outfit uppercase tracking-widest">Global Reach</h3>
-                <p className="text-slate-500 leading-relaxed font-normal text-sm">
-                  Deploy accessibility in 130+ languages. Our AI maintains semantic precision across borders, ensuring global compliance.
-                </p>
-              </div>
-
-              {/* Feature 3 */}
-              <div className="bg-white border border-gray-100 rounded-[2.5rem] p-10 hover:border-notebook-blue/20 transition-all duration-500 group shadow-sm hover:shadow-notebook">
-                <div className="w-14 h-14 bg-notebook-blue/5 border border-notebook-blue/10 rounded-2xl flex items-center justify-center mb-10 group-hover:scale-110 transition-transform duration-500">
-                  <BarChart3 className="h-7 w-7 text-notebook-blue" />
-                </div>
-                <h3 className="text-sm font-bold text-notebook-slate mb-4 font-outfit uppercase tracking-widest">Library Audit</h3>
-                <p className="text-slate-500 leading-relaxed font-normal text-sm">
-                  Live analytics on your media accessibility. Identify coverage gaps and monitor SEO performance gains in real-time.
-                </p>
-              </div>
-
-              {/* Feature 4 */}
-              <div className="bg-white border border-gray-100 rounded-[2.5rem] p-10 hover:border-notebook-blue/20 transition-all duration-500 group shadow-sm hover:shadow-notebook">
-                <div className="w-14 h-14 bg-notebook-blue/5 border border-notebook-blue/10 rounded-2xl flex items-center justify-center mb-10 group-hover:scale-110 transition-transform duration-500">
-                  <Zap className="h-7 w-7 text-notebook-blue" />
-                </div>
-                <h3 className="text-sm font-bold text-notebook-slate mb-4 font-outfit uppercase tracking-widest">Bulk Generation</h3>
-                <p className="text-slate-500 leading-relaxed font-normal text-sm">
-                  Automate thousands of descriptions in minutes. Designed for massive media libraries needing rapid, consistent optimization.
-                </p>
-              </div>
-            </div>
-          </div>
-        </section >
-
         {/* Social Proof Section */}
         <section className="py-24 bg-white border-t border-notebook-blue/5 relative overflow-hidden">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
@@ -848,8 +752,8 @@ export default function LandingPage() {
                 <div className="w-1.5 h-1.5 rounded-full bg-notebook-blue animate-pulse" />
                 <span className="text-[10px] font-bold text-notebook-blue uppercase tracking-widest font-outfit">Customer Love</span>
               </div>
-              <h2 className="text-3xl lg:text-5xl font-bold text-notebook-slate mb-4 tracking-tight font-outfit">Loved by early adopters</h2>
-              <p className="text-slate-500 text-xl max-w-2xl mx-auto font-normal">Join visionary teams building accessible, SEO-optimized experiences from day one.</p>
+              <h2 className="text-3xl lg:text-5xl font-bold text-notebook-slate mb-4 tracking-tight font-outfit">Built for teams who care about accessibility</h2>
+              <p className="text-slate-500 text-xl max-w-2xl mx-auto font-normal">Give every WordPress image accurate, SEO-friendly alt text without slowing down your workflow.</p>
             </div>
 
             <div className="grid md:grid-cols-3 gap-6">
@@ -914,8 +818,14 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Pricing Section */}
-        <section id="pricing" className="py-32 bg-notebook-paper relative overflow-hidden border-t border-notebook-blue/5">
+        <PricingSection
+          billingCycle={billingCycle}
+          onBillingCycleChange={setBillingCycle}
+          onSelectPlan={handlePlanSelection}
+        />
+
+        {/* Legacy pricing markup retained for reference; the screenshot-matched section above is the active pricing UI. */}
+        <section id="legacy-pricing" className="hidden py-32 bg-notebook-paper relative overflow-hidden border-t border-notebook-blue/5">
           {/* Subtle Background Accent */}
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-[1200px] h-[400px] bg-gradient-to-b from-notebook-blue/5 to-transparent blur-[100px] opacity-60 pointer-events-none"></div>
 
@@ -930,7 +840,7 @@ export default function LandingPage() {
                 <span className="text-notebook-blue italic">Scale Credits.</span>
               </h2>
               <p className="text-lg text-slate-500 max-w-2xl mx-auto font-normal">
-                Try the full WordPress flow with 30 free generations. Upgrade only when you are ready to process more images.
+                Try the full WordPress flow with 150 signup credits and 15 monthly credits. Upgrade only when you are ready to process more images.
               </p>
 
               {/* Refined Billing Cycle Toggle */}
@@ -975,7 +885,7 @@ export default function LandingPage() {
                     <div className="w-5 h-5 rounded-lg bg-notebook-blue/5 flex items-center justify-center border border-notebook-blue/10">
                       <Check className="h-3 w-3 text-notebook-blue" strokeWidth={3} />
                     </div>
-                    <span className="text-sm text-slate-500 font-normal">30 free generations</span>
+                    <span className="text-sm text-slate-500 font-normal">150 signup credits + 15 monthly</span>
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="w-5 h-5 rounded-lg bg-notebook-blue/5 flex items-center justify-center border border-notebook-blue/10">
@@ -1214,7 +1124,7 @@ export default function LandingPage() {
         </section >
 
         {/* Example Showcase Section - Warmer Research Hub Style */}
-        <section id="showcase" className="py-32 bg-white relative overflow-hidden border-t border-notebook-blue/5">
+        <section id="showcase" className="py-24 bg-white relative overflow-hidden border-t border-notebook-blue/5">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
             <div className="text-center mb-20 space-y-4">
               <div className="inline-flex px-3 py-1 bg-notebook-blue/5 rounded-full border border-notebook-blue/10">
@@ -1252,7 +1162,6 @@ export default function LandingPage() {
                   </p>
                   <div className="pt-6 border-t border-notebook-blue/5 flex items-center justify-between">
                     <div className="flex items-center gap-1.5">
-                      <CheckCircle className="w-3.5 h-3.5 text-notebook-blue" />
                       <span className="text-[10px] font-bold text-notebook-slate uppercase tracking-widest font-outfit">Generated Alt Text</span>
                     </div>
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">98% Accuracy</span>
@@ -1285,7 +1194,6 @@ export default function LandingPage() {
                   </p>
                   <div className="pt-6 border-t border-notebook-orange/10 flex items-center justify-between">
                     <div className="flex items-center gap-1.5">
-                      <CheckCircle className="w-3.5 h-3.5 text-notebook-orange" />
                       <span className="text-[10px] font-bold text-notebook-slate uppercase tracking-widest font-outfit">Generated Alt Text</span>
                     </div>
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">96% Accuracy</span>
@@ -1318,7 +1226,6 @@ export default function LandingPage() {
                   </p>
                   <div className="pt-6 border-t border-notebook-blue/5 flex items-center justify-between">
                     <div className="flex items-center gap-1.5">
-                      <CheckCircle className="w-3.5 h-3.5 text-notebook-blue" />
                       <span className="text-[10px] font-bold text-notebook-slate uppercase tracking-widest font-outfit">Generated Alt Text</span>
                     </div>
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">94% Accuracy</span>
@@ -1329,37 +1236,65 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* CTA Section - Research Protocol Initiation */}
-        <section className="py-32 bg-notebook-paper relative overflow-hidden border-t border-notebook-blue/5">
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-            <div className="bg-white border border-notebook-blue/10 rounded-[3rem] p-12 md:p-20 text-center shadow-notebook-lg relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-64 h-64 bg-notebook-blue/5 blur-[100px] rounded-full pointer-events-none"></div>
+        {/* FAQ Section */}
+        <section className="border-t border-slate-200 bg-white py-24">
+          <div className="mx-auto grid max-w-7xl gap-16 px-5 sm:px-8 lg:grid-cols-[0.8fr_1.2fr] lg:gap-24 lg:px-10">
+            <div>
+              <p className="text-sm font-semibold text-black">Questions</p>
+              <h2 className="mt-8 max-w-xl font-outfit text-6xl font-bold leading-[0.96] tracking-[-0.07em] text-black sm:text-7xl">
+                Good answers,
+                <br />
+                before you
+                <br />
+                <span className="italic">start.</span>
+              </h2>
+              <p className="mt-10 max-w-md text-lg leading-7 text-slate-500">
+                Still deciding? Start free and test the complete WordPress workflow.
+              </p>
+              <Button
+                size="lg"
+                className="mt-10 h-14 rounded-full bg-[#FEE11C] px-10 text-base font-bold text-black shadow-[0_14px_28px_rgba(254,225,28,0.25)] transition hover:-translate-y-0.5 hover:bg-[#FEE11C]"
+                onClick={() => { setIsLogin(false); setShowAuthForm(true); }}
+              >
+                Get 150 free credits
+              </Button>
+            </div>
 
-              <div className="relative z-10 space-y-10">
-                <div className="inline-flex px-4 py-2 bg-notebook-blue/5 rounded-full">
-                  <span className="text-xs font-bold text-notebook-blue uppercase tracking-widest font-outfit">WordPress Ready</span>
-                </div>
-                <h2 className="text-4xl md:text-6xl font-bold text-notebook-slate tracking-tight font-outfit leading-[1.1]">
-                  Connect Your Site <br />
-                  <span className="text-notebook-blue italic">And Generate One.</span>
-                </h2>
-                <p className="text-xl text-slate-500 font-normal max-w-2xl mx-auto leading-relaxed">
-                  Start with 30 free AI-powered alt text generations. No credit card required, and the plugin can connect automatically from WordPress.
-                </p>
-
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-6 pt-4">
-                  <Button
-                    size="lg"
-                    className="h-16 px-12 bg-notebook-blue hover:bg-notebook-blue/90 text-white rounded-2xl font-bold font-outfit text-sm uppercase tracking-widest shadow-notebook hover:-translate-y-1 transition-all duration-300"
-                    onClick={() => { setIsLogin(false); setShowAuthForm(true); }}
-                  >
-                    Get 30 Free Credits
-                  </Button>
-                  <Link href="/docs#installation" className="text-xs font-bold text-notebook-slate/60 hover:text-notebook-blue uppercase tracking-widest transition-colors font-outfit group border-b border-transparent hover:border-notebook-blue pb-1">
-                    View Install Guide
-                  </Link>
-                </div>
-              </div>
+            <div className="border-t border-slate-300">
+              {[
+                {
+                  question: "What counts as one credit?",
+                  answer: "One successful alt text generation uses one credit. Failed requests do not consume credits.",
+                },
+                {
+                  question: "Can I process an entire WordPress media library?",
+                  answer: "Yes. Standard and Pro plans support bulk media-library fixes so you can improve many images in one workflow.",
+                },
+                {
+                  question: "Does it work with WooCommerce images?",
+                  answer: "Yes. Alt Text Pro works with WooCommerce product images and the rest of your WordPress media library.",
+                },
+                {
+                  question: "Do unused subscription credits roll over?",
+                  answer: "Plan credits reset each billing cycle. Purchased and bonus credits remain available for future generations.",
+                },
+              ].map((faq, index) => {
+                const isOpen = openFaq === index;
+                return (
+                  <div key={faq.question} className="border-b border-slate-300">
+                    <button
+                      type="button"
+                      className="flex w-full items-center justify-between gap-6 py-7 text-left"
+                      aria-expanded={isOpen}
+                      onClick={() => setOpenFaq(isOpen ? -1 : index)}
+                    >
+                      <span className="font-outfit text-xl font-semibold tracking-[-0.03em] text-black sm:text-2xl">{faq.question}</span>
+                      <ChevronDown className={`h-5 w-5 shrink-0 text-black transition-transform ${isOpen ? "rotate-180" : ""}`} aria-hidden="true" />
+                    </button>
+                    {isOpen && <p className="max-w-3xl pb-7 pr-8 text-lg leading-7 text-slate-500">{faq.answer}</p>}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </section>
@@ -1495,7 +1430,7 @@ export default function LandingPage() {
                 <div className="text-3xl font-bold text-notebook-slate font-outfit mb-0.5">
                   {selectedPlan.price}
                 </div>
-                {selectedPlan.id !== 'free' && selectedPlan.id !== 'pay_as_go' && (
+                {!['free', 'pay_as_go', 'small_pack', 'credit_pack'].includes(selectedPlan.id) && (
                   <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                     BILLED MONTHLY / ANNUALLY
                   </div>
@@ -1522,13 +1457,15 @@ export default function LandingPage() {
                       {(selectedPlan.id === 'tier1' ? [
                         "150 Monthly Credits", "Auto-Pilot Analysis", "High-Fidelity AI", "Standard Support"
                       ] : selectedPlan.id === 'tier2' ? [
-                        "400 Monthly Credits", "Bulk Library Optimization", "Multi-Language (130+)", "SEO Compliance", "Priority Support"
+                        "1,000 Monthly Credits", "Bulk Library Optimization", "Multi-Language (130+)", "SEO Compliance", "Priority Support"
                       ] : selectedPlan.id === 'tier3' ? [
-                        "1,000 Monthly Credits", "Context-Aware Generation", "Full Auto-Pilot Suite", "Custom API Access", "24/7 Strategic Support"
+                        "2,000 Monthly Credits", "Context-Aware Generation", "Full Auto-Pilot Suite", "Custom API Access", "24/7 Strategic Support"
+                      ] : selectedPlan.id === 'tier4' ? [
+                        "3,500 Monthly Credits", "Multi-Site Workflows", "Context-Aware Generation", "Full Auto-Pilot Suite", "24/7 Strategic Support"
                       ] : selectedPlan.id === 'small_pack' ? [
-                        "100 Credit Injection", "On-Demand Resource", "Never Expires", "Immediate Utility"
+                        "500 Credit Injection", "On-Demand Resource", "Never Expires", "Immediate Utility"
                       ] : [
-                        "250 Credit Injection", "Efficiency Pack Bonus", "Never Expires", "Strategic Utility"
+                        "1,200 Credit Injection", "Efficiency Pack Bonus", "Never Expires", "Strategic Utility"
                       ]).map((item, i) => (
                         <div key={i} className="flex items-center gap-2 bg-notebook-paper/50 px-3 py-2 rounded-xl border border-notebook-blue/5">
                           <Check className="h-3.5 w-3.5 text-notebook-blue" />

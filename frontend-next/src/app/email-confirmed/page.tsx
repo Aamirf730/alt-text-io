@@ -98,7 +98,7 @@ export default function EmailConfirmation() {
                     {isLoading ? (
                         <>
                             <div className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4"
-                                style={{ borderColor: '#0D4F5E' }}></div>
+                                style={{ borderColor: '#000000' }}></div>
                             <h1 className="text-2xl font-bold text-gray-900 mb-2">Confirming your email...</h1>
                             <p className="text-gray-600">Please wait while we verify your account.</p>
                         </>
@@ -113,7 +113,7 @@ export default function EmailConfirmation() {
                                 onClick={() => router.push('/')}
                                 className="w-full"
                                 style={{
-                                    background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)',
+                                    background: 'linear-gradient(135deg, #000000 0%, #000000 100%)',
                                     color: 'white'
                                 }}
                             >
@@ -123,9 +123,9 @@ export default function EmailConfirmation() {
                     ) : isConfirmed ? (
                         <>
                             <div className="mb-4">
-                                <CheckCircle className="h-16 w-16 mx-auto" style={{ color: '#0D4F5E' }} />
+                                <CheckCircle className="h-16 w-16 mx-auto" style={{ color: '#000000' }} />
                             </div>
-                            <h1 className="text-3xl font-bold mb-4" style={{ color: '#003a42' }}>
+                            <h1 className="text-3xl font-bold mb-4" style={{ color: '#000000' }}>
                                 Thanks for confirming your email!
                             </h1>
                             <p className="text-gray-600 mb-6">
@@ -136,7 +136,7 @@ export default function EmailConfirmation() {
                                     onClick={() => router.push('/dashboard')}
                                     className="w-full"
                                     style={{
-                                        background: 'linear-gradient(135deg, #0D4F5E 0%, #004953 100%)',
+                                        background: 'linear-gradient(135deg, #000000 0%, #000000 100%)',
                                         color: 'white'
                                     }}
                                 >
@@ -147,8 +147,8 @@ export default function EmailConfirmation() {
                                     variant="outline"
                                     className="w-full"
                                     style={{
-                                        borderColor: '#003a42',
-                                        color: '#003a42'
+                                        borderColor: '#000000',
+                                        color: '#000000'
                                     }}
                                 >
                                     Back to Homepage

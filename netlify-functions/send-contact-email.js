@@ -103,18 +103,18 @@ exports.handler = async (event, context) => {
       subject: subject || `Contact Form: ${name}`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #1AB5AC; border-bottom: 2px solid #1AB5AC; padding-bottom: 10px;">
+          <h2 style="color: #000000; border-bottom: 2px solid #FEE11C; padding-bottom: 10px;">
             New Contact Form Submission
           </h2>
           
           <div style="background-color: #f9fafb; padding: 20px; border-radius: 8px; margin: 20px 0;">
-            <p><strong style="color: #0B4F5E;">Name:</strong> ${name}</p>
-            <p><strong style="color: #0B4F5E;">Email:</strong> <a href="mailto:${email}">${email}</a></p>
-            ${subject ? `<p><strong style="color: #0B4F5E;">Subject:</strong> ${subject}</p>` : ''}
+            <p><strong style="color: #000000;">Name:</strong> ${name}</p>
+            <p><strong style="color: #000000;">Email:</strong> <a href="mailto:${email}">${email}</a></p>
+            ${subject ? `<p><strong style="color: #000000;">Subject:</strong> ${subject}</p>` : ''}
           </div>
           
-          <div style="background-color: #ffffff; padding: 20px; border-left: 4px solid #1AB5AC; margin: 20px 0;">
-            <p><strong style="color: #0B4F5E;">Message:</strong></p>
+          <div style="background-color: #ffffff; padding: 20px; border-left: 4px solid #FEE11C; margin: 20px 0;">
+            <p><strong style="color: #000000;">Message:</strong></p>
             <p style="white-space: pre-wrap; line-height: 1.6;">${message}</p>
           </div>
           

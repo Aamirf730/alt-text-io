@@ -6,7 +6,7 @@
     box-sizing: border-box;
     overflow-y: auto;
     padding: 24px;
-    background: #0f172a;
+    background: #000000;
     font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
@@ -44,7 +44,7 @@
 }
 
 .connect-loading svg {
-    color: #0f5b66;
+    color: #FEE11C;
 }
 
 .connect-loading p,
@@ -65,7 +65,7 @@
 .connect-confirmation h2,
 .connect-recovery h2 {
     margin: 0;
-    color: #0f172a;
+    color: #000000;
     font-size: 24px;
     font-weight: 750;
     letter-spacing: -0.025em;
@@ -78,17 +78,17 @@
 
 .connect-confirmation .confirmation-icon {
     margin-bottom: 14px;
-    color: #0f5b66;
+    color: #FEE11C;
 }
 
 .confirmation-target {
     overflow-wrap: anywhere;
     margin: 16px 0 12px;
     padding: 12px 14px;
-    border: 1px solid #b8deda;
+    border: 1px solid #FEE11C;
     border-radius: 10px;
-    background: #eef9f7;
-    color: #0f5b66;
+    background: #FFF9C4;
+    color: #000000;
     font-size: 16px;
     font-weight: 750;
 }
@@ -100,9 +100,9 @@
 
 .connect-submit-btn,
 .recovery-copy-btn {
-    border: 1px solid #0f5b66;
-    background: #0f5b66;
-    color: #ffffff;
+    border: 1px solid #FEE11C;
+    background: #FEE11C;
+    color: #000000;
 }
 
 .connect-submit-btn {
@@ -117,8 +117,9 @@
 
 .connect-submit-btn:hover:not(:disabled),
 .recovery-copy-btn:hover {
-    border-color: #0b4b55;
-    background: #0b4b55;
+    border-color: #000000;
+    background: #000000;
+    color: #FFFFFF;
 }
 
 .connect-cancel-btn,
@@ -126,7 +127,7 @@
     width: 100%;
     border: 0;
     background: transparent;
-    color: #0f5b66;
+    color: #000000;
     cursor: pointer;
     font-size: 14px;
     font-weight: 700;
@@ -168,7 +169,7 @@
     justify-content: center;
     gap: 9px;
     margin-bottom: 18px;
-    color: #0f172a;
+    color: #000000;
     font-size: 15px;
     font-weight: 750;
 }
@@ -187,15 +188,15 @@
     width: 48px;
     height: 48px;
     margin-bottom: 12px;
-    border: 1px solid #b8deda;
+    border: 1px solid #FEE11C;
     border-radius: 14px;
-    background: #eef9f7;
-    color: #0f5b66;
+    background: #FFF9C4;
+    color: #FEE11C;
 }
 
 .connect-recovery .recovery-eyebrow {
     margin: 0 0 7px;
-    color: #0f5b66;
+    color: #000000;
     font-size: 11px;
     font-weight: 800;
     letter-spacing: 0.08em;
@@ -257,15 +258,15 @@
     border: 1px solid #cbd5e1;
     border-radius: 9px;
     outline: none;
-    background: #f8fafc;
-    color: #0f172a;
+    background: #FFFFFF;
+    color: #000000;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     font-size: 13px;
 }
 
 .recovery-key-field input:focus {
-    border-color: #0f5b66;
-    box-shadow: 0 0 0 3px rgba(15, 91, 102, 0.13);
+    border-color: #000000;
+    box-shadow: 0 0 0 3px rgba(254, 225, 28, 0.13);
 }
 
 .recovery-visibility-btn {
@@ -288,7 +289,7 @@
 
 .recovery-visibility-btn:hover {
     background: #e2e8f0;
-    color: #0f172a;
+    color: #000000;
 }
 
 .recovery-copy-btn {
@@ -328,8 +329,8 @@
     width: 24px;
     height: 24px;
     border-radius: 50%;
-    background: #e2f4f1;
-    color: #0f5b66;
+    background: #FFF9C4;
+    color: #000000;
     font-size: 11px;
     font-weight: 800;
 }
@@ -357,7 +358,7 @@
 .recovery-security-note svg {
     flex: 0 0 16px;
     margin-top: 1px;
-    color: #0f5b66;
+    color: #FEE11C;
 }
 
 .recovery-close-btn {
@@ -367,7 +368,7 @@
 
 .connect-page button:focus-visible,
 .connect-page input:focus-visible {
-    outline: 3px solid rgba(15, 91, 102, 0.22);
+    outline: 3px solid rgba(254, 225, 28, 0.22);
     outline-offset: 2px;
 }
 

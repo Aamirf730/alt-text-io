@@ -109,7 +109,7 @@ export default function WooCommerceProductImageAltTextPage() {
       "@type": "Offer",
       price: "0",
       priceCurrency: "USD",
-      description: "Free account includes 30 credits.",
+      description: "Free account includes 150 signup credits plus 15 every month.",
     },
   };
 
@@ -147,7 +147,7 @@ export default function WooCommerceProductImageAltTextPage() {
                     href="/"
                     className="inline-flex h-14 items-center justify-center rounded-full bg-notebook-blue px-8 text-sm font-bold uppercase tracking-widest text-white shadow-notebook hover:bg-notebook-blue/90 transition-colors font-outfit"
                   >
-                    Get 30 Free Credits
+                    Get 150 Free Credits
                     <ArrowRight className="ml-3 h-4 w-4" />
                   </Link>
                   <Link
@@ -336,7 +336,7 @@ export default function WooCommerceProductImageAltTextPage() {
                   href="/"
                   className="inline-flex h-14 items-center justify-center rounded-full bg-notebook-blue px-8 py-4 text-sm font-bold uppercase tracking-widest text-white shadow-notebook hover:bg-notebook-blue/90 transition-colors font-outfit"
                 >
-                  Get 30 Free Credits
+                  Get 150 Free Credits
                 </Link>
                 <Link
                   href="/ai-alt-text-generator-for-wordpress"

@@ -402,16 +402,16 @@ function renderFunnelReportHtml(report) {
   `).join('');
 
   return `
-    <div style="font-family:Arial,sans-serif;max-width:760px;margin:0 auto;color:#0f172a;">
-      <h1 style="color:#0D4F5E;">Alt Text Pro daily funnel report</h1>
+    <div style="font-family:Arial,sans-serif;max-width:760px;margin:0 auto;color:#000000;">
+      <h1 style="color:#000000;">Alt Text Pro daily funnel report</h1>
       <p style="color:#475569;">${escapeHtml(formatDateTime(report.range.start_at))} to ${escapeHtml(formatDateTime(report.range.end_at))} UTC</p>
       <div style="display:flex;gap:12px;margin:20px 0;">
-        <div style="padding:14px 16px;background:#E7F7F5;border:1px solid #BFEAE6;border-radius:8px;">
-          <div style="font-size:12px;text-transform:uppercase;color:#0D4F5E;">Events</div>
+        <div style="padding:14px 16px;background:#FFF9C4;border:1px solid #FEE11C;border-radius:8px;">
+          <div style="font-size:12px;text-transform:uppercase;color:#000000;">Events</div>
           <div style="font-size:28px;font-weight:700;">${report.totals.events}</div>
         </div>
         <div style="padding:14px 16px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;">
-          <div style="font-size:12px;text-transform:uppercase;color:#0D4F5E;">Unique actors</div>
+          <div style="font-size:12px;text-transform:uppercase;color:#000000;">Unique actors</div>
           <div style="font-size:28px;font-weight:700;">${report.totals.unique_actors}</div>
         </div>
       </div>
@@ -427,7 +427,7 @@ function renderFunnelReportHtml(report) {
         </thead>
         <tbody>${rows}</tbody>
       </table>
-      <h2 style="color:#0D4F5E;margin-top:24px;">Dropoffs</h2>
+      <h2 style="color:#000000;margin-top:24px;">Dropoffs</h2>
       <ul>${dropoffs}</ul>
     </div>
   `;
