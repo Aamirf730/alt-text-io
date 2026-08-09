@@ -1,5 +1,20 @@
 # Progress
 
+## 2026-08-10: Final release audit closed
+
+- Production Netlify deploy `6a79095b0ec3020008b26df4` is ready from commit `e2a7c3a` on `main`; `/api/health` reports healthy on version `e2a7c3a9`.
+- Production `/api/get-plans` matches the requested catalogue and allowances, including the intentionally retained `pay_as_go` row. Unsigned Polar webhook requests return 403 and unauthenticated checkout requests return 401.
+- Production Polar’s Active catalogue contains exactly the eight new subscriptions, Free, Small Pack (500), and Credit Pack (1,200); the six legacy subscription products are absent. The live plugin ZIP reports version and Stable tag 1.7.16.
+- Pricing rollout evidence is complete across repository tests, production catalogue/deploy checks, WordPress.org publication, and the isolated staging pack/monthly/annual ledger smoke tests. No unresolved release blocker remains.
+
+## 2026-08-10: Staging pricing smoke verification completed on current build
+
+- Deployed the reviewed tracked source to staging as Netlify deploy `6a790a36f45a1a27670bfad0` (ready, 18 functions, clean secret scan). The prior Agency mismatch was traced to the stale August 5 deployment and to staging’s older database schema, not to the reviewed Agency-before-Pro plan matcher.
+- The staging database was missing the current pricing columns (`subscription_plans.annual_price`, catalogue flags/cost fields, and `profiles.polar_product_id`). Added the required staging-only schema alignment, then applied the reviewed pricing migrations `20260809120000_apply_2026_08_pricing_packages.sql` and `20260809211033_activate_tier4_catalogue.sql`. Staging `/api/get-plans` now returns Free 15, Lite 4/43.20, Standard 9/97.20, Pro 14/151.20, Agency 19/205.20, Small Pack 500, Credit Pack 1,200, plus the intentionally retained `pay_as_go` row.
+- Completed the exact staging credit-pack assertion: Polar sandbox Credit Pack order `polar_ord_1b205acb-c4eb-4dbd-a4e8-4edf505dd8dd` recorded `plan_id=credit_pack`, amount `$11.80` including sandbox tax, `credit_pack_grants.credits=1200`, and `purchased_credits_remaining=1200` for the isolated QA profile.
+- Enabled `subscription.active` on the sandbox webhook endpoint and completed current-build Agency tests. Monthly order `polar_ord_4f04c7eb-8f30-4665-afad-5a1e95f95d88` recorded `plan_id=tier4`, amount `$22.42` including sandbox tax, and the profile resolved to `tier4`, `billing_cycle=monthly`, and `monthly_credit_allowance=3500`. Annual order `polar_ord_bf90336a-89bb-4ef3-b54e-69f65fd5cdd7` recorded `plan_id=tier4`, amount `$242.14` including sandbox tax, and the same profile resolved to `tier4`, `billing_cycle=annual`, and `monthly_credit_allowance=3500`.
+- Polar delivery evidence for the current retests is HTTP 200 for both `order.paid` and `subscription.active`; the earlier HTTP 500 deliveries are retained as evidence of the pre-migration staging schema failure and were not treated as successful verification. No production database or production customer data was used for these tests.
+
 ## 2026-08-10: Staging verification found a stale deployment; refreshed deploy path
 
 - The first direct Agency monthly sandbox checkout against staging used the August 5 manual deployment `6a73430…`, which predated the pricing release. Its payment row incorrectly resolved the product name `Alt Text Pro — Agency Monthly` to `tier3` because that stale build did not contain the reviewed Agency-before-Pro matcher; no production data was affected.
