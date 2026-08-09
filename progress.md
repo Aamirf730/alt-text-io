@@ -1,5 +1,12 @@
 # Progress
 
+## 2026-08-10: Polar sandbox smoke test passed; legacy production products archived
+
+- Used the Polar QA sandbox, where payments are explicitly not processed, to create Agency monthly/annual test products with the requested intervals, prices, and metadata, plus a Credit Pack (1,200) test product. Completed paid sandbox checkouts for Agency monthly, Agency annual, and the $10 credit pack using test card data; the sandbox recorded both Agency subscriptions as active and the pack order as paid.
+- The sandbox webhook endpoint delivered all three `order.paid` events to `https://alt-text-pro-staging.netlify.app/api/webhooks/polar` with HTTP 200. The latest payload visibly contained `metadata.user_id`, `tier4`, `subscription`, and `3500` for Agency. Read-only staging checks found no ledger update because the QA profile fixtures have no corresponding rows in `auth.users`; application-side webhook/ledger behavior remains covered by the passing test suites, but this specific staging ledger proof is not claimed.
+- After the sandbox smoke test, archived only the six old production Polar subscription products (old Lite, Standard, and Pro monthly/annual IDs). Rechecked the production Active catalogue: exactly the eight new subscriptions, Free, Small Pack (500), and Credit Pack (1,200) remain active; old IDs are absent.
+- The WordPress.org 1.7.16 remote tag remains absent and is still pending explicit approval for that separate external publication.
+
 ## 2026-08-10: Final completion audit — checkout and plugin publication gates remain
 
 - Rechecked the Polar production catalogue: all eight new subscription products, Free, both corrected credit packs, and all six legacy subscription products are present under the Active filter. The legacy products have not been archived because the plan requires a completed Agency checkout, an annual/monthly checkout pair, and a $10 credit-pack purchase first.
