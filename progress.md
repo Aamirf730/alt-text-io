@@ -1,5 +1,11 @@
 # Progress
 
+## 2026-08-10: Final completion audit — checkout and plugin publication gates remain
+
+- Rechecked the Polar production catalogue: all eight new subscription products, Free, both corrected credit packs, and all six legacy subscription products are present under the Active filter. The legacy products have not been archived because the plan requires a completed Agency checkout, an annual/monthly checkout pair, and a $10 credit-pack purchase first.
+- Rechecked the live catalogue and deployment after the documentation-only rebuild; the public catalogue still matches the requested prices and allowances, and the health endpoint remains healthy.
+- Read-only WordPress.org preflight confirms the 1.7.16 remote tag does not yet exist. The local plugin metadata and website ZIPs are 1.7.16, but publishing the WordPress.org trunk/tag is intentionally pending explicit scoped approval for that external mutation.
+
 ## 2026-08-10: Pricing catalogue deployed and live checks completed
 
 - Promoted the main-based release commit `c6212e5` to `origin/main` and published it through the documented Git-backed Netlify workflow. The first deploy reached the build stage but could not upload functions because inherited, unused PayPal variables exceeded AWS Lambda's 4 KB environment limit; removing only those 18 obsolete variables allowed the retry deploy `6a78f5bc831488169e4559e1` to complete with all 18 functions deployed and a clean secret scan.
