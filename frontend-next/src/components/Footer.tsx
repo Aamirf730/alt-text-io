@@ -22,38 +22,20 @@ const Footer = () => {
                             <span className="text-3xl font-bold text-notebook-slate tracking-tight font-outfit">Alt Text Pro</span>
                         </div>
                         <p className="text-gray-500 text-lg max-w-lg leading-relaxed">
-                            Automatically generate accurate descriptions for your images. Improve accessibility and SEO in seconds.
+                            Generate useful, editable image descriptions inside WordPress, then review each result before saving it.
                         </p>
                     </div>
 
-                    {/* Trust Signals */}
+                    {/* Verified platform information */}
                     <div className="flex flex-col items-center space-y-6">
-                        <span className="text-xs font-bold text-gray-400 uppercase tracking-[0.2em]">Trusted & Secure</span>
-                        <div className="flex flex-wrap items-center justify-center gap-8 md:gap-14">
-                            {/* AWS Logo */}
-                            <div className="flex items-center justify-center opacity-90 hover:opacity-100 transition-opacity">
-                                <img src="/logos/aws.svg" alt="AWS" className="h-8 max-w-[80px] object-contain" />
-                            </div>
-
-                            {/* Stripe Logo */}
-                            <div className="flex items-center justify-center opacity-90 hover:opacity-100 transition-opacity">
-                                <img src="/logos/stripe.svg" alt="Stripe" className="h-8 max-w-[80px] object-contain" />
-                            </div>
-
-                            {/* SOC2 Compliant Badge */}
-                            <div className="flex items-center justify-center opacity-90 hover:opacity-100 transition-opacity">
-                                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border-2 border-slate-800 bg-white shadow-sm">
-                                    <div className="w-6 h-6 bg-slate-800 rounded-full flex items-center justify-center">
-                                        <span className="text-white font-bold text-[8px] tracking-wider leading-none">SOC2</span>
-                                    </div>
-                                    <span className="font-bold text-slate-800 text-sm tracking-wide leading-none">COMPLIANT</span>
-                                </div>
-                            </div>
-
-                            {/* WordPress Logo */}
-                            <div className="flex items-center justify-center opacity-90 hover:opacity-100 transition-opacity">
-                                <img src="/logos/wordpress.svg" alt="WordPress" className="h-9 max-w-[120px] object-contain" />
-                            </div>
+                        <span className="text-xs font-bold text-gray-400 uppercase tracking-[0.2em]">Platform information</span>
+                        <div className="flex flex-wrap items-center justify-center gap-3">
+                            <a href="https://wordpress.org/plugins/alt-text-pro/" target="_blank" rel="noopener noreferrer" className="rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:border-notebook-blue/30 hover:text-notebook-blue">
+                                Available on WordPress.org
+                            </a>
+                            <span className="rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700">
+                                Checkout processed by Polar.sh
+                            </span>
                         </div>
                     </div>
 

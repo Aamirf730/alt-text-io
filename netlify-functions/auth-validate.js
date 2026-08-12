@@ -12,8 +12,7 @@ const {
 } = require('./utils/cors');
 const { recordPluginConnectCompleted } = require('./utils/plugin-connect-event');
 const { extractPluginVersion } = require('./utils/plugin-version');
-const { getMonthlyCreditState } = require('./utils/api-key-validator');
-const { hashApiKey } = require('./utils/api-key-secrets');
+const { getMonthlyCreditState, validateApiKey } = require('./utils/api-key-validator');
 
 // Initialize Supabase clients
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -80,49 +79,8 @@ exports.handler = async (event, context) => {
 
     // Check if this is an API key (starts with 'alt_' or legacy 'altai_')
     if (token.startsWith('alt_') || token.startsWith('altai_')) {
-      console.log('🔑 [auth-validate] Validating API key');
-
-      // First try RPC function
-      let userId = null;
-      const { data: userIdData, error: apiKeyError } = await supabase
-        .rpc('validate_api_key', { p_api_key: token });
-
-      if (apiKeyError) {
-        console.error('❌ [auth-validate] RPC validate_api_key error:', apiKeyError.message, apiKeyError.details);
-      }
-
-      console.log('🔍 [auth-validate] RPC result:', { userIdData, hasError: !!apiKeyError });
-
-      if (!apiKeyError && userIdData) {
-        userId = userIdData;
-        console.log('✅ [auth-validate] RPC validation successful, user_id:', userId);
-      } else {
-        // Fallback: Direct table query if RPC fails
-        console.log('⚠️ [auth-validate] RPC failed, trying direct table query...');
-        const { data: apiKeyRecord, error: directError } = await supabase
-          .from('api_keys')
-          .select('user_id, is_active')
-          .eq('api_key_hash', hashApiKey(token))
-          .single();
-
-        if (directError) {
-          console.error('❌ [auth-validate] Direct query error:', directError.message);
-        }
-
-        console.log('🔍 [auth-validate] Direct query result:', {
-          found: !!apiKeyRecord,
-          isActive: apiKeyRecord?.is_active,
-          userId: apiKeyRecord?.user_id
-        });
-
-        if (apiKeyRecord?.user_id && apiKeyRecord?.is_active) {
-          userId = apiKeyRecord.user_id;
-          console.log('✅ [auth-validate] Direct query successful, user_id:', userId);
-        }
-      }
-
-      if (!userId) {
-        console.error('❌ [auth-validate] API key validation failed completely');
+      const validatedUser = await validateApiKey(token);
+      if (!validatedUser) {
         return {
           statusCode: 401,
           headers,
@@ -133,37 +91,11 @@ exports.handler = async (event, context) => {
         };
       }
 
-      console.log('🔑 [auth-validate] Found user ID from API key:', userId);
-
-      // Get user info using service role
-      const { data: userData, error: userError } = await supabase.auth.admin.getUserById(userId);
-
-      if (userError) {
-        console.error('User lookup error:', userError);
-        return {
-          statusCode: 401,
-          headers,
-          body: JSON.stringify({
-            success: false,
-            error: `User lookup failed: ${userError.message}`
-          }),
-        };
-      }
-
-      if (!userData?.user) {
-        console.error('User not found for ID:', userId);
-        return {
-          statusCode: 401,
-          headers,
-          body: JSON.stringify({
-            success: false,
-            error: 'User not found'
-          }),
-        };
-      }
-
-      authUser = userData.user;
-      console.log('Successfully validated API key for user:', authUser.email);
+      userId = validatedUser.id;
+      authUser = {
+        id: validatedUser.id,
+        email: validatedUser.email,
+      };
     } else {
       // Legacy: Validate as JWT token (for backward compatibility)
       // Check if anon key is available
@@ -205,7 +137,7 @@ exports.handler = async (event, context) => {
           };
         }
       } catch (fetchError) {
-        console.error('Token validation fetch error:', fetchError);
+        console.error('Token validation request failed:', fetchError instanceof Error ? fetchError.message : 'Unknown error');
         return {
           statusCode: 401,
           headers,

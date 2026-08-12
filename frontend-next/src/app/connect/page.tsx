@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
+import Image from "next/image";
 import { supabase } from "@/lib/supabase";
 import { getApiBase } from "@/lib/utils";
 import { trackMarketingEvent } from "@/lib/analytics";
@@ -128,15 +129,26 @@ function ConnectPageContent() {
     const [manualApiKey, setManualApiKey] = useState("");
     const [isApiKeyCopied, setIsApiKeyCopied] = useState(false);
     const [isManualApiKeyVisible, setIsManualApiKeyVisible] = useState(false);
+    const [signupRedirectUrl, setSignupRedirectUrl] = useState("");
 
     useEffect(() => {
         if (typeof window === "undefined") {
             return;
         }
 
-        if (queryCallbackUrl && getCallbackTarget(queryCallbackUrl)) {
+        const validCallbackUrl = queryCallbackUrl && getCallbackTarget(queryCallbackUrl)
+            ? queryCallbackUrl
+            : "";
+        const redirectUrl = new URL("/connect", window.location.origin);
+        if (validCallbackUrl) redirectUrl.searchParams.set("callback_url", validCallbackUrl);
+        if (queryState) redirectUrl.searchParams.set("state", queryState);
+        if (querySource) redirectUrl.searchParams.set("source", querySource);
+        if (queryPluginVersion) redirectUrl.searchParams.set("plugin_version", queryPluginVersion);
+        setSignupRedirectUrl(redirectUrl.toString());
+
+        if (validCallbackUrl) {
             setHasCallbackTarget(true);
-            sessionStorage.setItem("alt_text_pro_callback", queryCallbackUrl);
+            sessionStorage.setItem("alt_text_pro_callback", validCallbackUrl);
         } else if (queryCallbackUrl) {
             setHasCallbackTarget(false);
             sessionStorage.removeItem("alt_text_pro_callback");
@@ -153,6 +165,10 @@ function ConnectPageContent() {
 
         if (queryPluginVersion) {
             sessionStorage.setItem("alt_text_pro_plugin_version", queryPluginVersion);
+        }
+
+        if (queryCallbackUrl || queryState || querySource || queryPluginVersion) {
+            window.history.replaceState({}, document.title, "/connect");
         }
     }, [queryCallbackUrl, queryState, querySource, queryPluginVersion]);
 
@@ -415,7 +431,7 @@ function ConnectPageContent() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // Fetch API key from backend and redirect back to WordPress
+    // Fetch the API key and deliver it only to the verified opener window.
     const fetchKeyAndRedirect = async (accessToken: string) => {
         setIsConnecting(true);
         setError("");
@@ -547,7 +563,7 @@ function ConnectPageContent() {
                     email,
                     password,
                     options: {
-                        emailRedirectTo: window.location.href, // Redirect back to /connect after email confirmation
+                        emailRedirectTo: signupRedirectUrl || window.location.href,
                         data: {
                             subscription_plan: "free",
                             credits_remaining: 165,
@@ -636,20 +652,20 @@ function ConnectPageContent() {
     // Loading state while checking auth
     if (isCheckingAuth) {
         return (
-            <div className="connect-page">
+            <main className="connect-page" aria-busy="true">
                 <div className="connect-card">
                     <div className="connect-loading">
                         <Loader2 className="animate-spin" size={40} />
                         <p>Checking your account...</p>
                     </div>
                 </div>
-            </div>
+            </main>
         );
     }
 
     if (isAwaitingConfirmation && callbackTarget) {
         return (
-            <div className="connect-page">
+            <main className="connect-page">
                 <div className="connect-card">
                     <div className="connect-confirmation">
                         <Shield size={52} className="confirmation-icon" />
@@ -673,17 +689,17 @@ function ConnectPageContent() {
                         </button>
                     </div>
                 </div>
-            </div>
+            </main>
         );
     }
 
     if (manualApiKey) {
         return (
-            <div className="connect-page">
+            <main className="connect-page">
                 <div className="connect-card connect-card-recovery">
                     <div className="connect-recovery">
                         <div className="recovery-brand">
-                            <img src="/logo-alt-text-pro.png" alt="" className="recovery-brand-logo" />
+                            <Image src="/logo-alt-text-pro.png" alt="" width={40} height={40} className="recovery-brand-logo" />
                             <span>Alt Text Pro</span>
                         </div>
                         <div className="recovery-icon-wrap" aria-hidden="true">
@@ -744,14 +760,14 @@ function ConnectPageContent() {
                         </button>
                     </div>
                 </div>
-            </div>
+            </main>
         );
     }
 
     // Connected successfully
     if (connected) {
         return (
-            <div className="connect-page">
+            <main className="connect-page">
                 <div className="connect-card">
                     <div className="connect-success">
                         <CheckCircle size={64} className="success-icon" />
@@ -763,37 +779,36 @@ function ConnectPageContent() {
                         </p>
                     </div>
                 </div>
-            </div>
+            </main>
         );
     }
 
     // Connecting state (fetching API key)
     if (isConnecting) {
         return (
-            <div className="connect-page">
+            <main className="connect-page" aria-busy="true">
                 <div className="connect-card">
                     <div className="connect-loading">
                         <Loader2 className="animate-spin" size={40} />
                         <p>{statusMessage}</p>
                     </div>
                 </div>
-            </div>
+            </main>
         );
     }
 
     // Main auth form
     return (
-        <div className="connect-page">
+        <main className="connect-page">
             <div className="connect-card">
                 {/* Header */}
                 <div className="connect-header">
-                    <img
+                    <Image
                         src="/logo-alt-text-pro.png"
                         alt="Alt Text Pro"
+                        width={64}
+                        height={64}
                         className="connect-logo"
-                        onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = "none";
-                        }}
                     />
                     <h1>Connect to Alt Text Pro</h1>
                     <p className="connect-subtitle">
@@ -1336,7 +1351,7 @@ function ConnectPageContent() {
           animation: spin 1s linear infinite;
         }
       `}</style>
-        </div>
+        </main>
     );
 }
 
@@ -1344,7 +1359,7 @@ export default function ConnectPage() {
     return (
         <Suspense
             fallback={
-                <div style={{
+                <main aria-busy="true" style={{
                     minHeight: "100vh",
                     display: "flex",
                     alignItems: "center",
@@ -1360,7 +1375,7 @@ export default function ConnectPage() {
                     }}>
                         Loading...
                     </div>
-                </div>
+                </main>
             }
         >
             <ConnectPageContent />

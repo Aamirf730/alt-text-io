@@ -101,11 +101,8 @@ async function validateApiKey(apiKey) {
 
   // Validate API key format (accepts both altai_ and alt_ formats)
   if (!apiKey || (!apiKey.startsWith('altai_') && !apiKey.startsWith('alt_'))) {
-    console.log('❌ [validateApiKey] API key format invalid');
     return null;
   }
-
-  console.log('🔑 [validateApiKey] Validating API key');
 
   try {
     const apiKeyHash = hashApiKey(apiKey);
@@ -120,7 +117,7 @@ async function validateApiKey(apiKey) {
       .maybeSingle();
 
     if (apiKeyError) {
-      console.error('❌ [validateApiKey] Query error:', apiKeyError.message, apiKeyError.details || '');
+      console.error('[validateApiKey] Hash lookup failed:', apiKeyError.message);
     }
 
     if (!apiKeyRecord) {
@@ -148,22 +145,19 @@ async function validateApiKey(apiKey) {
             .eq('user_id', apiKeyRecord.user_id);
 
           if (migrationError) {
-            console.error('⚠️ [validateApiKey] Legacy key migration failed:', migrationError.message);
+            console.error('[validateApiKey] Legacy key migration failed:', migrationError.message);
           }
         } catch (migrationError) {
           // Validation remains available if a deployment is missing the
           // encryption secret; the next authorized request can retry migration.
-          console.error('⚠️ [validateApiKey] Legacy key encryption failed:', migrationError.message);
+          console.error('[validateApiKey] Legacy key encryption failed:', migrationError.message);
         }
       }
     }
 
     if (!apiKeyRecord) {
-      console.log('❌ [validateApiKey] API key not found or inactive');
       return null;
     }
-
-    console.log('✅ [validateApiKey] Found API key in api_keys table, user_id:', apiKeyRecord.user_id);
 
     // Get user profile from profiles table (single source of truth)
     const { data: profile, error: profileError } = await supabase
@@ -173,7 +167,7 @@ async function validateApiKey(apiKey) {
       .single();
 
     if (profileError || !profile) {
-      console.error('Profile not found for user_id:', apiKeyRecord.user_id, profileError);
+      console.error('[validateApiKey] Profile lookup failed:', profileError?.message || 'Profile not found');
       // Do NOT fall back - if profile doesn't exist, the API key is orphaned
       return null;
     }
@@ -183,7 +177,6 @@ async function validateApiKey(apiKey) {
     return {
       id: profile.id,
       email: profile.email,
-      apiKey,
       credits_remaining: profile.credits_remaining ?? 0,
       bonus_credits_remaining: profile.bonus_credits_remaining ?? 0,
       purchased_credits_remaining: profile.purchased_credits_remaining ?? 0,
@@ -198,7 +191,7 @@ async function validateApiKey(apiKey) {
     };
 
   } catch (error) {
-    console.error('API key validation error:', error);
+    console.error('[validateApiKey] Unexpected validation error:', error instanceof Error ? error.message : 'Unknown error');
     return null;
   }
 }
@@ -268,12 +261,7 @@ async function updateUserCredits(userId, creditsToDeduct = 1, altText = null, co
 
     // Handle RPC errors (function doesn't exist, permission issues, etc.)
     if (rpcError) {
-      console.error('❌ CRITICAL: use_credit RPC function error:', {
-        code: rpcError.code,
-        message: rpcError.message,
-        details: rpcError.details,
-        hint: rpcError.hint
-      });
+      console.error('use_credit RPC failed', { code: rpcError.code || 'unknown' });
       return {
         success: false,
         error: 'Credit system temporarily unavailable. Please contact support if this persists.',
@@ -311,9 +299,8 @@ async function updateUserCredits(userId, creditsToDeduct = 1, altText = null, co
     if (typeof result === 'string') {
       try {
         result = JSON.parse(result);
-      } catch (parseError) {
-        console.error('❌ CRITICAL: Failed to parse RPC result as JSON:', parseError);
-        console.error('Raw RPC result:', rpcResult);
+      } catch (_parseError) {
+        console.error('use_credit RPC returned invalid JSON');
         return {
           success: false,
           error: 'Invalid credit system response. Please contact support.',
@@ -324,7 +311,7 @@ async function updateUserCredits(userId, creditsToDeduct = 1, altText = null, co
 
     // Validate result is an object
     if (!result || typeof result !== 'object') {
-      console.error('❌ CRITICAL: Unexpected RPC result format:', typeof result, result);
+      console.error('❌ CRITICAL: Unexpected RPC result format:', typeof result);
       return {
         success: false,
         error: 'Invalid credit system response. Please contact support.',
@@ -334,7 +321,7 @@ async function updateUserCredits(userId, creditsToDeduct = 1, altText = null, co
 
     // Check for error in result
     if (result.error) {
-      console.error('RPC use_credit returned error:', result.error);
+      console.error('use_credit RPC returned an application error');
       return {
         success: false,
         error: result.error || 'Credit deduction failed',
@@ -344,7 +331,7 @@ async function updateUserCredits(userId, creditsToDeduct = 1, altText = null, co
 
     // Check for explicit failure
     if (result.success === false) {
-      console.error('RPC use_credit returned failure:', result);
+      console.error('RPC use_credit returned failure');
       return {
         success: false,
         error: result.error || 'Credit deduction failed'
@@ -353,20 +340,13 @@ async function updateUserCredits(userId, creditsToDeduct = 1, altText = null, co
 
     // Validate success response has required fields
     if (result.credits_remaining === undefined || result.total_processed === undefined) {
-      console.error('❌ CRITICAL: RPC result missing required fields:', result);
+      console.error('❌ CRITICAL: RPC result missing required fields');
       return {
         success: false,
         error: 'Invalid credit system response. Please contact support.',
         requiresDatabaseFix: true
       };
     }
-
-    // Success case - all validations passed
-    console.log('✅ Credits updated atomically via RPC:', {
-      userId,
-      credits_remaining: result.credits_remaining,
-      total_processed: result.total_processed
-    });
 
     return {
       success: true,
@@ -376,90 +356,13 @@ async function updateUserCredits(userId, creditsToDeduct = 1, altText = null, co
       total_processed: result.total_processed
     };
 
-  } catch (error) {
-    console.error('❌ CRITICAL: Unexpected error in updateUserCredits:', {
-      error: error.message,
-      stack: error.stack,
-      userId
-    });
+  } catch (_error) {
+    console.error('Unexpected use_credit failure');
     return {
       success: false,
       error: 'Database error during credit deduction',
       requiresDatabaseFix: true
     };
-  }
-}
-
-/**
- * Get user profile by ID (for debugging/admin)
- * @param {string} userId - User ID
- * @returns {Object|null} - User profile or null
- */
-async function getUserProfile(userId) {
-  if (!supabase) {
-    return null;
-  }
-
-  try {
-    const { data: profile, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single();
-
-    if (error) {
-      console.error('Failed to get profile:', error);
-      return null;
-    }
-
-    return profile;
-  } catch (error) {
-    console.error('Error getting profile:', error);
-    return null;
-  }
-}
-
-/**
- * Get credit statistics (for debugging/admin)
- * @returns {Object} - Statistics about users and credits
- */
-async function getCreditStoreStats() {
-  if (!supabase) {
-    return { error: 'Supabase credentials not configured' };
-  }
-
-  try {
-    const { data: profiles, error } = await supabase
-      .from('profiles')
-      .select('id, email, credits_remaining, total_processed, subscription_plan, subscription_status')
-      .order('total_processed', { ascending: false })
-      .limit(100);
-
-    if (error) {
-      console.error('Failed to get stats:', error);
-      return { error: error.message };
-    }
-
-    const totalUsers = profiles?.length ?? 0;
-    const totalCredits = profiles?.reduce((sum, p) => sum + (p.credits_remaining ?? 0), 0) ?? 0;
-    const totalProcessed = profiles?.reduce((sum, p) => sum + (p.total_processed ?? 0), 0) ?? 0;
-
-    return {
-      total_users: totalUsers,
-      total_credits_remaining: totalCredits,
-      total_processed: totalProcessed,
-      storage_type: 'Supabase profiles table',
-      sample_users: profiles?.slice(0, 10).map(p => ({
-        id: p.id,
-        email: p.email,
-        credits_remaining: p.credits_remaining,
-        total_processed: p.total_processed,
-        plan: p.subscription_plan
-      }))
-    };
-  } catch (error) {
-    console.error('Error getting stats:', error);
-    return { error: error.message };
   }
 }
 
@@ -490,8 +393,8 @@ function normalizeCreditRpcResult(rpcResult, operation) {
   if (typeof result === 'string') {
     try {
       result = JSON.parse(result);
-    } catch (parseError) {
-      console.error(`❌ CRITICAL: Failed to parse ${operation} RPC result:`, parseError);
+    } catch (_parseError) {
+      console.error(`${operation} RPC returned invalid JSON`);
       return {
         success: false,
         error: 'Invalid credit system response. Please contact support.',
@@ -536,12 +439,7 @@ async function callCreditLifecycleRpc(functionName, params) {
     const { data, error } = await supabase.rpc(functionName, params);
 
     if (error) {
-      console.error(`❌ CRITICAL: ${functionName} RPC error:`, {
-        code: error.code,
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-      });
+      console.error(`${functionName} RPC failed`, { code: error.code || 'unknown' });
       return {
         success: false,
         error: 'Credit system temporarily unavailable. Please contact support if this persists.',
@@ -551,11 +449,8 @@ async function callCreditLifecycleRpc(functionName, params) {
     }
 
     return normalizeCreditRpcResult(data, functionName);
-  } catch (error) {
-    console.error(`❌ CRITICAL: Unexpected ${functionName} RPC error:`, {
-      error: error.message,
-      stack: error.stack,
-    });
+  } catch (_error) {
+    console.error(`Unexpected ${functionName} RPC failure`);
     return {
       success: false,
       error: 'Database error during credit operation',
@@ -621,8 +516,6 @@ module.exports = {
   reserveUserCredit,
   finalizeUserCreditReservation,
   releaseUserCreditReservation,
-  getUserProfile,
-  getCreditStoreStats,
   getMonthlyCreditState,
   getCurrentCycleCreditsUsed,
   isSupabaseConfigured

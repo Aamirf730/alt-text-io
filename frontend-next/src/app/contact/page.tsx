@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState } from 'react';
-import Link from 'next/link';
 import { toast } from 'sonner';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
@@ -15,7 +14,8 @@ export default function ContactPage() {
         name: '',
         email: '',
         subject: '',
-        message: ''
+        message: '',
+        website: '',
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -50,14 +50,15 @@ export default function ContactPage() {
                     name: '',
                     email: '',
                     subject: '',
-                    message: ''
+                    message: '',
+                    website: '',
                 });
             } else {
                 const errorMsg = data.details || data.error || 'Failed to send message';
                 throw new Error(errorMsg);
             }
         } catch (error: any) {
-            console.error('Error sending contact form:', error);
+            console.error('Contact form submission failed');
             toast.error(error.message || 'Failed to send message. Please try again later.');
         } finally {
             setIsSubmitting(false);
@@ -69,7 +70,7 @@ export default function ContactPage() {
             <Navbar />
 
             {/* Contact Form Section */}
-            <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+            <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
                 <div className="bg-white rounded-2xl shadow-xl p-8 md:p-12">
                     {/* Header */}
                     <div className="text-center mb-8">
@@ -83,6 +84,18 @@ export default function ContactPage() {
 
                     {/* Contact Form */}
                     <form onSubmit={handleSubmit} className="space-y-6">
+                        <div className="absolute -left-[10000px] top-auto h-px w-px overflow-hidden" aria-hidden="true">
+                            <label htmlFor="website">Website</label>
+                            <Input
+                                id="website"
+                                name="website"
+                                type="text"
+                                value={formData.website}
+                                onChange={handleChange}
+                                autoComplete="off"
+                                tabIndex={-1}
+                            />
+                        </div>
                         <div className="grid md:grid-cols-2 gap-6">
                             {/* Name Field */}
                             <div>
@@ -94,6 +107,7 @@ export default function ContactPage() {
                                     name="name"
                                     type="text"
                                     required
+                                    autoComplete="name"
                                     value={formData.name}
                                     onChange={handleChange}
                                     placeholder="Your name"
@@ -110,6 +124,7 @@ export default function ContactPage() {
                                     name="email"
                                     type="email"
                                     required
+                                    autoComplete="email"
                                     value={formData.email}
                                     onChange={handleChange}
                                     placeholder="your@email.com"
@@ -128,6 +143,7 @@ export default function ContactPage() {
                                 name="subject"
                                 type="text"
                                 required
+                                autoComplete="off"
                                 value={formData.subject}
                                 onChange={handleChange}
                                 placeholder="How can we help?"
@@ -175,7 +191,7 @@ export default function ContactPage() {
                         </div>
                     </form>
                 </div>
-            </div>
+            </main>
             <Footer />
         </div>
     );

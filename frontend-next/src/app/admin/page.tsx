@@ -45,7 +45,8 @@ export default function AdminDashboard() {
 
             if (response.status === 403) {
                 toast.error("Access denied. Superuser privileges required.");
-                router.push("/");
+                setUser(null);
+                router.replace("/");
                 return;
             }
 
@@ -80,7 +81,8 @@ export default function AdminDashboard() {
 
             if (response.status === 403) {
                 toast.error("Access denied. Superuser privileges required.");
-                router.push("/");
+                setUser(null);
+                router.replace("/");
                 return;
             }
 
@@ -116,7 +118,8 @@ export default function AdminDashboard() {
 
             if (response.status === 403) {
                 toast.error("Access denied. Superuser privileges required.");
-                router.push("/");
+                setUser(null);
+                router.replace("/");
                 return;
             }
 
@@ -145,7 +148,7 @@ export default function AdminDashboard() {
 
                 if (sessionError || !session) {
                     toast.error("Please sign in to access the admin dashboard");
-                    router.push("/");
+                    router.replace("/");
                     return;
                 }
 
@@ -163,7 +166,7 @@ export default function AdminDashboard() {
             } catch (error) {
                 console.error("Error checking auth:", error);
                 toast.error("Authentication error");
-                router.push("/");
+                router.replace("/");
             } finally {
                 setIsLoading(false);
             }
@@ -299,20 +302,20 @@ export default function AdminDashboard() {
     const purchaseStage = funnelReport?.stages?.find((stage: any) => stage.key === "purchase_completed");
     const visitorStage = funnelReport?.stages?.find((stage: any) => stage.key === "page_viewed");
 
-    if (isLoading) {
+    if (isLoading || !user) {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
+            <main className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center" aria-busy="true">
                 <div className="text-center">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4"
                         style={{ borderColor: '#000000' }}></div>
-                    <p className="text-gray-600">Loading admin dashboard...</p>
+                    <p className="text-gray-600">Checking admin access...</p>
                 </div>
-            </div>
+            </main>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+        <main className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
             {/* Header */}
             <div className="bg-white shadow-sm border-b">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -1193,6 +1196,6 @@ export default function AdminDashboard() {
                     </Card>
                 </div>
             )}
-        </div>
+        </main>
     );
 }

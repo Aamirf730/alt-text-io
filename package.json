@@ -4,20 +4,20 @@
   "description": "Alt Text Pro - AI-powered alt-text generation SaaS",
   "private": true,
   "dependencies": {
-    "@google/generative-ai": "^0.2.1",
-    "@supabase/supabase-js": "^2.45.0",
+    "@google/generative-ai": "^0.24.1",
+    "@supabase/supabase-js": "^2.112.3",
     "node-fetch": "^2.7.0"
   },
   "scripts": {
-    "dev": "netlify dev",
+    "dev": "npx --yes netlify-cli@27.1.1 dev",
+    "netlify": "npx --yes netlify-cli@27.1.1",
     "install:all": "cd netlify-functions && npm install && cd ../frontend-next && npm install"
   },
   "devDependencies": {
-    "@netlify/plugin-nextjs": "^5.8.1",
-    "dotenv": "^16.4.5",
-    "netlify-cli": "^17.36.0"
+    "@netlify/plugin-nextjs": "^5.15.13",
+    "dotenv": "^17.4.2"
   },
   "engines": {
-    "node": "20"
+    "node": ">=22.13.0 <25"
   }
 }

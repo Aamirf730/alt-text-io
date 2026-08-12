@@ -59,41 +59,21 @@ exports.handler = async (event, context) => {
     // Check if this is an API key (starts with 'alt_' or legacy 'altai_')
     if (token.startsWith('alt_') || token.startsWith('altai_')) {
       isApiKeyAuth = true;
-      console.log('🔑 [get-usage] Validating API key:', token.substring(0, 20) + '...');
 
-      // First try RPC function
+      // Validate through the hash-aware security-definer RPC. Never fall back
+      // to querying the legacy plain-text key column.
       const { data: userIdData, error: apiKeyError } = await supabase
         .rpc('validate_api_key', { p_api_key: token });
 
       if (apiKeyError) {
-        console.error('❌ [get-usage] RPC validate_api_key error:', apiKeyError.message);
+        console.error('[get-usage] API-key validation service failed');
       }
 
       if (!apiKeyError && userIdData) {
         userId = userIdData;
-        console.log('✅ [get-usage] RPC validation successful, user_id:', userId);
-      } else {
-        // Fallback: Direct table query if RPC fails
-        console.log('⚠️ [get-usage] RPC failed, trying direct table query...');
-        const { data: apiKeyRecord, error: directError } = await supabase
-          .from('api_keys')
-          .select('user_id')
-          .eq('api_key', token)
-          .eq('is_active', true)
-          .single();
-
-        if (directError) {
-          console.error('❌ [get-usage] Direct query error:', directError.message);
-        }
-
-        if (apiKeyRecord?.user_id) {
-          userId = apiKeyRecord.user_id;
-          console.log('✅ [get-usage] Direct query successful, user_id:', userId);
-        }
       }
 
       if (!userId) {
-        console.error('❌ [get-usage] API key validation failed completely');
         return {
           statusCode: 401,
           headers,

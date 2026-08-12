@@ -40,6 +40,8 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+debug.log
+**/debug.log
 dump.rdb
 
 # One-off local audit and migration artifacts

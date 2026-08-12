@@ -109,19 +109,25 @@ function getValidatedOrigin(headers) {
     return origin;
   }
 
-  // Check for allowed Netlify preview deploys only (not any .netlify.app domain)
-  if (origin.endsWith('.netlify.app')) {
-    const isAllowedPreview = ALLOWED_PREVIEW_PREFIXES.some(prefix =>
-      origin.includes(prefix)
-    );
-    if (isAllowedPreview) {
-      return origin;
-    }
-    console.warn('CORS: Rejected unknown Netlify preview origin:', origin);
-    return null;
+  // Accept only the exact configured Netlify site or its deploy/branch
+  // subdomains. A substring match would allow an attacker-controlled site such
+  // as evil-alt-text-ai.netlify.app.
+  try {
+    const parsed = new URL(origin);
+    const hostname = parsed.hostname.toLowerCase();
+    const isHttpsOrigin = parsed.protocol === 'https:' && parsed.pathname === '/';
+    const isAllowedPreview = isHttpsOrigin && ALLOWED_PREVIEW_PREFIXES.some((siteName) => {
+      const normalizedSiteName = siteName.toLowerCase();
+      return hostname === `${normalizedSiteName}.netlify.app`
+        || hostname.endsWith(`--${normalizedSiteName}.netlify.app`);
+    });
+
+    if (isAllowedPreview) return origin;
+  } catch (_error) {
+    // Invalid Origin headers are rejected below without reflecting their value.
   }
 
-  console.warn('CORS: Rejected origin:', origin);
+  console.warn('CORS: Rejected untrusted origin');
   return null;
 }
 
@@ -136,7 +142,7 @@ function getCorsHeaders(requestHeaders, allowedMethods = ['GET', 'POST', 'OPTION
 
   const headers = {
     'Content-Type': 'application/json',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, X-Health-Check-Secret',
     'Access-Control-Allow-Methods': allowedMethods.join(', '),
     'Access-Control-Max-Age': '86400', // Cache preflight for 24 hours
   };
@@ -173,9 +179,10 @@ function handlePreflight(event) {
  * @returns {string} - Client IP address
  */
 function getClientIp(event) {
-  return event.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
-    event.headers['x-real-ip'] ||
-    event.headers['client-ip'] ||
+  const headers = event?.headers || {};
+  return headers['x-forwarded-for']?.split(',')[0]?.trim() ||
+    headers['x-real-ip'] ||
+    headers['client-ip'] ||
     'unknown';
 }
 
@@ -199,8 +206,6 @@ function rateLimitExceededResponse(headers, rateLimitInfo) {
       'X-RateLimit-Limit': limit.toString(),
       'X-RateLimit-Remaining': '0',
       'X-RateLimit-Reset': rateLimitInfo.resetAt.toISOString(),
-      // Include instance ID for debugging distributed rate limiting
-      'X-RateLimit-Instance': rateLimitInfo.instanceId || 'unknown',
     },
     body: JSON.stringify({
       error: 'Too many requests',

@@ -16,6 +16,7 @@
 
     // Main Admin Object
     window.AltTextProAdmin = {
+        connectPopup: null,
 
         // Initialize admin interface
         init: function () {
@@ -45,7 +46,6 @@
             $(document).on('click', '.alt-text-pro-apply-btn', this.applyAltText);
 
             // Media library integration
-            $(document).on('click', '.regenerate-alt-text', this.regenerateAltText);
 
             // Settings page interactions
             this.bindSettingsEvents();
@@ -110,14 +110,18 @@
                     }
                 }
 
-                if (expectedOrigin && event.origin && event.origin !== expectedOrigin) {
+                if (!expectedOrigin || event.origin !== expectedOrigin) {
                     return;
                 }
 
                 if (event.data && event.data.type === 'ALT_TEXT_PRO_CONNECTED' && event.data.api_key) {
                     var storedState = sessionStorage.getItem('alt_text_pro_connect_state');
-                    if (event.data.state && storedState && event.data.state !== storedState) {
-                        console.warn('Alt Text Pro: state mismatch, ignoring postMessage callback');
+                    if (!AltTextProAdmin.connectPopup || event.source !== AltTextProAdmin.connectPopup) {
+                        console.warn('Alt Text Pro: unexpected popup source, ignoring callback');
+                        return;
+                    }
+                    if (!storedState || !event.data.state || event.data.state !== storedState) {
+                        console.warn('Alt Text Pro: missing or mismatched state, ignoring postMessage callback');
                         return;
                     }
 
@@ -130,8 +134,6 @@
                 }
             });
 
-            // Check if we're receiving a callback via URL params (redirect flow)
-            this.checkConnectCallback();
         },
 
 
@@ -203,7 +205,7 @@
             }
             context = context || '';
 
-            debugLog('Alt Text Pro: Generating with context:', context);
+            debugLog('Alt Text Pro: Generating with context:', Boolean(context));
 
             if (!attachmentId) {
                 AltTextProAdmin.showError('Invalid attachment ID', $container);
@@ -231,12 +233,8 @@
                     }
                 },
                 error: function (xhr, status, error) {
-                    console.error('Alt Text Pro AJAX Error:', {
-                        status: status,
-                        error: error,
-                        response: xhr.responseText
-                    });
-                    AltTextProAdmin.showError(altTextAI.strings.error + ' (Check console for details)', $container);
+                    debugLog('Alt Text Pro AJAX Error:', status, error);
+                    AltTextProAdmin.showError(altTextAI.strings.error, $container);
                 },
                 complete: function () {
                     AltTextProAdmin.hideLoading($container);
@@ -252,11 +250,21 @@
             var $button = $(this);
             var $container = $button.closest('.alt-text-pro-media-field');
             var altText = $button.data('alt-text');
+            var attachmentId = $container.find('.alt-text-pro-generate-btn').data('attachment-id');
 
-            // Update WordPress alt-text field
-            var $altField = $('input[name*="[alt]"], textarea[name*="[alt]"]').first();
+            // Target this attachment's WordPress alt field. Fall back to the
+            // single attachment-edit field outside the media modal.
+            var fieldSelector = 'input[name="attachments[' + attachmentId + '][alt]"], ' +
+                'textarea[name="attachments[' + attachmentId + '][alt]"]';
+            var $altField = $(fieldSelector).first();
+            if (!$altField.length) {
+                $altField = $('#attachment_alt, #attachment-details-alt-text').first();
+            }
             if ($altField.length) {
-                $altField.val(altText).trigger('change');
+                $altField.val(altText).trigger('input').trigger('change');
+            } else {
+                AltTextProAdmin.showNotification('The WordPress alt-text field could not be found. Copy the draft and paste it manually.', 'error');
+                return;
             }
 
             // Update current alt-text display
@@ -265,66 +273,7 @@
             // Hide the success message
             $container.find('.alt-text-pro-success').slideUp();
 
-            AltTextProAdmin.showNotification(altTextAI.strings.success, 'success');
-        },
-
-        // Regenerate alt-text for existing image
-        regenerateAltText: function (e) {
-            e.preventDefault();
-
-            var $button = $(this);
-            var attachmentId = $button.data('attachment-id');
-            var context = $button.data('context') || '';
-
-            if (!confirm('Are you sure you want to regenerate alt-text for this image? This will use 1 credit.')) {
-                return;
-            }
-
-            var originalHtml = $button.html();
-            $button.html('<span class="dashicons dashicons-update rotating"></span> Generating...').prop('disabled', true);
-
-            $.ajax({
-                url: altTextAI.ajaxUrl,
-                type: 'POST',
-                data: {
-                    action: 'alt_text_pro_regenerate',
-                    attachment_id: attachmentId,
-                    context: context,
-                    force_overwrite: true,
-                    nonce: altTextAI.nonce
-                },
-                success: function (response) {
-                    if (response.success) {
-                        // Update alt-text display if present
-                        var $altTextDisplay = $button.closest('tr').find('.alt-text-preview');
-                        if ($altTextDisplay.length) {
-                            $altTextDisplay.text(response.data.alt_text);
-                        }
-
-                        $button.html('<span class="dashicons dashicons-yes"></span> Updated!');
-                        setTimeout(function () {
-                            $button.html(originalHtml);
-                        }, 3000);
-
-                        AltTextProAdmin.showNotification('Alt-text updated successfully!', 'success');
-                    } else {
-                        AltTextProAdmin.showNotification(response.data || 'Failed to regenerate alt-text', 'error');
-                        $button.html(originalHtml);
-                    }
-                },
-                error: function (xhr, status, error) {
-                    console.error('Alt Text Pro Regenerate Error:', {
-                        status: status,
-                        error: error,
-                        response: xhr.responseText
-                    });
-                    AltTextProAdmin.showNotification('Failed to regenerate alt-text. Check console for details.', 'error');
-                    $button.html(originalHtml).prop('disabled', false);
-                },
-                complete: function () {
-                    $button.prop('disabled', false);
-                }
-            });
+            AltTextProAdmin.showNotification('Draft placed in the WordPress alt-text field. Save or update the image to keep it.', 'success');
         },
 
         // Test API connection
@@ -841,8 +790,22 @@
                 ? altTextAI.onboarding.settingsUrl
                 : window.location.href;
 
-            // Generate a random state for CSRF protection
-            var state = 'atp_' + Math.random().toString(36).substring(2, 15);
+            // Generate a cryptographically random state for CSRF protection.
+            if (!window.crypto || typeof window.crypto.getRandomValues !== 'function') {
+                AltTextProAdmin.setAutoConnectStatus(
+                    'Secure connection is unavailable in this browser. Use manual API key entry.',
+                    'error',
+                    'dashicons-warning'
+                );
+                return;
+            }
+
+            var stateBytes = new Uint8Array(24);
+            window.crypto.getRandomValues(stateBytes);
+            var state = 'atp_';
+            for (var byteIndex = 0; byteIndex < stateBytes.length; byteIndex++) {
+                state += stateBytes[byteIndex].toString(16).padStart(2, '0');
+            }
             sessionStorage.setItem('alt_text_pro_connect_state', state);
 
             // Build connect URL with callback
@@ -869,8 +832,10 @@
                 'alt_text_pro_connect',
                 'width=' + w + ',height=' + h + ',left=' + left + ',top=' + top + ',scrollbars=yes,resizable=yes'
             );
+            AltTextProAdmin.connectPopup = popup;
 
             if (!popup) {
+                AltTextProAdmin.connectPopup = null;
                 sessionStorage.removeItem('alt_text_pro_connect_state');
                 AltTextProAdmin.setAutoConnectButtonState(false);
                 AltTextProAdmin.setAutoConnectStatus(
@@ -885,6 +850,7 @@
             var pollTimer = setInterval(function () {
                 if (popup && popup.closed) {
                     clearInterval(pollTimer);
+                    AltTextProAdmin.connectPopup = null;
                     AltTextProAdmin.setAutoConnectButtonState(false);
                     // Only show "cancelled" if we didn't get a key
                     var storedState = sessionStorage.getItem('alt_text_pro_connect_state');
@@ -916,7 +882,7 @@
             }
         },
 
-        // Handle API key received from connect popup or redirect
+        // Handle an API key received from the verified connect popup.
         handleConnectCallback: function (apiKey, ackContext) {
             if (!apiKey) return;
 
@@ -987,29 +953,6 @@
                     );
                 }
             });
-        },
-
-        // Check URL for callback params (redirect flow fallback)
-        checkConnectCallback: function () {
-            var urlParams = new URLSearchParams(window.location.search);
-            var apiKey = urlParams.get('alt_text_pro_api_key');
-            var state = urlParams.get('state');
-
-            if (!apiKey) return;
-
-            // Verify CSRF state
-            var storedState = sessionStorage.getItem('alt_text_pro_connect_state');
-            if (state && storedState && state !== storedState) {
-                console.warn('Alt Text Pro: state mismatch, ignoring callback');
-                return;
-            }
-
-            // Clean URL (remove API key from address bar)
-            var cleanUrl = window.location.href.split('?')[0] + '?page=alt-text-pro-settings';
-            window.history.replaceState({}, document.title, cleanUrl);
-
-            // Process the key
-            this.handleConnectCallback(apiKey);
         },
 
         // Utility function to format numbers

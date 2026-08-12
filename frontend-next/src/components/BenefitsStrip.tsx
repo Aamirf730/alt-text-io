@@ -1,4 +1,4 @@
-import { FileText, Globe2, Layers, Shield } from "lucide-react";
+import { FileText, Layers, PencilLine, Shield } from "lucide-react";
 
 const benefits = [
   {
@@ -7,14 +7,14 @@ const benefits = [
     description: "Process one or thousands of images at once.",
   },
   {
-    icon: Globe2,
-    title: "130+ languages",
-    description: "Generate useful descriptions around the world.",
+    icon: PencilLine,
+    title: "Review and edit",
+    description: "Keep human control before saving a suggestion.",
   },
   {
     icon: FileText,
     title: "Context-aware",
-    description: "Use surrounding content for better accuracy.",
+    description: "Use surrounding content to produce more relevant drafts.",
   },
   {
     icon: Shield,

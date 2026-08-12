@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { supabase } from '@/lib/supabase';
 import { trackMarketingEvent } from '@/lib/analytics';
 import { CheckCircle, X } from "lucide-react";
@@ -83,14 +84,16 @@ export default function EmailConfirmation() {
     }, []);
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center px-4 py-12">
+        <main className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center px-4 py-12">
             <div className="max-w-md w-full">
                 <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
                     {/* Logo */}
                     <div className="flex justify-center mb-6">
-                        <img
+                        <Image
                             src="/logo-alt-text-pro.png"
                             alt="Alt Text Pro Logo"
+                            width={64}
+                            height={64}
                             className="h-16 w-16 object-contain"
                         />
                     </div>
@@ -158,6 +161,6 @@ export default function EmailConfirmation() {
                     ) : null}
                 </div>
             </div>
-        </div>
+        </main>
     );
 }

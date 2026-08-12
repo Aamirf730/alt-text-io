@@ -26,6 +26,17 @@ describe("WordPress connect result screens", () => {
         expect(pageSource).toContain("data-1p-ignore=\"true\"");
     });
 
+    it("removes callback metadata from the address bar after saving it for the popup flow", () => {
+        expect(pageSource).toContain('window.history.replaceState({}, document.title, "/connect")');
+        expect(pageSource).not.toContain("alt_text_pro_api_key");
+    });
+
+    it("preserves validated callback context through email confirmation", () => {
+        expect(pageSource).toContain('setSignupRedirectUrl(redirectUrl.toString())');
+        expect(pageSource).toContain('redirectUrl.searchParams.set("callback_url", validCallbackUrl)');
+        expect(pageSource).toContain('emailRedirectTo: signupRedirectUrl || window.location.href');
+    });
+
     it("keeps the primary connection flow on the Alt Text Pro yellow and black palette", () => {
         expect(pageSource).toContain("background: #FEE11C;");
         expect(pageSource).toContain("margin: 0 auto 16px");

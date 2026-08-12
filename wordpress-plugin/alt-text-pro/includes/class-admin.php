@@ -19,6 +19,7 @@ class AltTextPro_Admin
     {
         add_action('admin_menu', array($this, 'add_admin_menu'));
         add_action('admin_init', array($this, 'admin_init'));
+        add_action('alt_text_pro_render_notices', array($this, 'plugin_notices'));
         // Removed attachment_fields_to_edit filter - using meta box instead to avoid duplication
         add_action('add_meta_boxes', array($this, 'add_media_meta_boxes'));
     }
@@ -137,6 +138,15 @@ class AltTextPro_Admin
      */
     public function admin_notices()
     {
+        if (!current_user_can('manage_options')) {
+            return;
+        }
+
+        if (get_option('alt_text_pro_api_key_storage_error', false)) {
+            $this->render_api_key_storage_notice();
+            return;
+        }
+
         $settings = get_option('alt_text_pro_settings', array());
 
         // Show notice if API key is not configured
@@ -155,6 +165,36 @@ class AltTextPro_Admin
     }
 
     /**
+     * Render plugin-owned notices inside the custom plugin-page container.
+     */
+    public function plugin_notices()
+    {
+        if (!current_user_can('manage_options')) {
+            return;
+        }
+
+        if (get_option('alt_text_pro_api_key_storage_error', false)) {
+            $this->render_api_key_storage_notice();
+        }
+    }
+
+    /**
+     * Explain a fail-closed API-key storage problem without exposing the key.
+     */
+    private function render_api_key_storage_notice()
+    {
+        echo '<div class="notice notice-error"><p><strong>' . esc_html__('Alt Text Pro:', 'alt-text-pro') . '</strong> ';
+        echo wp_kses_post(
+            sprintf(
+                // translators: %s: URL to the settings page.
+                __('The saved API key could not be decrypted or securely migrated. <a href="%1$s">Reconnect or save a new API key</a> before generating alt text.', 'alt-text-pro'),
+                esc_url(admin_url('admin.php?page=alt-text-pro-settings'))
+            )
+        );
+        echo '</p></div>';
+    }
+
+    /**
      * Dashboard page
      */
     public function dashboard_page()
@@ -164,17 +204,10 @@ class AltTextPro_Admin
         $connection_status = null;
 
         // Get usage stats if API key is configured and valid
-        $settings = get_option('alt_text_pro_settings', array());
-        $has_valid_key = false;
-        if (!empty($settings['api_key'])) {
-            $settings_handler = new AltTextPro_Settings();
-            $decrypted = $settings_handler->decrypt_api_key($settings['api_key']);
-            if ($decrypted !== false && AltTextPro_API_Client::validate_api_key_format($decrypted)) {
-                $has_valid_key = true;
-            } elseif ($decrypted === false && AltTextPro_API_Client::validate_api_key_format($settings['api_key'])) {
-                $has_valid_key = true;
-            }
-        }
+        $settings_handler = new AltTextPro_Settings();
+        $settings = $settings_handler->get_settings();
+        $has_valid_key = !empty($settings['api_key'])
+            && AltTextPro_API_Client::validate_api_key_format($settings['api_key']);
         // Override settings api_key for template: empty string if invalid
         if (!$has_valid_key) {
             $settings['api_key'] = '';
@@ -242,9 +275,9 @@ class AltTextPro_Admin
         $monthly_credits_remaining = null;
         $monthly_credit_limit = null;
 
-        // Get images without alt text (using a more reliable query)
+        // Get the same bounded, editable media set enforced by the processor.
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery
-        $images_without_alt = $wpdb->get_results(
+        $editable_missing_images = $wpdb->get_results(
             "SELECT p.ID, p.post_title, p.post_date 
              FROM {$wpdb->posts} p 
              WHERE p.post_type = 'attachment' 
@@ -258,46 +291,39 @@ class AltTextPro_Admin
                  AND TRIM(pm.meta_value) != ''
              )
              ORDER BY p.post_date DESC
-             LIMIT 100"
+             LIMIT 1000"
         );
 
-        // Get total count
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery
-        $total_without_alt = $wpdb->get_var(
-            "SELECT COUNT(DISTINCT p.ID) 
-             FROM {$wpdb->posts} p 
-             WHERE p.post_type = 'attachment' 
-             AND p.post_mime_type LIKE 'image/%'
-             AND p.ID NOT IN (
-                 SELECT DISTINCT pm.post_id 
-                 FROM {$wpdb->postmeta} pm 
-                 WHERE pm.meta_key = '_wp_attachment_image_alt' 
-                 AND pm.meta_value IS NOT NULL 
-                 AND pm.meta_value != ''
-                 AND TRIM(pm.meta_value) != ''
-             )"
-        );
+        $editable_missing_images = array_values(array_filter(
+            $editable_missing_images,
+            static function ($image) {
+                return wp_attachment_is_image($image->ID) && current_user_can('edit_post', $image->ID);
+            }
+        ));
+        $total_without_alt = count($editable_missing_images);
+        $images_without_alt = array_slice($editable_missing_images, 0, 100);
 
-        // Get all images count
+        // Count all editable images within the processor's 1,000-image queue cap.
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery
-        $total_images = $wpdb->get_var(
-            "SELECT COUNT(*) 
+        $all_image_ids = $wpdb->get_col(
+            "SELECT ID
              FROM {$wpdb->posts} 
              WHERE post_type = 'attachment' 
-             AND post_mime_type LIKE 'image/%'"
+             AND post_mime_type LIKE 'image/%'
+             ORDER BY post_date DESC
+             LIMIT 1000"
         );
-
-        $settings = get_option('alt_text_pro_settings', array());
-        $has_valid_key = false;
-        if (!empty($settings['api_key'])) {
-            $settings_handler = new AltTextPro_Settings();
-            $decrypted = $settings_handler->decrypt_api_key($settings['api_key']);
-            if ($decrypted !== false && AltTextPro_API_Client::validate_api_key_format($decrypted)) {
-                $has_valid_key = true;
-            } elseif ($decrypted === false && AltTextPro_API_Client::validate_api_key_format($settings['api_key'])) {
-                $has_valid_key = true;
+        $total_images = count(array_filter(
+            $all_image_ids,
+            static function ($image_id) {
+                return wp_attachment_is_image($image_id) && current_user_can('edit_post', $image_id);
             }
-        }
+        ));
+
+        $settings_handler = new AltTextPro_Settings();
+        $settings = $settings_handler->get_settings();
+        $has_valid_key = !empty($settings['api_key'])
+            && AltTextPro_API_Client::validate_api_key_format($settings['api_key']);
 
         if ($has_valid_key) {
             $api_client = new AltTextPro_API_Client();
@@ -319,7 +345,7 @@ class AltTextPro_Admin
      */
     public function settings_page()
     {
-        $settings = get_option('alt_text_pro_settings', array(
+        $settings = wp_parse_args(get_option('alt_text_pro_settings', array()), array(
             'api_key' => '',
             'auto_generate' => false,
             'overwrite_existing' => false,
@@ -442,13 +468,13 @@ class AltTextPro_Admin
                         placeholder="<?php esc_attr_e('e.g., product photo, team meeting, etc.', 'alt-text-pro'); ?>"
                         style="width: 100%; margin-top: 5px;">
                     <p class="description" style="font-size: 11px; margin-top: 4px;">
-                        <?php esc_html_e('Add specific context for this image to improve alt-text accuracy.', 'alt-text-pro'); ?>
+                        <?php esc_html_e('Add specific context to make the generated draft more relevant to this page.', 'alt-text-pro'); ?>
                     </p>
                 </div>
 
                 <button type="button" class="button button-primary alt-text-pro-generate-btn"
                     data-attachment-id="<?php echo esc_attr($attachment_id); ?>">
-                    <span style="font-weight: 600; margin-right: 4px;">SEO+</span>
+                    <span style="font-weight: 600; margin-right: 4px;">AI</span>
                     <?php esc_html_e('Generate Alt-Text', 'alt-text-pro'); ?>
                 </button>
 
@@ -459,6 +485,7 @@ class AltTextPro_Admin
                     </div>
                     <div class="alt-text-pro-success" style="display: none !important;">
                         <p class="generated-alt-text"></p>
+                        <p class="description"><?php esc_html_e('Review this draft before applying it to the WordPress alt-text field.', 'alt-text-pro'); ?></p>
                         <button type="button" class="button alt-text-pro-apply-btn">
                             <?php esc_html_e('Apply Alt-Text', 'alt-text-pro'); ?>
                         </button>
@@ -498,6 +525,11 @@ class AltTextPro_Admin
      */
     public function media_meta_box_callback($post)
     {
+        if (!current_user_can('edit_post', $post->ID)) {
+            echo '<p>' . esc_html__('You do not have permission to edit this image.', 'alt-text-pro') . '</p>';
+            return;
+        }
+
         if (strpos((string) $post->post_mime_type, 'image/') !== 0) {
             echo '<p>' . esc_html__('Alt-text generation is only available for images.', 'alt-text-pro') . '</p>';
             return;

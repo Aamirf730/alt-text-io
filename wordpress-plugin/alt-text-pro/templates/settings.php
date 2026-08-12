@@ -9,6 +9,13 @@ if (!defined('ABSPATH')) {
 
 // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Only used for active menu highlighting
 $alt_text_pro_current_page = isset($_GET['page']) ? sanitize_text_field(wp_unslash($_GET['page'])) : '';
+$alt_text_pro_settings_handler = new AltTextPro_Settings();
+$alt_text_pro_usable_settings = $alt_text_pro_settings_handler->get_settings();
+$alt_text_pro_has_key = !empty($alt_text_pro_usable_settings['api_key'])
+    && AltTextPro_API_Client::validate_api_key_format($alt_text_pro_usable_settings['api_key']);
+$alt_text_pro_api_key_placeholder = $alt_text_pro_has_key
+    ? esc_attr__('Saved key hidden. Enter a new key to replace it.', 'alt-text-pro')
+    : 'alt_...';
 ?>
 
 <div class="wrap alt-text-pro-settings">
@@ -75,22 +82,6 @@ settings_fields('alt_text_pro_settings');
                             style="color: var(--danger-color);">*</span>
                     </label>
                     <div style="display: flex; gap: 8px; align-items: center; max-width: 600px;">
-                        <?php
-                        // Check whether a valid API key is already stored without exposing it in the DOM.
-                        $alt_text_pro_settings_handler = new AltTextPro_Settings();
-                        $alt_text_pro_has_key = false;
-                        if (!empty($settings['api_key'])) {
-                            $alt_text_pro_decrypted = $alt_text_pro_settings_handler->decrypt_api_key($settings['api_key']);
-                            if ($alt_text_pro_decrypted !== false && AltTextPro_API_Client::validate_api_key_format($alt_text_pro_decrypted)) {
-                                $alt_text_pro_has_key = true;
-                            } elseif (AltTextPro_API_Client::validate_api_key_format($settings['api_key'])) {
-                                $alt_text_pro_has_key = true;
-                            }
-                        }
-                        $alt_text_pro_api_key_placeholder = $alt_text_pro_has_key
-                            ? esc_attr__('Saved key hidden. Enter a new key to replace it.', 'alt-text-pro')
-                            : 'alt_...';
-                        ?>
                         <input type="password" id="api_key" name="alt_text_pro_settings[api_key]"
                             value="" placeholder="<?php echo esc_attr($alt_text_pro_api_key_placeholder); ?>" autocomplete="off"
                             data-has-key="<?php echo esc_attr($alt_text_pro_has_key ? '1' : '0'); ?>" />
@@ -104,17 +95,17 @@ settings_fields('alt_text_pro_settings');
 echo wp_kses_post(
     sprintf(
     // translators: %s: URL to the Alt Text Pro dashboard
-    __('Find your API key in your <a href="%1$s" target="_blank">Alt Text Pro dashboard</a>.', 'alt-text-pro'),
+    __('Find your API key in your <a href="%1$s" target="_blank" rel="noopener noreferrer">Alt Text Pro dashboard</a>.', 'alt-text-pro'),
     esc_url('https://www.alt-text.pro/dashboard')
 )
 ); ?>
                     </p>
-                    <?php if ($has_key): ?>
+                    <?php if ($alt_text_pro_has_key): ?>
                     <p class="description" style="margin-top: 8px; color: var(--text-secondary); font-size: 13px;">
                         <?php esc_html_e('An API key is already saved. Leave this blank to keep it, or paste a new key to replace it.', 'alt-text-pro'); ?>
                     </p>
                     <?php endif; ?>
-                    <?php if (!$has_key): ?>
+                    <?php if (!$alt_text_pro_has_key): ?>
                     <p style="margin-top: 10px;">
                         <button type="button" class="button-secondary-custom open-modal"
                             data-modal="alt-text-pro-onboarding-modal">

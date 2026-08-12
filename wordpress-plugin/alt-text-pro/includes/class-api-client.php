@@ -116,17 +116,12 @@ class AltTextPro_API_Client
                 );
             }
 
-            if (defined('WP_DEBUG') && WP_DEBUG) {
-                // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log, WordPress.PHP.DevelopmentFunctions.error_log_print_r
-                error_log('Alt Text Pro API: Success response but alt_text not found. Response structure: ' . print_r($response, true));
-            }
         }
 
         // Return error response with proper message
         return array(
             'success' => false,
             'message' => $response['message'] ?? esc_html__('Failed to generate alt-text. Please check your API key and try again.', 'alt-text-pro'),
-            'data' => $response['data'] ?? null,
             'status_code' => $response['status_code'] ?? null,
             'retryable' => $response['retryable'] ?? false,
             'retry_after_seconds' => $response['retry_after_seconds'] ?? null,
@@ -185,16 +180,12 @@ class AltTextPro_API_Client
         $file_path = get_attached_file($attachment_id);
 
         if (!$file_path || !file_exists($file_path)) {
-            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-            error_log(sprintf('Alt Text Pro: File not found for attachment %d: %s', $attachment_id, $file_path));
             return false;
         }
 
         // Check if it's an image
         $mime_type = get_post_mime_type($attachment_id);
         if (strpos((string) $mime_type, 'image/') !== 0) {
-            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-            error_log(sprintf('Alt Text Pro: Invalid mime type for attachment %d: %s', $attachment_id, $mime_type));
             return false;
         }
 
@@ -204,23 +195,17 @@ class AltTextPro_API_Client
         $max_size = 15 * 1024 * 1024; // 15MB in bytes
 
         if ($file_size > $max_size) {
-            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-            error_log(sprintf('Alt Text Pro: Image too large for attachment %d: %d bytes (max: %d)', $attachment_id, $file_size, $max_size));
             return false;
         }
 
         // Get image data
         $image_data = file_get_contents($file_path);
         if ($image_data === false) {
-            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-            error_log(sprintf('Alt Text Pro: Failed to read file for attachment %d: %s', $attachment_id, $file_path));
             return false;
         }
 
         // Validate image data is not empty
         if (empty($image_data)) {
-            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-            error_log(sprintf('Alt Text Pro: Empty image data for attachment %d', $attachment_id));
             return false;
         }
 
@@ -228,8 +213,6 @@ class AltTextPro_API_Client
 
         // Validate base64 encoding succeeded
         if (empty($base64_data)) {
-            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-            error_log(sprintf('Alt Text Pro: Failed to encode image to base64 for attachment %d', $attachment_id));
             return false;
         }
 
@@ -263,19 +246,6 @@ class AltTextPro_API_Client
             $args['body'] = json_encode($data);
         }
 
-        $debug_enabled = defined('WP_DEBUG') && WP_DEBUG;
-
-        if ($debug_enabled) {
-            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-            error_log(sprintf(
-                'Alt Text Pro API Request: %s %s | Endpoint: %s | Base: %s',
-                $method,
-                $url,
-                $endpoint,
-                $this->api_base
-            ));
-        }
-
         $response = wp_remote_request($url, $args);
 
         // Handle WordPress errors
@@ -298,28 +268,14 @@ class AltTextPro_API_Client
 
             return array(
                 'success' => false,
-                'message' => sprintf(
-                // translators: %s: Error message
-                esc_html__('Request failed: %1$s', 'alt-text-pro'),
-                esc_html($request_error)
-            )
+                'message' => esc_html__('Could not reach the Alt Text Pro service. Please try again.', 'alt-text-pro'),
+                'retryable' => true
             );
         }
 
         $status_code = wp_remote_retrieve_response_code($response);
         $body = wp_remote_retrieve_body($response);
         $decoded_body = json_decode($body, true);
-
-        if ($debug_enabled) {
-            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-            error_log(sprintf(
-                'Alt Text Pro API Response: endpoint=%s status=%d body_length=%d json_error=%s',
-                $endpoint,
-                $status_code,
-                strlen($body),
-                json_last_error() !== JSON_ERROR_NONE ? json_last_error_msg() : 'none'
-            ));
-        }
 
         // Handle API errors
         if ($status_code >= 400) {
@@ -337,6 +293,8 @@ class AltTextPro_API_Client
                     $error_message = $body;
                 }
             }
+
+            $error_message = $this->sanitize_api_error_message($error_message);
 
             // Default error message
             if (empty($error_message)) {
@@ -365,12 +323,7 @@ class AltTextPro_API_Client
                     $error_message = esc_html__('Access forbidden. Please check your API key permissions.', 'alt-text-pro');
                     break;
                 case 404:
-                    $error_message = sprintf(
-                        // translators: %1$s: Requested URL, %2$s: API base URL
-                        esc_html__('Endpoint not found (404). Tried: %1$s. Please verify the API base URL is correct: %2$s', 'alt-text-pro'),
-                        esc_url($url),
-                        esc_url($this->api_base)
-                    );
+                    $error_message = esc_html__('The requested Alt Text Pro service is unavailable. Please update the plugin or try again later.', 'alt-text-pro');
                     break;
                 case 413:
                     $error_message = esc_html__('Image too large to process.', 'alt-text-pro');
@@ -390,25 +343,20 @@ class AltTextPro_API_Client
                         'retryable' => true,
                         'retry_after_seconds' => $retry_after_seconds,
                         'code' => is_array($decoded_body) && isset($decoded_body['code']) ? sanitize_key($decoded_body['code']) : 'rate_limited',
-                        'status_code' => 429,
-                        'data' => is_array($decoded_body) ? $decoded_body : null,
-                        'raw_response' => substr($body, 0, 1000),
-                        'url_attempted' => $url
+                        'status_code' => 429
                     );
-                    break;
                 case 500:
-                    // Only use generic message if no specific message was returned by the API
-                    // translators: %1$d: HTTP status code returned by the remote API.
-                    if (empty($error_message) || $error_message === sprintf(esc_html__('API error (Status: %1$d)', 'alt-text-pro'), 500)) {
-                        $error_message = esc_html__('Server error. Please try again later.', 'alt-text-pro');
-                    }
+                    $error_message = esc_html__('The Alt Text Pro service encountered an error. Please try again later.', 'alt-text-pro');
                     break;
+            }
+
+            if ($status_code >= 500) {
+                $error_message = esc_html__('The Alt Text Pro service encountered an error. Please try again later.', 'alt-text-pro');
             }
 
             // Handle specific AI service errors (moved inside status >= 400 block)
             if (!empty($error_message) && (stripos($error_message, 'AI Service') !== false || stripos($error_message, 'empty response') !== false)) {
-                $raw_details = !empty($decoded_body['error']) ? ' (' . $decoded_body['error'] . ')' : '';
-                $error_message = esc_html__('AI service returned an empty or blocked response. This may be due to image content restrictions or API limitations.', 'alt-text-pro') . $raw_details;
+                $error_message = esc_html__('AI service returned an empty or blocked response. This may be due to image content restrictions or API limitations.', 'alt-text-pro');
             }
 
             return array(
@@ -417,10 +365,8 @@ class AltTextPro_API_Client
                 'status_code' => $status_code,
                 'retryable' => is_array($decoded_body) ? (bool) ($decoded_body['retryable'] ?? false) : false,
                 'retry_after_seconds' => is_array($decoded_body) ? ($decoded_body['retry_after_seconds'] ?? null) : null,
-                'code' => is_array($decoded_body) ? ($decoded_body['code'] ?? null) : null,
-                'image_too_large' => $status_code === 413,
-                'raw_response' => substr($body, 0, 1000), // Limit size
-                'url_attempted' => $url
+                'code' => is_array($decoded_body) && isset($decoded_body['code']) ? sanitize_key($decoded_body['code']) : null,
+                'image_too_large' => $status_code === 413
             );
         }
 
@@ -428,11 +374,7 @@ class AltTextPro_API_Client
         if (json_last_error() !== JSON_ERROR_NONE) {
             return array(
                 'success' => false,
-                'message' => sprintf(
-                // translators: %s: First 100 characters of the response body
-                esc_html__('Invalid API response format. Raw response: %1$s', 'alt-text-pro'),
-                esc_html(substr($body, 0, 100))
-            ),
+                'message' => esc_html__('The Alt Text Pro service returned an invalid response. Please try again.', 'alt-text-pro'),
                 'status_code' => $status_code
             );
         }
@@ -440,7 +382,7 @@ class AltTextPro_API_Client
         // Check for error key FIRST - even when status is 200 (some APIs return errors with 200 status)
         // This must be checked before checking for success, as error takes priority
         if (isset($decoded_body['error'])) {
-            $error_message = $decoded_body['error'];
+            $error_message = $this->sanitize_api_error_message($decoded_body['error']);
 
             // Check if it's an authentication error
             // Only override if status code is 401 (Unauthorized)
@@ -460,7 +402,9 @@ class AltTextPro_API_Client
 
         // Check if the API response itself indicates an error (some APIs return 200 with error in body)
         if (isset($decoded_body['success']) && $decoded_body['success'] === false) {
-            $error_message = $decoded_body['error'] ?? $decoded_body['message'] ?? esc_html__('API returned an error', 'alt-text-pro');
+            $error_message = $this->sanitize_api_error_message(
+                $decoded_body['error'] ?? $decoded_body['message'] ?? esc_html__('API returned an error.', 'alt-text-pro')
+            );
             return array(
                 'success' => false,
                 'message' => $error_message,
@@ -500,6 +444,18 @@ class AltTextPro_API_Client
             'data' => $decoded_body,
             'status_code' => $status_code
         );
+    }
+
+    /**
+     * Keep remote service errors short, plain-text, and safe for admin notices.
+     */
+    private function sanitize_api_error_message($message)
+    {
+        if (!is_scalar($message) || $message === '') {
+            return '';
+        }
+
+        return substr(sanitize_text_field((string) $message), 0, 300);
     }
 
     /**

@@ -234,7 +234,7 @@ function createHandler({
     if (eventName === 'signup_created' && identity.user?.id) {
       const signupCheck = await hasExistingSignupEvent(supabaseClient, identity.user.id);
       if (signupCheck.error) {
-        console.error('track-event: existing signup lookup failed', signupCheck.error);
+        console.error('track-event: existing signup lookup failed');
         return {
           statusCode: 202,
           headers,
@@ -285,7 +285,7 @@ function createHandler({
         };
       }
 
-      console.error('track-event: insert failed', error);
+      console.error('track-event: insert failed', { code: error.code || 'unknown' });
       return {
         statusCode: 202,
         headers,

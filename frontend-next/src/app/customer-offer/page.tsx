@@ -211,7 +211,7 @@ export default function CustomerOfferPage() {
 
                             <div className="mt-10 space-y-5">
                                 {[
-                                    "Generate useful image descriptions in seconds",
+                                    "Generate editable image-description drafts",
                                     "Bulk-fix missing alt text in WordPress",
                                     "Keep unused bonus credits across monthly refills",
                                 ].map((benefit) => (

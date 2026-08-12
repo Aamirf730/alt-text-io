@@ -127,7 +127,7 @@ function checkMemoryRateLimit(key, maxRequests, windowMs) {
     const allowed = entry.count <= maxRequests;
 
     if (!allowed) {
-        console.warn(`[RateLimiter:Memory] Identifier ${key} exceeded limit (${entry.count}/${maxRequests}) on instance ${INSTANCE_ID}`);
+        console.warn(`[RateLimiter:Memory] Request quota exceeded (${entry.count}/${maxRequests})`);
     }
 
     // Periodic cleanup
@@ -181,7 +181,7 @@ async function checkRateLimit(identifier, maxRequests = 60, windowMs = 60000) {
             const result = await limiter.limit(identifier);
 
             if (!result.success) {
-                console.warn(`[RateLimiter:Redis] Identifier ${identifier} exceeded limit`);
+                console.warn('[RateLimiter:Redis] Request quota exceeded');
             }
 
             return {

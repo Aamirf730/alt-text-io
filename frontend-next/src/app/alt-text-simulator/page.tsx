@@ -1,19 +1,19 @@
 'use client';
 
 import React, { useState } from 'react';
+import Image from 'next/image';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import {
-    Brain,
     Zap,
     Check,
     X,
     Sparkles,
     ImageIcon,
     Search,
-    Copy,
     Info,
-    Code
+    Code,
+    ChevronDown
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -22,20 +22,22 @@ const scenarios = {
     bad: {
         alt: "",
         displayAlt: '""',
-        fileName: "cat-on-sofa.jpg",
-        srText: "Image. cat-on-sofa.jpg",
+        fileName: "red-fox.png",
+        srText: "The image is skipped because its alt attribute is empty.",
         googleKeywords: ["image", "jpg", "file", "unknown"],
         confidence: 15,
-        explanation: "Without Alt Text, Google relies on the filename (which is often gibberish like IMG_294.jpg). Screen readers announce the filename, providing zero context to the user."
+        confidenceLabel: "Low context",
+        explanation: "An empty alt attribute tells assistive technology to treat the image as decorative. Search systems receive little useful text beyond the filename and surrounding page content."
     },
     good: {
-        alt: "Close up of a ginger cat sleeping comfortably on a teal velvet sofa.",
-        displayAlt: '"Close up of a ginger cat sleeping comfortably on a teal velvet sofa."',
-        fileName: "cat-on-sofa.jpg",
-        srText: "Image. Close up of a ginger cat sleeping comfortably on a teal velvet sofa.",
-        googleKeywords: ["cat", "ginger", "sleeping", "sofa", "teal", "velvet", "comfort"],
+        alt: "Red fox standing on a sandy beach beside calm ocean waves at sunset.",
+        displayAlt: '"Red fox standing on a sandy beach beside calm ocean waves at sunset."',
+        fileName: "red-fox.png",
+        srText: "Image. Red fox standing on a sandy beach beside calm ocean waves at sunset.",
+        googleKeywords: ["red fox", "beach", "ocean", "waves", "sunset"],
         confidence: 95,
-        explanation: "With descriptive Alt Text, Google indexes specific keywords like 'Ginger Cat' and 'Velvet Sofa'. Screen reader users get a mental image of the scene."
+        confidenceLabel: "Useful context",
+        explanation: "Descriptive alt text gives screen-reader users the image's relevant meaning and gives search systems clearer text context. It should still be reviewed against the surrounding page."
     }
 };
 
@@ -73,7 +75,7 @@ export default function AltTextSimulatorPage() {
 
             window.speechSynthesis.speak(utterance);
         } else {
-            alert("Your device does not support text-to-speech.");
+            toast.error("Text-to-speech is not supported on this device.");
         }
     };
 
@@ -91,7 +93,7 @@ export default function AltTextSimulatorPage() {
                     <h1 className="text-3xl md:text-6xl font-bold text-notebook-slate leading-tight font-outfit tracking-tight">
                         Alt Text <span className="text-notebook-blue italic">Simulator.</span>
                     </h1>
-                    <p className="text-sm md:text-xl text-slate-500 mt-4 max-w-2xl font-normal">See how clear descriptions improve search rankings and help everyone understand your images.</p>
+                    <p className="text-sm md:text-xl text-slate-500 mt-4 max-w-2xl font-normal">See how a clear description changes the information available to screen readers and search systems.</p>
                 </div>
             </header>
 
@@ -106,7 +108,9 @@ export default function AltTextSimulatorPage() {
                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 block font-outfit">Choose a Version</span>
                             <div className="flex bg-notebook-surface p-1.5 rounded-2xl w-full md:w-auto border border-gray-100 shadow-inner">
                                 <button
+                                    type="button"
                                     onClick={() => handleScenarioChange('bad')}
+                                    aria-pressed={currentScenario === 'bad'}
                                     className={`flex-1 md:flex-none px-8 py-3 rounded-xl text-sm font-bold transition-all duration-300 flex items-center justify-center gap-2 font-outfit uppercase tracking-wider ${currentScenario === 'bad'
                                         ? 'bg-white shadow-notebook text-notebook-slate border border-gray-100'
                                         : 'text-slate-400 hover:text-notebook-blue'
@@ -116,7 +120,9 @@ export default function AltTextSimulatorPage() {
                                     <span>No Alt Text</span>
                                 </button>
                                 <button
+                                    type="button"
                                     onClick={() => handleScenarioChange('good')}
+                                    aria-pressed={currentScenario === 'good'}
                                     className={`flex-1 md:flex-none px-8 py-3 rounded-xl text-sm font-bold transition-all duration-300 flex items-center justify-center gap-2 font-outfit uppercase tracking-wider ${currentScenario === 'good'
                                         ? 'bg-white shadow-notebook text-notebook-blue border border-gray-100'
                                         : 'text-slate-400 hover:text-notebook-blue'
@@ -138,6 +144,7 @@ export default function AltTextSimulatorPage() {
                                         className="sr-only peer"
                                         checked={isBroken}
                                         onChange={toggleBrokenImage}
+                                        aria-label="Show the broken image state"
                                     />
                                     <div className="w-14 h-7 bg-notebook-surface peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-200 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-notebook-blue peer-checked:after:bg-white shadow-inner"></div>
                                 </div>
@@ -161,8 +168,10 @@ export default function AltTextSimulatorPage() {
                         </div>
                         <div className="p-10 flex-grow flex items-center justify-center bg-notebook-surface/10 min-h-[300px]">
                             <div className="relative w-full max-w-sm aspect-video bg-white shadow-notebook rounded-3xl overflow-hidden border border-gray-100 flex items-center justify-center p-2">
-                                <img
-                                    src="https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80"
+                                <Image
+                                    src="/red-fox.png"
+                                    fill
+                                    sizes="(min-width: 1024px) 384px, 100vw"
                                     className={`w-full h-full object-cover rounded-2xl transition-opacity duration-700 ${isBroken ? 'opacity-0' : 'opacity-100'}`}
                                     alt={data.alt}
                                 />
@@ -193,7 +202,7 @@ export default function AltTextSimulatorPage() {
                         <div className="p-8 md:p-12 font-mono text-sm md:text-base relative flex-grow flex items-center overflow-x-auto bg-[#0F172A] selection:bg-notebook-blue/20">
                             <div className="text-slate-400 w-full whitespace-pre-wrap leading-relaxed">
                                 <span className="text-blue-400 font-bold">&lt;img</span>{' '}
-                                <span className="text-indigo-300">src</span>=<span className="text-emerald-400">&quot;cat-on-sofa.jpg&quot;</span>
+                                <span className="text-indigo-300">src</span>=<span className="text-emerald-400">&quot;red-fox.png&quot;</span>
                                 {'\n  '}
                                 <span className="text-indigo-300">alt</span>=<span className="text-white bg-white/5 rounded-lg transition-all duration-700 inline-block px-3 py-1.5 border border-white/10 shadow-lg">{data.displayAlt}</span>
                                 <span className="text-blue-400 font-bold">&gt;</span>
@@ -211,7 +220,7 @@ export default function AltTextSimulatorPage() {
                         <div className="bg-notebook-surface px-8 py-5 border-b border-gray-100 flex items-center justify-between">
                             <h2 className="font-bold text-notebook-slate text-sm font-outfit uppercase tracking-widest flex items-center gap-3">
                                 <div className="w-2 h-2 rounded-full bg-notebook-blue shadow-[0_0_10px_rgba(254,225,28,0.45)]"></div>
-                                Google's View
+                                Search Crawler View
                             </h2>
                             <span className="text-[10px] font-bold px-3 py-1 bg-white text-notebook-blue rounded-lg border border-gray-100 shadow-sm font-outfit tracking-widest uppercase">SEO</span>
                         </div>
@@ -249,7 +258,7 @@ export default function AltTextSimulatorPage() {
                                     <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-notebook transition-all duration-500">
                                         <div className="flex justify-between text-[10px] mb-3 items-center font-bold uppercase tracking-widest font-outfit">
                                             <span className="text-slate-400">Understanding Level</span>
-                                            <span className="text-notebook-slate bg-notebook-surface px-2.5 py-1 rounded-lg border border-gray-100">{data.confidence}%</span>
+                                            <span className="text-notebook-slate bg-notebook-surface px-2.5 py-1 rounded-lg border border-gray-100">Illustrative: {data.confidenceLabel}</span>
                                         </div>
                                         <div className="w-full bg-notebook-surface rounded-full h-2.5 p-0.5 border border-gray-100">
                                             <div
@@ -300,6 +309,7 @@ export default function AltTextSimulatorPage() {
                             </div>
 
                             <button
+                                type="button"
                                 onClick={speakAltText}
                                 className="w-full py-5 bg-notebook-blue hover:bg-notebook-blue/90 active:scale-[0.98] text-white rounded-2xl font-bold font-outfit uppercase tracking-widest text-sm shadow-notebook transition-all flex items-center justify-center gap-4 group"
                             >
@@ -359,7 +369,7 @@ export default function AltTextSimulatorPage() {
 
                             {/* Arrow 1 */}
                             <div className="md:hidden">
-                                <i className="fas fa-chevron-down text-slate-300 text-2xl animate-bounce"></i>
+                                <ChevronDown className="h-7 w-7 animate-bounce text-slate-300" aria-hidden="true" />
                             </div>
                             <div className="hidden md:block absolute left-[32%] top-16 w-[12%] h-[2px] bg-notebook-blue/10"></div>
 
@@ -370,13 +380,13 @@ export default function AltTextSimulatorPage() {
                                 </div>
                                 <h3 className="text-sm font-bold text-notebook-slate mb-4 font-outfit uppercase tracking-widest">02 Search Engine Analysis</h3>
                                 <p className="text-xs md:text-sm text-slate-400 leading-relaxed max-w-[240px] font-normal">
-                                    Google and other search engines read the description to understand what's in the image, helping you rank higher.
+                                    Search engines can use the description as one source of text context for the image.
                                 </p>
                             </div>
 
                             {/* Arrow 2 */}
                             <div className="md:hidden">
-                                <i className="fas fa-chevron-down text-slate-300 text-2xl animate-bounce"></i>
+                                <ChevronDown className="h-7 w-7 animate-bounce text-slate-300" aria-hidden="true" />
                             </div>
                             <div className="hidden md:block absolute right-[32%] top-16 w-[12%] h-[2px] bg-notebook-blue/10"></div>
 
@@ -388,7 +398,7 @@ export default function AltTextSimulatorPage() {
                                 </div>
                                 <h3 className="text-sm font-bold text-notebook-slate mb-4 font-outfit uppercase tracking-widest">03 Better Experience</h3>
                                 <p className="text-xs md:text-sm text-slate-400 leading-relaxed max-w-[240px] font-normal">
-                                    Users who can't see the image get a perfect description, while your site becomes more searchable for everyone.
+                                    Users who cannot see the image receive a useful description when the wording matches the page context.
                                 </p>
                             </div>
 

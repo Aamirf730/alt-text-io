@@ -1,7 +1,7 @@
 [build]
   base = "."
   publish = "frontend-next/.next"
-  command = "node scripts/write-build-info.mjs && cd wordpress-plugin && ./build-plugin.sh && cd ../netlify-functions && npm install && cd ../frontend-next && npm install && npm run build"
+  command = "cd wordpress-plugin && ./build-plugin.sh && cd ../netlify-functions && npm install && cd ../frontend-next && npm install && npm run build"
   functions = "netlify-functions"
 
 [dev]
@@ -11,7 +11,7 @@
   command = "npm run dev --prefix frontend-next"
 
 [build.environment]
-  NODE_VERSION = "20"
+  NODE_VERSION = "22.20.1"
   # These environment variables will be pulled from Netlify dashboard
   # NEXT_PUBLIC_SUPABASE_URL
   # NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -84,11 +84,6 @@
 [[redirects]]
   from = "/api/send-contact-email"
   to = "/.netlify/functions/send-contact-email"
-  status = 200
-
-[[redirects]]
-  from = "/api/activate-subscription"
-  to = "/.netlify/functions/activate-subscription"
   status = 200
 
 # Next.js plugin handles everything else (including new /api/checkout)

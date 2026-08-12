@@ -165,12 +165,6 @@ $alt_text_pro_current_page = isset($_GET['page']) ? sanitize_text_field(wp_unsla
                                             title="<?php esc_attr_e('Edit Image', 'alt-text-pro'); ?>">
                                             <span class="dashicons dashicons-edit"></span>
                                         </a>
-                                        <button type="button" class="button-secondary-custom regenerate-alt-text"
-                                            data-attachment-id="<?php echo esc_attr($alt_text_pro_log->attachment_id); ?>"
-                                            style="padding: 4px 8px !important; font-size: 12px !important;"
-                                            title="<?php esc_attr_e('Regenerate', 'alt-text-pro'); ?>">
-                                            <span class="dashicons dashicons-update"></span>
-                                        </button>
                                     </div>
                                 </td>
                             </tr>

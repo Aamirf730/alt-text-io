@@ -60,7 +60,8 @@ const Navbar = ({ onSignInClick, onSignUpClick }: NavbarProps) => {
 
     // Close mobile menu when route changes
     useEffect(() => {
-        setIsMobileMenuOpen(false);
+        const timer = window.setTimeout(() => setIsMobileMenuOpen(false), 0);
+        return () => window.clearTimeout(timer);
     }, [pathname]);
 
     // Handle Sign In Click
@@ -73,7 +74,7 @@ const Navbar = ({ onSignInClick, onSignUpClick }: NavbarProps) => {
         setIsMobileMenuOpen(false);
     };
 
-    // Handle Sign Up / Free Trial Click
+    // Handle account creation CTA clicks.
     const handleSignUp = () => {
         if (onSignUpClick) {
             onSignUpClick();
@@ -160,9 +161,12 @@ const Navbar = ({ onSignInClick, onSignUpClick }: NavbarProps) => {
                         {/* Mobile menu button */}
                         <div className="lg:hidden">
                             <button
+                                type="button"
                                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
                                 className="p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
-                                aria-label="Toggle mobile menu"
+                                aria-label={isMobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
+                                aria-expanded={isMobileMenuOpen}
+                                aria-controls="mobile-navigation-menu"
                             >
                                 {isMobileMenuOpen ? (
                                     <X className="w-6 h-6" />
@@ -184,7 +188,7 @@ const Navbar = ({ onSignInClick, onSignUpClick }: NavbarProps) => {
                         onClick={() => setIsMobileMenuOpen(false)}
                     ></div>
                     {/* Menu */}
-                    <div className="lg:hidden fixed inset-x-4 top-24 z-50 bg-white/95 backdrop-blur-xl border border-gray-200 rounded-2xl shadow-2xl overflow-hidden mobile-menu-container">
+                    <div id="mobile-navigation-menu" className="lg:hidden fixed inset-x-4 top-24 z-50 bg-white/95 backdrop-blur-xl border border-gray-200 rounded-2xl shadow-2xl overflow-hidden mobile-menu-container">
                         <div className="px-4 py-6 space-y-4">
                             {/* Navigation Links */}
                             <div className="space-y-3">

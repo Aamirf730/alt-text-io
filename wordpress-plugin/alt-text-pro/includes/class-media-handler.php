@@ -47,21 +47,28 @@ class AltTextPro_Media_Handler
             return;
         }
 
-        // Generate alt-text immediately (don't rely on cron)
-        // Use wp_schedule_single_event as fallback, but also try immediate generation
-        $this->generate_alt_text_background($attachment_id);
-
-        // Also schedule as backup in case immediate fails
-        if (!wp_next_scheduled('alt_text_pro_generate_background', array($attachment_id))) {
-            wp_schedule_single_event(time() + 5, 'alt_text_pro_generate_background', array($attachment_id));
-        }
+        // Generate once during the attachment request. Scheduling a second
+        // unconditional fallback can consume another credit after a success.
+        $this->generate_alt_text_background($attachment_id, !empty($settings['overwrite_existing']));
     }
 
     /**
      * Generate alt-text in background
      */
-    public function generate_alt_text_background($attachment_id)
+    public function generate_alt_text_background($attachment_id, $force_overwrite = false)
     {
+        if (!wp_attachment_is_image($attachment_id)) {
+            return;
+        }
+
+        // Old versions scheduled a second callback after running immediately.
+        // Treat any already-populated alt text as completed unless the current
+        // upload request explicitly asked to overwrite it.
+        $existing_alt = get_post_meta($attachment_id, '_wp_attachment_image_alt', true);
+        if (!$force_overwrite && !empty($existing_alt)) {
+            return;
+        }
+
         $api_client = new AltTextPro_API_Client();
 
         // Get context from attachment metadata if available
@@ -143,6 +150,10 @@ class AltTextPro_Media_Handler
 
         if (!$attachment_id) {
             wp_send_json_error(esc_html__('Invalid attachment ID.', 'alt-text-pro'));
+        }
+
+        if (!current_user_can('edit_post', $attachment_id)) {
+            wp_send_json_error(esc_html__('You do not have permission to edit this image.', 'alt-text-pro'));
         }
 
         // Check if it's an image

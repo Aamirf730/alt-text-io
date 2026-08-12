@@ -33,6 +33,18 @@ describe('CORS utilities', () => {
             const result = getValidatedOrigin({ origin: 'https://evil-site.com' });
             expect(result).toBeNull();
         });
+
+        it('accepts the configured Netlify site and its deploy previews', () => {
+            expect(getValidatedOrigin({ origin: 'https://alt-text-ai.netlify.app' }))
+                .toBe('https://alt-text-ai.netlify.app');
+            expect(getValidatedOrigin({ origin: 'https://deploy-preview-42--alt-text-ai.netlify.app' }))
+                .toBe('https://deploy-preview-42--alt-text-ai.netlify.app');
+        });
+
+        it('rejects Netlify hostnames that merely contain the configured site name', () => {
+            expect(getValidatedOrigin({ origin: 'https://evil-alt-text-ai.netlify.app' })).toBeNull();
+            expect(getValidatedOrigin({ origin: 'https://alt-text-ai.attacker.netlify.app' })).toBeNull();
+        });
     });
 
     describe('getCorsHeaders', () => {
@@ -104,6 +116,7 @@ describe('CORS utilities', () => {
             expect(response.headers['X-RateLimit-Limit']).toBe('12');
             expect(response.headers['X-RateLimit-Remaining']).toBe('0');
             expect(response.headers['X-RateLimit-Reset']).toBe(resetAt.toISOString());
+            expect(response.headers['X-RateLimit-Instance']).toBeUndefined();
             expect(JSON.parse(response.body).error).toBe('Too many requests');
         });
     });

@@ -18,7 +18,7 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 // Superuser emails (comma-separated list from environment variable)
-const SUPERUSER_EMAILS = (process.env.SUPERUSER_EMAILS || '').split(',').map(email => email.trim()).filter(Boolean);
+const SUPERUSER_EMAILS = (process.env.SUPERUSER_EMAILS || '').split(',').map(email => email.trim().toLowerCase()).filter(Boolean);
 
 // Stricter rate limit for admin endpoints (30 requests per minute)
 const ADMIN_RATE_LIMIT = 30;
@@ -57,7 +57,7 @@ exports.handler = async (event, context) => {
   const clientIp = getClientIp(event);
   const rateLimit = await checkRateLimit(`admin:${clientIp}`, ADMIN_RATE_LIMIT);
   if (!rateLimit.allowed) {
-    console.warn('Rate limit exceeded for admin endpoint:', clientIp);
+    console.warn('Admin endpoint request quota exceeded');
     return rateLimitExceededResponse(headers, rateLimit);
   }
 
@@ -66,13 +66,6 @@ exports.handler = async (event, context) => {
   }
 
   try {
-    // Check environment variables
-    console.log('=== ENVIRONMENT VARIABLES CHECK ===');
-    console.log('SUPABASE_URL:', supabaseUrl ? (supabaseUrl.substring(0, 30) + '...') : 'NOT SET');
-    console.log('SUPABASE_SERVICE_ROLE_KEY:', supabaseServiceKey ? 'SET (hidden)' : 'NOT SET');
-    console.log('SUPERUSER_EMAILS:', SUPERUSER_EMAILS.length > 0 ? SUPERUSER_EMAILS.join(', ') : 'NOT SET');
-    console.log('SUPERUSER_EMAILS (raw):', process.env.SUPERUSER_EMAILS || 'NOT SET');
-
     if (!supabaseUrl || !supabaseServiceKey) {
       console.error('CRITICAL: Supabase configuration missing!');
       return {
@@ -86,9 +79,7 @@ exports.handler = async (event, context) => {
     }
 
     // Get authorization token
-    console.log('=== AUTHENTICATION CHECK ===');
     const authHeader = event.headers.authorization || event.headers.Authorization;
-    console.log('Authorization header present:', !!authHeader);
 
     if (!authHeader) {
       console.error('ERROR: No authorization header');
@@ -99,11 +90,9 @@ exports.handler = async (event, context) => {
       };
     }
 
-    const token = authHeader.replace('Bearer ', '').trim();
-    console.log('Token preview:', token ? (token.substring(0, 20) + '...') : 'NO TOKEN');
+    const token = authHeader.replace(/^Bearer\s+/i, '').trim();
 
     // Validate JWT token and get user
-    console.log('Validating JWT token with Supabase...');
     let user = null;
     let authError = null;
 
@@ -113,20 +102,10 @@ exports.handler = async (event, context) => {
       authError = getUserError;
 
       if (authError) {
-        console.error('Supabase getUser error:', authError);
-        console.error('Error message:', authError.message);
-        console.error('Error status:', authError.status);
-      } else if (user) {
-        console.log('User authenticated successfully');
-        console.log('User ID:', user.id);
-        console.log('User email:', user.email);
-      } else {
-        console.error('No user returned from getUser');
+        console.error('Admin authentication failed');
       }
     } catch (err) {
-      console.error('Exception during token validation:', err);
-      console.error('Exception message:', err.message);
-      console.error('Exception stack:', err.stack);
+      console.error('Admin authentication service error');
       authError = err;
     }
 
@@ -135,35 +114,25 @@ exports.handler = async (event, context) => {
       return {
         statusCode: 401,
         headers,
-        body: JSON.stringify({
-          error: 'Invalid or expired token',
-          details: authError?.message || 'User not found'
+      body: JSON.stringify({
+          error: 'Invalid or expired token'
         }),
       };
     }
 
     // Check if user is a superuser
-    console.log('=== SUPERUSER CHECK ===');
-    console.log('User email:', user.email);
-    console.log('Superuser emails list:', SUPERUSER_EMAILS);
-    console.log('Is superuser?', SUPERUSER_EMAILS.includes(user.email));
-
-    if (!SUPERUSER_EMAILS.includes(user.email)) {
+    if (!SUPERUSER_EMAILS.includes(normalizeEmail(user.email))) {
       console.error('Access denied - user is not a superuser');
       return {
         statusCode: 403,
         headers,
         body: JSON.stringify({
-          error: 'Access denied. Superuser privileges required.',
-          details: `User email ${user.email} is not in the superuser list.`
+          error: 'Access denied. Superuser privileges required.'
         }),
       };
     }
 
-    console.log('User is a superuser - proceeding with data fetch');
-
     // Get all profiles with related data
-    console.log('=== FETCHING PROFILES ===');
     let profiles = [];
     let profilesError = null;
 
@@ -177,17 +146,10 @@ exports.handler = async (event, context) => {
       profilesError = profilesErr;
 
       if (profilesError) {
-        console.error('Error fetching profiles:', profilesError);
-        console.error('Error code:', profilesError.code);
-        console.error('Error message:', profilesError.message);
-        console.error('Error details:', profilesError.details);
-        console.error('Error hint:', profilesError.hint);
-      } else {
-        console.log('Profiles fetched successfully');
-        console.log('Number of profiles:', profiles.length);
+        console.error('Admin profile query failed');
       }
     } catch (err) {
-      console.error('Exception fetching profiles:', err);
+      console.error('Admin profile query raised an exception');
       profilesError = err;
     }
 
@@ -196,14 +158,12 @@ exports.handler = async (event, context) => {
         statusCode: 500,
         headers,
         body: JSON.stringify({
-          error: 'Failed to fetch user profiles',
-          details: profilesError.message || JSON.stringify(profilesError)
+          error: 'Failed to fetch user profiles'
         }),
       };
     }
 
     // Get all payments for all users
-    console.log('=== FETCHING PAYMENTS ===');
     let payments = [];
     let paymentsError = null;
 
@@ -217,18 +177,14 @@ exports.handler = async (event, context) => {
       paymentsError = paymentsErr;
 
       if (paymentsError) {
-        console.error('Error fetching payments:', paymentsError);
-      } else {
-        console.log('Payments fetched successfully');
-        console.log('Number of payments:', payments.length);
+        console.error('Admin payment query failed');
       }
     } catch (err) {
-      console.error('Exception fetching payments:', err);
+      console.error('Admin payment query raised an exception');
       paymentsError = err;
     }
 
     // Get usage statistics for all users from the aggregated view
-    console.log('=== FETCHING USAGE STATS ===');
     let usageStats = [];
     let usageError = null;
 
@@ -241,17 +197,13 @@ exports.handler = async (event, context) => {
       usageError = usageErr;
 
       if (usageError) {
-        console.error('Error fetching usage stats:', usageError);
-      } else {
-        console.log('Usage stats fetched successfully');
-        console.log('Number of user usage records:', usageStats.length);
+        console.error('Admin usage query failed');
       }
     } catch (err) {
-      console.error('Exception fetching usage stats:', err);
+      console.error('Admin usage query raised an exception');
       usageError = err;
     }
 
-    console.log('=== FETCHING PLUGIN EVENTS ===');
     let pluginEvents = [];
     let pluginEventsError = null;
 
@@ -268,20 +220,16 @@ exports.handler = async (event, context) => {
       pluginEventsError = pluginEventsErr;
 
       if (pluginEventsError) {
-        console.error('Error fetching plugin events:', pluginEventsError);
-      } else {
-        console.log('Plugin events fetched successfully');
-        console.log('Number of plugin events:', pluginEvents.length);
+        console.error('Admin plugin-event query failed');
       }
     } catch (err) {
-      console.error('Exception fetching plugin events:', err);
+      console.error('Admin plugin-event query raised an exception');
       pluginEventsError = err;
     }
 
     const latestPluginEvents = buildLatestPluginEventMaps(pluginEvents);
 
     // Enrich profiles with additional data
-    console.log('=== ENRICHING PROFILES ===');
     const enrichedProfiles = profiles.map(profile => {
       // Get payments for this user
       const userPayments = payments?.filter(p => p.user_id === profile.id) || [];
@@ -324,9 +272,6 @@ exports.handler = async (event, context) => {
       };
     });
 
-    console.log('=== PREPARING RESPONSE ===');
-    console.log('Enriched profiles count:', enrichedProfiles.length);
-
     const response = {
       success: true,
       data: {
@@ -341,10 +286,6 @@ exports.handler = async (event, context) => {
       }
     };
 
-    console.log('Response prepared successfully');
-    console.log('Total users:', response.data.total_users);
-    console.log('Total revenue:', response.data.stats.total_revenue);
-
     return {
       statusCode: 200,
       headers,
@@ -353,15 +294,14 @@ exports.handler = async (event, context) => {
 
   } catch (error) {
     const { reportError } = require('./utils/error-reporter');
-    reportError(error, { functionName: 'admin-get-users', ip: getClientIp(event) });
+    reportError(error, { functionName: 'admin-get-users' });
 
     return {
       statusCode: 500,
       headers,
       body: JSON.stringify({
         error: 'Internal server error',
-        details: error.message || error.toString(),
-        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
       }),
     };
   }

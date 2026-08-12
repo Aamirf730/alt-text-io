@@ -6,9 +6,11 @@ describe('health check endpoint', () => {
     beforeEach(async () => {
         vi.resetModules();
 
-        // Set env vars so Supabase init doesn't crash
-        process.env.SUPABASE_URL = 'https://test.supabase.co';
-        process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-key';
+        // Detailed checks must fail closed without contacting live services.
+        delete process.env.SUPABASE_URL;
+        delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+        process.env.HEALTH_CHECK_SECRET = 'test-health-secret';
+        delete process.env.AI_API_KEY;
         delete process.env.GEMINI_API_KEY;
 
         vi.doMock('../netlify-functions/utils/error-reporter', () => ({
@@ -43,10 +45,10 @@ describe('health check endpoint', () => {
         expect(body.status).toBe('healthy');
         expect(body.checks.basic).toMatchObject({
             status: 'healthy',
-            node: expect.stringContaining('v'),
         });
-        expect(body.checks.basic.uptime).toBeGreaterThanOrEqual(0);
         expect(body.checks.basic.timestamp).toBeDefined();
+        expect(body.checks.basic).not.toHaveProperty('node');
+        expect(body.checks.basic).not.toHaveProperty('uptime');
     });
 
     it('rejects non-GET methods with 405', async () => {
@@ -60,6 +62,7 @@ describe('health check endpoint', () => {
     it('includes database check when ?check=db', async () => {
         const result = await handler({
             httpMethod: 'GET',
+            headers: { 'x-health-check-secret': 'test-health-secret' },
             queryStringParameters: { check: 'db' },
         });
 
@@ -75,12 +78,13 @@ describe('health check endpoint', () => {
     it('returns degraded when AI key missing (?check=ai)', async () => {
         const result = await handler({
             httpMethod: 'GET',
+            headers: { 'x-health-check-secret': 'test-health-secret' },
             queryStringParameters: { check: 'ai' },
         });
 
         const body = JSON.parse(result.body);
         expect(body.checks.ai.status).toBe('unhealthy');
-        expect(body.checks.ai.error).toContain('GEMINI_API_KEY');
+        expect(body.checks.ai.error).toBe('ai_unavailable');
         expect(body.status).toBe('degraded');
         expect(result.statusCode).toBe(503);
     });
@@ -88,6 +92,7 @@ describe('health check endpoint', () => {
     it('returns all checks when ?check=all', async () => {
         const result = await handler({
             httpMethod: 'GET',
+            headers: { 'x-health-check-secret': 'test-health-secret' },
             queryStringParameters: { check: 'all' },
         });
 
@@ -124,6 +129,7 @@ describe('health check endpoint', () => {
         // AI-check without key should be degraded
         const aiResult = await handler({
             httpMethod: 'GET',
+            headers: { 'x-health-check-secret': 'test-health-secret' },
             queryStringParameters: { check: 'ai' },
         });
         const aiBody = JSON.parse(aiResult.body);

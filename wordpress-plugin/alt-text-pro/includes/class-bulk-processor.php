@@ -12,6 +12,8 @@ if (!defined('ABSPATH')) {
 class AltTextPro_Bulk_Processor
 {
 
+    private const MAX_RETRY_ATTEMPTS = 3;
+
     /**
      * Constructor
      */
@@ -195,8 +197,54 @@ class AltTextPro_Bulk_Processor
             wp_send_json_error(esc_html__('Process ID is required.', 'alt-text-pro'));
         }
 
-        // Process batch
-        $batch_results = $this->process_batch_sync($process_id, $batch_offset);
+        $process_data = $this->get_bulk_process_data($process_id, true);
+        if (!$process_data) {
+            wp_send_json_error(esc_html__('Process not found.', 'alt-text-pro'));
+        }
+
+        $terminal_statuses = array('completed', 'cancelled', 'cancelling', 'stopped_no_credits');
+        if (in_array($process_data['status'] ?? '', $terminal_statuses, true)) {
+            $status = $this->get_bulk_process_status($process_id);
+            $status['batch_results'] = array();
+            wp_send_json_success($status);
+        }
+
+        $expected_offset = isset($process_data['next_batch_offset'])
+            ? intval($process_data['next_batch_offset'])
+            : intval($process_data['processed'] ?? 0);
+        if ($batch_offset < 0 || $batch_offset !== $expected_offset) {
+            // Reconcile a repeated or stale browser request without calling the
+            // billable API a second time.
+            $status = $this->get_bulk_process_status($process_id);
+            $status['batch_results'] = array();
+            wp_send_json_success($status);
+        }
+
+        $lock_token = $this->acquire_process_lock($process_id);
+        if (!$lock_token) {
+            $status = $this->get_bulk_process_status($process_id);
+            $status['batch_results'] = array();
+            $status['busy'] = true;
+            $status['needs_next_batch'] = false;
+            $status['retry_after_seconds'] = 2;
+            wp_send_json_success($status);
+        }
+
+        try {
+            // Check the offset again after acquiring the cross-request lock.
+            $process_data = $this->get_bulk_process_data($process_id, true);
+            $expected_offset = $process_data && isset($process_data['next_batch_offset'])
+                ? intval($process_data['next_batch_offset'])
+                : intval($process_data['processed'] ?? 0);
+
+            if (!$process_data || $batch_offset !== $expected_offset) {
+                $batch_results = array();
+            } else {
+                $batch_results = $this->process_batch_sync($process_id, $batch_offset);
+            }
+        } finally {
+            $this->release_process_lock($process_id, $lock_token);
+        }
 
         // Get updated status
         $status = $this->get_bulk_process_status($process_id);
@@ -233,98 +281,145 @@ class AltTextPro_Bulk_Processor
             wp_send_json_error(esc_html__('Process ID is required.', 'alt-text-pro'));
         }
 
-        $process_data = get_transient('alt_text_pro_bulk_' . $process_id);
+        $result = $this->skip_failed_image($process_id, $batch_offset, $failure_type);
+        if ($result['success']) {
+            wp_send_json_success($result['data']);
+        }
+
+        wp_send_json_error($result['message']);
+    }
+
+    /**
+     * Reconcile one failed browser request without racing an active batch.
+     */
+    private function skip_failed_image($process_id, $batch_offset, $failure_type)
+    {
+        $process_data = $this->get_bulk_process_data($process_id, true);
         if (!$process_data) {
-            wp_send_json_error(esc_html__('Process not found.', 'alt-text-pro'));
+            return array(
+                'success' => false,
+                'message' => esc_html__('Process not found.', 'alt-text-pro')
+            );
         }
 
-        $status = $process_data['status'] ?? 'running';
-        if (in_array($status, array('completed', 'cancelled', 'stopped_no_credits'), true)) {
-            $status_data = $this->get_bulk_process_status($process_id);
-            if ($status_data) {
-                $status_data['batch_results'] = array();
-                wp_send_json_success($status_data);
+        $lock_token = $this->acquire_process_lock($process_id);
+        if (!$lock_token) {
+            return array(
+                'success' => true,
+                'data' => array(
+                    'busy' => true,
+                    'retry_after_seconds' => 2
+                )
+            );
+        }
+
+        try {
+            $process_data = $this->get_bulk_process_data($process_id, true);
+            if (!$process_data) {
+                return array(
+                    'success' => false,
+                    'message' => esc_html__('Process not found.', 'alt-text-pro')
+                );
             }
-            wp_send_json_error(esc_html__('Process not found.', 'alt-text-pro'));
-        }
 
-        // Do not mark an image failed while its original server-side request
-        // can still finish and record a successful result.
-        if (get_transient($this->get_active_request_key($process_id)) !== false) {
-            wp_send_json_success(array(
-                'busy' => true,
-                'retry_after_seconds' => 2
-            ));
-        }
-
-        $processable_images = isset($process_data['processable_images'])
-            ? intval($process_data['processable_images'])
-            : count($process_data['images'] ?? array());
-        if ($batch_offset < 0 || $batch_offset >= $processable_images || empty($process_data['images'][$batch_offset])) {
-            wp_send_json_error(esc_html__('The failed image could not be identified.', 'alt-text-pro'));
-        }
-
-        $processed = intval($process_data['processed'] ?? 0);
-        if ($processed > $batch_offset) {
-            // The original request already advanced the process before the
-            // browser reported its transport failure. Return current state and
-            // let the client continue without adding a duplicate error.
-            $status_data = $this->get_bulk_process_status($process_id);
-            if ($status_data) {
+            $status = $process_data['status'] ?? 'running';
+            if (in_array($status, array('completed', 'cancelled', 'cancelling', 'stopped_no_credits'), true)) {
+                $status_data = $this->get_bulk_process_status($process_id);
                 $status_data['batch_results'] = array();
-                wp_send_json_success($status_data);
+                return array('success' => true, 'data' => $status_data);
             }
-            wp_send_json_error(esc_html__('Process status could not be read.', 'alt-text-pro'));
-        }
 
-        if ($processed < $batch_offset) {
-            wp_send_json_error(esc_html__('Process status is out of sync. Please start a new run.', 'alt-text-pro'));
-        }
+            // Do not mark an image failed while its original server-side request
+            // can still finish and record a successful result.
+            if (get_transient($this->get_active_request_key($process_id)) !== false) {
+                return array(
+                    'success' => true,
+                    'data' => array(
+                        'busy' => true,
+                        'retry_after_seconds' => 2
+                    )
+                );
+            }
 
-        $image_id = intval($process_data['images'][$batch_offset]);
-        $error_message = $failure_type === 'too_large'
-            ? esc_html__('Image too large to process.', 'alt-text-pro')
-            : esc_html__('Image could not be processed.', 'alt-text-pro');
-        $error_entry = array(
-            'image_id' => $image_id,
-            'error' => $error_message
-        );
-        $errors = isset($process_data['errors']) && is_array($process_data['errors'])
-            ? $process_data['errors']
-            : array();
-        $errors[] = $error_entry;
+            $processable_images = isset($process_data['processable_images'])
+                ? intval($process_data['processable_images'])
+                : count($process_data['images'] ?? array());
+            if ($batch_offset < 0 || $batch_offset >= $processable_images || empty($process_data['images'][$batch_offset])) {
+                return array(
+                    'success' => false,
+                    'message' => esc_html__('The failed image could not be identified.', 'alt-text-pro')
+                );
+            }
 
-        $processed++;
-        $next_batch_offset = $batch_offset + 1;
-        $process_data['processed'] = $processed;
-        $process_data['errors'] = $errors;
-        $process_data['needs_next_batch'] = $next_batch_offset < $processable_images;
-        $process_data['next_batch_offset'] = $process_data['needs_next_batch'] ? $next_batch_offset : null;
-        $process_data['last_updated'] = current_time('mysql');
-        $process_data['status'] = 'running';
+            $processed = intval($process_data['processed'] ?? 0);
+            if ($processed > $batch_offset) {
+                // The original request already advanced the process before the
+                // browser reported its transport failure.
+                $status_data = $this->get_bulk_process_status($process_id);
+                $status_data['batch_results'] = array();
+                return array('success' => true, 'data' => $status_data);
+            }
 
-        set_transient('alt_text_pro_bulk_' . $process_id, $process_data, DAY_IN_SECONDS * 2);
+            if ($processed < $batch_offset) {
+                return array(
+                    'success' => false,
+                    'message' => esc_html__('Process status is out of sync. Please start a new run.', 'alt-text-pro')
+                );
+            }
 
-        $batch_results = array(
-            array(
+            $image_id = intval($process_data['images'][$batch_offset]);
+            $can_edit_image = wp_attachment_is_image($image_id) && current_user_can('edit_post', $image_id);
+            $error_message = !$can_edit_image
+                ? esc_html__('This image is no longer available to edit.', 'alt-text-pro')
+                : ($failure_type === 'too_large'
+                    ? esc_html__('Image too large to process.', 'alt-text-pro')
+                    : esc_html__('Image could not be processed.', 'alt-text-pro'));
+            $error_entry = array(
+                'image_id' => $image_id,
+                'error' => $error_message
+            );
+            $errors = isset($process_data['errors']) && is_array($process_data['errors'])
+                ? $process_data['errors']
+                : array();
+            $errors[] = $error_entry;
+
+            $processed++;
+            $next_batch_offset = $batch_offset + 1;
+            $process_data['processed'] = $processed;
+            $process_data['errors'] = $errors;
+            $process_data['needs_next_batch'] = $next_batch_offset < $processable_images;
+            $process_data['next_batch_offset'] = $process_data['needs_next_batch'] ? $next_batch_offset : null;
+            $process_data['last_updated'] = current_time('mysql');
+            $process_data['status'] = 'running';
+
+            set_transient('alt_text_pro_bulk_' . $process_id, $process_data, DAY_IN_SECONDS * 2);
+
+            $batch_result = array(
                 'id' => $image_id,
-                'filename' => basename(get_attached_file($image_id)),
                 'status' => 'error',
                 'error' => $error_message
-            )
-        );
+            );
+            if ($can_edit_image) {
+                $batch_result['filename'] = basename(get_attached_file($image_id));
+            }
 
-        if (!$process_data['needs_next_batch']) {
-            $this->complete_bulk_process($process_id);
+            if (!$process_data['needs_next_batch']) {
+                $this->complete_bulk_process($process_id);
+            }
+
+            $status_data = $this->get_bulk_process_status($process_id);
+            if (!$status_data) {
+                return array(
+                    'success' => false,
+                    'message' => esc_html__('Process status could not be saved.', 'alt-text-pro')
+                );
+            }
+
+            $status_data['batch_results'] = array($batch_result);
+            return array('success' => true, 'data' => $status_data);
+        } finally {
+            $this->release_process_lock($process_id, $lock_token);
         }
-
-        $status_data = $this->get_bulk_process_status($process_id);
-        if ($status_data) {
-            $status_data['batch_results'] = $batch_results;
-            wp_send_json_success($status_data);
-        }
-
-        wp_send_json_error(esc_html__('Process status could not be saved.', 'alt-text-pro'));
     }
 
     /**
@@ -339,12 +434,11 @@ class AltTextPro_Bulk_Processor
         }
 
         $process_id = isset($_POST['process_id']) ? sanitize_text_field(wp_unslash($_POST['process_id'])) : '';
-        $this->cancel_bulk_process($process_id);
+        if (!$this->cancel_bulk_process($process_id)) {
+            wp_send_json_error(esc_html__('Process not found.', 'alt-text-pro'));
+        }
 
-        // Get updated data to return for summary
-        $process_data = get_transient('alt_text_pro_bulk_' . $process_id);
-
-        wp_send_json_success($process_data);
+        wp_send_json_success($this->get_bulk_process_status($process_id));
     }
 
     /**
@@ -360,7 +454,7 @@ class AltTextPro_Bulk_Processor
      */
     public function process_batch_background($process_id, $batch_offset)
     {
-        $process_data = get_transient('alt_text_pro_bulk_' . $process_id);
+        $process_data = $this->get_bulk_process_data($process_id, true);
 
         if (
             !$process_data ||
@@ -397,6 +491,8 @@ class AltTextPro_Bulk_Processor
         $new_successful_ids = array(); // Track new successes in this batch
 
         foreach ($images as $image_id) {
+            $image_id = intval($image_id);
+
             // Re-read the process before starting each image so cancellation is honored.
             $current_process = $this->get_bulk_process_data($process_id, true);
             if (
@@ -407,16 +503,28 @@ class AltTextPro_Bulk_Processor
                     $process_data = $current_process;
                 }
                 $cancelled_mid_batch = true;
-                // Log cancellation for debugging
-                if (defined('WP_DEBUG') && WP_DEBUG) {
-                    // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-                    error_log('Alt Text Pro Bulk: Process cancelled, stopping at image ' . $image_id);
-                }
                 break;
             }
 
+            // Permissions can change after a job is queued. Re-check immediately
+            // before any metadata read or billable API request.
+            if (!$image_id || !wp_attachment_is_image($image_id) || !current_user_can('edit_post', $image_id)) {
+                $error_message = esc_html__('This image is no longer available to edit.', 'alt-text-pro');
+                $errors[] = array(
+                    'image_id' => $image_id,
+                    'error' => $error_message
+                );
+                $batch_results[] = array(
+                    'id' => $image_id,
+                    'status' => 'error',
+                    'error' => $error_message
+                );
+                $processed++;
+                continue;
+            }
+
             // Check if this image was already successfully processed (prevent double-counting and duplicate API calls)
-            if (in_array($image_id, $successful_image_ids)) {
+            if (in_array($image_id, $successful_image_ids, true)) {
                 // Already processed successfully, skip to prevent double-counting and duplicate credit deduction
                 $skipped++;
                 $processed++;
@@ -534,6 +642,30 @@ class AltTextPro_Bulk_Processor
             }
 
             if (!$result['success'] && !empty($result['retryable'])) {
+                if (!isset($process_data['retry_attempts']) || !is_array($process_data['retry_attempts'])) {
+                    $process_data['retry_attempts'] = array();
+                }
+
+                $retry_attempt = intval($process_data['retry_attempts'][$image_id] ?? 0) + 1;
+                $process_data['retry_attempts'][$image_id] = $retry_attempt;
+
+                if ($retry_attempt >= self::MAX_RETRY_ATTEMPTS) {
+                    unset($process_data['retry_attempts'][$image_id]);
+                    $error_message = esc_html__('The Alt Text Pro service could not process this image after three attempts.', 'alt-text-pro');
+                    $errors[] = array(
+                        'image_id' => $image_id,
+                        'error' => $error_message
+                    );
+                    $batch_results[] = array(
+                        'id' => $image_id,
+                        'filename' => basename(get_attached_file($image_id)),
+                        'status' => 'error',
+                        'error' => $error_message
+                    );
+                    $processed++;
+                    continue;
+                }
+
                 // Use the provider's requested retry window. A fixed 15-second
                 // minimum unnecessarily slows providers that recover sooner.
                 $retry_after = isset($result['retry_after_seconds']) ? max(1, intval($result['retry_after_seconds'])) : 15;
@@ -563,15 +695,6 @@ class AltTextPro_Bulk_Processor
             if (isset($result['no_credits']) && $result['no_credits'] === true) {
                 // Credits exhausted - stop processing immediately
                 $error_message = $result['message'] ?? esc_html__('No credits remaining. Processing stopped.', 'alt-text-pro');
-                if (defined('WP_DEBUG') && WP_DEBUG) {
-                    // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-                    error_log(sprintf(
-                        'Alt Text Pro Bulk: Credits exhausted. Stopping processing at image %d. Processed: %d, Successful: %d',
-                        $image_id,
-                        $processed,
-                        $successful
-                    ));
-                }
                 $errors[] = array(
                     'image_id' => $image_id,
                     'error' => $error_message
@@ -604,6 +727,7 @@ class AltTextPro_Bulk_Processor
                 $process_data['successful'] = $total_successful;
                 $process_data['successful_image_ids'] = $all_successful_ids;
                 $process_data['errors'] = $all_errors;
+                unset($process_data['retry_attempts']);
                 $process_data['needs_next_batch'] = false; // CRITICAL: Prevent any further batches
                 $process_data['last_updated'] = current_time('mysql');
 
@@ -639,25 +763,8 @@ class AltTextPro_Bulk_Processor
                     'status' => 'success'
                 );
 
-                if (defined('WP_DEBUG') && WP_DEBUG) {
-                    // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-                    error_log(sprintf(
-                        'Alt Text Pro Bulk: Successfully processed image %d. Batch successful: %d, Total successful IDs in batch: %d',
-                        $image_id,
-                        $successful,
-                        count($new_successful_ids)
-                    ));
-                }
             } else {
                 $error_message = $result['message'] ?? 'Unknown error';
-                if (defined('WP_DEBUG') && WP_DEBUG) {
-                    // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-                    error_log(sprintf(
-                        'Alt Text Pro Bulk: Failed to generate alt-text for image %d: %s',
-                        $image_id,
-                        $error_message
-                    ));
-                }
                 $errors[] = array(
                     'image_id' => $image_id,
                     'error' => $error_message
@@ -682,20 +789,6 @@ class AltTextPro_Bulk_Processor
         $all_successful_ids = array_unique(array_merge($successful_image_ids, $new_successful_ids));
         $total_successful = count($all_successful_ids); // Count unique successful images
 
-        // Debug logging to track successful count
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-            error_log(sprintf(
-                'Alt Text Pro Bulk: Batch complete. Batch offset: %d, Processed in batch: %d, Successful in batch: %d, Previous successful IDs: %d, New successful IDs: %d, Total successful: %d',
-                $batch_offset,
-                $processed,
-                $successful,
-                count($successful_image_ids),
-                count($new_successful_ids),
-                $total_successful
-            ));
-        }
-
         // Merge errors with existing errors from previous batches
         $existing_errors = isset($process_data['errors']) ? $process_data['errors'] : array();
         $all_errors = array_merge($existing_errors, $errors);
@@ -717,6 +810,7 @@ class AltTextPro_Bulk_Processor
         $process_data['successful'] = $total_successful; // Store successful count (unique images)
         $process_data['successful_image_ids'] = $all_successful_ids; // Store successful image IDs
         $process_data['errors'] = $all_errors; // Store merged errors
+        unset($process_data['retry_attempts']);
         $process_data['last_updated'] = current_time('mysql');
         $process_data['needs_next_batch'] = false;
         $process_data['next_batch_offset'] = null;
@@ -817,7 +911,7 @@ class AltTextPro_Bulk_Processor
         }
 
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
-        return $wpdb->get_col($query);
+        return $this->filter_editable_images($wpdb->get_col($query));
     }
 
     /**
@@ -877,7 +971,34 @@ class AltTextPro_Bulk_Processor
         }
 
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
-        return $wpdb->get_col($query);
+        return $this->filter_editable_images($wpdb->get_col($query));
+    }
+
+    /**
+     * Keep only image attachments the current user may modify.
+     */
+    private function filter_editable_images($image_ids)
+    {
+        $editable_images = array();
+        $normalized_image_ids = array_values(array_unique(array_filter(array_map('intval', (array) $image_ids))));
+
+        if (empty($normalized_image_ids)) {
+            return array();
+        }
+
+        // Prime posts only; attachment metadata and terms are not needed here.
+        _prime_post_caches($normalized_image_ids, false, false);
+
+        foreach ($normalized_image_ids as $image_id) {
+            if (
+                wp_attachment_is_image($image_id) &&
+                current_user_can('edit_post', $image_id)
+            ) {
+                $editable_images[] = $image_id;
+            }
+        }
+
+        return $editable_images;
     }
 
     /**
@@ -885,7 +1006,7 @@ class AltTextPro_Bulk_Processor
      */
     private function create_bulk_process_record($images, $batch_size, $overwrite_existing, $credits_remaining_at_start = 0, $processable_images = null, $plan_allowance = null, $plan_credits_used = null)
     {
-        $process_id = uniqid('bulk_', true);
+        $process_id = 'bulk_' . wp_generate_password(32, false, false);
         $total_images = count($images);
         $processable_images = $processable_images === null
             ? min($total_images, max(0, intval($credits_remaining_at_start)))
@@ -906,6 +1027,7 @@ class AltTextPro_Bulk_Processor
             'processed' => 0,
             'successful' => 0, // Track successful generations separately
             'successful_image_ids' => array(), // Track which images were successfully processed to prevent double-counting
+            'retry_attempts' => array(),
             'errors' => array(),
             'needs_next_batch' => true,
             'next_batch_offset' => 0,
@@ -924,7 +1046,7 @@ class AltTextPro_Bulk_Processor
      */
     private function get_bulk_process_status($process_id)
     {
-        $process_data = get_transient('alt_text_pro_bulk_' . $process_id);
+        $process_data = $this->get_bulk_process_data($process_id);
 
         if (!$process_data) {
             return null;
@@ -996,7 +1118,7 @@ class AltTextPro_Bulk_Processor
      */
     private function update_bulk_process_progress($process_id, $processed, $errors, $successful = null)
     {
-        $process_data = get_transient('alt_text_pro_bulk_' . $process_id);
+        $process_data = $this->get_bulk_process_data($process_id, true);
 
         if ($process_data) {
             $process_data['processed'] = $processed;
@@ -1021,7 +1143,7 @@ class AltTextPro_Bulk_Processor
      */
     private function complete_bulk_process($process_id, $early_stop = false)
     {
-        $process_data = get_transient('alt_text_pro_bulk_' . $process_id);
+        $process_data = $this->get_bulk_process_data($process_id, true);
 
         if ($process_data) {
             if (isset($process_data['status']) && $process_data['status'] === 'cancelled') {
@@ -1034,10 +1156,6 @@ class AltTextPro_Bulk_Processor
 
             // Check if email was already sent to prevent duplicates
             if (isset($process_data['email_sent']) && $process_data['email_sent'] === true) {
-                if (defined('WP_DEBUG') && WP_DEBUG) {
-                    // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-                    error_log('Alt Text Pro Bulk: Email already sent for process ' . $process_id . ', skipping duplicate.');
-                }
                 return;
             }
 
@@ -1062,25 +1180,28 @@ class AltTextPro_Bulk_Processor
      */
     private function cancel_bulk_process($process_id)
     {
-        $process_data = get_transient('alt_text_pro_bulk_' . $process_id);
+        $process_data = $this->get_bulk_process_data($process_id, true);
 
-        if ($process_data) {
-            $current_status = $process_data['status'] ?? 'running';
-            if (in_array($current_status, array('completed', 'stopped_no_credits'), true)) {
-                return;
-            }
-
-            // A browser abort cannot stop PHP or an upstream AI request. Mark an
-            // active request as "cancelling" until it returns, then its result can
-            // be counted before the process becomes terminally cancelled.
-            $has_active_request = get_transient($this->get_active_request_key($process_id)) !== false;
-            $process_data['status'] = $has_active_request ? 'cancelling' : 'cancelled';
-            $process_data['cancelled_at'] = current_time('mysql');
-            $process_data['needs_next_batch'] = false;
-            $process_data['next_batch_offset'] = null;
-
-            set_transient('alt_text_pro_bulk_' . $process_id, $process_data, DAY_IN_SECONDS);
+        if (!$process_data) {
+            return false;
         }
+
+        $current_status = $process_data['status'] ?? 'running';
+        if (in_array($current_status, array('completed', 'stopped_no_credits'), true)) {
+            return true;
+        }
+
+        // A browser abort cannot stop PHP or an upstream AI request. Mark an
+        // active request as "cancelling" until it returns, then its result can
+        // be counted before the process becomes terminally cancelled.
+        $has_active_request = get_transient($this->get_active_request_key($process_id)) !== false;
+        $process_data['status'] = $has_active_request ? 'cancelling' : 'cancelled';
+        $process_data['cancelled_at'] = current_time('mysql');
+        $process_data['needs_next_batch'] = false;
+        $process_data['next_batch_offset'] = null;
+
+        set_transient('alt_text_pro_bulk_' . $process_id, $process_data, DAY_IN_SECONDS);
+        return true;
     }
 
     /**
@@ -1092,6 +1213,111 @@ class AltTextPro_Bulk_Processor
     }
 
     /**
+     * Clear the option caches touched by direct atomic lock queries.
+     */
+    private function clear_lock_option_cache($option_name)
+    {
+        wp_cache_delete($option_name, 'options');
+        wp_cache_delete('notoptions', 'options');
+    }
+
+    /**
+     * Insert a lock only when no row with the same option name exists.
+     */
+    private function atomic_insert_lock_option($option_name, $lock)
+    {
+        global $wpdb;
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        $inserted = $wpdb->query($wpdb->prepare(
+            "INSERT IGNORE INTO {$wpdb->options} (option_name, option_value, autoload) VALUES (%s, %s, %s)",
+            $option_name,
+            maybe_serialize($lock),
+            'no'
+        ));
+
+        if (1 === $inserted) {
+            $this->clear_lock_option_cache($option_name);
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Delete only the exact lock value that was read by this request.
+     */
+    private function atomic_delete_lock_option($option_name, $expected_lock)
+    {
+        global $wpdb;
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        $deleted = $wpdb->query($wpdb->prepare(
+            "DELETE FROM {$wpdb->options} WHERE option_name = %s AND option_value = %s",
+            $option_name,
+            maybe_serialize($expected_lock)
+        ));
+
+        if (1 === $deleted) {
+            $this->clear_lock_option_cache($option_name);
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Acquire a database-backed lock so one bulk offset cannot be billed twice.
+     */
+    private function acquire_process_lock($process_id)
+    {
+        if (!$this->get_bulk_process_data($process_id, true)) {
+            return false;
+        }
+
+        $option_name = 'alt_text_pro_bulk_lock_' . hash('sha256', $process_id);
+        $token = wp_generate_password(32, false, false);
+        $lock = array(
+            'token' => $token,
+            'expires_at' => time() + 120
+        );
+
+        if ($this->atomic_insert_lock_option($option_name, $lock)) {
+            return $token;
+        }
+
+        $existing_lock = get_option($option_name, false);
+        if (is_array($existing_lock) && intval($existing_lock['expires_at'] ?? 0) < time()) {
+            if (
+                $this->atomic_delete_lock_option($option_name, $existing_lock) &&
+                $this->atomic_insert_lock_option($option_name, $lock)
+            ) {
+                return $token;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Release a bulk lock only when this request owns its random token.
+     */
+    private function release_process_lock($process_id, $token)
+    {
+        $option_name = 'alt_text_pro_bulk_lock_' . hash('sha256', $process_id);
+        $existing_lock = get_option($option_name, false);
+
+        if (
+            is_array($existing_lock) &&
+            is_string($existing_lock['token'] ?? null) &&
+            is_string($token) &&
+            hash_equals($existing_lock['token'], $token)
+        ) {
+            $this->atomic_delete_lock_option($option_name, $existing_lock);
+        }
+    }
+
+    /**
      * Read bulk-process state without deleting it from a persistent object cache.
      *
      * Cancellation checks can happen more than once in the same PHP request. A
@@ -1100,15 +1326,31 @@ class AltTextPro_Bulk_Processor
      */
     private function get_bulk_process_data($process_id, $force_refresh = false)
     {
+        if (
+            !is_string($process_id) ||
+            !preg_match('/^bulk_(?:[A-Za-z0-9]{32}|[a-f0-9]{13}\.[0-9]{8})$/', $process_id)
+        ) {
+            return false;
+        }
+
         $transient_key = 'alt_text_pro_bulk_' . $process_id;
 
         if ($force_refresh && wp_using_ext_object_cache()) {
             $found = false;
             $process_data = wp_cache_get($transient_key, 'transient', true, $found);
-            return $found ? $process_data : false;
+        } else {
+            $process_data = get_transient($transient_key);
         }
 
-        return get_transient($transient_key);
+        if (
+            !$process_data ||
+            !is_array($process_data) ||
+            intval($process_data['user_id'] ?? 0) !== get_current_user_id()
+        ) {
+            return false;
+        }
+
+        return $process_data;
     }
 
     /**
@@ -1188,10 +1430,6 @@ class AltTextPro_Bulk_Processor
 
         // Don't log if alt_text is empty
         if (empty($alt_text)) {
-            if (defined('WP_DEBUG') && WP_DEBUG) {
-                // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-                error_log('Alt Text Pro Bulk: Skipping log entry - alt_text is empty for attachment ' . $attachment_id);
-            }
             return;
         }
 
@@ -1212,7 +1450,7 @@ class AltTextPro_Bulk_Processor
         if ($wpdb->last_error) {
             if (defined('WP_DEBUG') && WP_DEBUG) {
                 // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-                error_log('Alt Text Pro Bulk: Database error logging generation: ' . $wpdb->last_error);
+                error_log('Alt Text Pro Bulk: Generation history could not be saved.');
             }
         }
     }

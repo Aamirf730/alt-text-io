@@ -28,6 +28,7 @@ describe('Audit Logger', () => {
         ACTIONS = mod.ACTIONS;
         SEVERITY = mod.SEVERITY;
         extractRequestMeta = mod.extractRequestMeta;
+        mod._private.setSupabaseAdmin({ from: mockFrom });
     });
 
     // ─────────────────────────────────────────────────────────────
@@ -106,11 +107,19 @@ describe('Audit Logger', () => {
         const logged = JSON.parse(consoleSpy.mock.calls[0][0]);
         expect(logged.audit).toBe(true);
         expect(logged.action).toBe('credit.deduct');
-        expect(logged.actorId).toBe('user-123');
-        expect(logged.actorEmail).toBe('test@test.com');
         expect(logged.resourceType).toBe('profile');
-        expect(logged.details).toEqual({ credits: -1 });
         expect(logged.timestamp).toBeTruthy();
+        expect(logged).not.toHaveProperty('actorId');
+        expect(logged).not.toHaveProperty('actorEmail');
+        expect(logged).not.toHaveProperty('resourceId');
+        expect(logged).not.toHaveProperty('details');
+
+        expect(mockInsert).toHaveBeenCalledWith(expect.objectContaining({
+            actor_id: 'user-123',
+            actor_email: 'test@test.com',
+            resource_id: 'user-123',
+            details: { credits: -1 },
+        }));
 
         consoleSpy.mockRestore();
     });
@@ -144,10 +153,15 @@ describe('Audit Logger', () => {
         const logged = JSON.parse(console.log.mock.calls[0][0]);
         expect(logged.audit).toBe(true);
         expect(logged.action).toBe('admin.delete_user');
-        expect(logged.actorId).toBe('admin-1');
         expect(logged.severity).toBe('critical');
         expect(logged.resourceType).toBe('profile');
-        expect(logged.resourceId).toBe('user-to-delete');
+        expect(logged).not.toHaveProperty('actorId');
+        expect(logged).not.toHaveProperty('resourceId');
+        expect(mockInsert).toHaveBeenCalledWith(expect.objectContaining({
+            actor_id: 'admin-1',
+            resource_id: 'user-to-delete',
+            ip_address: '10.0.0.1',
+        }));
 
         console.log.mockRestore();
         console.error.mockRestore();

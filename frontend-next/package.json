@@ -7,7 +7,7 @@
     "prebuild": "node ../scripts/sync-plugin-version.mjs",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx,.mjs",
     "pretest": "node ../scripts/sync-plugin-version.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
@@ -20,11 +20,11 @@
     "@radix-ui/react-slot": "^1.0.2",
     "@radix-ui/react-switch": "^1.0.3",
     "@radix-ui/react-tabs": "^1.0.4",
-    "@supabase/supabase-js": "^2.45.0",
+    "@supabase/supabase-js": "^2.112.3",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "lucide-react": "^0.446.0",
-    "next": "^15.0.0",
+    "next": "^16.3.0",
     "next-themes": "^0.4.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -33,20 +33,20 @@
     "zod": "^4.1.13"
   },
   "devDependencies": {
-    "@types/node": "^20",
+    "@types/node": "^22.20.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
-    "eslint": "^8",
-    "eslint-config-next": "^15.0.0",
-    "postcss": "^8.4.47",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.3.0",
+    "jsdom": "^26.1.0",
+    "postcss": "^8.5.26",
     "tailwindcss": "^3.4.13",
     "typescript": "^5",
-    "vitest": "^3.1.1",
-    "@vitejs/plugin-react": "^4.3.4",
-    "jsdom": "^26.1.0"
+    "vitest": "^3.2.7"
   },
   "engines": {
-    "node": "20"
+    "node": ">=22.0.0 <25"
   }
 }

@@ -120,7 +120,7 @@ exports.handler = async (event, context) => {
     if (apiKeyRecord?.api_key_encrypted) {
       apiKey = decryptApiKey(apiKeyRecord.api_key_encrypted);
       if (!apiKey) {
-        console.error('API key decryption failed for user:', authUser.id);
+        console.error('Stored API key decryption failed');
         return {
           statusCode: 500,
           headers,
@@ -200,7 +200,7 @@ exports.handler = async (event, context) => {
 
   } catch (error) {
     const { reportError } = require('./utils/error-reporter');
-    reportError(error, { functionName: 'get-api-key', ip: getClientIp(event) });
+    reportError(error, { functionName: 'get-api-key' });
     return {
       statusCode: 500,
       headers,

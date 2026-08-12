@@ -18,7 +18,7 @@ test('tracked migrations have one ordered, canonical history', () => {
   assert.ok(files.length > 1);
   assert.equal(new Set(versions).size, versions.length);
   assert.equal(files[0], '20260625140000_bootstrap_schema.sql');
-  assert.equal(files.at(-1), '20260809211033_activate_tier4_catalogue.sql');
+  assert.equal(files.at(-1), '20260812090651_isolate_customer_offer_claim.sql');
 });
 
 test('bootstrap defines every foundational table and reporting view', () => {
@@ -111,4 +111,44 @@ test('Agency catalogue follow-up keeps tier4 active', () => {
   assert.match(activation, /update public\.subscription_plans/);
   assert.match(activation, /set is_active = true/);
   assert.match(activation, /where id = 'tier4'/);
+});
+
+test('client-data hardening removes billing and ledger write privileges', () => {
+  const hardening = fs.readFileSync(
+    path.join(migrationsDirectory, '20260811110000_harden_client_data_boundaries.sql'),
+    'utf8',
+  ).toLowerCase();
+
+  assert.match(hardening, /revoke all on table public\.profiles from public, anon, authenticated/);
+  assert.match(hardening, /grant select on table public\.profiles to authenticated/);
+  assert.doesNotMatch(hardening, /grant select, update on table public\.profiles to authenticated/);
+  assert.doesNotMatch(hardening, /create policy "users can update own profile"/);
+  assert.doesNotMatch(hardening, /create policy "users can insert own payments"/);
+  assert.doesNotMatch(hardening, /create policy "users can insert own usage logs"/);
+  assert.match(hardening, /from pg_catalog\.pg_policies/);
+  assert.match(hardening, /set search_path = ''/);
+  assert.match(hardening, /payment_reconciliation_resolved_user_id_idx/);
+});
+
+test('public catalogue only advertises shipped plan capabilities', () => {
+  const catalogue = fs.readFileSync(
+    path.join(migrationsDirectory, '20260811113000_correct_public_plan_features.sql'),
+    'utf8',
+  ).toLowerCase();
+
+  assert.doesNotMatch(catalogue, /130\+|24\/7|soc\s?2/);
+  assert.match(catalogue, /custom post type support/);
+});
+
+test('customer offer exposes only an invoker wrapper around private privileged logic', () => {
+  const isolation = fs.readFileSync(
+    path.join(migrationsDirectory, '20260812090651_isolate_customer_offer_claim.sql'),
+    'utf8',
+  ).toLowerCase();
+
+  assert.match(isolation, /create schema if not exists private/);
+  assert.match(isolation, /private\.claim_wpgeared_customer_offer_for_caller/);
+  assert.match(isolation, /caller_user_id <> \(select auth\.uid\(\)\)/);
+  assert.match(isolation, /create or replace function public\.claim_wpgeared_customer_offer\(\)/);
+  assert.match(isolation, /security invoker/);
 });

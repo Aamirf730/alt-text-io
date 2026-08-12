@@ -1,5 +1,6 @@
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SUBSCRIPTION_PLANS } from "@/lib/pricing-catalog";
 
 type PricingSectionProps = {
   billingCycle: string;
@@ -7,59 +8,7 @@ type PricingSectionProps = {
   onSelectPlan: (planId: string, planName: string, planPrice: string) => void;
 };
 
-const plans = [
-  {
-    id: "free",
-    name: "Free",
-    monthlyPrice: "$0",
-    annualPrice: "$0",
-    annualMonthlyPrice: "$0",
-    credits: "15 credits every month",
-    features: ["150 bonus credits on signup — never expire", "WordPress plugin included", "No credit card"],
-    cta: "Start with 150 credits",
-  },
-  {
-    id: "tier1",
-    name: "Lite",
-    monthlyPrice: "$4",
-    annualPrice: "$43.20",
-    annualMonthlyPrice: "$3.60",
-    credits: "150 credits every month",
-    features: ["Auto-generate on upload", "Single-image workflow", "Standard support"],
-    cta: "Choose Lite",
-  },
-  {
-    id: "tier2",
-    name: "Standard",
-    monthlyPrice: "$9",
-    annualPrice: "$97.20",
-    annualMonthlyPrice: "$8.10",
-    credits: "1,000 credits every month",
-    features: ["Bulk media-library fixes", "130+ languages", "Priority support"],
-    cta: "Choose Standard",
-    featured: true,
-  },
-  {
-    id: "tier3",
-    name: "Pro",
-    monthlyPrice: "$14",
-    annualPrice: "$151.20",
-    annualMonthlyPrice: "$12.60",
-    credits: "2,000 credits every month",
-    features: ["Context-aware generation", "WooCommerce workflows", "Premium support"],
-    cta: "Choose Pro",
-  },
-  {
-    id: "tier4",
-    name: "Agency",
-    monthlyPrice: "$19",
-    annualPrice: "$205.20",
-    annualMonthlyPrice: "$17.10",
-    credits: "3,500 credits every month",
-    features: ["Built for multi-site workflows", "Highest monthly volume", "Premium 24/7 support"],
-    cta: "Choose Agency",
-  },
-];
+export const pricingPlans = SUBSCRIPTION_PLANS;
 
 export default function PricingSection({
   billingCycle,
@@ -103,7 +52,7 @@ export default function PricingSection({
         </div>
 
         <div className="mt-12 grid gap-5 md:grid-cols-2 lg:mt-14 lg:grid-cols-3 xl:grid-cols-5">
-          {plans.map((plan) => (
+          {pricingPlans.map((plan) => (
             <article
               key={plan.id}
               className={`flex min-h-[540px] flex-col rounded-[2rem] p-8 xl:p-9 ${

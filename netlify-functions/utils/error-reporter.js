@@ -24,6 +24,44 @@ let sentryInitAttempted = false;
 
 const ENVIRONMENT = process.env.CONTEXT || process.env.NODE_ENV || 'development';
 const APP_VERSION = process.env.COMMIT_REF?.substring(0, 8) || 'local';
+const SENSITIVE_CONTEXT_KEY = /(authorization|cookie|secret|token|api.?key|password|email|user.?id|actor|ip|body|query|alt.?text|image)/i;
+
+function sanitizeText(value) {
+    return String(value || '')
+        .replace(/Bearer\s+[A-Za-z0-9._~+\/-]+=*/gi, 'Bearer [redacted]')
+        .replace(/\b(?:alt|altai)_[A-Za-z0-9_-]{8,}\b/g, '[redacted-api-key]')
+        .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[redacted-email]')
+        .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi, '[redacted-id]')
+        .slice(0, 4000);
+}
+
+function sanitizeArray(items, depth) {
+    if (depth > 3) return [];
+
+    return items.slice(0, 20).map((item) => {
+        if (typeof item === 'string') return sanitizeText(item).slice(0, 500);
+        if (typeof item === 'number' || typeof item === 'boolean' || item === null) return item;
+        if (Array.isArray(item)) return sanitizeArray(item, depth + 1);
+        if (item && typeof item === 'object') return sanitizeExtra(item, depth);
+        return undefined;
+    }).filter((item) => item !== undefined);
+}
+
+function sanitizeExtra(extra, depth = 0) {
+    if (!extra || typeof extra !== 'object' || depth > 3) return undefined;
+
+    const output = {};
+    for (const [key, value] of Object.entries(extra).slice(0, 40)) {
+        if (SENSITIVE_CONTEXT_KEY.test(key)) continue;
+
+        if (typeof value === 'string') output[key] = sanitizeText(value).slice(0, 500);
+        else if (typeof value === 'number' || typeof value === 'boolean' || value === null) output[key] = value;
+        else if (Array.isArray(value)) output[key] = sanitizeArray(value, depth + 1);
+        else if (typeof value === 'object') output[key] = sanitizeExtra(value, depth + 1);
+    }
+
+    return output;
+}
 
 /**
  * Lazy-init Sentry (only when DSN is configured)
@@ -45,6 +83,7 @@ function initSentry() {
             environment: ENVIRONMENT,
             release: `alt-text-pro@${APP_VERSION}`,
             tracesSampleRate: 0.1, // 10% of transactions
+            sendDefaultPii: false,
             beforeSend(event) {
                 // Scrub sensitive data
                 if (event.request?.headers) {
@@ -52,6 +91,22 @@ function initSentry() {
                     delete event.request.headers['x-api-key'];
                     delete event.request.headers['cookie'];
                 }
+                if (event.request) {
+                    delete event.request.data;
+                    delete event.request.query_string;
+                }
+                delete event.user;
+                if (event.message) event.message = sanitizeText(event.message);
+                if (event.logentry?.message) event.logentry.message = sanitizeText(event.logentry.message);
+                for (const exception of event.exception?.values || []) {
+                    if (exception.value) exception.value = sanitizeText(exception.value);
+                    if (exception.stacktrace?.frames) {
+                        for (const frame of exception.stacktrace.frames) {
+                            delete frame.vars;
+                        }
+                    }
+                }
+                event.extra = sanitizeExtra(event.extra);
                 return event;
             },
         });
@@ -86,14 +141,12 @@ function buildLogEntry(severity, message, context = {}) {
     return {
         timestamp: new Date().toISOString(),
         severity,
-        message,
+        message: sanitizeText(message),
         environment: ENVIRONMENT,
         version: APP_VERSION,
         function: context.functionName || 'unknown',
-        ...(context.userId && { userId: context.userId }),
-        ...(context.ip && { ip: context.ip }),
-        ...(context.requestId && { requestId: context.requestId }),
-        ...(context.extra && { extra: context.extra }),
+        ...(context.requestId && { requestId: sanitizeText(context.requestId).slice(0, 128) }),
+        ...(context.extra && { extra: sanitizeExtra(context.extra) }),
     };
 }
 
@@ -107,14 +160,12 @@ function buildLogEntry(severity, message, context = {}) {
  * @param {Error|string} error - The error or message
  * @param {Object} context - Additional context
  * @param {string} context.functionName - Name of the Netlify function
- * @param {string} context.userId - User ID (if available)
- * @param {string} context.ip - Client IP
  * @param {string} context.requestId - Unique request identifier
  * @param {Object} context.extra - Any extra data
  */
 function reportError(error, context = {}) {
     const message = error instanceof Error ? error.message : String(error);
-    const stack = error instanceof Error ? error.stack : undefined;
+    const stack = error instanceof Error ? sanitizeText(error.stack) : undefined;
 
     // Always log structured entry
     const entry = buildLogEntry(Severity.ERROR, message, context);
@@ -126,9 +177,7 @@ function reportError(error, context = {}) {
     if (sentryClient) {
         sentryClient.withScope((scope) => {
             if (context.functionName) scope.setTag('function', context.functionName);
-            if (context.userId) scope.setUser({ id: context.userId });
-            if (context.ip) scope.setTag('ip', context.ip);
-            if (context.extra) scope.setExtras(context.extra);
+            if (context.extra) scope.setExtras(sanitizeExtra(context.extra) || {});
 
             if (error instanceof Error) {
                 sentryClient.captureException(error);
@@ -150,7 +199,7 @@ function reportWarning(message, context = {}) {
     if (sentryClient) {
         sentryClient.withScope((scope) => {
             if (context.functionName) scope.setTag('function', context.functionName);
-            if (context.extra) scope.setExtras(context.extra);
+            if (context.extra) scope.setExtras(sanitizeExtra(context.extra) || {});
             sentryClient.captureMessage(message, 'warning');
         });
     }
@@ -201,19 +250,12 @@ function withErrorReporting(functionName, handler) {
 
             return result;
         } catch (error) {
-            const clientIp =
-                event.headers?.['x-forwarded-for']?.split(',')[0]?.trim() ||
-                event.headers?.['client-ip'] ||
-                'unknown';
-
             reportError(error, {
                 functionName,
-                ip: clientIp,
                 requestId,
                 extra: {
                     method: event.httpMethod,
                     path: event.path,
-                    query: event.queryStringParameters,
                 },
             });
 
@@ -250,4 +292,6 @@ module.exports = {
     withErrorReporting,
     flush,
     Severity,
+    sanitizeExtra,
+    sanitizeText,
 };

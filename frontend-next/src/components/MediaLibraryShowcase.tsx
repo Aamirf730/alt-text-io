@@ -46,7 +46,7 @@ export default function MediaLibraryShowcase() {
             Better alt text, automatically.
           </h2>
           <p className="mt-5 text-lg leading-relaxed text-slate-500 sm:text-xl">
-            From empty alt text to meaningful descriptions in seconds.
+            From empty alt text to an editable description draft.
           </p>
         </div>
 

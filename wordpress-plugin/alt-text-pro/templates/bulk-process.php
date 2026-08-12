@@ -29,32 +29,36 @@ $alt_text_pro_current_page = isset($_GET['page']) ? sanitize_text_field(wp_unsla
             </div>
         </div>
         <div class="alt-text-pro-nav">
-            <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-pro')); ?>"
-                class="alt-text-pro-nav-item <?php echo esc_attr($alt_text_pro_current_page === 'alt-text-pro' ? 'active' : ''); ?>">
-                <span class="dashicons dashicons-dashboard"></span>
-                <?php esc_html_e('Dashboard', 'alt-text-pro'); ?>
-            </a>
+            <?php if (current_user_can('manage_options')): ?>
+                <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-pro')); ?>"
+                    class="alt-text-pro-nav-item <?php echo esc_attr($alt_text_pro_current_page === 'alt-text-pro' ? 'active' : ''); ?>">
+                    <span class="dashicons dashicons-dashboard"></span>
+                    <?php esc_html_e('Dashboard', 'alt-text-pro'); ?>
+                </a>
+            <?php endif; ?>
             <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-pro-bulk')); ?>"
                 class="alt-text-pro-nav-item <?php echo esc_attr($alt_text_pro_current_page === 'alt-text-pro-bulk' ? 'active' : ''); ?>">
                 <span class="dashicons dashicons-images-alt2"></span>
                 <?php esc_html_e('Bulk Process', 'alt-text-pro'); ?>
             </a>
-            <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-pro-logs')); ?>"
-                class="alt-text-pro-nav-item <?php echo esc_attr($alt_text_pro_current_page === 'alt-text-pro-logs' ? 'active' : ''); ?>">
-                <span class="dashicons dashicons-list-view"></span>
-                <?php esc_html_e('Logs', 'alt-text-pro'); ?>
-            </a>
-            <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-pro-settings')); ?>"
-                class="alt-text-pro-nav-item <?php echo esc_attr($alt_text_pro_current_page === 'alt-text-pro-settings' ? 'active' : ''); ?>">
-                <span class="dashicons dashicons-admin-settings"></span>
-                <?php esc_html_e('Settings', 'alt-text-pro'); ?>
-            </a>
+            <?php if (current_user_can('manage_options')): ?>
+                <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-pro-logs')); ?>"
+                    class="alt-text-pro-nav-item <?php echo esc_attr($alt_text_pro_current_page === 'alt-text-pro-logs' ? 'active' : ''); ?>">
+                    <span class="dashicons dashicons-list-view"></span>
+                    <?php esc_html_e('Logs', 'alt-text-pro'); ?>
+                </a>
+                <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-pro-settings')); ?>"
+                    class="alt-text-pro-nav-item <?php echo esc_attr($alt_text_pro_current_page === 'alt-text-pro-settings' ? 'active' : ''); ?>">
+                    <span class="dashicons dashicons-admin-settings"></span>
+                    <?php esc_html_e('Settings', 'alt-text-pro'); ?>
+                </a>
+            <?php endif; ?>
         </div>
     </div>
 
     <?php
     $alt_text_pro_settings = get_option('alt_text_pro_settings', array());
-    if (empty($alt_text_pro_settings['api_key'])):
+    if (empty($has_valid_key)):
         ?>
         <div class="alt-text-pro-card" style="border-left: 4px solid var(--warning-color);">
             <div class="card-content" style="text-align: center; padding: 40px;">
@@ -62,10 +66,14 @@ $alt_text_pro_current_page = isset($_GET['page']) ? sanitize_text_field(wp_unsla
                 <p style="margin-bottom: 20px; color: var(--text-secondary);">
                     <?php esc_html_e('You need to configure your API key before you can use bulk processing.', 'alt-text-pro'); ?>
                 </p>
-                <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-pro-settings')); ?>"
-                    class="button-primary-custom">
-                    <?php esc_html_e('Configure API Key', 'alt-text-pro'); ?>
-                </a>
+                <?php if (current_user_can('manage_options')): ?>
+                    <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-pro-settings')); ?>"
+                        class="button-primary-custom">
+                        <?php esc_html_e('Configure API Key', 'alt-text-pro'); ?>
+                    </a>
+                <?php else: ?>
+                    <p><?php esc_html_e('Ask a site administrator to connect the Alt Text Pro account.', 'alt-text-pro'); ?></p>
+                <?php endif; ?>
             </div>
         </div>
     <?php else: ?>
@@ -179,7 +187,7 @@ $alt_text_pro_current_page = isset($_GET['page']) ? sanitize_text_field(wp_unsla
                         <h3><?php esc_html_e('Generating alt text', 'alt-text-pro'); ?></h3>
                     </div>
                 </div>
-                <span id="progress-status" class="status-badge warning">Initializing...</span>
+                <span id="progress-status" class="status-badge warning" aria-live="polite"><?php esc_html_e('Initializing...', 'alt-text-pro'); ?></span>
             </div>
             <div class="card-content">
                 <div class="bulk-progress-overview usage-progress-container" id="process-progress-container">
@@ -242,7 +250,7 @@ $alt_text_pro_current_page = isset($_GET['page']) ? sanitize_text_field(wp_unsla
 
                 <div class="bulk-activity">
                     <div class="bulk-activity-header"><span><?php esc_html_e('Activity', 'alt-text-pro'); ?></span><small><?php esc_html_e('Newest events appear here', 'alt-text-pro'); ?></small></div>
-                    <div id="progress-log">
+                    <div id="progress-log" role="log" aria-live="polite" aria-relevant="additions text">
                     </div>
                 </div>
             </div>

@@ -9,7 +9,7 @@ export default function PrivacyPage() {
             <Navbar />
 
             {/* Content */}
-            <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+            <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
                 <div className="bg-white backdrop-blur-xl border border-slate-200 rounded-3xl p-8 md:p-16 shadow-2xl relative overflow-hidden group">
                     {/* Decorative Background Elements */}
                     <div className="absolute top-0 right-0 -mr-20 -mt-20 w-64 h-64 bg-notebook-teal/5 rounded-full blur-3xl transition-all duration-700 group-hover:bg-notebook-teal/10"></div>
@@ -17,7 +17,7 @@ export default function PrivacyPage() {
 
                     <div className="relative z-10">
                         <h1 className="text-4xl md:text-5xl font-bold text-slate-900 mb-4 tracking-tight">Privacy Policy</h1>
-                        <p className="text-slate-500 mb-12 font-medium tracking-wide">Last updated: June 27, 2026</p>
+                        <p className="text-slate-500 mb-12 font-medium tracking-wide">Last updated: August 11, 2026</p>
 
                         <div className="prose prose-slate max-w-none space-y-12">
                             <section>
@@ -76,7 +76,7 @@ export default function PrivacyPage() {
                                             <li>IP address</li>
                                             <li>Browser type and version</li>
                                             <li>Device information</li>
-                                            <li>API keys (for authenticated API access)</li>
+                                            <li>API credentials and validation records used to authenticate service requests</li>
                                         </ul>
                                     </div>
                                 </div>
@@ -102,16 +102,15 @@ export default function PrivacyPage() {
                             <section>
                                 <h2 className="text-2xl font-semibold text-slate-900 mb-4 tracking-tight">4. Data Storage</h2>
                                 <p className="text-slate-600 leading-relaxed mb-4">
-                                    Your data is stored securely using Supabase, a cloud-based database platform. Supabase provides:
+                                    Account, billing, usage, and service records are stored using Supabase, a cloud database and authentication platform. We use:
                                 </p>
                                 <ul className="list-disc list-inside text-slate-600 space-y-2 ml-4">
-                                    <li>Encrypted data storage</li>
                                     <li>Secure authentication and authorization</li>
-                                    <li>Regular backups and data redundancy</li>
-                                    <li>Compliance with industry security standards</li>
+                                    <li>Database access controls</li>
+                                    <li>Managed backups and service availability features</li>
                                 </ul>
                                 <p className="text-slate-600 leading-relaxed mt-4">
-                                    Data is stored in the United States, but may be processed in other jurisdictions as part of Supabase's global infrastructure.
+                                    Data may be stored or processed in regions used by Supabase and our other service providers. See the international-transfer section below.
                                 </p>
                             </section>
 
@@ -137,9 +136,37 @@ export default function PrivacyPage() {
                                     </div>
 
                                     <div>
-                                        <h3 className="text-xl font-semibold text-slate-800 mb-3">5.3 AI Technology</h3>
+                                        <h3 className="text-xl font-semibold text-slate-800 mb-3">5.3 Netlify</h3>
                                         <p className="text-slate-600 leading-relaxed">
-                                            We use advanced AI technology to generate alt text for your images. When you submit an image for processing, it is sent to our AI service providers. Their privacy policies apply to data processed by their services.
+                                            We use Netlify to host the website and run server-side service functions. Netlify may process request metadata, logs, and network information needed to deliver and protect the Service.
+                                        </p>
+                                    </div>
+
+                                    <div>
+                                        <h3 className="text-xl font-semibold text-slate-800 mb-3">5.4 Google Gemini</h3>
+                                        <p className="text-slate-600 leading-relaxed">
+                                            We use Google's Gemini service to generate alt text. When you request a generation, the submitted image and any optional context are sent to Google for processing under Google's applicable service terms and privacy commitments. Alt Text Pro does not intentionally store the submitted image binary in its application database after the request completes.
+                                        </p>
+                                    </div>
+
+                                    <div>
+                                        <h3 className="text-xl font-semibold text-slate-800 mb-3">5.5 Upstash</h3>
+                                        <p className="text-slate-600 leading-relaxed">
+                                            When configured, Upstash provides distributed request-rate limiting. It receives short-lived quota keys derived from request or credential identifiers and the timing needed to enforce service limits; raw API keys are not used as Redis keys.
+                                        </p>
+                                    </div>
+
+                                    <div>
+                                        <h3 className="text-xl font-semibold text-slate-800 mb-3">5.6 Sentry</h3>
+                                        <p className="text-slate-600 leading-relaxed">
+                                            When error monitoring is enabled, Sentry receives technical error details needed to diagnose service failures. Authorization headers, cookies, request bodies, query strings, user identity, and IP tags are removed from the events we send.
+                                        </p>
+                                    </div>
+
+                                    <div>
+                                        <h3 className="text-xl font-semibold text-slate-800 mb-3">5.7 Email delivery</h3>
+                                        <p className="text-slate-600 leading-relaxed">
+                                            Our configured email delivery provider processes recipient addresses and message content for account, lifecycle, support, and service communications.
                                         </p>
                                     </div>
                                 </div>
@@ -152,9 +179,7 @@ export default function PrivacyPage() {
                                 </p>
                                 <ul className="list-disc list-inside text-slate-600 space-y-2 ml-4">
                                     <li>Encryption of data in transit (HTTPS/TLS)</li>
-                                    <li>Encryption of sensitive data at rest</li>
                                     <li>Secure password hashing (passwords are never stored in plain text)</li>
-                                    <li>Regular security audits and updates</li>
                                     <li>Access controls and authentication requirements</li>
                                     <li>API key security and rotation</li>
                                 </ul>
@@ -213,6 +238,9 @@ export default function PrivacyPage() {
                                     The WordPress plugin itself does not send connect, bulk-processing, or other non-essential wp-admin marketing events.
                                 </p>
                                 <p className="text-slate-600 leading-relaxed mt-4">
+                                    The website does not load Meta Pixel or another third-party advertising pixel. Product events described above are sent to Alt Text Pro's own service endpoint.
+                                </p>
+                                <p className="text-slate-600 leading-relaxed mt-4">
                                     You can control cookies through your browser settings. However, disabling cookies may limit your ability to use certain features of our Service.
                                 </p>
                             </section>
@@ -230,7 +258,7 @@ export default function PrivacyPage() {
                                     Your information may be transferred to and processed in countries other than your country of residence. These countries may have data protection laws that differ from those in your country.
                                 </p>
                                 <p className="text-slate-600 leading-relaxed">
-                                    By using our Service, you consent to the transfer of your information to the United States and other countries where our service providers operate. We ensure appropriate safeguards are in place for such transfers.
+                                    Our providers may rely on contractual or other transfer mechanisms available to them. The transfer terms and safeguards that apply to the operator should be reviewed for the jurisdictions in which the Service is offered.
                                 </p>
                             </section>
 
@@ -265,7 +293,7 @@ export default function PrivacyPage() {
                         </div>
                     </div>
                 </div>
-            </div>
+            </main>
             <Footer />
         </div>
     );

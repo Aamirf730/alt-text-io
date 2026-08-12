@@ -6,25 +6,12 @@
  *
  * Endpoints (via query param):
  *   GET /.netlify/functions/health              → basic liveness check
- *   GET /.netlify/functions/health?check=db     → database connectivity
- *   GET /.netlify/functions/health?check=ai     → AI service (Gemini) reachability
- *   GET /.netlify/functions/health?check=all    → all checks combined
+ *   Detailed db, ai, and all checks require X-Health-Check-Secret.
  */
 
 const { createClient } = require('@supabase/supabase-js');
+const { timingSafeEqual } = require('node:crypto');
 const { reportInfo, reportError } = require('./utils/error-reporter');
-
-function loadBuildInfo() {
-    try {
-        // The build step generates this file before Netlify packages functions.
-        // It is intentionally optional so local development still works.
-        return require('./build-info.json');
-    } catch {
-        return {};
-    }
-}
-
-const buildInfo = loadBuildInfo();
 
 // Lazy-init Supabase only when needed
 let _supabase = null;
@@ -46,20 +33,9 @@ function getSupabase() {
  * Basic liveness — always succeeds if the function is running.
  */
 function checkBasic() {
-    const commitRef = process.env.COMMIT_REF || buildInfo.commit;
-    const context = process.env.CONTEXT || buildInfo.context;
-    const branch = process.env.BRANCH || buildInfo.branch;
-
     return {
         status: 'healthy',
-        uptime: process.uptime(),
         timestamp: new Date().toISOString(),
-        environment:
-            context && context !== 'unknown' ? context : process.env.NODE_ENV || 'unknown',
-        version:
-            commitRef && commitRef !== 'unknown' ? String(commitRef).substring(0, 8) : 'local',
-        branch: branch && branch !== 'unknown' ? branch : 'unknown',
-        node: process.version,
     };
 }
 
@@ -74,15 +50,15 @@ async function checkDatabase() {
         return {
             status: 'unhealthy',
             latency_ms: 0,
-            error: 'Supabase not configured (missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY)',
+            error: 'database_unavailable',
         };
     }
 
     try {
         // Simple count query — fast and low-cost
-        const { count, error } = await supabase
+        const { error } = await supabase
             .from('profiles')
-            .select('*', { count: 'exact', head: true });
+            .select('id', { head: true });
 
         const latency = Date.now() - start;
 
@@ -90,20 +66,19 @@ async function checkDatabase() {
             return {
                 status: 'unhealthy',
                 latency_ms: latency,
-                error: error.message,
+                error: 'database_unavailable',
             };
         }
 
         return {
             status: 'healthy',
             latency_ms: latency,
-            row_count: count,
         };
     } catch (err) {
         return {
             status: 'unhealthy',
             latency_ms: Date.now() - start,
-            error: err.message,
+            error: 'database_unavailable',
         };
     }
 }
@@ -120,7 +95,7 @@ async function checkAI() {
         return {
             status: 'unhealthy',
             latency_ms: 0,
-            error: 'AI_API_KEY or GEMINI_API_KEY not configured',
+            error: 'ai_unavailable',
         };
     }
 
@@ -134,15 +109,11 @@ async function checkAI() {
         const latency = Date.now() - start;
 
         if (!res.ok) {
-            const body = await res.text();
             return {
                 status: 'unhealthy',
                 latency_ms: latency,
                 http_status: res.status,
-                error: body
-                    .replace(/api_key:[A-Za-z0-9_-]+/g, 'api_key:[redacted]')
-                    .replace(/key=[A-Za-z0-9_-]+/g, 'key=[redacted]')
-                    .substring(0, 200),
+                error: 'ai_unavailable',
             };
         }
 
@@ -154,7 +125,7 @@ async function checkAI() {
         return {
             status: 'unhealthy',
             latency_ms: Date.now() - start,
-            error: err.message,
+            error: 'ai_unavailable',
         };
     }
 }
@@ -163,7 +134,28 @@ async function checkAI() {
 // Handler
 // ═══════════════════════════════════════════════════════════════════════════════
 
-exports.handler = async (event) => {
+function getHeader(headers, name) {
+    const target = name.toLowerCase();
+    const key = Object.keys(headers || {}).find((header) => header.toLowerCase() === target);
+    return key ? headers[key] : undefined;
+}
+
+function secretsMatch(provided, expected) {
+    if (!provided || !expected) return false;
+    const providedBuffer = Buffer.from(String(provided));
+    const expectedBuffer = Buffer.from(String(expected));
+    return providedBuffer.length === expectedBuffer.length
+        && timingSafeEqual(providedBuffer, expectedBuffer);
+}
+
+function isDetailedCheckAuthorized(event) {
+    return secretsMatch(
+        getHeader(event.headers, 'x-health-check-secret'),
+        process.env.HEALTH_CHECK_SECRET,
+    );
+}
+
+async function handler(event) {
     // Health checks should always respond, even without CORS
     const headers = {
         'Content-Type': 'application/json',
@@ -179,6 +171,15 @@ exports.handler = async (event) => {
     }
 
     const check = (event.queryStringParameters?.check || 'basic').toLowerCase();
+    const isDetailedCheck = ['db', 'database', 'ai', 'gemini', 'all', 'full'].includes(check);
+
+    if (isDetailedCheck && !isDetailedCheckAuthorized(event)) {
+        return {
+            statusCode: 403,
+            headers,
+            body: JSON.stringify({ error: 'Detailed health check is not available' }),
+        };
+    }
 
     try {
         let result;
@@ -255,8 +256,15 @@ exports.handler = async (event) => {
             body: JSON.stringify({
                 service: 'alt-text-pro',
                 status: 'unhealthy',
-                error: error.message,
+                error: 'health_check_failed',
             }),
         };
     }
+}
+
+exports.handler = handler;
+exports._private = {
+    checkBasic,
+    isDetailedCheckAuthorized,
+    secretsMatch,
 };

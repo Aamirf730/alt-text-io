@@ -1,25 +1,14 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import NextImage from "next/image";
 import { supabase } from '@/lib/supabase';
 import { getApiBase, PLAN_CREDIT_LIMITS, PLUGIN_VERSION } from '@/lib/utils';
 import { trackMarketingEvent } from '@/lib/analytics';
-// Polar.sh product IDs from environment variables
-const POLAR_PRODUCTS = {
-    tier1_monthly: process.env.NEXT_PUBLIC_POLAR_TIER1_MONTHLY || '',
-    tier1_annual: process.env.NEXT_PUBLIC_POLAR_TIER1_ANNUAL || '',
-    tier2_monthly: process.env.NEXT_PUBLIC_POLAR_TIER2_MONTHLY || '',
-    tier2_annual: process.env.NEXT_PUBLIC_POLAR_TIER2_ANNUAL || '',
-    tier3_monthly: process.env.NEXT_PUBLIC_POLAR_TIER3_MONTHLY || '',
-    tier3_annual: process.env.NEXT_PUBLIC_POLAR_TIER3_ANNUAL || '',
-    tier4_monthly: process.env.NEXT_PUBLIC_POLAR_TIER4_MONTHLY || '',
-    tier4_annual: process.env.NEXT_PUBLIC_POLAR_TIER4_ANNUAL || '',
-    small_pack: process.env.NEXT_PUBLIC_POLAR_SMALL_PACK || '',
-    credit_pack: process.env.NEXT_PUBLIC_POLAR_CREDIT_PACK || '',
-};
+import { getPolarProductId } from '@/lib/polar-products';
+import { CREDIT_PACKS, getPurchaseOption, SUBSCRIPTION_PLANS } from '@/lib/pricing-catalog';
 
 type UsageHistoryItem = {
     id: string;
@@ -103,21 +92,13 @@ export default function Dashboard() {
         : 'Credits left this month';
     const hasApiKeyReady = Boolean(apiKey);
     const hasGeneratedFirstAltText = Number(usageStats?.total_processed || 0) > 0 || history.length > 0;
-
-    useEffect(() => {
-        loadDashboard();
-        loadHistory();
-    }, []);
-
-    // Load API key when user is available
-    useEffect(() => {
-        if (user && user.token) {
-            loadApiKey();
-        }
-    }, [user]);
+    const selectedUpgradeDetails = selectedUpgradePlan
+        ? getPurchaseOption(selectedUpgradePlan.id)
+        : undefined;
+    const selectedUpgradeIsPack = Boolean(selectedUpgradeDetails && 'price' in selectedUpgradeDetails);
 
     // Load subscription data from API
-    const loadSubscriptionData = async (token: string) => {
+    const loadSubscriptionData = useCallback(async (token: string) => {
         try {
             // Use the same Netlify function path in local development and production.
             const response = await fetch(`${getApiBase()}/get-subscription`, {
@@ -152,7 +133,7 @@ export default function Dashboard() {
                 }
             });
         }
-    };
+    }, []);
 
     // Handle upgrade plan selection
     const handleUpgradePlan = (planId: string, planName: string, planPrice: string) => {
@@ -162,7 +143,6 @@ export default function Dashboard() {
 
     // Redirect to Polar.sh checkout
     const redirectToCheckout = async (productId: string) => {
-        console.log('Redirecting to checkout with productId:', productId);
         if (!productId) {
             toast.error('Product not configured. Please contact support.');
             return;
@@ -203,7 +183,6 @@ export default function Dashboard() {
             return;
         }
 
-        console.log('Final checkout URL:', data.url);
         window.location.href = data.url;
     };
 
@@ -237,39 +216,8 @@ export default function Dashboard() {
         }
     };
 
-    // Get the correct Polar product ID based on plan
-    const getPolarProductId = (planId: string): string => {
-        console.log('Mapping planId to productId:', planId);
-        const productMap: Record<string, string> = {
-            tier1: POLAR_PRODUCTS.tier1_monthly,
-            tier1_monthly: POLAR_PRODUCTS.tier1_monthly,
-            tier1_annual: POLAR_PRODUCTS.tier1_annual,
-            tier2: POLAR_PRODUCTS.tier2_monthly,
-            tier2_monthly: POLAR_PRODUCTS.tier2_monthly,
-            tier2_annual: POLAR_PRODUCTS.tier2_annual,
-            tier3: POLAR_PRODUCTS.tier3_monthly,
-            tier3_monthly: POLAR_PRODUCTS.tier3_monthly,
-            tier3_annual: POLAR_PRODUCTS.tier3_annual,
-            tier4: POLAR_PRODUCTS.tier4_monthly,
-            tier4_monthly: POLAR_PRODUCTS.tier4_monthly,
-            tier4_annual: POLAR_PRODUCTS.tier4_annual,
-            small_pack: POLAR_PRODUCTS.small_pack,
-            credit_pack: POLAR_PRODUCTS.credit_pack,
-        };
-        const id = productMap[planId] || '';
-        console.log('Mapped plan to product:', Boolean(id));
-        return id;
-    };
-
-    // Load history when user or stats change
-    useEffect(() => {
-        if (user) {
-            loadHistory();
-        }
-    }, [user]);
-
     // Load API key for WordPress plugin
-    const loadApiKey = async () => {
+    const loadApiKey = useCallback(async () => {
         if (!user?.id || !user?.token) return;
 
         setIsLoadingApiKey(true);
@@ -294,9 +242,9 @@ export default function Dashboard() {
         } finally {
             setIsLoadingApiKey(false);
         }
-    };
+    }, [user]);
 
-    const loadDashboard = async () => {
+    const loadDashboard = useCallback(async () => {
         try {
             const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
@@ -382,9 +330,9 @@ export default function Dashboard() {
             toast.error("Failed to load dashboard. Please try logging in again.");
             router.push("/");
         }
-    };
+    }, [loadSubscriptionData, router]);
 
-    const loadHistory = async () => {
+    const loadHistory = useCallback(async () => {
         if (!user?.id) return;
 
         setIsLoadingHistory(true);
@@ -412,7 +360,36 @@ export default function Dashboard() {
         } finally {
             setIsLoadingHistory(false);
         }
-    };
+    }, [user]);
+
+    useEffect(() => {
+        const timer = window.setTimeout(() => {
+            void loadDashboard();
+        }, 0);
+
+        return () => window.clearTimeout(timer);
+    }, [loadDashboard]);
+
+    // Load API key and recent history after the authenticated user is available.
+    useEffect(() => {
+        if (!user?.token) return;
+
+        const timer = window.setTimeout(() => {
+            void loadApiKey();
+        }, 0);
+
+        return () => window.clearTimeout(timer);
+    }, [loadApiKey, user?.token]);
+
+    useEffect(() => {
+        if (!user?.id) return;
+
+        const timer = window.setTimeout(() => {
+            void loadHistory();
+        }, 0);
+
+        return () => window.clearTimeout(timer);
+    }, [loadHistory, user?.id]);
 
     const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -488,13 +465,6 @@ export default function Dashboard() {
             const apiBase = getApiBase();
 
             const endpoint = `${apiBase}/generate-alt-text`;
-
-            console.log('🔍 Generating alt-text:', {
-                endpoint,
-                hasImage: !!base64Data,
-                imageSize: base64Data?.length,
-                hasToken: !!user.token
-            });
 
             // Call the real API
             const apiResponse = await fetch(endpoint, {
@@ -599,12 +569,12 @@ export default function Dashboard() {
 
     if (isLoading) {
         return (
-            <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+            <main className="min-h-screen bg-slate-50 flex items-center justify-center" aria-busy="true">
                 <div className="text-center">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#000000] mx-auto mb-4"></div>
                     <p className="text-slate-500">Loading dashboard...</p>
                 </div>
-            </div>
+            </main>
         );
     }
 
@@ -652,7 +622,7 @@ export default function Dashboard() {
                 </div>
             </nav>
 
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 relative z-10">
+            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 relative z-10">
                 {/* Header Section */}
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-16">
                     <div className="space-y-3">
@@ -731,7 +701,7 @@ export default function Dashboard() {
                                 },
                                 {
                                     label: "3. Generate one image",
-                                    body: hasGeneratedFirstAltText ? "Your first generation is complete. Bulk processing is safe to try next." : "Generate one manual alt text before running a bulk job.",
+                                    body: hasGeneratedFirstAltText ? "Your first generation is complete. Try a small bulk batch next." : "Generate one manual alt text before running a bulk job.",
                                     status: hasGeneratedFirstAltText ? "Complete" : "Recommended",
                                     icon: ImageIcon,
                                     complete: hasGeneratedFirstAltText,
@@ -919,10 +889,13 @@ export default function Dashboard() {
                                             />
                                             {testImage ? (
                                                 <div className="relative aspect-video rounded-2xl overflow-hidden shadow-sm">
-                                                    <img
+                                                    <NextImage
                                                         src={testImage}
                                                         alt="Upload preview"
-                                                        className="w-full h-full object-cover"
+                                                        fill
+                                                        unoptimized
+                                                        sizes="(min-width: 768px) 50vw, 100vw"
+                                                        className="object-cover"
                                                     />
                                                     <div className="absolute inset-0 bg-notebook-slate/20 opacity-0 group-hover/drop:opacity-100 transition-opacity flex items-center justify-center">
                                                         <p className="text-white text-xs font-bold uppercase tracking-widest">Change Image</p>
@@ -945,8 +918,8 @@ export default function Dashboard() {
                                                     <Settings className="h-5 w-5 text-slate-400" />
                                                 </div>
                                                 <div>
-                                                    <p className="text-xs font-bold text-notebook-slate uppercase tracking-widest">Optimization Model</p>
-                                                    <p className="text-[10px] font-medium text-slate-500 font-outfit">Advanced AI Model</p>
+                                                    <p className="text-xs font-bold text-notebook-slate uppercase tracking-widest">Generation Mode</p>
+                                                    <p className="text-[10px] font-medium text-slate-500 font-outfit">Reviewable AI draft</p>
                                                 </div>
                                             </div>
                                             <div className="flex items-center space-x-2">
@@ -1192,7 +1165,7 @@ export default function Dashboard() {
                     </p>
                     <p className="text-[10px] text-slate-300 mt-4 font-medium">© 2026 ALT Text Pro. All rights reserved.</p>
                 </div>
-            </div>
+            </main>
             {/* Upgrade Modal */}
             {showUpgradeModal && (
                 <div className="fixed inset-0 bg-[#1A1C1E]/40 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-in fade-in duration-300">
@@ -1215,7 +1188,7 @@ export default function Dashboard() {
                                     Choose a <span className="text-[#000000]">Plan</span>
                                 </h2>
                                 <p className="text-[#5F6368] text-lg font-inter">
-                                    Choose the best plan for your needs and generate more alt text.
+                                    Compare the available plans and credit allowances.
                                 </p>
                             </div>
                         </div>
@@ -1229,30 +1202,20 @@ export default function Dashboard() {
                                             <Crown className="h-10 w-10 text-[#000000]" />
                                         </div>
                                         <h3 className="text-2xl font-semibold text-[#1A1C1E] mb-2 font-outfit">
-                                            {selectedUpgradePlan.name} Plan
+                                            {selectedUpgradePlan.name}{selectedUpgradeIsPack ? '' : ' Plan'}
                                         </h3>
                                         <div className="text-5xl font-semibold text-[#1A1C1E] mb-8 font-outfit">
-                                            {selectedUpgradePlan.price}<span className="text-xl text-[#5F6368] font-normal font-inter">/{selectedUpgradePlan.id.includes('pack') ? 'one-time' : 'mo'}</span>
+                                            {selectedUpgradePlan.price}<span className="text-xl text-[#5F6368] font-normal font-inter">{selectedUpgradeIsPack ? ' one time' : '/mo'}</span>
                                         </div>
                                         <div className="space-y-5 text-left mb-10 pt-8 border-t border-[#F1F3F4] font-inter">
-                                            <div className="flex items-center text-[#5F6368]">
-                                                <div className="w-5 h-5 rounded-full bg-notebook-teal/10 flex items-center justify-center mr-4 shrink-0">
-                                                    <Check className="h-3 w-3 text-[#000000]" />
+                                            {selectedUpgradeDetails?.features.map((feature) => (
+                                                <div key={feature} className="flex items-center text-[#5F6368]">
+                                                    <div className="w-5 h-5 rounded-full bg-notebook-teal/10 flex items-center justify-center mr-4 shrink-0">
+                                                        <Check className="h-3 w-3 text-[#000000]" />
+                                                    </div>
+                                                    <span>{feature}</span>
                                                 </div>
-                                                <span>Better AI analysis</span>
-                                            </div>
-                                            <div className="flex items-center text-[#5F6368]">
-                                                <div className="w-5 h-5 rounded-full bg-notebook-teal/10 flex items-center justify-center mr-4 shrink-0">
-                                                    <Check className="h-3 w-3 text-[#000000]" />
-                                                </div>
-                                                <span>Full API Access</span>
-                                            </div>
-                                            <div className="flex items-center text-[#5F6368]">
-                                                <div className="w-5 h-5 rounded-full bg-notebook-teal/10 flex items-center justify-center mr-4 shrink-0">
-                                                    <Check className="h-3 w-3 text-[#000000]" />
-                                                </div>
-                                                <span>Priority Support</span>
-                                            </div>
+                                            ))}
                                         </div>
 
                                         <Button
@@ -1262,7 +1225,7 @@ export default function Dashboard() {
                                             }}
                                             className="w-full h-14 bg-[#000000] hover:bg-[#000000] text-white font-semibold text-lg rounded-xl transition-all shadow-[0_10px_24px_rgba(0,0,0,0.18)]"
                                         >
-                                            Upgrade Now
+                                            {selectedUpgradeIsPack ? 'Buy Credits' : 'Upgrade Now'}
                                             <ArrowRight className="h-5 w-5 ml-2" />
                                         </Button>
 
@@ -1282,181 +1245,97 @@ export default function Dashboard() {
                                     <div>
                                         <h3 className="text-lg font-semibold text-[#1A1C1E] mb-8 font-outfit border-l-4 border-[#000000] pl-4">Monthly Subscriptions</h3>
                                         <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-8">
-                                            {/* Lite */}
-                                            <div className="bg-white border border-[#F1F3F4] rounded-[2rem] p-8 hover:border-[#000000]/20 hover:shadow-[0_16px_36px_rgba(0,0,0,0.08)] transition-all cursor-pointer group flex flex-col"
-                                                onClick={() => setSelectedUpgradePlan({ id: 'tier1_monthly', name: 'Lite', price: '$4' })}
-                                            >
-                                                <h4 className="text-lg font-semibold text-[#1A1C1E] group-hover:text-[#000000] transition-colors font-outfit">Lite</h4>
-                                                <div className="mt-4 mb-8">
-                                                    <span className="text-4xl font-semibold text-[#1A1C1E] font-outfit">$4</span>
-                                                    <span className="text-[#5F6368] font-normal ml-1 font-inter">/mo</span>
-                                                </div>
-                                                <ul className="space-y-4 mb-10 flex-1 font-inter">
-                                                    <li className="flex items-start text-sm text-[#5F6368]">
-                                                        <div className="w-5 h-5 rounded-full bg-slate-50 flex items-center justify-center mr-3 mt-0.5 shrink-0">
-                                                            <Check className="h-3 w-3 text-[#000000]" />
+                                            {SUBSCRIPTION_PLANS.filter((plan) => plan.id !== 'free').map((plan) => (
+                                                <article
+                                                    key={plan.id}
+                                                    className={`relative flex flex-col rounded-[2rem] bg-white p-8 transition-all ${
+                                                        plan.featured
+                                                            ? 'border-2 border-[#000000] shadow-[0_20px_45px_rgba(0,0,0,0.10)] hover:-translate-y-2'
+                                                            : 'border border-[#F1F3F4] hover:border-[#000000]/20 hover:shadow-[0_16px_36px_rgba(0,0,0,0.08)]'
+                                                    }`}
+                                                >
+                                                    {plan.featured && (
+                                                        <div className="absolute -top-4 left-1/2 -translate-x-1/2 rounded-full bg-[#000000] px-4 py-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-white shadow-lg">
+                                                            Most popular
                                                         </div>
-                                                        <span className="font-medium text-[#1A1C1E] mr-1">150</span> Credits
-                                                    </li>
-                                                    <li className="flex items-start text-sm text-[#5F6368]">
-                                                        <div className="w-5 h-5 rounded-full bg-slate-50 flex items-center justify-center mr-3 mt-0.5 shrink-0">
-                                                            <Check className="h-3 w-3 text-[#000000]" />
-                                                        </div>
-                                                        Standard Core Model
-                                                    </li>
-                                                </ul>
-                                                <Button className="w-full bg-[#FAF9F6] text-[#1A1C1E] hover:bg-[#F1F3F4] border border-[#F1F3F4] rounded-xl font-medium" variant="secondary">
-                                                    Select Plan
-                                                </Button>
-                                            </div>
-
-                                            {/* Standard - Popular */}
-                                            <div className="bg-white border-2 border-[#000000] rounded-[2.5rem] p-8 shadow-[0_20px_45px_rgba(0,0,0,0.10)] cursor-pointer relative group flex flex-col transform hover:-translate-y-2 transition-all"
-                                                onClick={() => setSelectedUpgradePlan({ id: 'tier2_monthly', name: 'Standard', price: '$9' })}
-                                            >
-                                                <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-[#000000] text-white text-[10px] font-bold px-4 py-1.5 rounded-full uppercase tracking-[0.2em] shadow-lg">
-                                                    Optimal Choice
-                                                </div>
-                                                <h4 className="text-lg font-semibold text-[#1A1C1E] font-outfit">Standard</h4>
-                                                <div className="mt-4 mb-8">
-                                                    <span className="text-4xl font-semibold text-[#1A1C1E] font-outfit">$9</span>
-                                                    <span className="text-[#5F6368] font-normal ml-1 font-inter">/mo</span>
-                                                </div>
-                                                <ul className="space-y-4 mb-10 flex-1 font-inter">
-                                                    <li className="flex items-start text-sm text-[#5F6368]">
-                                                        <div className="w-5 h-5 rounded-full bg-notebook-teal/10 flex items-center justify-center mr-3 mt-0.5 shrink-0">
-                                                            <Check className="h-3 w-3 text-[#000000]" />
-                                                        </div>
-                                                        <span className="font-medium text-[#1A1C1E] mr-1">1,000</span> Credits
-                                                    </li>
-                                                    <li className="flex items-start text-sm text-[#5F6368]">
-                                                        <div className="w-5 h-5 rounded-full bg-notebook-teal/10 flex items-center justify-center mr-3 mt-0.5 shrink-0">
-                                                            <Check className="h-3 w-3 text-[#000000]" />
-                                                        </div>
-                                                        Advanced AI Model
-                                                    </li>
-                                                </ul>
-                                                <Button className="w-full bg-[#000000] text-white hover:bg-[#000000] shadow-[0_10px_24px_rgba(0,0,0,0.18)] rounded-xl font-semibold">
-                                                    Select Plan
-                                                </Button>
-                                            </div>
-
-                                            {/* Pro */}
-                                            <div className="bg-white border border-[#F1F3F4] rounded-[2rem] p-8 hover:border-[#000000]/20 hover:shadow-[0_16px_36px_rgba(0,0,0,0.08)] transition-all cursor-pointer group flex flex-col"
-                                                onClick={() => setSelectedUpgradePlan({ id: 'tier3_monthly', name: 'Pro', price: '$14' })}
-                                            >
-                                                <h4 className="text-lg font-semibold text-[#1A1C1E] group-hover:text-[#000000] transition-colors font-outfit">Pro</h4>
-                                                <div className="mt-4 mb-8">
-                                                    <span className="text-4xl font-semibold text-[#1A1C1E] font-outfit">$14</span>
-                                                    <span className="text-[#5F6368] font-normal ml-1 font-inter">/mo</span>
-                                                </div>
-                                                <ul className="space-y-4 mb-10 flex-1 font-inter">
-                                                    <li className="flex items-start text-sm text-[#5F6368]">
-                                                        <div className="w-5 h-5 rounded-full bg-slate-50 flex items-center justify-center mr-3 mt-0.5 shrink-0">
-                                                            <Check className="h-3 w-3 text-[#000000]" />
-                                                        </div>
-                                                        <span className="font-medium text-[#1A1C1E] mr-1">2,000</span> Credits
-                                                    </li>
-                                                    <li className="flex items-start text-sm text-[#5F6368]">
-                                                        <div className="w-5 h-5 rounded-full bg-slate-50 flex items-center justify-center mr-3 mt-0.5 shrink-0">
-                                                            <Check className="h-3 w-3 text-[#000000]" />
-                                                        </div>
-                                                        Highest Quality Results
-                                                    </li>
-                                                </ul>
-                                                <Button className="w-full bg-[#FAF9F6] text-[#1A1C1E] hover:bg-[#F1F3F4] border border-[#F1F3F4] rounded-xl font-medium" variant="secondary">
-                                                    Select Plan
-                                                </Button>
-                                            </div>
-
-                                            {/* Agency */}
-                                            <div className="bg-white border border-[#F1F3F4] rounded-[2rem] p-8 hover:border-[#000000]/20 hover:shadow-[0_16px_36px_rgba(0,0,0,0.08)] transition-all cursor-pointer group flex flex-col"
-                                                onClick={() => setSelectedUpgradePlan({ id: 'tier4_monthly', name: 'Agency', price: '$19' })}
-                                            >
-                                                <h4 className="text-lg font-semibold text-[#1A1C1E] group-hover:text-[#000000] transition-colors font-outfit">Agency</h4>
-                                                <div className="mt-4 mb-8">
-                                                    <span className="text-4xl font-semibold text-[#1A1C1E] font-outfit">$19</span>
-                                                    <span className="text-[#5F6368] font-normal ml-1 font-inter">/mo</span>
-                                                </div>
-                                                <ul className="space-y-4 mb-10 flex-1 font-inter">
-                                                    <li className="flex items-start text-sm text-[#5F6368]">
-                                                        <div className="w-5 h-5 rounded-full bg-slate-50 flex items-center justify-center mr-3 mt-0.5 shrink-0">
-                                                            <Check className="h-3 w-3 text-[#000000]" />
-                                                        </div>
-                                                        <span className="font-medium text-[#1A1C1E] mr-1">3,500</span> Credits
-                                                    </li>
-                                                    <li className="flex items-start text-sm text-[#5F6368]">
-                                                        <div className="w-5 h-5 rounded-full bg-slate-50 flex items-center justify-center mr-3 mt-0.5 shrink-0">
-                                                            <Check className="h-3 w-3 text-[#000000]" />
-                                                        </div>
-                                                        Multi-site workflows
-                                                    </li>
-                                                </ul>
-                                                <Button className="w-full bg-[#FAF9F6] text-[#1A1C1E] hover:bg-[#F1F3F4] border border-[#F1F3F4] rounded-xl font-medium" variant="secondary">
-                                                    Select Plan
-                                                </Button>
-                                            </div>
+                                                    )}
+                                                    <h4 className="text-lg font-semibold text-[#1A1C1E] font-outfit">{plan.name}</h4>
+                                                    <div className="mt-4 mb-8">
+                                                        <span className="text-4xl font-semibold text-[#1A1C1E] font-outfit">{plan.monthlyPrice}</span>
+                                                        <span className="text-[#5F6368] font-normal ml-1 font-inter">/mo</span>
+                                                    </div>
+                                                    <ul className="space-y-4 mb-10 flex-1 font-inter">
+                                                        <li className="flex items-start text-sm text-[#5F6368]">
+                                                            <div className="w-5 h-5 rounded-full bg-slate-50 flex items-center justify-center mr-3 mt-0.5 shrink-0">
+                                                                <Check className="h-3 w-3 text-[#000000]" aria-hidden="true" />
+                                                            </div>
+                                                            <span>{plan.creditCount.toLocaleString()} credits every month</span>
+                                                        </li>
+                                                        {plan.features.map((feature) => (
+                                                            <li key={feature} className="flex items-start text-sm text-[#5F6368]">
+                                                                <div className="w-5 h-5 rounded-full bg-slate-50 flex items-center justify-center mr-3 mt-0.5 shrink-0">
+                                                                    <Check className="h-3 w-3 text-[#000000]" aria-hidden="true" />
+                                                                </div>
+                                                                <span>{feature}</span>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                    <Button
+                                                        type="button"
+                                                        onClick={() => setSelectedUpgradePlan({
+                                                            id: `${plan.id}_monthly`,
+                                                            name: plan.name,
+                                                            price: plan.monthlyPrice,
+                                                        })}
+                                                        className={`w-full rounded-xl font-medium ${
+                                                            plan.featured
+                                                                ? 'bg-[#000000] text-white hover:bg-[#000000] shadow-[0_10px_24px_rgba(0,0,0,0.18)]'
+                                                                : 'bg-[#FAF9F6] text-[#1A1C1E] hover:bg-[#F1F3F4] border border-[#F1F3F4]'
+                                                        }`}
+                                                    >
+                                                        Select Plan
+                                                    </Button>
+                                                </article>
+                                            ))}
                                         </div>
                                     </div>
 
                                     <div>
                                         <h3 className="text-lg font-semibold text-[#1A1C1E] mb-8 font-outfit border-l-4 border-amber-400 pl-4">Credits (One-Time)</h3>
                                         <div className="grid md:grid-cols-2 gap-8">
-                                            {/* Small Pack */}
-                                            <div className="bg-[#FAF9F6] border border-[#F1F3F4] rounded-[2rem] p-8 hover:shadow-lg transition-all cursor-pointer group flex flex-col"
-                                                onClick={() => setSelectedUpgradePlan({ id: 'small_pack', name: 'Small Pack', price: '$5' })}
-                                            >
-                                                <h4 className="text-lg font-semibold text-[#1A1C1E] font-outfit">Small Credit Pack</h4>
-                                                <div className="mt-4 mb-8">
-                                                    <span className="text-4xl font-semibold text-[#1A1C1E] font-outfit">$5</span>
-                                                    <span className="text-[#5F6368] font-normal ml-2 font-inter text-sm">one-time purchase</span>
-                                                </div>
-                                                <ul className="space-y-4 mb-10 flex-1 font-inter">
-                                                    <li className="flex items-start text-sm text-[#5F6368]">
-                                                        <div className="w-5 h-5 rounded-full bg-amber-50 flex items-center justify-center mr-3 mt-0.5 shrink-0">
-                                                            <Check className="h-3 w-3 text-amber-600" />
-                                                        </div>
-                                                        <span className="font-medium text-[#1A1C1E] mr-1">500</span> credits
-                                                    </li>
-                                                    <li className="flex items-start text-sm text-[#5F6368]">
-                                                        <div className="w-5 h-5 rounded-full bg-amber-50 flex items-center justify-center mr-3 mt-0.5 shrink-0">
-                                                            <Check className="h-3 w-3 text-amber-600" />
-                                                        </div>
-                                                        Persistent resources (No expiry)
-                                                    </li>
-                                                </ul>
-                                                <Button className="w-full bg-white text-[#1A1C1E] hover:bg-[#F1F3F4] border border-[#F1F3F4] rounded-xl font-medium">
-                                                    Buy Credits
-                                                </Button>
-                                            </div>
-
-                                            {/* Credit Pack */}
-                                            <div className="bg-[#FAF9F6] border border-[#F1F3F4] rounded-[2rem] p-8 hover:shadow-lg transition-all cursor-pointer group flex flex-col"
-                                                onClick={() => setSelectedUpgradePlan({ id: 'credit_pack', name: 'Credit Pack', price: '$10' })}
-                                            >
-                                                <h4 className="text-lg font-semibold text-[#1A1C1E] font-outfit">Priority Support Pack</h4>
-                                                <div className="mt-4 mb-8">
-                                                    <span className="text-4xl font-semibold text-[#1A1C1E] font-outfit">$10</span>
-                                                    <span className="text-[#5F6368] font-normal ml-2 font-inter text-sm">one-time purchase</span>
-                                                </div>
-                                                <ul className="space-y-4 mb-10 flex-1 font-inter">
-                                                    <li className="flex items-start text-sm text-[#5F6368]">
-                                                        <div className="w-5 h-5 rounded-full bg-emerald-50 flex items-center justify-center mr-3 mt-0.5 shrink-0">
-                                                            <Check className="h-3 w-3 text-emerald-600" />
-                                                        </div>
-                                                        <span className="font-medium text-[#1A1C1E] mr-1">1,200</span> credits
-                                                    </li>
-                                                    <li className="flex items-start text-sm text-[#5F6368]">
-                                                        <div className="w-5 h-5 rounded-full bg-emerald-50 flex items-center justify-center mr-3 mt-0.5 shrink-0">
-                                                            <Check className="h-3 w-3 text-emerald-600" />
-                                                        </div>
-                                                        Faster processing
-                                                    </li>
-                                                </ul>
-                                                <Button className="w-full bg-white text-[#1A1C1E] hover:bg-[#F1F3F4] border border-[#F1F3F4] rounded-xl font-medium">
-                                                    Buy Credits
-                                                </Button>
-                                            </div>
+                                            {CREDIT_PACKS.map((pack) => (
+                                                <article
+                                                    key={pack.id}
+                                                    className="flex flex-col rounded-[2rem] border border-[#F1F3F4] bg-[#FAF9F6] p-8 transition-all hover:shadow-lg"
+                                                >
+                                                    <h4 className="text-lg font-semibold text-[#1A1C1E] font-outfit">{pack.name}</h4>
+                                                    <div className="mt-4 mb-8">
+                                                        <span className="text-4xl font-semibold text-[#1A1C1E] font-outfit">{pack.price}</span>
+                                                        <span className="text-[#5F6368] font-normal ml-2 font-inter text-sm">one-time purchase</span>
+                                                    </div>
+                                                    <ul className="space-y-4 mb-10 flex-1 font-inter">
+                                                        {pack.features.map((feature) => (
+                                                            <li key={feature} className="flex items-start text-sm text-[#5F6368]">
+                                                                <div className="w-5 h-5 rounded-full bg-amber-50 flex items-center justify-center mr-3 mt-0.5 shrink-0">
+                                                                    <Check className="h-3 w-3 text-amber-600" aria-hidden="true" />
+                                                                </div>
+                                                                <span>{feature}</span>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                    <Button
+                                                        type="button"
+                                                        onClick={() => setSelectedUpgradePlan({
+                                                            id: pack.id,
+                                                            name: pack.name,
+                                                            price: pack.price,
+                                                        })}
+                                                        className="w-full bg-white text-[#1A1C1E] hover:bg-[#F1F3F4] border border-[#F1F3F4] rounded-xl font-medium"
+                                                    >
+                                                        Buy Credits
+                                                    </Button>
+                                                </article>
+                                            ))}
                                         </div>
                                     </div>
                                 </div>

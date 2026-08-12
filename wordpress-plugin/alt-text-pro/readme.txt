@@ -4,11 +4,11 @@ Tags: alt text, accessibility, image seo, ai, media library
 Requires at least: 5.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.7.16
+Stable tag: 1.7.18
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Generate accurate AI alt text for WordPress images, improve accessibility, and bulk-fix missing media-library alt text for SEO.
+Draft AI alt text for WordPress images, review it, and fill missing Media Library alt attributes in small batches.
 
 == Description ==
 Alt Text Pro helps WordPress site owners write useful image alt text faster. It uses AI vision models to describe images, then saves the result into the WordPress media library so your content is easier to understand for visitors, screen readers, and search engines.
@@ -158,6 +158,17 @@ Yes, you can cancel your subscription at any time from your Alt Text Pro dashboa
 6. Responsive admin interface for managing alt text from different screen sizes.
 
 == Changelog ==
+= 1.7.18 =
+* Security: Require edit permission for every image and post before generating or saving alt text.
+* Security: Bind opaque bulk jobs to the user who created them and reject duplicate batch execution.
+* Privacy: Remove detailed API, file-path, content, and process diagnostics from WordPress debug logs.
+* Fix: Prevent automatic upload generation from scheduling a second billable request after a successful run.
+
+= 1.7.17 =
+* Security: Require an exact origin, popup source, and cryptographic state for automatic connection callbacks.
+* Security: Store new API keys with authenticated encryption and never fall back to plain-text storage.
+* Fix: Align the batch-size field with the enforced 1-10 range and harden external dashboard links.
+
 = 1.7.16 =
 * Pricing: Added Agency plan support and aligned the free allowance copy with 150 signup credits plus 15 monthly credits.
 
@@ -684,27 +695,23 @@ Bug fix: Fixed settings page initialization for new installations. Recommended u
 Need help with alt text generation? We're here for you!
 
 * **Documentation**: Visit our [knowledge base](https://www.alt-text.pro/docs)
-* **Support**: Contact us at [support](https://www.alt-text.pro/support)
+* **Support**: Contact us through the [support form](https://www.alt-text.pro/contact)
 * **Feature Requests**: We love hearing your ideas!
 
 == Privacy Policy ==
 
-Alt Text Pro is committed to protecting your privacy:
+Alt Text Pro uses encrypted HTTPS connections. Images and optional page context are sent to the configured AI provider to generate a description. Account, usage, and operational records are retained as described in the Privacy Policy. API keys saved by the WordPress plugin are encrypted on the WordPress installation.
 
-* Images are processed securely via encrypted HTTPS connections
-* Images are not stored on our servers after alt text generation
-* Only necessary metadata is logged for service improvement
-* We comply with GDPR and other privacy regulations
-* You can delete your account and data at any time
+Uninstalling the plugin removes its settings, temporary bulk-job records, and local generation-history table. Alt text already saved to WordPress attachments is retained as site content.
+
+You can contact support to request access, correction, or deletion where applicable.
 
 For full details, see our [Privacy Policy](https://www.alt-text.pro/privacy).
 
 == About Alt Text Pro ==
 
-Alt Text Pro is the leading AI alt text generator dedicated to making the web more accessible for everyone. Our mission is to provide powerful, easy-to-use tools that help website owners create better alt text descriptions for their images, improving both accessibility and image SEO.
+Alt Text Pro helps WordPress site owners draft alt text for Media Library images, review the result, and save it into WordPress. It supports individual generation, small bulk batches, usage tracking, and optional page context.
 
-Founded by accessibility advocates and AI experts, we understand the importance of inclusive design and the challenges of creating quality alt text at scale. Our automatic alt text generator combines cutting-edge AI technology with human insight to deliver the best possible image optimization results.
+AI output can be incomplete or incorrect, so review important descriptions before publishing.
 
-Join thousands of websites already using Alt Text Pro - the #1 AI alt text generator - to improve their accessibility and image SEO!
-
-**Get started today**: [Sign up for free](https://www.alt-text.pro) and get credits to try our alt text generator risk-free.
+**Get started today**: [Sign up for free](https://www.alt-text.pro) and try the workflow with included free credits.

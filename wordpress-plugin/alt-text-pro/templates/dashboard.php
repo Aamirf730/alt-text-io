@@ -60,11 +60,11 @@ $alt_text_pro_current_page = isset($_GET['page']) ? sanitize_text_field(wp_unsla
                     style="font-size: 48px; width: 48px; height: 48px; color: var(--primary-color); margin-bottom: 20px;"></span>
                 <h2 style="margin-bottom: 10px;"><?php esc_html_e('Connect to Alt Text Pro', 'alt-text-pro'); ?></h2>
                 <p style="max-width: 500px; margin: 0 auto 30px; color: var(--text-secondary); font-size: 16px;">
-                    <?php esc_html_e('Get accurate alt text for your images automatically using AI. Connect your account to get started.', 'alt-text-pro'); ?>
+                    <?php esc_html_e('Generate editable alt-text drafts for your images with AI. Connect your account to get started.', 'alt-text-pro'); ?>
                 </p>
 
                 <div style="display: flex; gap: 16px; justify-content: center;">
-                    <a href="https://www.alt-text.pro/dashboard" target="_blank" class="button-secondary-custom">
+                    <a href="https://www.alt-text.pro/dashboard" target="_blank" rel="noopener noreferrer" class="button-secondary-custom">
                         <?php esc_html_e('Get API Key', 'alt-text-pro'); ?>
                         <span class="dashicons dashicons-external"></span>
                     </a>
@@ -197,7 +197,7 @@ else: ?>
                     <?php echo esc_html($alt_text_pro_plan_name); ?>
                 </div>
                 <div class="stat-desc">
-                    <a href="https://www.alt-text.pro/dashboard" target="_blank"
+                    <a href="https://www.alt-text.pro/dashboard" target="_blank" rel="noopener noreferrer"
                         style="text-decoration: none; color: var(--primary-color);">
                         <?php esc_html_e('Manage Subscription', 'alt-text-pro'); ?> &rarr;
                     </a>

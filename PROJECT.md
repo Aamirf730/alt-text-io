@@ -70,8 +70,8 @@ cd wordpress-plugin && ./build-plugin.sh
 Netlify:
 
 ```bash
-./node_modules/.bin/netlify status
-./node_modules/.bin/netlify watch
+npm run netlify -- status
+npm run netlify -- watch
 ```
 
 ## Release Workflow

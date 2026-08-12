@@ -2,6 +2,7 @@ import React from 'react';
 import Link from 'next/link';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+import { CREDIT_PACKS, SUBSCRIPTION_PLANS } from '@/lib/pricing-catalog';
 
 export default function TermsPage() {
     return (
@@ -9,10 +10,10 @@ export default function TermsPage() {
             <Navbar />
 
             {/* Content */}
-            <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+            <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
                 <div className="bg-white rounded-2xl shadow-xl p-8 md:p-12">
                     <h1 className="text-4xl font-bold text-gray-900 mb-2">Terms & Conditions</h1>
-                    <p className="text-gray-600 mb-8">Last updated: November 2024</p>
+                    <p className="text-gray-600 mb-8">Last updated: August 11, 2026</p>
 
                     <div className="prose prose-lg max-w-none space-y-8">
                         <section>
@@ -28,13 +29,13 @@ export default function TermsPage() {
                         <section>
                             <h2 className="text-2xl font-semibold text-gray-900 mb-4">2. Service Description</h2>
                             <p className="text-gray-700 leading-relaxed mb-4">
-                                Alt Text Pro is an AI-powered service that automatically generates descriptive alt text for images using advanced AI technology. Our Service includes:
+                                Alt Text Pro is an AI-assisted service that generates editable alt-text drafts for images. Our Service includes:
                             </p>
                             <ul className="list-disc list-inside text-gray-700 space-y-2 ml-4">
                                 <li>Web-based alt-text generation tool</li>
                                 <li>RESTful API for programmatic access</li>
                                 <li>WordPress plugin for automated alt-text generation</li>
-                                <li>Support for over 130 languages</li>
+                                <li>Review and editing controls for generated suggestions</li>
                                 <li>Bulk processing capabilities</li>
                             </ul>
                         </section>
@@ -48,7 +49,7 @@ export default function TermsPage() {
                                 <li>Create an account with a valid email address</li>
                                 <li>Provide accurate and complete information</li>
                                 <li>Maintain the security of your account credentials</li>
-                                <li>Be at least 18 years old or have parental consent</li>
+                                <li>Be at least 18 years old</li>
                             </ul>
                             <p className="text-gray-700 leading-relaxed">
                                 You are responsible for all activities that occur under your account. You must immediately notify us of any unauthorized use of your account.
@@ -62,16 +63,23 @@ export default function TermsPage() {
                             </p>
                             <div className="bg-gray-50 rounded-lg p-6 mb-4">
                                 <ul className="space-y-3 text-gray-700">
-                                    <li><strong>Free Plan:</strong> $0/month - 15 credits per month, plus a one-time 150-credit signup bonus that does not expire</li>
-                                    <li><strong>Lite:</strong> $4/month ($43.20/year) - 150 images per month</li>
-                                    <li><strong>Standard:</strong> $9/month ($97.20/year) - 1,000 images per month</li>
-                                    <li><strong>Pro:</strong> $14/month ($151.20/year) - 2,000 images per month</li>
-                                    <li><strong>Agency:</strong> $19/month ($205.20/year) - 3,500 images per month</li>
-                                    <li><strong>Pay as you go:</strong> $5 for 500 images or $10 for 1,200 images (one-time, never expire)</li>
+                                    {SUBSCRIPTION_PLANS.map((plan) => (
+                                        <li key={plan.id}>
+                                            <strong>{plan.name}:</strong>{' '}
+                                            {plan.id === 'free'
+                                                ? '$0/month — 15 credits per month, plus a one-time 150-credit signup bonus that does not expire'
+                                                : `${plan.monthlyPrice}/month (${plan.annualPrice}/year) — ${plan.creditCount.toLocaleString()} credits per month`}
+                                        </li>
+                                    ))}
+                                    {CREDIT_PACKS.map((pack) => (
+                                        <li key={pack.id}>
+                                            <strong>{pack.name}:</strong> {pack.price} for {pack.creditCount.toLocaleString()} credits (one-time; credits do not expire)
+                                        </li>
+                                    ))}
                                 </ul>
                             </div>
                             <p className="text-gray-700 leading-relaxed">
-                                All prices are in USD. Subscription plans renew automatically on a monthly basis unless cancelled. Credits reset at the beginning of each billing cycle for subscription plans. Existing subscribers keep the price and monthly credit allowance of the plan they purchased for as long as that subscription remains active. Signup bonus credits and purchased credit packs never expire and are not reset by a billing cycle.
+                                All prices are in USD. Subscriptions renew automatically on the monthly or annual billing schedule selected at checkout unless cancelled. Subscription credit allowances refresh monthly, including on annual plans. Existing subscribers keep the price and monthly credit allowance of the plan they purchased for as long as that subscription remains active. Signup bonus credits and purchased credit packs never expire and are not reset by a subscription credit refresh.
                             </p>
                         </section>
 
@@ -96,9 +104,9 @@ export default function TermsPage() {
                             </p>
                             <ul className="list-disc list-inside text-gray-700 space-y-2 ml-4">
                                 <li>No refunds are provided for partial billing periods</li>
-                                <li>Unused credits expire at the end of the billing period for subscription plans</li>
-                                <li>One-time credit packs are non-refundable</li>
-                                <li>Refunds may be provided at our sole discretion in exceptional circumstances</li>
+                                <li>Unused monthly subscription credits reset at the next monthly credit refresh</li>
+                                <li>One-time credit packs are generally non-refundable after credits are used, except where required by law or an approved refund is issued</li>
+                                <li>Approved refunds may revoke the related unused credits or subscription benefits</li>
                             </ul>
                         </section>
 
@@ -138,7 +146,7 @@ export default function TermsPage() {
                                 <li>Use the Service for any illegal or unauthorized purpose</li>
                                 <li>Violate any laws in your jurisdiction</li>
                                 <li>Infringe upon the intellectual property rights of others</li>
-                                <li>Attempt to reverse engineer or extract source code from the Service</li>
+                                <li>Attempt to bypass or reverse engineer the hosted Service, except where applicable law or an open-source license expressly permits it</li>
                                 <li>Use automated systems to abuse or overload our Service</li>
                                 <li>Share your account credentials with others</li>
                                 <li>Use the Service to generate alt text for illegal, harmful, or offensive content</li>
@@ -177,24 +185,14 @@ export default function TermsPage() {
                             </p>
                             <ul className="list-disc list-inside text-gray-700 space-y-2 ml-4">
                                 <li>Modify, suspend, or discontinue the Service at any time</li>
-                                <li>Change features, pricing, or availability without prior notice</li>
+                                <li>Change features, pricing, or availability prospectively, with notice where required by law or these Terms</li>
                                 <li>Terminate or suspend your account for violations of these Terms</li>
-                                <li>Refuse service to anyone for any reason</li>
+                                <li>Restrict service when reasonably necessary for security, abuse prevention, legal compliance, or enforcement of these Terms</li>
                             </ul>
                         </section>
 
                         <section>
-                            <h2 className="text-2xl font-semibold text-gray-900 mb-4">13. Governing Law and Disputes</h2>
-                            <p className="text-gray-700 leading-relaxed mb-4">
-                                These Terms shall be governed by and construed in accordance with the laws of the United States, without regard to its conflict of law provisions.
-                            </p>
-                            <p className="text-gray-700 leading-relaxed">
-                                Any disputes arising from these Terms or the Service shall be resolved through binding arbitration or in the courts of the United States.
-                            </p>
-                        </section>
-
-                        <section>
-                            <h2 className="text-2xl font-semibold text-gray-900 mb-4">14. Contact Information</h2>
+                            <h2 className="text-2xl font-semibold text-gray-900 mb-4">13. Contact Information</h2>
                             <p className="text-gray-700 leading-relaxed">
                                 If you have any questions about these Terms, please contact us at:
                             </p>
@@ -205,14 +203,14 @@ export default function TermsPage() {
                         </section>
 
                         <section>
-                            <h2 className="text-2xl font-semibold text-gray-900 mb-4">15. Changes to Terms</h2>
+                            <h2 className="text-2xl font-semibold text-gray-900 mb-4">14. Changes to Terms</h2>
                             <p className="text-gray-700 leading-relaxed">
                                 We reserve the right to modify these Terms at any time. We will notify users of material changes via email or through the Service. Your continued use of the Service after such modifications constitutes acceptance of the updated Terms.
                             </p>
                         </section>
                     </div>
                 </div>
-            </div>
+            </main>
             <Footer />
         </div>
     );

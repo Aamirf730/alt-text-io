@@ -4,7 +4,7 @@ export default defineConfig({
     test: {
         environment: 'node',
         globals: true,
-        include: ['**/*.test.{js,ts}'],
+        include: ['netlify-functions-tests/**/*.test.{js,ts}'],
         coverage: {
             provider: 'v8',
             reporter: ['text', 'html'],

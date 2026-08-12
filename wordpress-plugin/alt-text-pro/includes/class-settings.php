@@ -18,7 +18,30 @@ class AltTextPro_Settings
     /**
      * Encryption cipher method
      */
-    private $cipher = 'aes-256-cbc';
+    private $cipher = 'aes-256-gcm';
+    private $legacy_cipher = 'aes-256-cbc';
+    private $encryption_aad = 'alt-text-pro-api-key-v2';
+    private $storage_error_option = 'alt_text_pro_api_key_storage_error';
+
+    /**
+     * Persist one fail-closed storage warning without writing on every read.
+     */
+    private function record_api_key_storage_error()
+    {
+        if (false === get_option($this->storage_error_option, false)) {
+            add_option($this->storage_error_option, '1', '', false);
+        }
+    }
+
+    /**
+     * Clear the warning after storage is empty or a usable key is recovered.
+     */
+    private function clear_api_key_storage_error()
+    {
+        if (false !== get_option($this->storage_error_option, false)) {
+            delete_option($this->storage_error_option);
+        }
+    }
 
     /**
      * Constructor
@@ -144,7 +167,7 @@ class AltTextPro_Settings
             // only when it can be decrypted on this WordPress installation and is a
             // valid Alt Text Pro key. This avoids a second encryption pass while
             // preserving the same validation standard as the public settings form.
-            if (!empty($api_key) && strpos($api_key, 'enc:') === 0) {
+            if (!empty($api_key) && (strpos($api_key, 'enc2:') === 0 || strpos($api_key, 'enc:') === 0)) {
                 $decrypted_key = $this->decrypt_api_key($api_key);
                 if ($decrypted_key !== false && AltTextPro_API_Client::validate_api_key_format($decrypted_key)) {
                     $sanitized['api_key'] = $api_key;
@@ -162,8 +185,16 @@ class AltTextPro_Settings
             elseif (!empty($api_key) && AltTextPro_API_Client::validate_api_key_format($api_key)) {
                 // Valid new API key — encrypt and save
                 $encrypted_key = $this->encrypt_api_key($api_key);
-                if (!empty($encrypted_key)) {
+                if (is_string($encrypted_key) && strpos($encrypted_key, 'enc2:') === 0) {
                     $sanitized['api_key'] = $encrypted_key;
+                } else {
+                    add_settings_error(
+                        'alt_text_pro_settings',
+                        'api_key_encryption_failed',
+                        esc_html__('WordPress could not encrypt the API key. The existing key was kept and no plain-text key was saved.', 'alt-text-pro'),
+                        'error'
+                    );
+                    $sanitized['api_key'] = $existing_settings['api_key'] ?? '';
                 }
             }
             elseif (!empty($api_key) && !AltTextPro_API_Client::validate_api_key_format($api_key)) {
@@ -256,7 +287,7 @@ class AltTextPro_Settings
         echo wp_kses_post(
             sprintf(
             // translators: %s: URL to Alt Text Pro dashboard
-            esc_html__('Enter your Alt Text Pro API key. You can find this in your <a href="%1$s" target="_blank">Alt Text Pro dashboard</a>.', 'alt-text-pro'),
+            __('Enter your Alt Text Pro API key. You can find this in your <a href="%1$s" target="_blank" rel="noopener noreferrer">Alt Text Pro dashboard</a>.', 'alt-text-pro'),
             esc_url('https://www.alt-text.pro/dashboard')
         )
         );
@@ -325,7 +356,7 @@ class AltTextPro_Settings
         $settings = get_option('alt_text_pro_settings', $this->get_default_settings());
         $batch_size = $settings['batch_size'];
 
-        echo '<input type="number" id="batch_size" name="alt_text_pro_settings[batch_size]" value="' . esc_attr($batch_size) . '" min="1" max="50" class="small-text" />';
+        echo '<input type="number" id="batch_size" name="alt_text_pro_settings[batch_size]" value="' . esc_attr($batch_size) . '" min="1" max="10" class="small-text" />';
         echo ' ' . esc_html__('images per batch', 'alt-text-pro');
 
         echo '<p class="description">';
@@ -405,19 +436,44 @@ class AltTextPro_Settings
     {
         $settings = get_option('alt_text_pro_settings', $this->get_default_settings());
 
-        // Decrypt API key when reading from database
+        // Decrypt API key when reading from the database. Plain-text legacy
+        // values are migrated only when authenticated encryption succeeds.
         if (!empty($settings['api_key'])) {
-            $decrypted = $this->decrypt_api_key($settings['api_key']);
+            $stored_key = $settings['api_key'];
+            $decrypted = $this->decrypt_api_key($stored_key);
             if ($decrypted !== false) {
                 $settings['api_key'] = $decrypted;
+                $this->clear_api_key_storage_error();
+
+                // Upgrade legacy CBC records to authenticated GCM encryption.
+                if (strpos($stored_key, 'enc:') === 0) {
+                    $upgraded_key = $this->encrypt_api_key($decrypted);
+                    if (is_string($upgraded_key) && strpos($upgraded_key, 'enc2:') === 0) {
+                        $raw_settings = get_option('alt_text_pro_settings', $this->get_default_settings());
+                        $raw_settings['api_key'] = $upgraded_key;
+                        update_option('alt_text_pro_settings', $raw_settings);
+                    }
+                }
+            } elseif (AltTextPro_API_Client::validate_api_key_format($stored_key)) {
+                $encrypted_key = $this->encrypt_api_key($stored_key);
+                if (is_string($encrypted_key) && strpos($encrypted_key, 'enc2:') === 0) {
+                    $settings['api_key'] = $stored_key;
+                    $this->clear_api_key_storage_error();
+                    $raw_settings = get_option('alt_text_pro_settings', $this->get_default_settings());
+                    $raw_settings['api_key'] = $encrypted_key;
+                    update_option('alt_text_pro_settings', $raw_settings);
+                } else {
+                    // Fail closed: never keep using a key that remains stored in
+                    // plain text because this installation cannot encrypt it.
+                    $settings['api_key'] = '';
+                    $this->record_api_key_storage_error();
+                }
+            } else {
+                $settings['api_key'] = '';
+                $this->record_api_key_storage_error();
             }
-            // If decryption fails, value might be stored in plain text (pre-encryption)
-            // Auto-migrate: encrypt it now so it's encrypted next time
-            if ($decrypted === false && AltTextPro_API_Client::validate_api_key_format($settings['api_key'])) {
-                $raw_settings = get_option('alt_text_pro_settings', $this->get_default_settings());
-                $raw_settings['api_key'] = $this->encrypt_api_key($settings['api_key']);
-                update_option('alt_text_pro_settings', $raw_settings);
-            }
+        } else {
+            $this->clear_api_key_storage_error();
         }
 
         return $settings;
@@ -428,8 +484,32 @@ class AltTextPro_Settings
      */
     public function update_setting($key, $value)
     {
-        $settings = $this->get_settings();
-        $settings[$key] = $value;
+        $settings = get_option('alt_text_pro_settings', $this->get_default_settings());
+        if (!is_array($settings)) {
+            $settings = $this->get_default_settings();
+        }
+
+        if ('api_key' === $key) {
+            if (empty($value)) {
+                $settings['api_key'] = '';
+            } elseif (is_string($value) && (strpos($value, 'enc2:') === 0 || strpos($value, 'enc:') === 0)) {
+                if ($this->decrypt_api_key($value) === false) {
+                    return false;
+                }
+                $settings['api_key'] = $value;
+            } elseif (AltTextPro_API_Client::validate_api_key_format($value)) {
+                $encrypted_key = $this->encrypt_api_key($value);
+                if (!is_string($encrypted_key) || strpos($encrypted_key, 'enc2:') !== 0) {
+                    return false;
+                }
+                $settings['api_key'] = $encrypted_key;
+            } else {
+                return false;
+            }
+        } else {
+            $settings[$key] = $value;
+        }
+
         return update_option('alt_text_pro_settings', $settings);
     }
 
@@ -500,11 +580,15 @@ class AltTextPro_Settings
      * Get encryption key derived from WordPress AUTH_KEY.
      * AUTH_KEY is unique per WordPress installation (set in wp-config.php).
      *
-     * @return string 32-byte key for AES-256
+     * @return string|false 32-byte key for AES-256, or false when unavailable
      */
     private function get_encryption_key()
     {
-        $secret = defined('AUTH_KEY') ? AUTH_KEY : 'alt-text-pro-default-key';
+        if (!defined('AUTH_KEY') || !is_string(AUTH_KEY) || strlen(AUTH_KEY) < 20 || AUTH_KEY === 'put your unique phrase here') {
+            return false;
+        }
+
+        $secret = AUTH_KEY;
         return hash('sha256', $secret, true); // 32 bytes for AES-256
     }
 
@@ -512,7 +596,7 @@ class AltTextPro_Settings
      * Encrypt an API key before storing in database.
      *
      * @param string $plain_text The plain-text API key
-     * @return string Base64-encoded encrypted string (IV:ciphertext)
+     * @return string|false Authenticated encrypted value, or false on failure
      */
     public function encrypt_api_key($plain_text)
     {
@@ -520,29 +604,49 @@ class AltTextPro_Settings
             return '';
         }
 
-        if (!function_exists('openssl_encrypt')) {
-            // OpenSSL not available — store as-is (fallback)
-            return $plain_text;
+        if (!function_exists('openssl_encrypt') || !function_exists('openssl_cipher_iv_length')) {
+            return false;
         }
 
         $key = $this->get_encryption_key();
-        $iv_length = openssl_cipher_iv_length($this->cipher);
-        $iv = openssl_random_pseudo_bytes($iv_length);
-
-        $encrypted = openssl_encrypt($plain_text, $this->cipher, $key, OPENSSL_RAW_DATA, $iv);
-
-        if ($encrypted === false) {
-            return $plain_text; // Fallback to plain text on failure
+        if ($key === false) {
+            return false;
         }
 
-        // Prefix with 'enc:' marker so we can detect encrypted vs plain values
-        return 'enc:' . base64_encode($iv . $encrypted);
+        $iv_length = openssl_cipher_iv_length($this->cipher);
+        if (!is_int($iv_length) || $iv_length < 1) {
+            return false;
+        }
+
+        try {
+            $iv = random_bytes($iv_length);
+        } catch (Exception $exception) {
+            return false;
+        }
+
+        $tag = '';
+        $encrypted = openssl_encrypt(
+            $plain_text,
+            $this->cipher,
+            $key,
+            OPENSSL_RAW_DATA,
+            $iv,
+            $tag,
+            $this->encryption_aad,
+            16
+        );
+
+        if ($encrypted === false || strlen($tag) !== 16) {
+            return false;
+        }
+
+        return 'enc2:' . base64_encode($iv . $tag . $encrypted);
     }
 
     /**
      * Decrypt an API key read from database.
      *
-     * @param string $encrypted_text The encrypted API key (enc:base64...)
+     * @param string $encrypted_text The encrypted API key
      * @return string|false The decrypted API key, or false if not encrypted
      */
     public function decrypt_api_key($encrypted_text)
@@ -551,32 +655,63 @@ class AltTextPro_Settings
             return '';
         }
 
-        // Only attempt decryption if value has our 'enc:' prefix
-        if (strpos($encrypted_text, 'enc:') !== 0) {
-            return false; // Not encrypted — return false to signal plain text
-        }
-
-        if (!function_exists('openssl_decrypt')) {
+        if (!function_exists('openssl_decrypt') || !function_exists('openssl_cipher_iv_length')) {
             return false;
         }
 
         $key = $this->get_encryption_key();
-        $data = base64_decode(substr($encrypted_text, 4)); // Remove 'enc:' prefix
+        if ($key === false) {
+            return false;
+        }
+
+        if (strpos($encrypted_text, 'enc2:') === 0) {
+            $data = base64_decode(substr($encrypted_text, 5), true);
+            if ($data === false) {
+                return false;
+            }
+
+            $iv_length = openssl_cipher_iv_length($this->cipher);
+            if (!is_int($iv_length) || strlen($data) <= $iv_length + 16) {
+                return false;
+            }
+
+            $iv = substr($data, 0, $iv_length);
+            $tag = substr($data, $iv_length, 16);
+            $ciphertext = substr($data, $iv_length + 16);
+
+            $decrypted = openssl_decrypt(
+                $ciphertext,
+                $this->cipher,
+                $key,
+                OPENSSL_RAW_DATA,
+                $iv,
+                $tag,
+                $this->encryption_aad
+            );
+
+            return $decrypted !== false ? $decrypted : false;
+        }
+
+        if (strpos($encrypted_text, 'enc:') !== 0) {
+            return false;
+        }
+
+        $data = base64_decode(substr($encrypted_text, 4), true);
 
         if ($data === false) {
             return false;
         }
 
-        $iv_length = openssl_cipher_iv_length($this->cipher);
+        $iv_length = openssl_cipher_iv_length($this->legacy_cipher);
 
-        if (strlen($data) < $iv_length) {
+        if (!is_int($iv_length) || strlen($data) <= $iv_length) {
             return false;
         }
 
         $iv = substr($data, 0, $iv_length);
         $ciphertext = substr($data, $iv_length);
 
-        $decrypted = openssl_decrypt($ciphertext, $this->cipher, $key, OPENSSL_RAW_DATA, $iv);
+        $decrypted = openssl_decrypt($ciphertext, $this->legacy_cipher, $key, OPENSSL_RAW_DATA, $iv);
 
         return $decrypted !== false ? $decrypted : false;
     }

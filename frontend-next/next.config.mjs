@@ -1,5 +1,7 @@
 /** @type {import('next').NextConfig} */
 
+import { fileURLToPath } from 'node:url';
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Content Security Policy
 // ─────────────────────────────────────────────────────────────────────────────
@@ -9,12 +11,12 @@ const isDev = process.env.NODE_ENV === 'development';
 
 const ContentSecurityPolicy = `
   default-src 'self';
-  script-src 'self' 'unsafe-inline' 'unsafe-eval' https://embed.tawk.to https://*.tawk.to https://connect.facebook.net ${isDev ? 'http://localhost:*' : ''};
-  style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com https://*.tawk.to ${isDev ? 'http://localhost:*' : ''};
-  font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com data: ${isDev ? 'http://localhost:*' : ''};
-  img-src 'self' https://www.alt-text.pro https://alt-text.pro https://*.supabase.co https://www.facebook.com data: blob: ${isDev ? 'http://localhost:*' : ''};
-  connect-src 'self' https://*.supabase.co https://*.tawk.to wss://*.tawk.to https://api.polar.sh https://*.netlify.app https://www.alt-text.pro https://connect.facebook.net https://www.facebook.com ${isDev ? 'http://localhost:* ws://localhost:*' : ''};
-  frame-src 'self' https://*.tawk.to;
+  script-src 'self' 'unsafe-inline' ${isDev ? "'unsafe-eval' http://localhost:*" : ''};
+  style-src 'self' 'unsafe-inline' ${isDev ? 'http://localhost:*' : ''};
+  font-src 'self' data: ${isDev ? 'http://localhost:*' : ''};
+  img-src 'self' https://www.alt-text.pro https://alt-text.pro https://*.supabase.co data: blob: ${isDev ? 'http://localhost:*' : ''};
+  connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.polar.sh https://*.netlify.app https://www.alt-text.pro ${isDev ? 'http://localhost:* ws://localhost:*' : ''};
+  frame-src 'none';
   object-src 'none';
   base-uri 'self';
   form-action 'self';
@@ -40,10 +42,6 @@ const securityHeaders = [
     value: 'nosniff',
   },
   {
-    key: 'X-XSS-Protection',
-    value: '1; mode=block',
-  },
-  {
     key: 'Referrer-Policy',
     value: 'strict-origin-when-cross-origin',
   },
@@ -62,6 +60,8 @@ const securityHeaders = [
 // ─────────────────────────────────────────────────────────────────────────────
 
 const nextConfig = {
+  outputFileTracingRoot: fileURLToPath(new URL('.', import.meta.url)),
+
   images: {
     remotePatterns: [
       {

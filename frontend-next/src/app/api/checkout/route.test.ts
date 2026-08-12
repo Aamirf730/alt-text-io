@@ -61,6 +61,7 @@ describe("checkout identity binding", () => {
         process.env.POLAR_ACCESS_TOKEN = "polar-test-token";
         process.env.POLAR_ENVIRONMENT = "sandbox";
         process.env.NEXT_PUBLIC_SITE_URL = "http://localhost:3000";
+        process.env.NEXT_PUBLIC_POLAR_TIER1_MONTHLY = "prod_1";
         mocks.state.user = { id: "user_1", email: "Verified@Example.com" };
         mocks.state.authError = null;
         mocks.state.profile = { polar_customer_id: null };
@@ -91,6 +92,17 @@ describe("checkout identity binding", () => {
         expect(mocks.createCheckout).not.toHaveBeenCalled();
     });
 
+    it("rejects product IDs that are not configured by the application", async () => {
+        const response = await GET(new NextRequest(
+            "http://localhost/api/checkout?products=attacker_product",
+            { headers: { Authorization: "Bearer verified-session-token" } },
+        ));
+
+        expect(response.status).toBe(400);
+        expect(await response.json()).toEqual({ error: "Unknown checkout product" });
+        expect(mocks.createCheckout).not.toHaveBeenCalled();
+    });
+
     it("binds checkout metadata and customer identity to the authenticated account", async () => {
         const response = await GET(new NextRequest(
             "http://localhost/api/checkout?products=prod_1&customerEmail=attacker@example.com&format=json",
@@ -107,6 +119,7 @@ describe("checkout identity binding", () => {
         expect(mocks.createCheckout).toHaveBeenCalledOnce();
         expect(mocks.state.checkoutArgs).toMatchObject({
             products: ["prod_1"],
+            successUrl: "http://localhost:3000/payment-success?checkout_id={CHECKOUT_ID}",
             customerEmail: "verified@example.com",
             externalCustomerId: "user_1",
             metadata: { user_id: "user_1" },

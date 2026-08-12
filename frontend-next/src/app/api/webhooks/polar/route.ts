@@ -3,6 +3,7 @@ import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { createHash } from "node:crypto";
 import { extractPolarBillingSnapshot } from "@/lib/polar-billing";
 import { isPolarSubscriptionProduct, resolvePolarPlanId } from "@/lib/polar-plan-mapping";
+import { safeServerError } from "@/lib/safe-server-log";
 
 // Lazy initialization for Supabase client
 let supabaseClient: SupabaseClient | null = null;
@@ -54,12 +55,12 @@ const MONTHLY_CREDITS_MAP: Record<string, number> = {
 
 function logWebhookReceived(eventName: string, data: any) {
     console.log(`${eventName} webhook received`, {
-        id: data?.id,
         status: data?.status,
-        product: data?.product?.name,
-        hasCustomerEmail: Boolean(data?.customer?.email),
-        customerId: data?.customer?.id,
     });
+}
+
+function safeErrorMessage(error: unknown): string {
+    return safeServerError(error);
 }
 
 function isUniqueViolation(error: unknown): boolean {
@@ -77,7 +78,7 @@ async function recordPayment(payment: Record<string, unknown>) {
         .insert(payment);
 
     if (!error) {
-        console.log(`✓ Recorded payment ${String(payment.payment_id)}`);
+        console.log("Payment recorded");
         return;
     }
 
@@ -85,7 +86,7 @@ async function recordPayment(payment: Record<string, unknown>) {
     // still runs idempotent fulfillment so an interruption between the insert
     // and the grant can be recovered by Polar's retry.
     if (isUniqueViolation(error)) {
-        console.log(`↺ Payment ${String(payment.payment_id)} was already recorded`);
+        console.log("Payment replay detected; continuing idempotent fulfillment");
         return;
     }
 
@@ -116,7 +117,7 @@ async function recordMarketingEvent(
     }
 
     if (error) {
-        console.warn(`Could not record marketing event ${eventName}:`, error.message);
+        console.warn(`Could not record marketing event ${eventName}:`, safeServerError(error));
         if (options.throwOnError) {
             throw error;
         }
@@ -311,13 +312,13 @@ async function recordPaymentReconciliation({
 
     console.error("[PaymentReconciliation] Unmatched Polar payload", {
         eventName,
-        providerObjectId,
         reason,
-        candidateUserId: row.candidate_user_id,
-        customerId: row.customer_id,
-        customerEmail: row.customer_email,
-        subscriptionId: row.subscription_id,
-        paymentId: row.payment_id,
+        hasProviderObjectId: Boolean(providerObjectId),
+        hasCandidateUserId: Boolean(row.candidate_user_id),
+        hasCustomerId: Boolean(row.customer_id),
+        hasCustomerEmail: Boolean(row.customer_email),
+        hasSubscriptionId: Boolean(row.subscription_id),
+        hasPaymentId: Boolean(row.payment_id),
         alreadyQueued: Boolean(error && isUniqueViolation(error)),
     });
 }
@@ -533,7 +534,7 @@ function getCreditsForProduct(
         return 1200;
     }
 
-    console.warn(`Unknown product: ${productName}, defaulting to 0 credits`);
+    console.warn("Unknown Polar product; defaulting to 0 credits");
     return 0;
 }
 
@@ -586,8 +587,6 @@ async function updateUserCredits(
     isSubscription: boolean,
     paymentId?: string,
 ) {
-    console.log(`Updating credits for user ${userId}: +${credits} credits, isSubscription: ${isSubscription}`);
-
     if (isSubscription) {
         // Reset plan credits while preserving unspent promotional and paid
         // pack balances.
@@ -598,7 +597,7 @@ async function updateUserCredits(
             .single();
 
         if (fetchError) {
-            console.error("Error fetching persistent credit balances:", fetchError);
+            console.error("Error fetching persistent credit balances:", safeServerError(fetchError));
             throw fetchError;
         }
 
@@ -615,7 +614,7 @@ async function updateUserCredits(
             .eq("id", userId);
 
         if (error) {
-            console.error("Error updating subscription credits:", error);
+            console.error("Error updating subscription credits:", safeServerError(error));
             throw error;
         }
     } else {
@@ -633,7 +632,7 @@ async function updateUserCredits(
         });
 
         if (error) {
-            console.error("Error updating one-time credits:", error);
+            console.error("Error updating one-time credits:", safeServerError(error));
             throw error;
         }
 
@@ -642,7 +641,6 @@ async function updateUserCredits(
         }
     }
 
-    console.log(`Successfully updated credits for user ${userId}`);
 }
 
 const polarWebhookHandlers = {
@@ -744,14 +742,13 @@ const polarWebhookHandlers = {
                 // insert but before fulfillment.
                 await recordPayment(payment);
 
-                console.log(`✓ Processing one-time purchase: ${productName}`);
                 const credits = getCreditsForProduct(productName, mergedMetadata);
 
                 if (credits > 0) {
                     await updateUserCredits(userId, credits, false, paymentId);
-                    console.log(`✓ Added ${credits} credits to user ${userId} for one-time purchase "${productName}"`);
+                    console.log("One-time credit purchase fulfilled");
                 } else {
-                    console.warn(`No credits found for product: ${productName}`);
+                    console.warn("No credits found for Polar product");
                 }
 
                 await recordMarketingEvent(
@@ -777,11 +774,11 @@ const polarWebhookHandlers = {
             // Check if this is a subscription purchase
             // Subscriptions should ONLY be handled by onSubscriptionActive to prevent double allocation
             if (isSubscription) {
-                console.log(`⚠️ Skipping credit allocation in onOrderPaid for subscription "${productName}" - will be handled by onSubscriptionActive`);
+                console.log("Subscription order recorded; access is handled by the subscription lifecycle event");
                 return;
             }
         } catch (error) {
-            console.error("Error processing order paid webhook:", error);
+            console.error("Error processing order paid webhook:", safeErrorMessage(error));
             // Do not swallow credit-allocation failures. Returning 200 here
             // would prevent Polar from retrying a payment that was not
             // recorded or granted successfully.
@@ -796,9 +793,8 @@ const polarWebhookHandlers = {
             logWebhookReceived("Subscription active", subscription);
             const customerEmail = normalizeEmail(subscription.customer?.email);
 
-            // Get product details early for logging
+            // Get product details early for plan resolution.
             const productName = subscription.product?.name || "";
-            console.log(`✓ Processing subscription activation: ${productName} for ${customerEmail}`);
 
             const profile = await findOrQueueBillingProfile({
                 eventName: "subscription.active",
@@ -844,9 +840,9 @@ const polarWebhookHandlers = {
 
             if (creditsToGrant > 0) {
                 await updateUserCredits(userId, creditsToGrant, true);
-                console.log(`✓ Set ${creditsToGrant} credits for user ${userId} for subscription "${productName}" (${billingCycle} drip)`);
+                console.log("Subscription allowance initialized");
             } else {
-                console.warn(`No credits found for subscription product: ${productName}`);
+                console.warn("No credits found for Polar subscription product");
             }
 
             await getSupabase()
@@ -865,10 +861,10 @@ const polarWebhookHandlers = {
                 })
                 .eq("id", userId);
 
-            console.log(`✓ Configured profile for ${planId} (${billingCycle}) for user ${userId}`);
+            console.log(`Subscription profile configured for ${planId} (${billingCycle})`);
 
         } catch (error) {
-            console.error("Error processing subscription active webhook:", error);
+            console.error("Error processing subscription active webhook:", safeErrorMessage(error));
             throw error;
         }
     },
@@ -897,7 +893,7 @@ const polarWebhookHandlers = {
             }
 
             if (!matchesSubscription(profile, subscription.id)) {
-                console.warn(`Ignoring cancellation for stale subscription ${subscription.id}`);
+                console.warn("Ignoring cancellation for a stale subscription");
                 return;
             }
 
@@ -919,9 +915,9 @@ const polarWebhookHandlers = {
                 ends_at: subscriptionEnd,
             }, { throwOnError: true });
 
-            console.log(`Subscription cancellation scheduled for user ${profile.id} at ${subscriptionEnd || "provider-reported end"}`);
+            console.log("Subscription cancellation scheduled for the end of the paid period");
         } catch (error) {
-            console.error("Error processing subscription canceled webhook:", error);
+            console.error("Error processing subscription canceled webhook:", safeErrorMessage(error));
             throw error;
         }
     },
@@ -950,7 +946,7 @@ const polarWebhookHandlers = {
             }
 
             if (!matchesSubscription(profile, subscription.id)) {
-                console.warn(`Ignoring revocation for stale subscription ${subscription.id}`);
+                console.warn("Ignoring revocation for a stale subscription");
                 return;
             }
 
@@ -962,9 +958,9 @@ const polarWebhookHandlers = {
                 ended_at: toIsoDate(subscription.endedAt || subscription.endsAt),
             }, { throwOnError: true });
 
-            console.log(`Subscription revoked and downgraded to free for user ${profile.id}`);
+            console.log("Revoked subscription downgraded to the free plan");
         } catch (error) {
-            console.error("Error processing subscription revoked webhook:", error);
+            console.error("Error processing subscription revoked webhook:", safeErrorMessage(error));
             throw error;
         }
     },
@@ -994,7 +990,7 @@ const polarWebhookHandlers = {
             }
 
             if (!matchesSubscription(profile, subscription.id)) {
-                console.warn(`Ignoring uncancellation for stale subscription ${subscription.id}`);
+                console.warn("Ignoring uncancellation for a stale subscription");
                 return;
             }
 
@@ -1034,7 +1030,7 @@ const polarWebhookHandlers = {
                 ends_at: getSubscriptionEnd(subscription) || profile.next_billing_date,
             }, { throwOnError: true });
         } catch (error) {
-            console.error("Error processing subscription uncanceled webhook:", error);
+            console.error("Error processing subscription uncanceled webhook:", safeErrorMessage(error));
             throw error;
         }
     },
@@ -1096,7 +1092,7 @@ const polarWebhookHandlers = {
                 }, { throwOnError: true });
             }
         } catch (error) {
-            console.error("Error processing order refunded webhook:", error);
+            console.error("Error processing order refunded webhook:", safeErrorMessage(error));
             throw error;
         }
     },
@@ -1108,7 +1104,7 @@ const polarWebhookHandlers = {
         try {
             await processRefund(payload.data, "Refund created", "refund_created");
         } catch (error) {
-            console.error("Error processing refund created webhook:", error);
+            console.error("Error processing refund created webhook:", safeErrorMessage(error));
             throw error;
         }
     },
@@ -1119,7 +1115,7 @@ const polarWebhookHandlers = {
         try {
             await processRefund(payload.data, "Refund updated", "refund_updated");
         } catch (error) {
-            console.error("Error processing refund updated webhook:", error);
+            console.error("Error processing refund updated webhook:", safeErrorMessage(error));
             throw error;
         }
     },
@@ -1173,15 +1169,6 @@ const polarWebhookHandlers = {
                     });
                     const creditsToGrant = monthlyAllowance;
 
-                    console.log(`Processing subscription update for ${customerEmail}:`, {
-                        productName,
-                        creditsToGrant,
-                        storedSubscriptionId: user.subscription_id,
-                        incomingSubscriptionId: subscription.id,
-                        currentPeriodStart: subscription.currentPeriodStart,
-                        currentPeriodEnd: subscription.currentPeriodEnd,
-                    });
-
                     // Check if this is a renewal by comparing subscription_id OR if subscription_id is null (legacy)
                     const isMatchingSubscription = user.subscription_id === subscription.id || user.subscription_id === null;
 
@@ -1198,8 +1185,6 @@ const polarWebhookHandlers = {
                             (user.bonus_credits_remaining || 0)
                             + (user.purchased_credits_remaining || 0);
                         const newCredits = creditsToGrant + persistentCredits;
-
-                        console.log(`✓ Renewal detected! Resetting plan allowance to ${creditsToGrant} credits (persistent ledgers: ${persistentCredits}, total: ${newCredits})`);
 
                         const { error: updateError } = await getSupabase()
                             .from("profiles")
@@ -1222,7 +1207,7 @@ const polarWebhookHandlers = {
                             throw updateError;
                         }
 
-                        console.log(`✓ Renewed subscription credits for user ${userId}: +${creditsToGrant} credits (total: ${newCredits})`);
+                        console.log("Subscription allowance renewed");
 
                         // Revenue is recorded by onOrderPaid from Polar's
                         // canonical order ID. This lifecycle event only
@@ -1233,7 +1218,7 @@ const polarWebhookHandlers = {
                 }
             }
         } catch (error) {
-            console.error("Error processing subscription updated webhook:", error);
+            console.error("Error processing subscription updated webhook:", safeErrorMessage(error));
             throw error;
         }
     },

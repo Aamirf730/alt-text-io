@@ -18,7 +18,7 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 // Superuser emails (comma-separated list from environment variable)
-const SUPERUSER_EMAILS = (process.env.SUPERUSER_EMAILS || '').split(',').map(email => email.trim()).filter(Boolean);
+const SUPERUSER_EMAILS = (process.env.SUPERUSER_EMAILS || '').split(',').map(email => email.trim().toLowerCase()).filter(Boolean);
 
 // Stricter rate limit for admin endpoints
 const ADMIN_RATE_LIMIT = 10;
@@ -53,7 +53,7 @@ exports.handler = async (event, context) => {
       };
     }
 
-    const token = authHeader.replace('Bearer ', '').trim();
+    const token = authHeader.replace(/^Bearer\s+/i, '').trim();
 
     // Validate JWT token and get user
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
@@ -67,7 +67,7 @@ exports.handler = async (event, context) => {
     }
 
     // Check if user is a superuser
-    if (!SUPERUSER_EMAILS.includes(user.email)) {
+    if (!SUPERUSER_EMAILS.includes(String(user.email || '').trim().toLowerCase())) {
       return {
         statusCode: 403,
         headers,
@@ -85,8 +85,6 @@ exports.handler = async (event, context) => {
       { maxItems: 50 }
     );
     if (emailsError) return badRequest(headers, emailsError);
-
-    console.log('Emails to delete:', emailsToDelete);
 
     const results = [];
     const errors = [];
@@ -106,13 +104,11 @@ exports.handler = async (event, context) => {
     // Process each email
     for (const email of emailsToDelete) {
       try {
-        console.log(`Processing deletion for: ${email}`);
-
         // Find user by email
-        const authUser = allUsers.find(u => u.email === email);
+        const normalizedEmail = String(email || '').trim().toLowerCase();
+        const authUser = allUsers.find(u => String(u.email || '').trim().toLowerCase() === normalizedEmail);
 
         if (!authUser) {
-          console.log(`User not found: ${email}`);
           results.push({
             email,
             status: 'not_found',
@@ -122,8 +118,6 @@ exports.handler = async (event, context) => {
         }
 
         const userId = authUser.id;
-        console.log(`Found user: ${email} (ID: ${userId})`);
-
         // Delete related data first (profiles, payments, usage_logs)
         // Note: These should cascade delete, but we'll delete them explicitly to be safe
 
@@ -134,9 +128,7 @@ exports.handler = async (event, context) => {
           .eq('user_id', userId);
 
         if (usageError) {
-          console.error(`Error deleting usage logs for ${email}:`, usageError);
-        } else {
-          console.log(`Deleted usage logs for ${email}`);
+          console.error('Error deleting usage logs during an admin account deletion');
         }
 
         // Delete payments
@@ -146,9 +138,7 @@ exports.handler = async (event, context) => {
           .eq('user_id', userId);
 
         if (paymentsError) {
-          console.error(`Error deleting payments for ${email}:`, paymentsError);
-        } else {
-          console.log(`Deleted payments for ${email}`);
+          console.error('Error deleting payments during an admin account deletion');
         }
 
         // Delete profile
@@ -158,22 +148,19 @@ exports.handler = async (event, context) => {
           .eq('id', userId);
 
         if (profileError) {
-          console.error(`Error deleting profile for ${email}:`, profileError);
-        } else {
-          console.log(`Deleted profile for ${email}`);
+          console.error('Error deleting a profile during an admin account deletion');
         }
 
         // Finally, delete the auth user
         const { error: deleteError } = await supabase.auth.admin.deleteUser(userId);
 
         if (deleteError) {
-          console.error(`Error deleting auth user for ${email}:`, deleteError);
+          console.error('Error deleting an auth user during an admin account deletion');
           errors.push({
             email,
             error: deleteError.message
           });
         } else {
-          console.log(`Successfully deleted user: ${email}`);
           results.push({
             email,
             status: 'deleted',
@@ -182,7 +169,7 @@ exports.handler = async (event, context) => {
         }
 
       } catch (error) {
-        console.error(`Error processing ${email}:`, error);
+        console.error('Unexpected admin account-deletion error');
         errors.push({
           email,
           error: error.message
@@ -214,4 +201,3 @@ exports.handler = async (event, context) => {
     };
   }
 };
-

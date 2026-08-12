@@ -11,10 +11,11 @@ describe('error-reporter', () => {
         const spy = vi.spyOn(console, 'error').mockImplementation(() => { });
         const { reportError } = await import('./error-reporter.js');
 
-        reportError(new Error('test failure'), {
+        reportError(new Error('test failure for person@example.com with alt_secret_key_123456'), {
             functionName: 'generate-alt-text',
             ip: '1.2.3.4',
             userId: 'usr_123',
+            extra: { duration: 42, customer_email: 'person@example.com' },
         });
 
         expect(spy).toHaveBeenCalledOnce();
@@ -22,11 +23,14 @@ describe('error-reporter', () => {
         const parsed = JSON.parse(loggedString);
 
         expect(parsed.severity).toBe('error');
-        expect(parsed.message).toBe('test failure');
+        expect(parsed.message).toContain('test failure for [redacted-email]');
+        expect(parsed.message).toContain('[redacted-api-key]');
         expect(parsed.function).toBe('generate-alt-text');
-        expect(parsed.ip).toBe('1.2.3.4');
-        expect(parsed.userId).toBe('usr_123');
-        expect(parsed.stack).toContain('Error: test failure');
+        expect(parsed.ip).toBeUndefined();
+        expect(parsed.userId).toBeUndefined();
+        expect(parsed.extra.duration).toBe(42);
+        expect(parsed.extra.customer_email).toBeUndefined();
+        expect(parsed.stack).not.toContain('person@example.com');
         expect(parsed.timestamp).toBeDefined();
 
         spy.mockRestore();
@@ -114,5 +118,29 @@ describe('error-reporter', () => {
         expect(parsed.stack).toBeUndefined();
 
         console.error.mockRestore();
+    });
+
+    it('sanitizes request IDs and object values nested inside arrays', async () => {
+        const spy = vi.spyOn(console, 'warn').mockImplementation(() => { });
+        const { reportWarning } = await import('./error-reporter.js');
+
+        reportWarning('Nested context', {
+            functionName: 'test',
+            requestId: `request-person@example.com-${'x'.repeat(200)}`,
+            extra: {
+                events: [{
+                    label: 'safe',
+                    customer_email: 'person@example.com',
+                    nested: [{ api_key: 'alt_secret_key_123456', count: 2 }],
+                }],
+            },
+        });
+
+        const parsed = JSON.parse(spy.mock.calls[0][1]);
+        expect(parsed.requestId).not.toContain('person@example.com');
+        expect(parsed.requestId.length).toBeLessThanOrEqual(128);
+        expect(parsed.extra.events[0]).toEqual({ label: 'safe', nested: [{ count: 2 }] });
+
+        spy.mockRestore();
     });
 });

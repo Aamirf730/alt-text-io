@@ -1,0 +1,36 @@
+<?php
+/**
+ * Remove Alt Text Pro configuration and local generation history on uninstall.
+ * Generated attachment alt text remains part of the site's content.
+ */
+
+if (!defined('WP_UNINSTALL_PLUGIN')) {
+    exit;
+}
+
+global $wpdb;
+
+delete_option('alt_text_pro_settings');
+delete_option('alt_text_pro_version');
+delete_transient('alt_text_pro_activation_redirect');
+
+wp_clear_scheduled_hook('alt_text_pro_cleanup');
+wp_clear_scheduled_hook('alt_text_pro_bulk_process_batch');
+wp_clear_scheduled_hook('alt_text_pro_generate_background');
+
+$logs_table = $wpdb->prefix . 'alt_text_pro_logs';
+// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+$wpdb->query("DROP TABLE IF EXISTS {$logs_table}");
+
+$transient_prefix = $wpdb->esc_like('_transient_alt_text_pro_') . '%';
+$timeout_prefix = $wpdb->esc_like('_transient_timeout_alt_text_pro_') . '%';
+$lock_prefix = $wpdb->esc_like('alt_text_pro_bulk_lock_') . '%';
+// phpcs:ignore WordPress.DB.DirectDatabaseQuery
+$wpdb->query(
+    $wpdb->prepare(
+        "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s",
+        $transient_prefix,
+        $timeout_prefix,
+        $lock_prefix
+    )
+);

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Polar } from "@polar-sh/sdk";
 import { createClient } from "@supabase/supabase-js";
+import { getConfiguredPolarProductIds } from "@/lib/polar-products";
+import { safeServerError } from "@/lib/safe-server-log";
 
 function getSupabaseClient() {
     return createClient(
@@ -15,6 +17,16 @@ export async function GET(request: NextRequest) {
 
     if (!productId) {
         return NextResponse.json({ error: "No products specified" }, { status: 400 });
+    }
+
+    const configuredProductIds = getConfiguredPolarProductIds();
+
+    if (configuredProductIds.size === 0) {
+        return NextResponse.json({ error: "Checkout products are not configured" }, { status: 503 });
+    }
+
+    if (!configuredProductIds.has(productId)) {
+        return NextResponse.json({ error: "Unknown checkout product" }, { status: 400 });
     }
 
     try {
@@ -54,17 +66,11 @@ export async function GET(request: NextRequest) {
 
         const polarAccessToken = process.env.POLAR_ACCESS_TOKEN;
         const environment = process.env.POLAR_ENVIRONMENT || "sandbox";
-        const successUrl = process.env.NEXT_PUBLIC_SITE_URL
-            ? `${process.env.NEXT_PUBLIC_SITE_URL}/payment-success`
-            : "https://www.alt-text.pro/payment-success";
+        const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || "https://www.alt-text.pro").replace(/\/$/, "");
+        const successUrl = `${siteUrl}/payment-success?checkout_id={CHECKOUT_ID}`;
 
         if (!polarAccessToken) {
             return NextResponse.json({ error: "POLAR_ACCESS_TOKEN not configured" }, { status: 500 });
-        }
-
-        if (process.env.NODE_ENV !== "production") {
-            console.log("Checkout API called with product:", productId);
-            console.log("Polar environment:", environment);
         }
 
         const polar = new Polar({
@@ -94,7 +100,7 @@ export async function GET(request: NextRequest) {
 
         return NextResponse.redirect(checkout.url);
     } catch (error: unknown) {
-        console.error("Checkout error:", error);
+        console.error("Checkout error:", safeServerError(error));
         return NextResponse.json(
             { error: "Checkout failed. Please try again or contact support." },
             { status: 500 }

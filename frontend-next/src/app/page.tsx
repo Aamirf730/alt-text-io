@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { supabase } from '@/lib/supabase';
 import { getApiBase } from '@/lib/utils';
 import { trackMarketingEvent } from '@/lib/analytics';
+import { getPolarProductId } from '@/lib/polar-products';
 import { toast } from "sonner";
 import {
   Brain, CheckCircle, Star, ArrowRight, Users, Shield, Rocket,
@@ -26,20 +27,8 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import MediaLibraryShowcase from '@/components/MediaLibraryShowcase';
 import BenefitsStrip from '@/components/BenefitsStrip';
-import PricingSection from '@/components/PricingSection';
-// Polar.sh product IDs from environment variables
-const POLAR_PRODUCTS = {
-  tier1_monthly: process.env.NEXT_PUBLIC_POLAR_TIER1_MONTHLY || '',
-  tier1_annual: process.env.NEXT_PUBLIC_POLAR_TIER1_ANNUAL || '',
-  tier2_monthly: process.env.NEXT_PUBLIC_POLAR_TIER2_MONTHLY || '',
-  tier2_annual: process.env.NEXT_PUBLIC_POLAR_TIER2_ANNUAL || '',
-  tier3_monthly: process.env.NEXT_PUBLIC_POLAR_TIER3_MONTHLY || '',
-  tier3_annual: process.env.NEXT_PUBLIC_POLAR_TIER3_ANNUAL || '',
-  tier4_monthly: process.env.NEXT_PUBLIC_POLAR_TIER4_MONTHLY || '',
-  tier4_annual: process.env.NEXT_PUBLIC_POLAR_TIER4_ANNUAL || '',
-  small_pack: process.env.NEXT_PUBLIC_POLAR_SMALL_PACK || '',
-  credit_pack: process.env.NEXT_PUBLIC_POLAR_CREDIT_PACK || '',
-};
+import PricingSection, { pricingPlans } from '@/components/PricingSection';
+import { CREDIT_PACKS } from '@/lib/pricing-catalog';
 
 const HERO_SAMPLE_ALT_TEXT = "Turquoise alpine lake reflecting sunlit mountain peaks and pine trees under a clear sky.";
 
@@ -58,8 +47,25 @@ export default function LandingPage() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [billingCycle, setBillingCycle] = useState('monthly');
   const [openFaq, setOpenFaq] = useState(0);
+  const authDialogRef = useRef<HTMLDivElement>(null);
+  const emailInputRef = useRef<HTMLInputElement>(null);
 
   const router = useRouter();
+
+  useEffect(() => {
+    if (!showAuthForm) return;
+
+    const previousActiveElement = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const focusTimer = window.setTimeout(() => emailInputRef.current?.focus(), 0);
+
+    return () => {
+      window.clearTimeout(focusTimer);
+      document.body.style.overflow = previousOverflow;
+      previousActiveElement?.focus();
+    };
+  }, [showAuthForm]);
 
   useEffect(() => {
     trackMarketingEvent("page_viewed", {
@@ -236,11 +242,7 @@ export default function LandingPage() {
           email,
           password,
           options: {
-            emailRedirectTo: window.location.origin + '/email-confirmed',
-            data: {
-              subscription_plan: 'free',
-              credits_remaining: 165
-            }
+            emailRedirectTo: window.location.origin + '/email-confirmed'
           }
         });
       }
@@ -315,17 +317,17 @@ export default function LandingPage() {
   };
 
   // Redirect to Polar.sh checkout
-  const redirectToCheckout = async (productId: string) => {
+  const redirectToCheckout = async (productId: string): Promise<boolean> => {
     if (!productId) {
       toast.error('Product not configured. Please contact support.');
-      return;
+      return false;
     }
 
     const { data: { session } } = await supabase.auth.getSession();
 
     if (!session?.access_token) {
       toast.error('Please sign in again before starting checkout.');
-      return;
+      return false;
     }
 
     trackMarketingEvent("checkout_started", {
@@ -352,38 +354,17 @@ export default function LandingPage() {
 
     if (!response.ok || !data.url) {
       toast.error(data.error || 'Could not start checkout. Please try again.');
-      return;
+      return false;
     }
 
     window.location.href = data.url;
-  };
-
-  // Get the correct Polar product ID based on plan and billing cycle
-  const getPolarProductId = (planId: string, cycle: string): string => {
-    if (planId === 'tier1') {
-      return cycle === 'annual' ? POLAR_PRODUCTS.tier1_annual : POLAR_PRODUCTS.tier1_monthly;
-    }
-    if (planId === 'tier2') {
-      return cycle === 'annual' ? POLAR_PRODUCTS.tier2_annual : POLAR_PRODUCTS.tier2_monthly;
-    }
-    if (planId === 'tier3') {
-      return cycle === 'annual' ? POLAR_PRODUCTS.tier3_annual : POLAR_PRODUCTS.tier3_monthly;
-    }
-    if (planId === 'tier4') {
-      return cycle === 'annual' ? POLAR_PRODUCTS.tier4_annual : POLAR_PRODUCTS.tier4_monthly;
-    }
-    if (planId === 'small_pack') {
-      return POLAR_PRODUCTS.small_pack;
-    }
-    if (planId === 'credit_pack') {
-      return POLAR_PRODUCTS.credit_pack;
-    }
-    return '';
+    return true;
   };
 
   // Handle purchase/upgrade
   const handlePurchase = async (planId: string) => {
     setIsLoading(true);
+    let redirecting = false;
     try {
       if (planId === 'free') {
         setShowPaymentModal(false);
@@ -393,12 +374,46 @@ export default function LandingPage() {
       }
 
       const productId = getPolarProductId(planId, billingCycle);
-      await redirectToCheckout(productId);
+      redirecting = await redirectToCheckout(productId);
     } catch (error) {
       console.error('Purchase error:', error);
       toast.error("Failed to start purchase.");
     } finally {
-      setIsLoading(true); // Keep loading state until redirect
+      if (!redirecting) setIsLoading(false);
+    }
+  };
+
+  const selectedPlanFeatures = selectedPlan
+    ? pricingPlans.find((plan) => plan.id === selectedPlan.id)?.features
+      || CREDIT_PACKS.find((pack) => pack.id === selectedPlan.id)?.features
+      || []
+    : [];
+
+  const handleAuthDialogKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      setShowAuthForm(false);
+      return;
+    }
+
+    if (event.key !== 'Tab' || !authDialogRef.current) return;
+
+    const focusableElements = Array.from(
+      authDialogRef.current.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ),
+    ).filter((element) => !element.hasAttribute('hidden'));
+
+    if (focusableElements.length === 0) return;
+    const firstElement = focusableElements[0];
+    const lastElement = focusableElements[focusableElements.length - 1];
+
+    if (event.shiftKey && document.activeElement === firstElement) {
+      event.preventDefault();
+      lastElement.focus();
+    } else if (!event.shiftKey && document.activeElement === lastElement) {
+      event.preventDefault();
+      firstElement.focus();
     }
   };
 
@@ -414,7 +429,7 @@ export default function LandingPage() {
           setShowAuthForm(true);
         }}
       />
-      <div className="relative overflow-hidden">
+      <main className="relative overflow-hidden">
         {/* Notebook-style Subtle Background Accents */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-[1400px] h-[600px] bg-gradient-to-b from-notebook-blue/5 to-transparent blur-[120px] opacity-70 select-none pointer-events-none"></div>
 
@@ -430,7 +445,7 @@ export default function LandingPage() {
                   </h1>
 
                   <p className="mt-6 max-w-2xl text-lg font-normal leading-relaxed text-slate-500 sm:text-xl lg:text-[1.7rem] min-[1800px]:mt-10 min-[1800px]:max-w-[900px] min-[1800px]:text-[2.15rem]" style={{ lineHeight: 1.2 }}>
-                    Generate accurate, context-aware alt text across your WordPress media library.
+                    Generate useful, context-aware alt text drafts across your WordPress media library.
                   </p>
 
                   <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:items-center min-[1800px]:mt-20">
@@ -558,7 +573,7 @@ export default function LandingPage() {
                 <span className="text-notebook-blue italic">Without Guesswork.</span>
               </h2>
               <p className="text-slate-500 max-w-2xl mx-auto text-xl font-normal">
-                Connect WordPress, generate accurate descriptions, and keep every image accessible from the start.
+                Connect WordPress, generate editable descriptions, and review every important image before publishing.
               </p>
             </div>
 
@@ -717,7 +732,7 @@ export default function LandingPage() {
                             <span className="text-[10px] font-bold text-notebook-black/70 font-outfit uppercase">Accessibility Standards</span>
                           </div>
                           <div className="flex-1 bg-[#FEE11C] rounded-lg border border-[#E8C900] py-2 px-3 flex items-center">
-                            <span className="text-[10px] font-bold text-black font-outfit uppercase">SEO Rank 1</span>
+                            <span className="text-[10px] font-bold text-black font-outfit uppercase">Ready to review</span>
                           </div>
                         </div>
                       </div>
@@ -744,75 +759,41 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Social Proof Section */}
+        {/* Product proof section */}
         <section className="py-24 bg-white border-t border-notebook-blue/5 relative overflow-hidden">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
             <div className="text-center mb-16">
               <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-notebook-blue/5 border border-notebook-blue/10 mb-6">
                 <div className="w-1.5 h-1.5 rounded-full bg-notebook-blue animate-pulse" />
-                <span className="text-[10px] font-bold text-notebook-blue uppercase tracking-widest font-outfit">Customer Love</span>
+                <span className="text-[10px] font-bold text-notebook-blue uppercase tracking-widest font-outfit">Product facts</span>
               </div>
-              <h2 className="text-3xl lg:text-5xl font-bold text-notebook-slate mb-4 tracking-tight font-outfit">Built for teams who care about accessibility</h2>
-              <p className="text-slate-500 text-xl max-w-2xl mx-auto font-normal">Give every WordPress image accurate, SEO-friendly alt text without slowing down your workflow.</p>
+              <h2 className="text-3xl lg:text-5xl font-bold text-notebook-slate mb-4 tracking-tight font-outfit">A workflow you can inspect and control</h2>
+              <p className="text-slate-500 text-xl max-w-2xl mx-auto font-normal">Generate suggestions, review the wording, and save approved alt text without leaving WordPress.</p>
             </div>
 
             <div className="grid md:grid-cols-3 gap-6">
-              {/* Testimonial 1 */}
               <div className="bg-notebook-paper border border-notebook-blue/10 p-8 rounded-[2rem] hover:shadow-notebook transition-all duration-300">
-                <div className="flex gap-1 text-notebook-orange mb-6">
-                  {[...Array(5)].map((_, i) => <Star key={i} className="w-4 h-4 fill-current" />)}
+                <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl bg-white border border-notebook-blue/10">
+                  <Eye className="h-6 w-6 text-notebook-blue" aria-hidden="true" />
                 </div>
-                <p className="text-notebook-black font-medium leading-relaxed mb-8 text-sm italic">
-                  "This completely transformed our workflow. Manually writing alt text used to be a chore we dreaded. The AI generates perfect, SEO-rich descriptions instantly. It's like having an extra pair of hands."
-                </p>
-                <div className="flex items-center gap-4">
-                  <div className="relative w-10 h-10 rounded-full overflow-hidden shadow-sm">
-                    <Image src="/client_avatar_1.png" alt="Clara Vanni" fill sizes="40px" className="object-cover" />
-                  </div>
-                  <div>
-                    <h4 className="text-notebook-black font-bold text-xs uppercase tracking-wider font-outfit">Clara Vanni</h4>
-                    <p className="text-[10px] text-notebook-black/40 font-bold uppercase tracking-widest">Startup Founder</p>
-                  </div>
-                </div>
+                <h3 className="font-outfit text-xl font-bold text-notebook-black">Review before saving</h3>
+                <p className="mt-4 text-sm font-medium leading-relaxed text-slate-500">Generated text remains editable, so you can add page-specific context before it reaches the media library.</p>
               </div>
 
-              {/* Testimonial 2 */}
               <div className="bg-notebook-paper border border-notebook-orange/20 p-8 rounded-[2rem] hover:shadow-notebook transition-all duration-300 relative transform md:-translate-y-4">
-                <div className="absolute -top-3 -right-3 text-4xl text-notebook-orange/20 font-serif">"</div>
-                <div className="flex gap-1 text-notebook-orange mb-6">
-                  {[...Array(5)].map((_, i) => <Star key={i} className="w-4 h-4 fill-current" />)}
+                <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl bg-white border border-notebook-orange/20">
+                  <Layers className="h-6 w-6 text-notebook-orange" aria-hidden="true" />
                 </div>
-                <p className="text-notebook-black font-medium leading-relaxed mb-8 text-sm italic">
-                  "As a small team, we didn't have the resources to manually tag every image. Alt Text AI integrated seamlessly and handled our entire media library in minutes. A huge time-saver."
-                </p>
-                <div className="flex items-center gap-4">
-                  <div className="relative w-10 h-10 rounded-full overflow-hidden shadow-sm">
-                    <Image src="/client_avatar_2.png" alt="Tariq Hasan" fill sizes="40px" className="object-cover" />
-                  </div>
-                  <div>
-                    <h4 className="text-notebook-black font-bold text-xs uppercase tracking-wider font-outfit">Tariq Hasan</h4>
-                    <p className="text-[10px] text-notebook-black/40 font-bold uppercase tracking-widest">Lead Developer</p>
-                  </div>
-                </div>
+                <h3 className="font-outfit text-xl font-bold text-notebook-black">Controlled bulk processing</h3>
+                <p className="mt-4 text-sm font-medium leading-relaxed text-slate-500">Choose a batch size and whether existing alt text may be replaced before a media-library run begins.</p>
               </div>
 
-              {/* Testimonial 3 */}
               <div className="bg-notebook-paper border border-notebook-blue/10 p-8 rounded-[2rem] hover:shadow-notebook transition-all duration-300">
-                <div className="flex gap-1 text-notebook-orange mb-6">
-                  {[...Array(5)].map((_, i) => <Star key={i} className="w-4 h-4 fill-current" />)}
+                <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl bg-white border border-notebook-blue/10">
+                  <CheckCircle className="h-6 w-6 text-notebook-blue" aria-hidden="true" />
                 </div>
-                <p className="text-notebook-black font-medium leading-relaxed mb-8 text-sm italic">
-                  "Accessibility matters, but it's hard to make time for it. This tool runs quietly in the background, ensuring our content is inclusive and SEO-friendly without adding to our workload."
-                </p>
-                <div className="flex items-center gap-4">
-                  <div className="relative w-10 h-10 rounded-full overflow-hidden shadow-sm">
-                    <Image src="/client_avatar_3.png" alt="Elena Rostova" fill sizes="40px" className="object-cover" />
-                  </div>
-                  <div>
-                    <h4 className="text-notebook-black font-bold text-xs uppercase tracking-wider font-outfit">Elena Rostova</h4>
-                    <p className="text-[10px] text-notebook-black/40 font-bold uppercase tracking-widest">Content Marketer</p>
-                  </div>
-                </div>
+                <h3 className="font-outfit text-xl font-bold text-notebook-black">Credits debit on success</h3>
+                <p className="mt-4 text-sm font-medium leading-relaxed text-slate-500">A successful image generation uses one credit. Failed generation requests release their reservation.</p>
               </div>
             </div>
           </div>
@@ -824,305 +805,6 @@ export default function LandingPage() {
           onSelectPlan={handlePlanSelection}
         />
 
-        {/* Legacy pricing markup retained for reference; the screenshot-matched section above is the active pricing UI. */}
-        <section id="legacy-pricing" className="hidden py-32 bg-notebook-paper relative overflow-hidden border-t border-notebook-blue/5">
-          {/* Subtle Background Accent */}
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-[1200px] h-[400px] bg-gradient-to-b from-notebook-blue/5 to-transparent blur-[100px] opacity-60 pointer-events-none"></div>
-
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-            <div className="text-center mb-20 space-y-6">
-              <div className="inline-flex px-4 py-2 rounded-full bg-notebook-blue/5 border border-notebook-blue/10">
-                <span className="text-[10px] font-bold text-notebook-blue uppercase tracking-widest font-outfit">Subscription Management</span>
-              </div>
-              <h2 className="text-4xl lg:text-6xl font-bold text-notebook-slate tracking-tight font-outfit">
-                Start Free, Then
-                <br />
-                <span className="text-notebook-blue italic">Scale Credits.</span>
-              </h2>
-              <p className="text-lg text-slate-500 max-w-2xl mx-auto font-normal">
-                Try the full WordPress flow with 150 signup credits and 15 monthly credits. Upgrade only when you are ready to process more images.
-              </p>
-
-              {/* Refined Billing Cycle Toggle */}
-              <div className="flex flex-col items-center justify-center mt-12">
-                <div className="flex items-center p-1.5 bg-white border border-gray-100 rounded-2xl shadow-notebook-sm">
-                  <button
-                    className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 font-outfit ${billingCycle === 'monthly' ? 'bg-notebook-blue text-white shadow-notebook' : 'text-gray-400 hover:text-notebook-slate'}`}
-                    onClick={() => setBillingCycle('monthly')}
-                  >
-                    Monthly Access
-                  </button>
-                  <button
-                    className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 font-outfit relative flex items-center gap-2 ${billingCycle === 'annual' ? 'bg-notebook-blue text-white shadow-notebook' : 'text-gray-400 hover:text-notebook-slate'}`}
-                    onClick={() => setBillingCycle('annual')}
-                  >
-                    Annual Billing
-                    <span className={`static ml-1 text-[9px] font-bold px-1.5 py-0.5 rounded-lg bg-notebook-orange/10 text-notebook-orange border border-notebook-orange/20 whitespace-nowrap`}>
-                      -20%
-                    </span>
-                  </button>
-                </div>
-                <p className="text-[10px] font-bold text-gray-400 mt-6 flex items-center gap-1.5 uppercase tracking-widest leading-none">
-                  <Info className="w-3 h-3" /> 1 Credit = 1 AI-Optimized Alt Text
-                </p>
-              </div>
-            </div>
-
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {/* Free Plan */}
-              <div className="bg-white border border-gray-100 rounded-[2.5rem] p-10 flex flex-col relative group hover:shadow-notebook transition-all duration-500">
-                <div className="mb-10">
-                  <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4 font-outfit">Free Plan</h3>
-                  <div className="flex items-baseline gap-1 text-notebook-slate mb-2">
-                    <span className="text-4xl font-bold tracking-tight font-outfit">$0</span>
-                    <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">/mo</span>
-                  </div>
-                  <p className="text-xs text-notebook-blue font-bold font-outfit tracking-wide italic">"Connect WordPress and test the workflow"</p>
-                </div>
-
-                <div className="space-y-4 mb-10 flex-1">
-                  <div className="flex items-center gap-3">
-                    <div className="w-5 h-5 rounded-lg bg-notebook-blue/5 flex items-center justify-center border border-notebook-blue/10">
-                      <Check className="h-3 w-3 text-notebook-blue" strokeWidth={3} />
-                    </div>
-                    <span className="text-sm text-slate-500 font-normal">150 signup credits + 15 monthly</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-5 h-5 rounded-lg bg-notebook-blue/5 flex items-center justify-center border border-notebook-blue/10">
-                      <Check className="h-3 w-3 text-notebook-blue" strokeWidth={3} />
-                    </div>
-                    <span className="text-sm text-slate-500 font-normal">WordPress plugin included</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-5 h-5 rounded-lg bg-notebook-blue/5 flex items-center justify-center border border-notebook-blue/10">
-                      <Check className="h-3 w-3 text-notebook-blue" strokeWidth={3} />
-                    </div>
-                    <span className="text-sm text-slate-500 font-normal">No credit card required</span>
-                  </div>
-                </div>
-
-                <Button
-                  onClick={() => handlePlanSelection('free', 'Free', '$0')}
-                  className="w-full h-12 bg-notebook-paper border border-gray-100 text-notebook-slate hover:bg-white hover:text-notebook-blue hover:shadow-notebook transition-all duration-300 rounded-2xl font-bold font-outfit text-xs uppercase tracking-widest"
-                >
-                  Start with 30 Credits
-                </Button>
-              </div>
-
-              {/* Lite */}
-              <div className="bg-white border border-gray-100 rounded-[2.5rem] p-10 flex flex-col relative group hover:shadow-notebook transition-all duration-500">
-                {billingCycle === 'annual' && (
-                  <div className="absolute top-6 right-6">
-                    <Badge className="bg-notebook-blue/5 text-notebook-blue border-notebook-blue/10 text-[9px] font-bold px-2 py-0.5 rounded-lg">
-                      BEST FOR SMALL BLOGS
-                    </Badge>
-                  </div>
-                )}
-                <div className="mb-10">
-                  <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4 font-outfit">Lite Plan</h3>
-                  <div className="flex items-baseline gap-1 text-notebook-slate mb-2">
-                    <span className="text-4xl font-bold tracking-tight font-outfit">${billingCycle === 'monthly' ? '3' : '30'}</span>
-                    <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">
-                      {billingCycle === 'monthly' ? '/mo' : '/yr'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="space-y-4 mb-10 flex-1">
-                  {[
-                    `150 credits${billingCycle === 'annual' ? '/mo' : ''}`,
-                    "Auto-generate on upload",
-                    "Single image generation",
-                    "Standard support"
-                  ].map((feature, i) => (
-                    <div key={i} className="flex items-center gap-3">
-                      <div className="w-5 h-5 rounded-lg bg-notebook-blue/5 flex items-center justify-center border border-notebook-blue/10">
-                        <Check className="h-3 w-3 text-notebook-blue" strokeWidth={3} />
-                      </div>
-                      <span className="text-sm text-slate-500 font-normal">{feature}</span>
-                    </div>
-                  ))}
-                </div>
-
-                <Button
-                  onClick={() => handlePlanSelection('tier1', 'Lite', billingCycle === 'monthly' ? '$3' : '$30')}
-                  className="w-full h-12 bg-white border border-gray-100 text-notebook-slate hover:bg-slate-50 hover:text-notebook-blue transition-all duration-300 rounded-2xl font-bold font-outfit text-xs uppercase tracking-widest shadow-sm"
-                >
-                  Get Lite Plan
-                </Button>
-              </div>
-
-              {/* Standard - Most Popular */}
-              <div className="bg-white border-2 border-notebook-blue rounded-[2.5rem] p-10 flex flex-col relative transform lg:-translate-y-4 shadow-notebook-lg z-10 transition-all duration-500">
-                <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-                  <div className="bg-notebook-blue text-white text-[9px] font-bold px-4 py-1.5 rounded-full shadow-notebook flex items-center gap-2 uppercase tracking-[0.2em] font-outfit">
-                    <Star className="w-3 h-3 fill-current text-notebook-orange" /> Most Popular
-                  </div>
-                </div>
-
-                <div className="mb-10 mt-2">
-                  <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4 font-outfit">Standard Plan</h3>
-                  <div className="flex items-baseline gap-1 text-notebook-slate mb-2">
-                    <span className="text-5xl font-bold tracking-tight font-outfit">${billingCycle === 'monthly' ? '5' : '48'}</span>
-                    <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">
-                      {billingCycle === 'monthly' ? '/mo' : '/yr'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="space-y-4 mb-10 flex-1">
-                  {[
-                    `400 credits${billingCycle === 'annual' ? '/mo' : ''}`,
-                    "Bulk media-library fixes",
-                    "130+ language support",
-                    "Post and page image workflows",
-                    "Priority support"
-                  ].map((feature, i) => (
-                    <div key={i} className="flex items-center gap-3">
-                      <div className="w-5 h-5 rounded-lg bg-notebook-blue/5 flex items-center justify-center border border-notebook-blue/10">
-                        <Check className="h-3 w-3 text-notebook-blue" strokeWidth={3} />
-                      </div>
-                      <span className={`text-sm font-normal ${i === 4 ? 'text-notebook-slate font-bold' : 'text-slate-500'}`}>{feature}</span>
-                    </div>
-                  ))}
-                </div>
-
-                <Button
-                  onClick={() => handlePlanSelection('tier2', 'Standard', billingCycle === 'monthly' ? '$5' : '$48')}
-                  className="w-full h-14 bg-notebook-blue hover:bg-notebook-blue/90 text-white transition-all duration-300 rounded-2xl font-bold font-outfit text-xs uppercase tracking-[0.2em] shadow-notebook hover:-translate-y-1"
-                >
-                  Get Standard Plan
-                </Button>
-              </div>
-
-              {/* Pro */}
-              <div className="bg-white border border-gray-100 rounded-[2.5rem] p-10 flex flex-col relative group hover:shadow-notebook transition-all duration-500">
-                <div className="mb-10">
-                  <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4 font-outfit">Pro Plan</h3>
-                  <div className="flex items-baseline gap-1 text-notebook-slate mb-2">
-                    <span className="text-4xl font-bold tracking-tight font-outfit">${billingCycle === 'monthly' ? '9' : '86'}</span>
-                    <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">
-                      {billingCycle === 'monthly' ? '/mo' : '/yr'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="space-y-4 mb-10 flex-1">
-                  {[
-                    `1,000 credits${billingCycle === 'annual' ? '/mo' : ''}`,
-                    "Context-aware generation",
-                    "Large library processing",
-                    "WooCommerce image workflows",
-                    "Premium support"
-                  ].map((feature, i) => (
-                    <div key={i} className="flex items-center gap-3">
-                      <div className="w-5 h-5 rounded-lg bg-notebook-blue/5 flex items-center justify-center border border-notebook-blue/10">
-                        <Check className="h-3 w-3 text-notebook-blue" strokeWidth={3} />
-                      </div>
-                      <span className="text-sm text-slate-500 font-normal">{feature}</span>
-                    </div>
-                  ))}
-                </div>
-
-                <Button
-                  onClick={() => handlePlanSelection('tier3', 'Pro', billingCycle === 'monthly' ? '$9' : '$86')}
-                  className="w-full h-12 bg-white border border-gray-100 text-notebook-slate hover:bg-slate-50 hover:text-notebook-blue transition-all duration-300 rounded-2xl font-bold font-outfit text-xs uppercase tracking-widest shadow-sm"
-                >
-                  Get Pro Plan
-                </Button>
-              </div>
-            </div>
-
-            {/* Pay As You Go Section - Refined */}
-            <div className="mt-20 max-w-4xl mx-auto">
-              <div className="bg-white border border-gray-100 rounded-[2.5rem] p-10 relative overflow-hidden group shadow-sm hover:shadow-notebook transition-all duration-500">
-                <div className="absolute inset-0 bg-gradient-to-br from-notebook-blue/5 to-transparent opacity-50 pointer-events-none"></div>
-
-                <div className="relative z-10 flex flex-col md:flex-row items-center gap-10">
-                  <div className="md:w-1/3 text-center md:text-left space-y-4">
-                    <div className="inline-flex px-3 py-1.5 bg-notebook-orange/10 border border-notebook-orange/20 rounded-full">
-                      <span className="text-[10px] font-bold text-notebook-orange uppercase tracking-widest font-outfit">Pay As You Go</span>
-                    </div>
-                    <h3 className="text-2xl font-bold text-notebook-slate font-outfit italic">Pay As You Go</h3>
-                    <p className="text-sm text-slate-500 leading-relaxed font-normal">Need more credits? Buy them instantly without changing your subscription.</p>
-                  </div>
-
-                  <div className="md:w-2/3 grid sm:grid-cols-2 gap-5 w-full">
-                    {/* Small Pack */}
-                    <div
-                      className="bg-notebook-paper rounded-[2rem] p-6 border border-gray-100 hover:border-notebook-blue/30 transition-all duration-500 group/pack cursor-pointer shadow-sm hover:shadow-notebook-sm"
-                      onClick={() => handlePlanSelection('small_pack', 'Starter Pack', '$5')}
-                    >
-                      <div className="flex items-center justify-between mb-4">
-                        <div>
-                          <div className="flex items-baseline gap-1 mb-1">
-                            <span className="text-2xl font-bold text-notebook-slate font-outfit">$5</span>
-                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">ONE-TIME</span>
-                          </div>
-                          <span className="text-[10px] font-bold text-notebook-blue uppercase tracking-widest font-outfit">100 CREDITS</span>
-                        </div>
-                        <div className="w-10 h-10 rounded-2xl bg-white flex items-center justify-center shadow-sm group-hover/pack:scale-110 transition-transform duration-500 border border-gray-100">
-                          <ImageIcon className="w-5 h-5 text-gray-400 group-hover/pack:text-notebook-blue" />
-                        </div>
-                      </div>
-                      <Button variant="ghost" className="w-full text-[10px] font-bold uppercase tracking-widest font-outfit text-gray-500 hover:text-notebook-blue hover:bg-white border border-transparent hover:border-notebook-blue/10">
-                        Buy Credits
-                      </Button>
-                    </div>
-
-                    {/* Credit Pack */}
-                    <div
-                      className="bg-notebook-paper rounded-[2rem] p-6 border border-notebook-orange/20 hover:border-notebook-orange/40 transition-all duration-500 group/pack cursor-pointer shadow-sm hover:shadow-notebook-sm relative"
-                      onClick={() => handlePlanSelection('credit_pack', 'Value Pack', '$10')}
-                    >
-                      <div className="absolute -top-3 right-6 bg-notebook-orange text-white text-[9px] font-bold px-3 py-1 rounded-full shadow-notebook font-outfit uppercase tracking-widest z-10">
-                        Value Pack
-                      </div>
-                      <div className="flex items-center justify-between mb-4">
-                        <div>
-                          <div className="flex items-baseline gap-1 mb-1">
-                            <span className="text-2xl font-bold text-notebook-slate font-outfit">$10</span>
-                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">ONE-TIME</span>
-                          </div>
-                          <span className="text-[10px] font-bold text-notebook-blue uppercase tracking-widest font-outfit">250 CREDITS</span>
-                        </div>
-                        <div className="w-10 h-10 rounded-2xl bg-white flex items-center justify-center shadow-sm group-hover/pack:scale-110 transition-transform duration-500 border border-gray-100">
-                          <Rocket className="w-5 h-5 text-gray-400 group-hover/pack:text-notebook-orange" />
-                        </div>
-                      </div>
-                      <Button variant="ghost" className="w-full text-[10px] font-bold uppercase tracking-widest font-outfit text-gray-500 hover:text-notebook-orange hover:bg-white border border-transparent hover:border-notebook-orange/10">
-                        Buy Credits
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap gap-x-8 gap-y-3 justify-center mt-10 border-t border-gray-100 pt-8">
-                  {[
-                    { icon: Clock, label: "Never expire" },
-                    { icon: Layers, label: "Add to existing pool" },
-                    { icon: CheckCircle, label: "All plan support" }
-                  ].map((item, i) => (
-                    <span key={i} className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                      {/* Simplified labels for space, assuming icons are added to imports if needed, or using check for simplicity */}
-                      <div className="w-1.5 h-1.5 rounded-full bg-notebook-blue/30" />
-                      {item.label}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="text-center mt-16 relative z-10">
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">
-                Each successful generation uses 1 credit. Failed requests do not consume credits.
-                <br className="hidden md:block" />
-                <span className="mt-4 inline-block">Need agency or multi-site volume? <Link href="/contact" className="text-notebook-blue hover:underline">Contact us</Link></span>
-              </p>
-            </div>
-          </div>
-        </section >
-
         {/* Example Showcase Section - Warmer Research Hub Style */}
         <section id="showcase" className="py-24 bg-white relative overflow-hidden border-t border-notebook-blue/5">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
@@ -1133,7 +815,7 @@ export default function LandingPage() {
               <h2 className="text-4xl lg:text-6xl font-bold text-notebook-slate tracking-tight font-outfit mb-6">
                 See Results <span className="text-notebook-blue italic">in Action.</span>
               </h2>
-              <p className="text-slate-500 max-w-2xl mx-auto font-normal">Preview the high-quality, SEO-optimized alt text generated by our AI.</p>
+              <p className="text-slate-500 max-w-2xl mx-auto font-normal">See concise example drafts, then review each one against its page context before publishing.</p>
             </div>
 
             <div className="grid md:grid-cols-3 gap-8">
@@ -1142,7 +824,7 @@ export default function LandingPage() {
                 <div className="relative h-64 overflow-hidden">
                   <Image
                     src="/business-team.jpg"
-	                    alt="Alt Text Preview"
+                    alt="Eight coworkers meet around a table with laptops and charts in a glass-walled office."
 	                    fill
 	                    sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
 	                    className="object-cover transition-transform duration-1000 group-hover:scale-110"
@@ -1155,16 +837,16 @@ export default function LandingPage() {
                 <div className="p-10 flex-1 flex flex-col">
                   <div className="flex items-center gap-2 mb-4">
                     <div className="w-2 h-2 rounded-full bg-notebook-blue animate-pulse"></div>
-                    <span className="text-[10px] font-bold text-notebook-blue uppercase tracking-widest font-outfit">SEO Optimized</span>
+                    <span className="text-[10px] font-bold text-notebook-blue uppercase tracking-widest font-outfit">AI Draft</span>
                   </div>
                   <p className="text-notebook-slate font-medium leading-relaxed mb-8 italic text-sm flex-1">
-                    "Group of diverse professionals collaborating around a light-filled office table, emphasizing teamwork and shared digital strategy."
+                    "Eight coworkers meet around a table with laptops and charts in a glass-walled office."
                   </p>
                   <div className="pt-6 border-t border-notebook-blue/5 flex items-center justify-between">
                     <div className="flex items-center gap-1.5">
                       <span className="text-[10px] font-bold text-notebook-slate uppercase tracking-widest font-outfit">Generated Alt Text</span>
                     </div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">98% Accuracy</span>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Example output</span>
                   </div>
                 </div>
               </div>
@@ -1174,7 +856,7 @@ export default function LandingPage() {
                 <div className="relative h-64 overflow-hidden">
                   <Image
                     src="/fresh-vegetables.jpg"
-	                    alt="Alt Text Preview"
+                    alt="Carrots, tomatoes, berries, and leafy greens arranged at a busy farmers market."
 	                    fill
 	                    sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
 	                    className="object-cover transition-transform duration-1000 group-hover:scale-110"
@@ -1187,16 +869,16 @@ export default function LandingPage() {
                 <div className="p-10 flex-1 flex flex-col">
                   <div className="flex items-center gap-2 mb-4">
                     <div className="w-2 h-2 rounded-full bg-notebook-orange animate-pulse"></div>
-                    <span className="text-[10px] font-bold text-notebook-orange uppercase tracking-widest font-outfit">SEO Optimized</span>
+                    <span className="text-[10px] font-bold text-notebook-orange uppercase tracking-widest font-outfit">AI Draft</span>
                   </div>
                   <p className="text-notebook-slate font-medium leading-relaxed mb-8 italic text-sm flex-1">
-                    "Fresh organic vegetables and fruits colorfully arranged at farmers market, capturing natural textures and vibrant agricultural diversity."
+                    "Carrots, tomatoes, berries, and leafy greens arranged at a busy farmers market."
                   </p>
                   <div className="pt-6 border-t border-notebook-orange/10 flex items-center justify-between">
                     <div className="flex items-center gap-1.5">
                       <span className="text-[10px] font-bold text-notebook-slate uppercase tracking-widest font-outfit">Generated Alt Text</span>
                     </div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">96% Accuracy</span>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Example output</span>
                   </div>
                 </div>
               </div>
@@ -1206,7 +888,7 @@ export default function LandingPage() {
                 <div className="relative h-64 overflow-hidden">
                   <Image
                     src="/mountain-landscape.jpg"
-	                    alt="Alt Text Preview"
+                    alt="Snow-covered mountain peaks and pine trees reflected in a calm lake at sunset."
 	                    fill
 	                    sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
 	                    className="object-cover transition-transform duration-1000 group-hover:scale-110"
@@ -1219,16 +901,16 @@ export default function LandingPage() {
                 <div className="p-10 flex-1 flex flex-col">
                   <div className="flex items-center gap-2 mb-4">
                     <div className="w-2 h-2 rounded-full bg-notebook-blue animate-pulse"></div>
-                    <span className="text-[10px] font-bold text-notebook-blue uppercase tracking-widest font-outfit">SEO Optimized</span>
+                    <span className="text-[10px] font-bold text-notebook-blue uppercase tracking-widest font-outfit">AI Draft</span>
                   </div>
                   <p className="text-notebook-slate font-medium leading-relaxed mb-8 italic text-sm flex-1">
-                    "Snow-capped mountain peaks reflecting in pristine alpine lake during golden hour, showcasing atmospheric depth and natural clarity."
+                    "Snow-covered mountain peaks and pine trees reflected in a calm lake at sunset."
                   </p>
                   <div className="pt-6 border-t border-notebook-blue/5 flex items-center justify-between">
                     <div className="flex items-center gap-1.5">
                       <span className="text-[10px] font-bold text-notebook-slate uppercase tracking-widest font-outfit">Generated Alt Text</span>
                     </div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">94% Accuracy</span>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Example output</span>
                   </div>
                 </div>
               </div>
@@ -1299,48 +981,70 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Footer */}
-        < Footer />
+      </main>
+
+      {/* Footer */}
+      <Footer />
 
         {/* Auth Modal - Focused Depth Look */}
         {showAuthForm && (
-          <div className="fixed inset-0 bg-notebook-slate/60 backdrop-blur-md flex items-center justify-center z-50 p-4 transition-all duration-500">
-            <div className="bg-white rounded-[2rem] sm:rounded-[2.5rem] max-w-md w-full p-6 sm:p-8 shadow-notebook-lg relative overflow-y-auto max-h-[95vh] border border-notebook-blue/5 animate-in fade-in zoom-in-95 duration-300">
+          <div
+            className="fixed inset-0 bg-notebook-slate/60 backdrop-blur-md flex items-center justify-center z-50 p-4 transition-all duration-500"
+            onMouseDown={(event) => {
+              if (event.currentTarget === event.target) setShowAuthForm(false);
+            }}
+          >
+            <div
+              ref={authDialogRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="auth-dialog-title"
+              aria-describedby="auth-dialog-description"
+              onKeyDown={handleAuthDialogKeyDown}
+              className="bg-white rounded-[2rem] sm:rounded-[2.5rem] max-w-md w-full p-6 sm:p-8 shadow-notebook-lg relative overflow-y-auto max-h-[95vh] border border-slate-200 animate-in fade-in zoom-in-95 duration-300"
+            >
               <button
+                type="button"
                 onClick={() => setShowAuthForm(false)}
-                className="absolute top-6 right-6 text-slate-300 hover:text-notebook-slate transition-colors p-2 hover:bg-slate-50 rounded-xl"
+                className="absolute top-6 right-6 text-slate-500 hover:text-notebook-slate transition-colors p-2 hover:bg-slate-100 rounded-xl"
+                aria-label="Close authentication dialog"
               >
-                <X className="w-5 h-5" />
+                <X className="w-5 h-5" aria-hidden="true" />
               </button>
               <div className="text-center mb-5 mt-2">
-                <h3 className="text-2xl font-bold text-notebook-slate tracking-tight font-outfit mb-1.5">
+                <h3 id="auth-dialog-title" className="text-2xl font-bold text-notebook-slate tracking-tight font-outfit mb-1.5">
                   {isLogin ? "Welcome Back" : "Create Your Account"}
                 </h3>
-                <p className="text-sm text-slate-500 font-normal leading-relaxed">
+                <p id="auth-dialog-description" className="text-sm text-slate-600 font-normal leading-relaxed">
                   {isLogin ? "Log in to your dashboard." : "Sign up for Alt Text Pro."}
                 </p>
               </div>
 
               <form onSubmit={handleEmailAuth} className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-notebook-slate/40 uppercase tracking-widest ml-1">Work Email</label>
+                  <label htmlFor="auth-email" className="text-[10px] font-bold text-slate-600 uppercase tracking-widest ml-1">Work Email</label>
                   <Input
+                    ref={emailInputRef}
+                    id="auth-email"
                     type="email"
+                    autoComplete="email"
                     placeholder="you@company.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="h-14 bg-notebook-paper border-none text-notebook-slate placeholder:text-slate-300 rounded-2xl focus:ring-2 focus:ring-notebook-blue/20 transition-all font-medium"
+                    className="h-14 bg-notebook-paper border border-slate-200 text-notebook-slate placeholder:text-slate-400 rounded-2xl focus:ring-2 focus:ring-notebook-blue/30 transition-all font-medium"
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-notebook-slate/40 uppercase tracking-widest ml-1">Password</label>
+                  <label htmlFor="auth-password" className="text-[10px] font-bold text-slate-600 uppercase tracking-widest ml-1">Password</label>
                   <Input
+                    id="auth-password"
                     type="password"
+                    autoComplete={isLogin ? "current-password" : "new-password"}
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="h-14 bg-notebook-paper border-none text-notebook-slate placeholder:text-slate-300 rounded-2xl focus:ring-2 focus:ring-notebook-blue/20 transition-all font-medium"
+                    className="h-14 bg-notebook-paper border border-slate-200 text-notebook-slate placeholder:text-slate-400 rounded-2xl focus:ring-2 focus:ring-notebook-blue/30 transition-all font-medium"
                     required
                     minLength={6}
                   />
@@ -1387,7 +1091,7 @@ export default function LandingPage() {
                 <button
                   type="button"
                   onClick={() => setIsLogin(!isLogin)}
-                  className="text-[10px] font-bold text-notebook-slate/40 hover:text-notebook-blue uppercase tracking-widest transition-colors font-outfit"
+                  className="text-[10px] font-bold text-slate-600 hover:text-notebook-blue uppercase tracking-widest transition-colors font-outfit"
                 >
                   {isLogin
                     ? "Need an account? Sign up here"
@@ -1397,7 +1101,7 @@ export default function LandingPage() {
                   <button
                     type="button"
                     onClick={() => setShowAuthForm(false)}
-                    className="text-[10px] font-bold text-slate-300 hover:text-notebook-orange uppercase tracking-widest transition-colors"
+                    className="text-[10px] font-bold text-slate-500 hover:text-notebook-orange uppercase tracking-widest transition-colors"
                   >
                     Close
                   </button>
@@ -1410,15 +1114,17 @@ export default function LandingPage() {
         {/* Payment Modal - Focused Depth Look */}
         {showPaymentModal && selectedPlan && (
           <div className="fixed inset-0 bg-notebook-slate/60 backdrop-blur-md flex items-center justify-center z-50 p-4 transition-all duration-500">
-            <div className="bg-white rounded-[2rem] sm:rounded-[2.5rem] max-w-md w-full p-6 sm:p-8 shadow-notebook-lg relative overflow-y-auto max-h-[95vh] border border-notebook-blue/5 animate-in fade-in zoom-in-95 duration-300">
+            <div role="dialog" aria-modal="true" aria-labelledby="payment-dialog-title" className="bg-white rounded-[2rem] sm:rounded-[2.5rem] max-w-md w-full p-6 sm:p-8 shadow-notebook-lg relative overflow-y-auto max-h-[95vh] border border-notebook-blue/5 animate-in fade-in zoom-in-95 duration-300">
               <button
+                type="button"
                 onClick={() => { setShowPaymentModal(false); setSelectedPlan(null); }}
                 className="absolute top-6 right-6 text-slate-300 hover:text-notebook-slate transition-colors p-2 hover:bg-slate-50 rounded-xl"
+                aria-label="Close checkout dialog"
               >
-                <X className="w-5 h-5" />
+                <X className="w-5 h-5" aria-hidden="true" />
               </button>
               <div className="text-center mb-5 mt-2">
-                <h3 className="text-2xl font-bold text-notebook-slate tracking-tight font-outfit mb-1.5">
+                <h3 id="payment-dialog-title" className="text-2xl font-bold text-notebook-slate tracking-tight font-outfit mb-1.5">
                   Upgrade Your Subscription
                 </h3>
                 <p className="text-sm text-slate-500 font-normal leading-relaxed">
@@ -1443,7 +1149,7 @@ export default function LandingPage() {
                     You are currently on the free plan.
                   </p>
                   <Button
-                    onClick={() => { setShowPaymentModal(false); setSelectedPlan(null); window.location.href = "/dashboard"; }}
+                    onClick={() => { setShowPaymentModal(false); setSelectedPlan(null); router.push("/dashboard"); }}
                     className="w-full h-12 bg-notebook-blue hover:bg-notebook-blue/90 text-white font-bold rounded-2xl shadow-notebook transition-all duration-300 uppercase tracking-widest text-xs font-outfit"
                   >
                     Return to Dashboard
@@ -1454,19 +1160,7 @@ export default function LandingPage() {
                   <div className="space-y-3">
                     <h4 className="text-[10px] font-bold text-notebook-slate/40 uppercase tracking-widest ml-1">What's Included</h4>
                     <div className="flex flex-wrap gap-2">
-                      {(selectedPlan.id === 'tier1' ? [
-                        "150 Monthly Credits", "Auto-Pilot Analysis", "High-Fidelity AI", "Standard Support"
-                      ] : selectedPlan.id === 'tier2' ? [
-                        "1,000 Monthly Credits", "Bulk Library Optimization", "Multi-Language (130+)", "SEO Compliance", "Priority Support"
-                      ] : selectedPlan.id === 'tier3' ? [
-                        "2,000 Monthly Credits", "Context-Aware Generation", "Full Auto-Pilot Suite", "Custom API Access", "24/7 Strategic Support"
-                      ] : selectedPlan.id === 'tier4' ? [
-                        "3,500 Monthly Credits", "Multi-Site Workflows", "Context-Aware Generation", "Full Auto-Pilot Suite", "24/7 Strategic Support"
-                      ] : selectedPlan.id === 'small_pack' ? [
-                        "500 Credit Injection", "On-Demand Resource", "Never Expires", "Immediate Utility"
-                      ] : [
-                        "1,200 Credit Injection", "Efficiency Pack Bonus", "Never Expires", "Strategic Utility"
-                      ]).map((item, i) => (
+                      {selectedPlanFeatures.map((item, i) => (
                         <div key={i} className="flex items-center gap-2 bg-notebook-paper/50 px-3 py-2 rounded-xl border border-notebook-blue/5">
                           <Check className="h-3.5 w-3.5 text-notebook-blue" />
                           <span className="text-[10px] font-bold text-notebook-slate/80 uppercase tracking-widest">{item}</span>
@@ -1505,7 +1199,6 @@ export default function LandingPage() {
             </div>
           </div>
         )}
-      </div >
     </div >
   );
 }

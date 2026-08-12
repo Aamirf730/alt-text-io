@@ -138,12 +138,8 @@ async function auditLog({
     const logEntry = {
         audit: true,
         action,
-        actorId,
-        actorEmail,
         resourceType,
-        resourceId,
         severity,
-        details,
         timestamp: new Date().toISOString(),
     };
     console.log(JSON.stringify(logEntry));
@@ -169,15 +165,15 @@ async function auditLog({
         });
 
         if (error) {
-            console.error(JSON.stringify({ audit_persist_error: error.message }));
-            return { success: false, error: error.message };
+            console.error(JSON.stringify({ audit_persist_error: error.code || 'database_error' }));
+            return { success: false, error: 'Audit persistence failed' };
         }
 
         return { success: true };
-    } catch (err) {
+    } catch (_err) {
         // Never let audit logging crash the main request
-        console.error(JSON.stringify({ audit_persist_error: err.message }));
-        return { success: false, error: err.message };
+        console.error(JSON.stringify({ audit_persist_error: 'unexpected_error' }));
+        return { success: false, error: 'Audit persistence failed' };
     }
 }
 
@@ -186,4 +182,9 @@ module.exports = {
     ACTIONS,
     SEVERITY,
     extractRequestMeta,
+    _private: {
+        setSupabaseAdmin(client) {
+            _supabaseAdmin = client;
+        },
+    },
 };

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Polar } from "@polar-sh/sdk";
 import { createClient } from "@supabase/supabase-js";
+import { safeServerError } from "@/lib/safe-server-log";
 
 const getSupabaseClient = () => {
     return createClient(
@@ -62,7 +63,7 @@ export async function GET(req: NextRequest) {
 
         return NextResponse.redirect(customerPortalUrl);
     } catch (error) {
-        console.error("Customer portal error:", error);
+        console.error("Customer portal error:", safeServerError(error));
         return NextResponse.json({ error: "Unable to open billing portal" }, { status: 500 });
     }
 }

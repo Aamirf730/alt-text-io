@@ -56,6 +56,28 @@ function update_option($name, $value)
     return $changed;
 }
 
+function add_option($name, $value)
+{
+    global $alt_text_pro_test_options;
+    if (array_key_exists($name, $alt_text_pro_test_options)) {
+        return false;
+    }
+
+    $alt_text_pro_test_options[$name] = $value;
+    return true;
+}
+
+function delete_option($name)
+{
+    global $alt_text_pro_test_options;
+    if (!array_key_exists($name, $alt_text_pro_test_options)) {
+        return false;
+    }
+
+    unset($alt_text_pro_test_options[$name]);
+    return true;
+}
+
 function wp_parse_args($args, $defaults)
 {
     return array_merge($defaults, $args);
@@ -112,8 +134,16 @@ $api_key = 'alt_regression_test_key_1234567890';
 $encrypted_key = $settings_handler->encrypt_api_key($api_key);
 
 alt_text_pro_test_assert(
-    strpos($encrypted_key, 'enc:') === 0,
-    'The fixture API key should be encrypted before the internal save.'
+    is_string($encrypted_key) && strpos($encrypted_key, 'enc2:') === 0,
+    'The fixture API key should use authenticated encryption before the internal save.'
+);
+
+$encrypted_bytes = base64_decode(substr($encrypted_key, 5), true);
+$encrypted_bytes[strlen($encrypted_bytes) - 1] = chr(ord($encrypted_bytes[strlen($encrypted_bytes) - 1]) ^ 1);
+$tampered_key = 'enc2:' . base64_encode($encrypted_bytes);
+alt_text_pro_test_assert(
+    $settings_handler->decrypt_api_key($tampered_key) === false,
+    'Authenticated encryption must reject a modified API-key record.'
 );
 
 $_SERVER['REQUEST_METHOD'] = 'POST';
@@ -214,5 +244,47 @@ alt_text_pro_test_assert(
 );
 
 unset($_SERVER['REQUEST_METHOD']);
+
+$alt_text_pro_test_options['alt_text_pro_settings'] = array('api_key' => $api_key);
+$migrated_settings = $settings_handler->get_settings();
+$migrated_storage = get_option('alt_text_pro_settings', array());
+alt_text_pro_test_assert(
+    $migrated_settings['api_key'] === $api_key
+        && is_string($migrated_storage['api_key'])
+        && strpos($migrated_storage['api_key'], 'enc2:') === 0,
+    'A legacy plain-text key must be replaced by authenticated encrypted storage on read.'
+);
+
+$alt_text_pro_test_options['alt_text_pro_settings'] = array('api_key' => $tampered_key);
+$failed_storage_settings = $settings_handler->get_settings();
+alt_text_pro_test_assert(
+    $failed_storage_settings['api_key'] === ''
+        && get_option('alt_text_pro_api_key_storage_error', false) === '1',
+    'A key that cannot be decrypted must fail closed and create one persistent storage warning.'
+);
+$settings_handler->get_settings();
+alt_text_pro_test_assert(
+    get_option('alt_text_pro_api_key_storage_error', false) === '1',
+    'Repeated failed reads must reuse the existing storage warning.'
+);
+
+$alt_text_pro_test_options['alt_text_pro_settings'] = array('api_key' => $encrypted_key);
+alt_text_pro_test_assert(
+    $settings_handler->get_settings()['api_key'] === $api_key
+        && get_option('alt_text_pro_api_key_storage_error', false) === false,
+    'A subsequently valid encrypted key must clear the persistent storage warning.'
+);
+
+$admin_script = file_get_contents(dirname(__DIR__) . '/alt-text-pro/assets/js/admin.js');
+alt_text_pro_test_assert(
+    is_string($admin_script)
+        && strpos($admin_script, 'window.crypto.getRandomValues') !== false
+        && strpos($admin_script, 'alt_text_pro_api_key') === false,
+    'The connect flow must use cryptographic state and must never accept an API key from a URL.'
+);
+alt_text_pro_test_assert(
+    strpos($settings_template, '$has_key') === false,
+    'The settings template must use its initialized API-key state variable.'
+);
 
 fwrite(STDOUT, "PASS: encrypted API-key persistence regression\n");

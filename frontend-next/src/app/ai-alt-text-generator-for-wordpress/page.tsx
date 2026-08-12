@@ -77,7 +77,7 @@ const faqs = [
   {
     question: "Does AI alt text replace manual review?",
     answer:
-      "No. AI gives you a strong starting point, but the best alt text depends on the purpose of the image on that specific page. Review important images before publishing.",
+      "No. AI provides an editable draft, but useful alt text depends on the purpose of the image on that specific page. Review important images before publishing.",
   },
   {
     question: "Can it bulk generate alt text in WordPress?",
