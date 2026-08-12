@@ -1,5 +1,13 @@
 # Progress
 
+## 2026-08-13: Homepage branding, pricing, and footer trust marks deployed
+
+- Status: complete and live on `https://www.alt-text.pro`.
+- Release commit: `4bec583` (`feat: clarify homepage branding and trust marks`) was pushed to `main`; the Git-backed Netlify production build is serving the update.
+- Included: explicit “Alt Text Pro” homepage H1, compact subscription labels (“150 Credits”, “1,000 Credits”, etc.), one-line “Most popular” badge, official WordPress W mark, official Polar app icon, and the secure-connection badge.
+- Verification: production homepage returned HTTP 200 and contains the updated H1, pricing labels, Polar/security footer copy; `/logos/polar-app-icon.png` and `/logos/wordpress-w.png` returned HTTP 200; `/api/health` returned healthy.
+- Note: direct CLI deploy was not used because the local Netlify CLI site-link lookup returned 404; pushing `main` used the existing Git-backed production workflow successfully.
+
 ## 2026-08-13: Homepage branding clarity update ready for review
 
 - Status: local implementation complete and opened for review; production has not been changed.
