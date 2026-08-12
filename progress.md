@@ -859,11 +859,11 @@
 - Status: completed and released to production and WordPress.org
 - Task: released the Alt Text Pro 1.7.0 public download package to production and published the matching WordPress.org trunk/tag release after explicit authorization.
 - Status: completed on the authorized test site; not released to production
-- Task: fixed the verified API-key persistence failure in Alt Text Pro 1.7.0 and confirmed the email-verification connection flow saves the key on `plugintest2.xyz`.
+- Task: fixed the verified API-key persistence failure in Alt Text Pro 1.7.0 and confirmed the email-verification connection flow saves the key on the disposable WordPress test site.
 - Status: completed
-- Task: reset Alt Text Pro's setup state on the user-provided `plugintest2.xyz` test site and installed a reusable test-only Settings-page helper for repeating the first-time onboarding flow.
+- Task: reset Alt Text Pro's setup state on the disposable WordPress test site and installed a reusable test-only Settings-page helper for repeating the first-time onboarding flow.
 - Status: completed
-- Task: installed and activated the current local Alt Text Pro 2.1.0 package on the user-provided `plugintest2.xyz` WordPress test site for hands-on testing.
+- Task: installed and activated the current local Alt Text Pro 2.1.0 package on the disposable WordPress test site for hands-on testing.
 - Status: completed locally; not released
 - Task: created a caption-led first-time setup walkthrough video and script using Remotion; plugin behavior and version remain unchanged.
 - Status: completed locally; not released
@@ -965,11 +965,11 @@
 - 2026-07-29: verified the Alt Text Pro 2.0.0 defer action renders only “I’ll do this later” with no child icon, the desktop modal remains scroll-free, syntax and ZIP integrity checks passed, and the 446 KB package has SHA-256 `371aa9ac7c54bf70ce86b3f243a9deeffd4a2a36ff247bfc8ef9c603ff8c805e`.
 - 2026-07-29: verified the Alt Text Pro 2.1.0 connect arrow and save lock are vertically aligned in their buttons, the modal remains `640×433` and scroll-free at the tested desktop viewport, syntax and ZIP integrity checks passed, and the 446 KB package has SHA-256 `859238a22a82447aea436fbb95037c26018a2d51aea69a87e1524b6b71c05812`.
 - 2026-07-29: rendered and visually reviewed the 54.06-second Alt Text Pro first-time setup walkthrough in H.264 1920×1080. The caption-led video uses the current two-column onboarding modal and covers account connection, the secure browser sign-in confirmation, the manual API-key fallback, and the ready state.
-- 2026-07-29: uploaded the validated 446 KB Alt Text Pro 2.1.0 ZIP (SHA-256 `859238a22a82447aea436fbb95037c26018a2d51aea69a87e1524b6b71c05812`) to `plugintest2.xyz`, activated it, and verified the plugin dashboard loads and reports v2.1.0.
-- 2026-07-29: created and locally syntax-checked Alt Text Pro Test Reset 1.1.0, then installed it on `plugintest2.xyz`. Its Settings page clears only Alt Text Pro's saved API key and setup preferences, preserving site content and plugin logs; the resulting dashboard was visually verified with the first-time onboarding modal open.
+- 2026-07-29: uploaded the validated 446 KB Alt Text Pro 2.1.0 ZIP (SHA-256 `859238a22a82447aea436fbb95037c26018a2d51aea69a87e1524b6b71c05812`) to the disposable WordPress test site, activated it, and verified the plugin dashboard loads and reports v2.1.0.
+- 2026-07-29: created and locally syntax-checked Alt Text Pro Test Reset 1.1.0, then installed it on the disposable WordPress test site. Its Settings page clears only Alt Text Pro's saved API key and setup preferences, preserving site content and plugin logs; the resulting dashboard was visually verified with the first-time onboarding modal open.
 - 2026-07-29: diagnosed the verified-key save failure: `ajax_validate_key()` encrypts the API key before calling `update_option()`, then the registered settings sanitizer rejects that encrypted value as an invalid API-key format and preserves the blank existing key. The post-save read-back check correctly reports the failure.
-- 2026-07-29: built and installed the corrected Alt Text Pro connection flow on `plugintest2.xyz`; PHP and JavaScript syntax checks passed. Re-ran the automatic email-verification connection: the key saved successfully, the onboarding modal closed, and the connected dashboard displayed the account's 30 remaining credits. The public release package is versioned 1.7.0; production was not modified.
-- 2026-07-29: aligned `plugintest2.xyz` with the public 1.7.0 release package after completing the connection-flow verification; the active dashboard reports v1.7.0 and remains connected.
+- 2026-07-29: built and installed the corrected Alt Text Pro connection flow on the disposable WordPress test site; PHP and JavaScript syntax checks passed. Re-ran the automatic email-verification connection: the key saved successfully, the onboarding modal closed, and the connected dashboard displayed the account's 30 remaining credits. The public release package is versioned 1.7.0; production was not modified.
+- 2026-07-29: aligned the disposable WordPress test site with the public 1.7.0 release package after completing the connection-flow verification; the active dashboard reports v1.7.0 and remains connected.
 - 2026-07-29: production Netlify deploy `6a69e3225fb2e1d70218c1b2` completed successfully. Verified the live stable ZIP has `Version: 1.7.0` and `Stable tag: 1.7.0`; homepage, health endpoint, and both plugin download URLs returned HTTP 200. WordPress.org remote trunk remains 1.6.0 because SVN authentication failed before commit; the remote 1.7.0 tag does not exist.
 - 2026-07-29: after WordPress.org SVN authentication was refreshed, confirmed the trunk commit reports `Version: 1.7.0` and `Stable tag: 1.7.0`, created remote tag revision `3627178`, and confirmed the public WordPress.org plugin API reports version 1.7.0 with its versioned download URL.
 - 2026-07-31: local WordPress cancellation-state verification confirmed idle stop → `cancelled`, active stop → `cancelling`, active marker cleared → `cancelled`, with `needs_next_batch=false`. JavaScript/PHP syntax, whitespace, ZIP integrity, packaged version, active-image status, and stop-label checks passed. The Alt Text Pro 1.7.2 distribution ZIP SHA-256 is `2e2c6e7246b8039e348a00d6842723ff1fe6aac11939d35ad306f871713e9bb5`.
@@ -1010,8 +1010,8 @@
 - 2026-07-29: removed the unnecessary defer-action arrow and completed the local 2.0.0 package; production website and WordPress.org remain unchanged.
 - 2026-07-29: corrected the connect and save button icon alignment and completed the local 2.1.0 package; production website and WordPress.org remain unchanged.
 - 2026-07-29: completed the local first-time setup video and reusable script; no plugin or production changes were made.
-- 2026-07-29: installed and activated Alt Text Pro 2.1.0 on the user-provided `plugintest2.xyz` WordPress test site for hands-on testing.
-- 2026-07-29: added and installed the test-only Alt Text Pro Test Reset 1.1.0 helper, and verified it restores the first-time onboarding state on `plugintest2.xyz`.
+- 2026-07-29: installed and activated Alt Text Pro 2.1.0 on the disposable WordPress test site for hands-on testing.
+- 2026-07-29: added and installed the test-only Alt Text Pro Test Reset 1.1.0 helper, and verified it restores the first-time onboarding state on the disposable WordPress test site.
 - 2026-07-29: re-versioned the pending public release as Alt Text Pro 1.7.0, rebuilt the package, and recorded that future plugin changes increment by 0.0.1; production and WordPress.org remain unchanged pending explicit approval.
 - 2026-07-29: diagnosed the Alt Text Pro 2.1.0 email-verification save error; no code or live plugin change has been made yet.
 - 2026-07-29: deployed the verified Alt Text Pro 1.7.0 download package to production. Prepared the WordPress.org SVN trunk and confirmed the 1.7.0 tag is available, but could not commit because the saved WordPress.org SVN login has expired.
