@@ -155,12 +155,11 @@ Health meanings: **Pass** = locally exercised or deterministically covered; **Pa
 
 ## Remaining release gates
 
-1. Rotate the exposed test-server credential and invalidate related sessions/keys; this requires the owner to enter the replacement credential.
-2. After rotation, approve and coordinate Git-history cleanup for the credential-bearing files and deleted user-data debug log; rewriting shared history requires a force-push and fresh clones.
-3. Supply legal operator name, postal address, governing jurisdiction, and counsel-approved terms/privacy language.
-4. Confirm the Supabase leaked-password advisor has refreshed to match the enabled dashboard setting.
-5. Complete deliberately authorized provider-side tests that create real external effects: Google/email auth, AI generation, checkout, webhook/refund, portal, SMTP, and a disposable WordPress install/uninstall cycle.
-6. Publish plugin 1.7.18 to WordPress.org only as a separate reviewed release action.
+1. No FTP password rotation is planned because the user confirmed the old test server is not used; the deleted credential and related debug data were purged from shared Git history.
+2. Legal operator name, postal address, governing jurisdiction, and counsel-approved terms/privacy language are needed only if the public legal pages are to identify the operating business rather than retain generic factual wording. This is a business/compliance decision, not a technical blocker.
+3. The Supabase dashboard setting is enabled, but the security advisor cache still reports `auth_leaked_password_protection` for both projects; recheck after the cache refresh.
+4. Real external-effect tests were previously completed/accepted by the owner; no repeat charge, email, AI, or WordPress mutation was performed in this release session.
+5. WordPress.org 1.7.18 publication is complete: trunk revision `3643153`, tag revision `3643155`, official API version `1.7.18`, and official versioned/latest downloads HTTP 200.
 
 ## Accepted visual evidence
 
