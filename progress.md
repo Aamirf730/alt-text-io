@@ -11,6 +11,7 @@
 - Dependency remediation: removed the locally installed Netlify CLI and its vulnerable image/parser chain from the project dependency tree, retained an on-demand pinned CLI script, and confirmed root full/production dependency audits now report zero vulnerabilities.
 - Auth setting: enabled leaked-password prevention in both Supabase dashboard projects. Dashboard state shows it enabled, but the advisor cache has not yet refreshed; keep this as pending advisor verification.
 - Release packaging: the first Netlify preview preflight exposed two colocated test files being bundled as deployable functions. Moved both tests to the dedicated cross-function test project; no affected preview was published.
+- Continuous deployment: the first Git-backed production attempt failed safely before build because the configured Node patch release was unavailable in Netlify's dependency-install environment. Production remained on the previous healthy deploy; aligned `.nvmrc` and Netlify to the verified Node 22.23.1 runtime before retrying.
 
 ## 2026-08-12: Complete product audit and local hardening completed
 
