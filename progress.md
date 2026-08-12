@@ -10,6 +10,7 @@
 - Staging cleanup: archived 51 rows from six orphan profiles and their related payment/usage/grant/marketing records into a private staging-only table, then removed the orphan profiles through existing cascades. Staging now has zero orphan profile/payment/usage rows; two Auth-backed profiles remain.
 - Dependency remediation: removed the locally installed Netlify CLI and its vulnerable image/parser chain from the project dependency tree, retained an on-demand pinned CLI script, and confirmed root full/production dependency audits now report zero vulnerabilities.
 - Auth setting: enabled leaked-password prevention in both Supabase dashboard projects. Dashboard state shows it enabled, but the advisor cache has not yet refreshed; keep this as pending advisor verification.
+- Release packaging: the first Netlify preview preflight exposed two colocated test files being bundled as deployable functions. Moved both tests to the dedicated cross-function test project; no affected preview was published.
 
 ## 2026-08-12: Complete product audit and local hardening completed
 

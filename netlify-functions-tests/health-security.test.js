@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import healthModule from './health.js';
+import healthModule from '../netlify-functions/health.js';
 
 const { handler, _private } = healthModule;
 

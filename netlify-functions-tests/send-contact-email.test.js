@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import contactModule from './send-contact-email.js';
+import contactModule from '../netlify-functions/send-contact-email.js';
 
 const { createHandler, escapeHtml } = contactModule._private;
 
