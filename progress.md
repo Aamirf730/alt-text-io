@@ -17,6 +17,7 @@
 - WordPress.org publication: trunk revision `3643153` and tag revision `3643155` published Alt Text Pro 1.7.18. Both remote copies report version/stable tag 1.7.18; the official API reports version 1.7.18 and both versioned/latest downloads return HTTP 200 with valid 1.7.18 archives.
 - Git-history purge: created a full pre-rewrite bundle at `/tmp/alt-text-io-before-history-purge-20a3e89.bundle`, then removed the credential-bearing FTP/debug paths and their historical blobs from all local refs before force-updating `origin/main`. Verification found no remaining historical blob containing the identified FTP host/IP, FTP URL, or password pattern. Untracked design/screenshots were preserved.
 - Supabase advisor recheck: both production `qurbdtzrngzfzevgoolp` and staging `hkpxsfwifpnbeifcsslb` still return the cached `auth_leaked_password_protection` notice, while RLS-disabled and exposed security-definer notices remain absent. Dashboard state remains enabled; this is a stale advisor-cache observation, not an unverified dashboard setting.
+- Post-purge deployment recovery: the history rewrite initially force-pushed the stale local `main` ref, causing one temporary legacy Netlify deploy. Corrected `main` to the purged reviewed release commit `f86b2dd`; Netlify deploy `6a7c472ced66f000081eeb2b` is ready and live checks again pass for health, plans, billing guards, homepage, and plugin 1.7.18.
 
 ## 2026-08-12: Complete product audit and local hardening completed
 

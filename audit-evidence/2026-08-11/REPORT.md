@@ -178,4 +178,4 @@ Health meanings: **Pass** = locally exercised or deterministically covered; **Pa
 
 ## Release definition
 
-The repaired website release is live and verified on Netlify deploy `6a7c3dc3b8011900088f420a` from Git commit `27f3ec2`. The identified technical database, application, plugin, and dependency defects are repaired. “Perfect” cannot be honestly guaranteed for an AI, billing, authentication, and WordPress product; the responsible standard is evidence-backed release gates, owner control over destructive/provider actions, rollback readiness, and production monitoring.
+The repaired website release is live and verified on Netlify deploy `6a7c472ced66f000081eeb2b` from purged Git commit `f86b2dd`. The identified technical database, application, plugin, and dependency defects are repaired. “Perfect” cannot be honestly guaranteed for an AI, billing, authentication, and WordPress product; the responsible standard is evidence-backed release gates, owner control over destructive/provider actions, rollback readiness, and production monitoring.
