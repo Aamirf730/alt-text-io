@@ -415,9 +415,11 @@ export default function LandingPage() {
               {/* Left Side - Content */}
               <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 min-[1800px]:-translate-y-6">
                 <div className="flex flex-col">
-                  <h1 className="max-w-[900px] whitespace-nowrap text-[clamp(3.4rem,7.5vw,10rem)] font-bold font-outfit leading-[0.92] tracking-[-0.075em] text-black">
-                    Make Every <br />
-                    <span className="text-black">Image Speak</span>
+                  <h1 className="max-w-[900px] text-[clamp(3.4rem,7.5vw,10rem)] font-bold font-outfit leading-[0.92] tracking-[-0.075em] text-black">
+                    <span className="block text-[0.42em] leading-none tracking-[-0.05em]">Alt Text Pro</span>
+                    <span className="mt-3 block">Make Every <br />
+                      <span className="text-black">Image Speak</span>
+                    </span>
                   </h1>
 
                   <p className="mt-6 max-w-2xl text-lg font-normal leading-relaxed text-slate-500 sm:text-xl lg:text-[1.7rem] min-[1800px]:mt-10 min-[1800px]:max-w-[900px] min-[1800px]:text-[2.15rem]" style={{ lineHeight: 1.2 }}>
@@ -447,8 +449,8 @@ export default function LandingPage() {
                     </Button>
                   </div>
 
-                  <p className="mt-6 flex flex-wrap items-center gap-3 text-sm font-medium text-slate-500 sm:text-base min-[1800px]:mt-12">
-                    <span className="inline-flex items-center rounded-full bg-[#FEE11C] px-4 py-2 font-bold text-black shadow-[0_8px_18px_rgba(254,225,28,0.2)]">1 credit per image</span>
+                  <p className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-medium text-slate-500 sm:text-sm min-[1800px]:mt-12">
+                    <span className="font-semibold text-slate-600">1 credit per image</span>
                     <span>No credit card required</span>
                   </p>
                 </div>

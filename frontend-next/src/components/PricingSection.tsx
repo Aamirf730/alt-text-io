@@ -64,7 +64,7 @@ export default function PricingSection({
               <div className="flex items-start justify-between gap-4">
                 <h3 className="text-base font-semibold uppercase tracking-[0.14em] text-slate-500">{plan.name}</h3>
                 {plan.featured && (
-                  <span className="rounded-full bg-[#FEE11C] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.12em] text-black">
+                    <span className="whitespace-nowrap rounded-full bg-[#FEE11C] px-3 py-2 text-[10px] font-bold uppercase tracking-[0.08em] text-black">
                     Most popular
                   </span>
                 )}

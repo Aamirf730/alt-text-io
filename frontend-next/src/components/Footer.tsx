@@ -1,6 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { LockKeyhole, ShieldCheck } from 'lucide-react';
 
 const Footer = () => {
     return (
@@ -29,13 +30,34 @@ const Footer = () => {
                     {/* Verified platform information */}
                     <div className="flex flex-col items-center space-y-6">
                         <span className="text-xs font-bold text-gray-400 uppercase tracking-[0.2em]">Platform information</span>
-                        <div className="flex flex-wrap items-center justify-center gap-3">
-                            <a href="https://wordpress.org/plugins/alt-text-pro/" target="_blank" rel="noopener noreferrer" className="rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:border-notebook-blue/30 hover:text-notebook-blue">
-                                Available on WordPress.org
+                        <div className="grid w-full max-w-3xl gap-3 sm:grid-cols-3">
+                            <a href="https://wordpress.org/plugins/alt-text-pro/" target="_blank" rel="noopener noreferrer" className="group flex items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left transition-colors hover:border-notebook-blue/30">
+                                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#f2f7f9] p-1">
+                                    <Image src="/logos/wordpress-w.png" alt="WordPress" width={44} height={44} className="h-10 w-10 object-contain" />
+                                </span>
+                                <span>
+                                    <span className="block text-xs font-bold uppercase tracking-[0.12em] text-slate-400">Available on</span>
+                                    <span className="block text-sm font-semibold text-slate-700 group-hover:text-notebook-blue">WordPress.org</span>
+                                </span>
                             </a>
-                            <span className="rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700">
-                                Checkout processed by Polar.sh
-                            </span>
+                            <div className="flex items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left">
+                                <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#f4f1ff] p-0.5">
+                                    <Image src="/logos/polar-app-icon.png" alt="Polar" width={46} height={46} className="h-11 w-11 rounded-lg object-contain" />
+                                </span>
+                                <span>
+                                    <span className="block text-xs font-bold uppercase tracking-[0.12em] text-slate-400">Payments by</span>
+                                    <span className="block text-sm font-semibold text-slate-700">Polar.sh</span>
+                                </span>
+                            </div>
+                            <div className="flex items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left">
+                                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#eef8f5] text-[#15805d]">
+                                    <ShieldCheck className="h-5 w-5" aria-hidden="true" />
+                                </span>
+                                <span>
+                                    <span className="block text-xs font-bold uppercase tracking-[0.12em] text-slate-400">Protected</span>
+                                    <span className="block text-sm font-semibold text-slate-700"><LockKeyhole className="mr-1 inline h-3.5 w-3.5" aria-hidden="true" />Secure connection</span>
+                                </span>
+                            </div>
                         </div>
                     </div>
 

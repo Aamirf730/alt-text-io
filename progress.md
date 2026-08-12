@@ -1,5 +1,25 @@
 # Progress
 
+## 2026-08-13: Homepage branding clarity update ready for review
+
+- Status: local implementation complete and opened for review; production has not been changed.
+- Requested change: make “Alt Text Pro” explicit in the homepage H1 so Google’s OAuth branding review can match the consent-screen name; retain “Make Every Image Speak” as the headline; reduce the supporting credit notes and remove the pill/button styling from “1 credit per image.”
+- Verification: frontend tests (14 files/74 tests), TypeScript, ESLint, and `git diff --check` pass. Local Next.js is running at `http://localhost:3000/` with the updated homepage open in the browser.
+
+## 2026-08-13: Compact pricing allowance labels in progress
+
+- Status: local implementation in progress; production has not been changed.
+- Requested change: show subscription allowances as compact labels such as “150 Credits” and “1,000 Credits,” and keep the Standard “Most popular” badge on one line.
+
+## 2026-08-13: Footer trust marks ready for review
+
+- Status: local implementation complete and opened for review; production has not been changed.
+- Requested change: restore recognizable WordPress, Polar.sh, and secure-connection trust marks near the footer platform information.
+- Approach: reuse the repository’s WordPress SVG and use clear text/icon badges for Polar.sh and the secure connection because no official local Polar/security logo assets are available.
+- Verification: TypeScript, Footer ESLint, focused pricing mapping tests, and `git diff --check` pass. Local homepage refreshed at `http://localhost:3000/`.
+- Follow-up: added Polar’s official app icon from `https://polar.sh/assets/brand/app-icon.png` as a local asset and enlarged the WordPress mark for recognizability. The secure badge remains a neutral lock/shield indicator because no specific security provider was identified.
+- Follow-up: replaced the WordPress wordmark with the official standalone W mark and increased both the WordPress and Polar marks to 40px+ visual size in their 48px badges.
+
 ## 2026-08-12: First-party authentication branding released and verified
 
 - Status: complete. The direct Google Identity flow, first-party email confirmation page, custom SMTP sender, branded template, and Google consent settings are live on `www.alt-text.pro` without a Supabase paid plan.
