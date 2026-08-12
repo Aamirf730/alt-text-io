@@ -7,7 +7,7 @@ Scope: public website, authentication, SaaS dashboard, admin dashboard, customer
 
 The locally repaired codebase is substantially safer, more internally consistent, and more usable than the audited baseline. The application, API, migrations, and plugin pass their automated verification, the Next.js production build completes, and the corrected public journeys render without browser console errors or horizontal overflow at the tested desktop and mobile widths.
 
-The technical release blockers found in Supabase and the dependency tree have now been remediated and verified. The remaining owner/provider gates are credential rotation plus the associated Git-history decision, legal operator details, and destructive or billable authenticated end-to-end checks. The reviewed website release is proceeding through preview and production smoke gates; WordPress.org publication remains a separate release action.
+The technical release blockers found in Supabase and the dependency tree have now been remediated and verified. The reviewed website release passed an isolated preview, the Git-backed production deploy, and live smoke verification. The remaining owner/provider gates are credential rotation plus the associated Git-history decision, legal operator details, and destructive or billable authenticated end-to-end checks. WordPress.org publication remains a separate release action.
 
 Production and staging Supabase were changed only through reviewed migrations and a verified customer-safe API-key encryption pass. No customer charge, outbound email, WordPress.org publication, or live WordPress mutation was performed.
 
@@ -23,7 +23,7 @@ Production and staging Supabase were changed only through reviewed migrations an
 | Billing webhooks | Polar webhook route, Supabase ledgers/RPCs | Idempotency and identity handling covered by tests |
 | Serverless API | Netlify Functions | Auth, CORS, rate limiting, logging, health, and contact boundaries hardened |
 | Data | Supabase Postgres/Auth | Production and staging hardening applied and verified; leaked-password advisor refresh pending |
-| WordPress integration | Alt Text Pro plugin 1.7.18 | Authorization, connection, key storage, bulk processing, privacy, and packaging hardened |
+| WordPress integration | Alt Text Pro plugin 1.7.18 | Hardened and deployed to both website download URLs; WordPress.org release remains separate |
 | Firebase | Not used | Only a disabled example provider block exists in `supabase/config.toml` |
 
 ## Highest-severity findings
@@ -99,7 +99,7 @@ Health meanings: **Pass** = locally exercised or deterministically covered; **Pa
 - Regression checks: encrypted API-key persistence and security regression suites pass.
 - Package hygiene: 23 files; includes `uninstall.php`; excludes tests, debug logs, node modules, and deleted FTP utilities.
 - Source and public package SHA-256: `14f3cfb14cc54a5cf8f7b0df2523cf596e3eed71fdb047e31365ca96d7e0f027`.
-- No WordPress.org publication or live-site mutation was performed.
+- Website downloads were deployed to production and verified. No WordPress.org publication or live WordPress mutation was performed.
 
 ## Data/security review
 
@@ -179,4 +179,4 @@ Health meanings: **Pass** = locally exercised or deterministically covered; **Pa
 
 ## Release definition
 
-The code is a verified release candidate with the identified technical database, application, plugin, and dependency defects repaired. “Perfect” cannot be honestly guaranteed for an AI, billing, authentication, and WordPress product; the responsible standard is evidence-backed release gates, owner control over destructive/provider actions, rollback readiness, and production monitoring.
+The repaired website release is live and verified on Netlify deploy `6a7c3dc3b8011900088f420a` from Git commit `27f3ec2`. The identified technical database, application, plugin, and dependency defects are repaired. “Perfect” cannot be honestly guaranteed for an AI, billing, authentication, and WordPress product; the responsible standard is evidence-backed release gates, owner control over destructive/provider actions, rollback readiness, and production monitoring.

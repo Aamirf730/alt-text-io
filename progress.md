@@ -1,8 +1,8 @@
 # Progress
 
-## 2026-08-12: Technical release-blocker remediation in progress
+## 2026-08-12: Technical release-blocker remediation and production release completed
 
-- Status: production/staging database hardening, legacy API-key encryption, staging orphan-data cleanup, customer-offer function isolation, and local dependency remediation are complete and verified. Full regression and the Git-backed Netlify release are in progress because the live site still serves the older 1.7.16 package and lacks the new checkout-status route.
+- Status: production/staging database hardening, legacy API-key encryption, staging orphan-data cleanup, customer-offer function isolation, dependency remediation, full regression, isolated preview, Git-backed Netlify release, and live smoke verification are complete. The live site now serves plugin 1.7.18 and the protected checkout-status route.
 - Scope: production Supabase hardening migrations and verification, staging RLS/grant remediation, legacy API-key migration strategy, leaked-password protection feasibility, missing-index remediation, dependency/tooling posture, credential/history remediation preflight, and authenticated/provider release gates where automation and access safely permit them.
 - Safety: secrets will not be printed. Database mutations will be limited to reviewed migrations with verification and a rollback path. Shared Git history, external credential rotation, customer communications, charges, email delivery, WordPress.org publication, and production deployment will not be performed unless their exact target and consequences are safely established.
 - Database changes: applied `harden_client_data_boundaries` to staging and production; applied `correct_public_plan_features` to production; added the missing user foreign-key indexes; moved the customer-offer security-definer implementation into the non-exposed `private` schema behind a security-invoker public wrapper; and verified Supabase no longer reports the exposed security-definer warning.
@@ -12,6 +12,8 @@
 - Auth setting: enabled leaked-password prevention in both Supabase dashboard projects. Dashboard state shows it enabled, but the advisor cache has not yet refreshed; keep this as pending advisor verification.
 - Release packaging: the first Netlify preview preflight exposed two colocated test files being bundled as deployable functions. Moved both tests to the dedicated cross-function test project; no affected preview was published.
 - Continuous deployment: the first Git-backed production attempt failed safely before build because the configured Node patch release was unavailable in Netlify's dependency-install environment. Production remained on the previous healthy deploy; aligned `.nvmrc` and Netlify to the verified Node 22.23.1 runtime before retrying.
+- Production release: pushed the reviewed commits through `main`; Netlify deploy `6a7c3dc3b8011900088f420a` completed `ready` from commit `27f3ec2aaed5d4097e7004324e93484ebf66d0b3` with zero secret-scan matches. Live checks passed for the homepage, connect, customer-offer, dashboard shell, health, eight-plan catalogue, signed-out customer-portal guard, checkout-status guard, security headers, and both plugin download URLs. Both live ZIPs report version/stable tag 1.7.18 and their extracted contents match the reviewed package.
+- Remaining owner/provider actions: rotate the deleted legacy test-server credential, then approve any shared Git-history rewrite; provide legal operator/jurisdiction details; and separately authorize tests or releases that intentionally create charges, email, AI usage, WordPress.org publication, or live WordPress changes. Supabase dashboards show leaked-password prevention enabled, but both advisor caches still report the old warning and require later recheck.
 
 ## 2026-08-12: Complete product audit and local hardening completed
 
