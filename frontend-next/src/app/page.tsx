@@ -11,7 +11,7 @@ import { getPolarProductId } from '@/lib/polar-products';
 import { toast } from "sonner";
 import {
   Brain, CheckCircle, Star, ArrowRight, Users, Shield, Rocket,
-  Chrome, Upload, Eye, EyeOff, Download, Check, X, Search,
+  Upload, Eye, EyeOff, Download, Check, X, Search,
   CreditCard, Calendar, TrendingUp, Key, Copy, Info, AlertTriangle,
   RefreshCw, Book, FileText, HelpCircle, Settings, Code, DollarSign,
   Wrench, LogOut, MessageCircle, Image as ImageIcon,
@@ -28,6 +28,7 @@ import Footer from '@/components/Footer';
 import MediaLibraryShowcase from '@/components/MediaLibraryShowcase';
 import BenefitsStrip from '@/components/BenefitsStrip';
 import PricingSection, { pricingPlans } from '@/components/PricingSection';
+import GoogleIdentityButton from '@/components/GoogleIdentityButton';
 import { CREDIT_PACKS } from '@/lib/pricing-catalog';
 
 const HERO_SAMPLE_ALT_TEXT = "Turquoise alpine lake reflecting sunlit mountain peaks and pine trees under a clear sky.";
@@ -36,7 +37,6 @@ export default function LandingPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isLogin, setIsLogin] = useState(false);
   const [showAuthForm, setShowAuthForm] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -274,30 +274,6 @@ export default function LandingPage() {
       toast.error("Authentication failed.");
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handleGoogleAuth = async () => {
-    setIsGoogleLoading(true);
-    try {
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: window.location.origin + '/dashboard',
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          }
-        }
-      });
-
-      if (error) throw error;
-      if (data.url) window.location.href = data.url;
-    } catch (error: any) {
-      console.error("Google auth error:", error);
-      toast.error("Google sign-in failed: " + error.message);
-    } finally {
-      setIsGoogleLoading(false);
     }
   };
 
@@ -1071,21 +1047,17 @@ export default function LandingPage() {
                 </div>
               </div>
 
-              <Button
-                onClick={handleGoogleAuth}
-                disabled={isGoogleLoading}
-                variant="outline"
-                className="w-full h-12 border-notebook-blue/10 bg-notebook-paper hover:bg-white hover:text-notebook-blue text-notebook-slate rounded-2xl transition-all duration-300 flex items-center justify-center gap-3 font-bold font-outfit text-xs uppercase tracking-widest"
-              >
-                {isGoogleLoading ? (
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-notebook-blue"></div>
-                ) : (
-                  <>
-                    <Chrome className="w-4 h-4 text-notebook-blue" />
-                    Google Sign In
-                  </>
-                )}
-              </Button>
+              <GoogleIdentityButton
+                text={isLogin ? "signin_with" : "signup_with"}
+                disabled={isLoading}
+                onSuccess={() => {
+                  toast.success("Signed in with Google.");
+                  setShowAuthForm(false);
+                  router.push("/dashboard");
+                }}
+                onError={(message) => toast.error(message)}
+                className="rounded-2xl"
+              />
 
               <div className="text-center mt-6 space-y-3">
                 <button

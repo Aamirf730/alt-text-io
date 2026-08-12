@@ -37,6 +37,12 @@ describe("WordPress connect result screens", () => {
         expect(pageSource).toContain('emailRedirectTo: signupRedirectUrl || window.location.href');
     });
 
+    it("uses the first-party Google Identity flow instead of a Supabase OAuth redirect", () => {
+        expect(pageSource).toContain('import GoogleIdentityButton from "@/components/GoogleIdentityButton"');
+        expect(pageSource).toContain("<GoogleIdentityButton");
+        expect(pageSource).not.toContain("signInWithOAuth");
+    });
+
     it("keeps the primary connection flow on the Alt Text Pro yellow and black palette", () => {
         expect(pageSource).toContain("background: #FEE11C;");
         expect(pageSource).toContain("margin: 0 auto 16px");

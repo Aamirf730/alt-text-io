@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { getApiBase } from "@/lib/utils";
 import { trackMarketingEvent } from "@/lib/analytics";
 import { toast } from "sonner";
+import GoogleIdentityButton from "@/components/GoogleIdentityButton";
 import "./connect-states.css";
 import {
     Key, Eye, EyeOff, CheckCircle, Loader2, ArrowRight,
@@ -611,42 +612,24 @@ function ConnectPageContent() {
         }
     };
 
-    // Handle Google sign-in
-    const handleGoogleAuth = async () => {
-        setIsLoading(true);
+    const handleGoogleSuccess = async () => {
         setError("");
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user) {
+            throw new Error("Google sign-in completed without a usable session.");
+        }
 
-        try {
-            const { callbackUrl, state, source, pluginVersion } = resolveConnectContext();
-
-            // Store state in sessionStorage so we can retrieve it after OAuth redirect
-            if (state) sessionStorage.setItem("alt_text_pro_state", state);
-            if (callbackUrl) sessionStorage.setItem("alt_text_pro_callback", callbackUrl);
-            if (source) sessionStorage.setItem("alt_text_pro_source", source);
-            if (pluginVersion) sessionStorage.setItem("alt_text_pro_plugin_version", pluginVersion);
-
-            const { data, error } = await supabase.auth.signInWithOAuth({
-                provider: "google",
-                options: {
-                    redirectTo: window.location.origin + "/connect" +
-                        (callbackUrl ? `?callback_url=${encodeURIComponent(callbackUrl)}` : "") +
-                        (state ? `${callbackUrl ? '&' : '?'}state=${encodeURIComponent(state)}` : "") +
-                        (source ? `${callbackUrl || state ? '&' : '?'}source=${encodeURIComponent(source)}` : "") +
-                        (pluginVersion ? `${callbackUrl || state || source ? '&' : '?'}plugin_version=${encodeURIComponent(pluginVersion)}` : ""),
-                    queryParams: {
-                        access_type: "offline",
-                        prompt: "consent",
-                    },
+        setUser(session.user);
+        if (hasWordPressConnectContext(queryCallbackUrl, querySource)) {
+            trackMarketingEvent("signup_created", {
+                source: "wordpress_connect",
+                properties: {
+                    signup_method: "google",
+                    source: "wordpress_plugin_connect",
                 },
             });
-
-            if (error) throw error;
-            if (data.url) window.location.href = data.url;
-        } catch (err: any) {
-            setError("Google sign-in failed: " + err.message);
-        } finally {
-            setIsLoading(false);
         }
+        await prepareAuthenticatedConnection(session.access_token);
     };
 
     // Loading state while checking auth
@@ -840,20 +823,14 @@ function ConnectPageContent() {
                 )}
 
                 {/* Google Auth Button */}
-                <button
-                    type="button"
-                    className="connect-google-btn"
-                    onClick={handleGoogleAuth}
+                <GoogleIdentityButton
+                    text="continue_with"
                     disabled={isLoading}
-                >
-                    <svg width="18" height="18" viewBox="0 0 48 48">
-                        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
-                        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
-                        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
-                        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
-                    </svg>
-                    <span>{isLoading ? "Connecting..." : "Continue with Google"}</span>
-                </button>
+                    onLoadingChange={setIsLoading}
+                    onSuccess={handleGoogleSuccess}
+                    onError={setError}
+                    className="connect-google-btn"
+                />
 
                 {/* Divider */}
                 <div className="connect-divider">
@@ -1017,30 +994,7 @@ function ConnectPageContent() {
 
         .connect-google-btn {
           width: 100%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 10px;
-          padding: 12px 16px;
-          border: 1px solid #e2e8f0;
           border-radius: 10px;
-          background: #ffffff;
-          color: #000000;
-          font-size: 14px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .connect-google-btn:hover:not(:disabled) {
-          background: #FFFFFF;
-          border-color: #FEE11C;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-        }
-
-        .connect-google-btn:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
         }
 
         .connect-divider {

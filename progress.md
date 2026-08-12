@@ -1,5 +1,16 @@
 # Progress
 
+## 2026-08-12: First-party authentication branding release in progress
+
+- Status: implementation and local verification are complete. Google and Netlify production settings are prepared; the reviewed release is now entering deployment before the Supabase SMTP/template switch.
+- Scope: replace browser redirects through the Supabase Google OAuth hostname, add an `alt-text.pro` token-verification flow, provide versioned email-template/configuration assets, and verify every signup surface without changing billing, credits, API keys, or customer data.
+- Implementation: the homepage, WordPress connect flow, and customer-offer flow now use Google Identity Services and exchange the signed Google ID token directly with Supabase using a hashed nonce. Added a first-party `/auth/confirm` token-hash verifier, strict redirect validation, a branded confirmation template, and the required CSP/COOP rules.
+- Provider configuration: authorized both `https://www.alt-text.pro` and `https://alt-text.pro` as Google JavaScript origins. Changed the Google consent brand to `Alt Text Pro` and replaced the old Netlify homepage/privacy/terms values with the public `alt-text.pro` URLs. Added the existing Google client ID to the linked Netlify project's build environment without committing it.
+- SMTP preflight: the existing production Gmail transport authenticates successfully and the configured sender mailbox is on `alt-text.pro`; no new paid mail service is required. Supabase production still has its original SMTP/template settings until the deployed `/auth/confirm` route passes smoke checks.
+- Verification: frontend 14 files/74 tests, TypeScript, ESLint, the Next.js production build (28 routes), and `git diff --check` pass. No customer-facing source retains `signInWithOAuth`.
+- Safety: existing untracked design/audit artifacts are preserved. No secrets were printed or committed, no customer data was changed, and the temporary Netlify diagnostic variable was removed after verification.
+- External review note: Google still records a prior branding-verification failure for the former Netlify homepage. The new production origins and branding are saved; domain ownership/reverification is a separate provider review and does not block the direct Google button rollout.
+
 ## 2026-08-12: Technical release-blocker remediation and production release completed
 
 - Status: production/staging database hardening, legacy API-key encryption, staging orphan-data cleanup, customer-offer function isolation, dependency remediation, full regression, isolated preview, Git-backed Netlify release, and live smoke verification are complete. The live site now serves plugin 1.7.18 and the protected checkout-status route.

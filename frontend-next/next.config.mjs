@@ -11,12 +11,12 @@ const isDev = process.env.NODE_ENV === 'development';
 
 const ContentSecurityPolicy = `
   default-src 'self';
-  script-src 'self' 'unsafe-inline' ${isDev ? "'unsafe-eval' http://localhost:*" : ''};
-  style-src 'self' 'unsafe-inline' ${isDev ? 'http://localhost:*' : ''};
+  script-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/client ${isDev ? "'unsafe-eval' http://localhost:*" : ''};
+  style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style ${isDev ? 'http://localhost:*' : ''};
   font-src 'self' data: ${isDev ? 'http://localhost:*' : ''};
   img-src 'self' https://www.alt-text.pro https://alt-text.pro https://*.supabase.co data: blob: ${isDev ? 'http://localhost:*' : ''};
-  connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.polar.sh https://*.netlify.app https://www.alt-text.pro ${isDev ? 'http://localhost:* ws://localhost:*' : ''};
-  frame-src 'none';
+  connect-src 'self' https://*.supabase.co wss://*.supabase.co https://accounts.google.com/gsi/ https://api.polar.sh https://*.netlify.app https://www.alt-text.pro ${isDev ? 'http://localhost:* ws://localhost:*' : ''};
+  frame-src https://accounts.google.com/gsi/;
   object-src 'none';
   base-uri 'self';
   form-action 'self';
@@ -52,6 +52,10 @@ const securityHeaders = [
   {
     key: 'Strict-Transport-Security',
     value: 'max-age=63072000; includeSubDomains; preload',
+  },
+  {
+    key: 'Cross-Origin-Opener-Policy',
+    value: 'same-origin-allow-popups',
   },
 ];
 
