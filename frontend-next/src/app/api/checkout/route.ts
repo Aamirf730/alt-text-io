@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Polar } from "@polar-sh/sdk";
 import { createClient } from "@supabase/supabase-js";
-import { getConfiguredPolarProductIds } from "@/lib/polar-products";
+import { getConfiguredPolarProductIds, getPolarProductId } from "@/lib/polar-products";
+import { isCreditPackEligibleSubscriber } from "@/lib/credit-pack-eligibility";
 import { safeServerError } from "@/lib/safe-server-log";
 
 function getSupabaseClient() {
@@ -20,6 +21,10 @@ export async function GET(request: NextRequest) {
     }
 
     const configuredProductIds = getConfiguredPolarProductIds();
+    const creditPackProductIds = new Set([
+        getPolarProductId("small_pack"),
+        getPolarProductId("credit_pack"),
+    ]);
 
     if (configuredProductIds.size === 0) {
         return NextResponse.json({ error: "Checkout products are not configured" }, { status: 503 });
@@ -52,7 +57,7 @@ export async function GET(request: NextRequest) {
 
         const { data: profile, error: profileError } = await supabase
             .from("profiles")
-            .select("polar_customer_id")
+            .select("polar_customer_id, subscription_plan, subscription_status, billing_cycle")
             .eq("id", user.id)
             .maybeSingle();
 
@@ -62,6 +67,16 @@ export async function GET(request: NextRequest) {
 
         if (!profile) {
             return NextResponse.json({ error: "Account profile is not ready" }, { status: 409 });
+        }
+
+        if (
+            creditPackProductIds.has(productId) &&
+            !isCreditPackEligibleSubscriber(profile)
+        ) {
+            return NextResponse.json(
+                { error: "Credit top-ups are available to paid subscribers only." },
+                { status: 403 },
+            );
         }
 
         const polarAccessToken = process.env.POLAR_ACCESS_TOKEN;

@@ -5,13 +5,23 @@ const mocks = vi.hoisted(() => {
     const state: {
         user: { id: string; email: string | null } | null;
         authError: Error | null;
-        profile: { polar_customer_id: string | null } | null;
+        profile: {
+            polar_customer_id: string | null;
+            subscription_plan?: string;
+            subscription_status?: string;
+            billing_cycle?: string | null;
+        } | null;
         profileError: Error | null;
         checkoutArgs: Record<string, unknown> | null;
     } = {
         user: { id: "user_1", email: "Verified@Example.com" },
         authError: null,
-        profile: { polar_customer_id: null },
+        profile: {
+            polar_customer_id: null,
+            subscription_plan: "tier1",
+            subscription_status: "active",
+            billing_cycle: "monthly",
+        },
         profileError: null,
         checkoutArgs: null,
     };
@@ -62,9 +72,16 @@ describe("checkout identity binding", () => {
         process.env.POLAR_ENVIRONMENT = "sandbox";
         process.env.NEXT_PUBLIC_SITE_URL = "http://localhost:3000";
         process.env.NEXT_PUBLIC_POLAR_TIER1_MONTHLY = "prod_1";
+        process.env.NEXT_PUBLIC_POLAR_SMALL_PACK = "prod_small";
+        process.env.NEXT_PUBLIC_POLAR_CREDIT_PACK = "prod_large";
         mocks.state.user = { id: "user_1", email: "Verified@Example.com" };
         mocks.state.authError = null;
-        mocks.state.profile = { polar_customer_id: null };
+        mocks.state.profile = {
+            polar_customer_id: null,
+            subscription_plan: "tier1",
+            subscription_status: "active",
+            billing_cycle: "monthly",
+        };
         mocks.state.profileError = null;
         mocks.state.checkoutArgs = null;
         vi.clearAllMocks();
@@ -125,5 +142,64 @@ describe("checkout identity binding", () => {
             metadata: { user_id: "user_1" },
         });
         expect(mocks.state.checkoutArgs).not.toHaveProperty("customerEmail", "attacker@example.com");
+    });
+
+    it.each(["prod_small", "prod_large"])(
+        "allows an eligible monthly subscriber to buy %s",
+        async (productId) => {
+            const response = await GET(new NextRequest(
+                `http://localhost/api/checkout?products=${productId}&format=json`,
+                {
+                    headers: {
+                        Authorization: "Bearer verified-session-token",
+                        Accept: "application/json",
+                    },
+                },
+            ));
+
+            expect(response.status).toBe(200);
+            expect(mocks.createCheckout).toHaveBeenCalledWith(expect.objectContaining({
+                products: [productId],
+            }));
+        },
+    );
+
+    it("rejects a free account attempting to buy a credit pack", async () => {
+        mocks.state.profile = {
+            polar_customer_id: null,
+            subscription_plan: "free",
+            subscription_status: "active",
+            billing_cycle: "monthly",
+        };
+
+        const response = await GET(new NextRequest(
+            "http://localhost/api/checkout?products=prod_small&format=json",
+            { headers: { Authorization: "Bearer verified-session-token" } },
+        ));
+
+        expect(response.status).toBe(403);
+        expect(await response.json()).toEqual({
+            error: "Credit top-ups are available to paid subscribers only.",
+        });
+        expect(mocks.createCheckout).not.toHaveBeenCalled();
+    });
+
+    it("allows an eligible annual subscriber to buy a credit pack", async () => {
+        mocks.state.profile = {
+            polar_customer_id: null,
+            subscription_plan: "tier2",
+            subscription_status: "active",
+            billing_cycle: "annual",
+        };
+
+        const response = await GET(new NextRequest(
+            "http://localhost/api/checkout?products=prod_large&format=json",
+            { headers: { Authorization: "Bearer verified-session-token" } },
+        ));
+
+        expect(response.status).toBe(200);
+        expect(mocks.createCheckout).toHaveBeenCalledWith(expect.objectContaining({
+            products: ["prod_large"],
+        }));
     });
 });

@@ -10,6 +10,7 @@ describe("first-party email confirmation", () => {
     expect(source).toContain("supabase.auth.verifyOtp");
     expect(source).toContain("token_hash: tokenHash");
     expect(source).toContain("getSafeAuthRedirect");
+    expect(source).toContain('type === "recovery" ? "/reset-password" : "/email-confirmed"');
   });
 
   it("keeps the confirmation link on the first-party domain", () => {

@@ -86,14 +86,14 @@ export const CREDIT_PACKS: CreditPack[] = [
     name: "Small Credit Pack",
     price: "$5",
     creditCount: 500,
-    features: ["500 credits", "Credits never expire", "Works with any plan"],
+    features: ["500 credits", "Credits never expire", "Available to paid subscribers"],
   },
   {
     id: "credit_pack",
     name: "Large Credit Pack",
     price: "$10",
     creditCount: 1200,
-    features: ["1,200 credits", "Credits never expire", "Works with any plan"],
+    features: ["1,200 credits", "Credits never expire", "Available to paid subscribers"],
   },
 ];
 

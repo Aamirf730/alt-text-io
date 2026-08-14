@@ -433,7 +433,7 @@ export default function DocsPage() {
                                         {SUBSCRIPTION_PLANS.filter((plan) => plan.id !== 'free')
                                             .map((plan) => `${plan.annualPrice}/year for ${plan.name}`)
                                             .join(', ')}{' '}
-                                        — a 10% saving. The listed monthly credit allowance still renews monthly on subscription plans. One-time credit packs are also available:{' '}
+                                        — a 10% saving. The listed monthly credit allowance still renews monthly on subscription plans. One-time credit packs are available to paid subscribers only:{' '}
                                         {CREDIT_PACKS.map((pack) => `${pack.price} for ${pack.creditCount.toLocaleString()} credits`).join(' or ')}.
                                         Pack credits never expire and are only used up when you generate.
                                     </p>

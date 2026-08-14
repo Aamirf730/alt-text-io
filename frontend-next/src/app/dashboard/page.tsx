@@ -9,6 +9,7 @@ import { getApiBase, PLAN_CREDIT_LIMITS, PLUGIN_VERSION } from '@/lib/utils';
 import { trackMarketingEvent } from '@/lib/analytics';
 import { getPolarProductId } from '@/lib/polar-products';
 import { CREDIT_PACKS, getPurchaseOption, SUBSCRIPTION_PLANS } from '@/lib/pricing-catalog';
+import { isCreditPackEligibleSubscriber } from '@/lib/credit-pack-eligibility';
 
 type UsageHistoryItem = {
     id: string;
@@ -16,6 +17,8 @@ type UsageHistoryItem = {
     context: string | null;
     date: string;
 };
+
+type UpgradeModalView = "plans" | "credit-packs";
 import { toast } from "sonner";
 import {
     Brain, Zap, CheckCircle, Star, ArrowRight, Users, Shield, Rocket,
@@ -44,6 +47,7 @@ export default function Dashboard() {
     const [subscriptionData, setSubscriptionData] = useState<any>(null);
     const [showUpgradeModal, setShowUpgradeModal] = useState(false);
     const [selectedUpgradePlan, setSelectedUpgradePlan] = useState<any>(null);
+    const [upgradeModalView, setUpgradeModalView] = useState<UpgradeModalView>("plans");
     const [isGenerating, setIsGenerating] = useState(false);
     const [generatedAltText, setGeneratedAltText] = useState("");
     const [history, setHistory] = useState<UsageHistoryItem[]>([]);
@@ -56,6 +60,11 @@ export default function Dashboard() {
     const currentPlan = String(usageStats?.plan || 'free');
     const currentPlanLimit = PLAN_CREDIT_LIMITS[currentPlan] || PLAN_CREDIT_LIMITS.free;
     const billingCycle = String(usageStats?.billing_cycle || subscriptionData?.subscription?.billing_cycle || '');
+    const isCreditPackEligible = isCreditPackEligibleSubscriber({
+        subscription_plan: currentPlan,
+        subscription_status: usageStats?.subscription_status || subscriptionData?.subscription?.status,
+        billing_cycle: billingCycle,
+    });
     const monthlyCreditAllowance = Number(usageStats?.monthly_credit_allowance || subscriptionData?.subscription?.monthly_credit_allowance || 0);
     const monthlyCreditLimit = Number(usageStats?.monthly_credit_limit || 0);
     const bonusCreditsRemaining = Number(usageStats?.bonus_credits_remaining || 0);
@@ -137,7 +146,22 @@ export default function Dashboard() {
 
     // Handle upgrade plan selection
     const handleUpgradePlan = (planId: string, planName: string, planPrice: string) => {
+        setUpgradeModalView("plans");
         setSelectedUpgradePlan({ id: planId, name: planName, price: planPrice });
+        setShowUpgradeModal(true);
+    };
+
+    const openCreditPacks = () => {
+        if (!isCreditPackEligible) return;
+
+        setUpgradeModalView("credit-packs");
+        setSelectedUpgradePlan(null);
+        setShowUpgradeModal(true);
+    };
+
+    const openUpgradePlans = () => {
+        setUpgradeModalView("plans");
+        setSelectedUpgradePlan(null);
         setShowUpgradeModal(true);
     };
 
@@ -145,6 +169,11 @@ export default function Dashboard() {
     const redirectToCheckout = async (productId: string) => {
         if (!productId) {
             toast.error('Product not configured. Please contact support.');
+            return;
+        }
+
+        if (selectedUpgradeIsPack && !isCreditPackEligible) {
+            toast.error('Credit top-ups are available to paid subscribers only.');
             return;
         }
 
@@ -282,6 +311,7 @@ export default function Dashboard() {
                             monthly_credits_used: usageData.data.monthly_credits_used,
                             total_processed: usageData.data.total_processed || usageData.data.credits_used || 0,
                             plan: usageData.data.subscription_plan || 'free',
+                            subscription_status: usageData.data.subscription_status || null,
                             billing_cycle: usageData.data.billing_cycle || null,
                             monthly_credit_allowance: usageData.data.monthly_credit_allowance || null
                         });
@@ -313,6 +343,7 @@ export default function Dashboard() {
                         purchased_credits_remaining: profile.purchased_credits_remaining || 0,
                         total_processed: profile.total_processed || 0,
                         plan: profile.subscription_plan || 'free',
+                        subscription_status: profile.subscription_status || null,
                         billing_cycle: profile.billing_cycle || null,
                         monthly_credit_allowance: profile.monthly_credit_allowance || null
                     });
@@ -764,13 +795,32 @@ export default function Dashboard() {
                                     {planAllowance.toLocaleString()} {billingCycle === 'annual' ? 'monthly allowance' : 'plan credits'}
                                 </span>
                             </div>
-                            <div className="flex justify-end items-center mt-5">
-                                <button
-                                    onClick={() => handleUpgradePlan('small_pack', 'Small Pack', '$5')}
-                                    className="text-notebook-blue text-xs font-semibold hover:opacity-80 transition-opacity flex items-center group/btn font-outfit uppercase tracking-[0.15em]"
-                                >
-                                    Top up <ArrowRight className="h-3 w-3 ml-2 transition-transform group-hover/btn:translate-x-1" />
-                                </button>
+                            <div className="mt-7 rounded-2xl border border-amber-100 bg-amber-50/50 p-5">
+                                <div className="flex items-start justify-between gap-4">
+                                    <div>
+                                        <p className="text-[10px] font-bold text-amber-700 uppercase tracking-[0.2em]">Top up credits</p>
+                                        <p className="text-xs text-slate-600 mt-2 leading-relaxed">
+                                            {isCreditPackEligible
+                                                ? "Need more credits? Choose a one-time pack."
+                                                : "Available to paid subscribers only."}
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={openCreditPacks}
+                                        disabled={!isCreditPackEligible}
+                                        aria-disabled={!isCreditPackEligible}
+                                        title={!isCreditPackEligible ? "Available to paid subscribers only" : undefined}
+                                        className="text-notebook-blue text-xs font-semibold flex items-center group/btn font-outfit uppercase tracking-[0.15em] disabled:cursor-not-allowed disabled:text-slate-400 disabled:opacity-70"
+                                    >
+                                        Top up <ArrowRight className="h-3 w-3 ml-2 transition-transform group-hover/btn:translate-x-1" />
+                                    </button>
+                                </div>
+                                {!isCreditPackEligible && (
+                                    <p className="text-[11px] text-amber-800/70 mt-3 leading-relaxed">
+                                        Subscribe to a monthly or annual plan to unlock the 500- and 1,200-credit packs.
+                                    </p>
+                                )}
                             </div>
                         </CardContent>
                     </Card>
@@ -846,7 +896,7 @@ export default function Dashboard() {
                                     </div>
                                 ) : (
                                     <button
-                                        onClick={() => setShowUpgradeModal(true)}
+                                        onClick={openUpgradePlans}
                                         className="text-xs text-notebook-slate font-semibold hover:text-notebook-blue transition-all flex items-center group/btn font-outfit uppercase tracking-[0.15em]"
                                     >
                                         Upgrade Your Plan <ArrowRight className="h-4 w-4 ml-2 transition-transform group-hover/btn:translate-x-1" />
@@ -1185,10 +1235,14 @@ export default function Dashboard() {
                                     <span>Plan Management</span>
                                 </div>
                                 <h2 className="text-4xl font-semibold text-[#1A1C1E] mb-4 tracking-tight font-outfit">
-                                    Choose a <span className="text-[#000000]">Plan</span>
+                                    {upgradeModalView === "credit-packs"
+                                        ? <>Top up <span className="text-[#000000]">credits</span></>
+                                        : <>Choose a <span className="text-[#000000]">Plan</span></>}
                                 </h2>
                                 <p className="text-[#5F6368] text-lg font-inter">
-                                    Compare the available plans and credit allowances.
+                                    {upgradeModalView === "credit-packs"
+                                        ? "Choose a one-time pack to add credits to your account."
+                                        : "Compare the available plans and credit allowances."}
                                 </p>
                             </div>
                         </div>
@@ -1223,6 +1277,8 @@ export default function Dashboard() {
                                                 const productId = getPolarProductId(selectedUpgradePlan.id);
                                                 void redirectToCheckout(productId);
                                             }}
+                                            disabled={selectedUpgradeIsPack && !isCreditPackEligible}
+                                            title={selectedUpgradeIsPack && !isCreditPackEligible ? "Available to paid subscribers only" : undefined}
                                             className="w-full h-14 bg-[#000000] hover:bg-[#000000] text-white font-semibold text-lg rounded-xl transition-all shadow-[0_10px_24px_rgba(0,0,0,0.18)]"
                                         >
                                             {selectedUpgradeIsPack ? 'Buy Credits' : 'Upgrade Now'}
@@ -1233,7 +1289,7 @@ export default function Dashboard() {
                                             onClick={() => setSelectedUpgradePlan(null)}
                                             className="w-full mt-6 text-[#5F6368] hover:text-[#1A1C1E] text-sm font-medium transition-colors p-2"
                                         >
-                                            Back to Plans
+                                            Back to {upgradeModalView === "credit-packs" ? "Credit Packs" : "Plans"}
                                         </button>
                                     </div>
                                     <div className="text-center text-xs text-[#9AA0A6] flex items-center justify-center gap-2">
@@ -1242,7 +1298,7 @@ export default function Dashboard() {
                                 </div>
                             ) : (
                                 <div className="space-y-12">
-                                    <div>
+                                    {upgradeModalView === "plans" && <div>
                                         <h3 className="text-lg font-semibold text-[#1A1C1E] mb-8 font-outfit border-l-4 border-[#000000] pl-4">Monthly Subscriptions</h3>
                                         <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-8">
                                             {SUBSCRIPTION_PLANS.filter((plan) => plan.id !== 'free').map((plan) => (
@@ -1282,11 +1338,7 @@ export default function Dashboard() {
                                                     </ul>
                                                     <Button
                                                         type="button"
-                                                        onClick={() => setSelectedUpgradePlan({
-                                                            id: `${plan.id}_monthly`,
-                                                            name: plan.name,
-                                                            price: plan.monthlyPrice,
-                                                        })}
+                                                        onClick={() => handleUpgradePlan(`${plan.id}_monthly`, plan.name, plan.monthlyPrice)}
                                                         className={`w-full rounded-xl font-medium ${
                                                             plan.featured
                                                                 ? 'bg-[#000000] text-white hover:bg-[#000000] shadow-[0_10px_24px_rgba(0,0,0,0.18)]'
@@ -1298,10 +1350,11 @@ export default function Dashboard() {
                                                 </article>
                                             ))}
                                         </div>
-                                    </div>
+                                    </div>}
 
                                     <div>
-                                        <h3 className="text-lg font-semibold text-[#1A1C1E] mb-8 font-outfit border-l-4 border-amber-400 pl-4">Credits (One-Time)</h3>
+                                        <h3 className="text-lg font-semibold text-[#1A1C1E] mb-3 font-outfit border-l-4 border-amber-400 pl-4">Credits (One-Time)</h3>
+                                        <p className="text-sm text-[#5F6368] mb-8 ml-4">Available to paid subscribers only.</p>
                                         <div className="grid md:grid-cols-2 gap-8">
                                             {CREDIT_PACKS.map((pack) => (
                                                 <article
@@ -1330,7 +1383,9 @@ export default function Dashboard() {
                                                             name: pack.name,
                                                             price: pack.price,
                                                         })}
-                                                        className="w-full bg-white text-[#1A1C1E] hover:bg-[#F1F3F4] border border-[#F1F3F4] rounded-xl font-medium"
+                                                        disabled={!isCreditPackEligible}
+                                                        title={!isCreditPackEligible ? "Available to paid subscribers only" : undefined}
+                                                        className="w-full bg-white text-[#1A1C1E] hover:bg-[#F1F3F4] border border-[#F1F3F4] rounded-xl font-medium disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 disabled:hover:bg-slate-100"
                                                     >
                                                         Buy Credits
                                                     </Button>

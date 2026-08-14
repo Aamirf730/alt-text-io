@@ -277,6 +277,35 @@ export default function LandingPage() {
     }
   };
 
+  const handlePasswordReset = async () => {
+    const normalizedEmail = email.trim();
+
+    if (!normalizedEmail) {
+      toast.error("Enter your email address first.");
+      emailInputRef.current?.focus();
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+
+      toast.success("If an account exists for that email, a reset link is on its way.");
+    } catch (error) {
+      console.error("Password reset error:", error);
+      toast.error("Could not send the password reset email. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Handle plan selection
   const handlePlanSelection = (planId: string, planName: string, planPrice: string) => {
     if (!user) {
@@ -1014,7 +1043,19 @@ export default function LandingPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label htmlFor="auth-password" className="text-[10px] font-bold text-slate-600 uppercase tracking-widest ml-1">Password</label>
+                  <div className="flex items-center justify-between gap-3">
+                    <label htmlFor="auth-password" className="text-[10px] font-bold text-slate-600 uppercase tracking-widest ml-1">Password</label>
+                    {isLogin && (
+                      <button
+                        type="button"
+                        onClick={() => void handlePasswordReset()}
+                        disabled={isLoading}
+                        className="text-[10px] font-bold text-notebook-blue hover:text-notebook-slate disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
+                      >
+                        Forgot password?
+                      </button>
+                    )}
+                  </div>
                   <Input
                     id="auth-password"
                     type="password"

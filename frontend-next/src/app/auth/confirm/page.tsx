@@ -32,9 +32,10 @@ export default function AuthConfirmPage() {
       const params = new URLSearchParams(window.location.search);
       const tokenHash = params.get("token_hash");
       const type = params.get("type");
+      const defaultDestination = type === "recovery" ? "/reset-password" : "/email-confirmed";
       const safeDestination = getSafeAuthRedirect(
         params.get("next"),
-        "/email-confirmed",
+        defaultDestination,
         window.location.origin,
       );
       setDestination(safeDestination);
