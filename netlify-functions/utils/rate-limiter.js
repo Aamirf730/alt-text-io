@@ -3,7 +3,8 @@
  * File: netlify-functions/utils/rate-limiter.js
  *
  * Uses Upstash Redis for production-grade distributed rate limiting.
- * Falls back to in-memory rate limiting when Upstash is not configured.
+ * Local development can fall back to in-memory rate limiting, but serverless
+ * production must fail closed if the distributed backend is unavailable.
  *
  * ═══════════════════════════════════════════════════════════════════════════════
  * SETUP: Free Upstash Redis
@@ -31,6 +32,34 @@ let useRedis = false;
 let initAttempted = false;
 let initError = null;
 
+function shouldAllowMemoryFallback() {
+    if (String(process.env.RATE_LIMIT_ALLOW_MEMORY_FALLBACK || '').toLowerCase() === 'true') {
+        return true;
+    }
+
+    const context = String(process.env.CONTEXT || '').toLowerCase();
+    const runningOnNetlify = process.env.NETLIFY === 'true'
+        || context === 'production'
+        || context === 'deploy-preview'
+        || context === 'branch-deploy';
+
+    return !runningOnNetlify && process.env.NODE_ENV !== 'production';
+}
+
+function rateLimiterUnavailable(message) {
+    return {
+        allowed: false,
+        limit: 0,
+        remaining: 0,
+        resetAt: new Date(Date.now() + 60000),
+        count: 0,
+        backend: 'unavailable',
+        statusCode: 503,
+        error: 'rate_limiter_unavailable',
+        message,
+    };
+}
+
 /**
  * Initialize Redis-based rate limiting (lazy, only on first use)
  */
@@ -40,10 +69,16 @@ function initRedis() {
 
     const url = process.env.UPSTASH_REDIS_REST_URL;
     const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+    const fallbackAllowed = shouldAllowMemoryFallback();
 
     if (!url || !token) {
-        console.log('[RateLimiter] Upstash Redis not configured — using in-memory fallback.');
-        console.log('[RateLimiter] Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN for distributed rate limiting.');
+        initError = new Error('Upstash Redis is not configured');
+        if (fallbackAllowed) {
+            console.log('[RateLimiter] Upstash Redis not configured — using in-memory fallback.');
+            console.log('[RateLimiter] Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN for distributed rate limiting.');
+        } else {
+            console.error('[RateLimiter] Upstash Redis not configured and memory fallback is disabled.');
+        }
         useRedis = false;
         return false;
     }
@@ -62,7 +97,11 @@ function initRedis() {
         initError = err;
         useRedis = false;
         console.error('[RateLimiter] Failed to initialize Upstash Redis:', err.message);
-        console.log('[RateLimiter] Falling back to in-memory rate limiting.');
+        if (fallbackAllowed) {
+            console.log('[RateLimiter] Falling back to in-memory rate limiting.');
+        } else {
+            console.error('[RateLimiter] Memory fallback is disabled; rate-limited endpoints will fail closed.');
+        }
         return false;
     }
 }
@@ -163,6 +202,8 @@ function checkMemoryRateLimit(key, maxRequests, windowMs) {
  * @returns {Promise<Object>} - { allowed, remaining, resetAt, backend }
  */
 async function checkRateLimit(identifier, maxRequests = 60, windowMs = 60000) {
+    const fallbackAllowed = shouldAllowMemoryFallback();
+
     // Lazy init
     initRedis();
 
@@ -171,7 +212,10 @@ async function checkRateLimit(identifier, maxRequests = 60, windowMs = 60000) {
         try {
             limiter = getRedisRateLimiter(maxRequests, windowMs);
         } catch (err) {
-            console.error('[RateLimiter] Failed to create Redis limiter, falling back to memory:', err.message);
+            console.error('[RateLimiter] Failed to create Redis limiter:', err.message);
+            if (!fallbackAllowed) {
+                return rateLimiterUnavailable('Distributed rate limiter initialization failed.');
+            }
             return checkMemoryRateLimit(identifier, maxRequests, windowMs);
         }
     }
@@ -193,10 +237,16 @@ async function checkRateLimit(identifier, maxRequests = 60, windowMs = 60000) {
                 backend: 'redis',
             };
         } catch (err) {
-            // Redis error — fall back to memory for this request
-            console.error('[RateLimiter] Redis error, falling back to memory:', err.message);
+            console.error('[RateLimiter] Redis error:', err.message);
+            if (!fallbackAllowed) {
+                return rateLimiterUnavailable('Distributed rate limiter request failed.');
+            }
             return checkMemoryRateLimit(identifier, maxRequests, windowMs);
         }
+    }
+
+    if (!fallbackAllowed) {
+        return rateLimiterUnavailable(initError?.message || 'Distributed rate limiting is required but unavailable.');
     }
 
     // Fallback: in-memory
@@ -210,6 +260,9 @@ async function checkRateLimit(identifier, maxRequests = 60, windowMs = 60000) {
  * @param {number} windowMs - Default: 60000 (1 min)
  */
 async function checkStrictRateLimit(identifier, maxRequests = 10, windowMs = 60000) {
+    const fallbackAllowed = shouldAllowMemoryFallback();
+    initRedis();
+
     if (useRedis && redisClient) {
         try {
             const { Ratelimit } = require('@upstash/ratelimit');
@@ -227,9 +280,17 @@ async function checkStrictRateLimit(identifier, maxRequests = 10, windowMs = 600
                 backend: 'redis',
             };
         } catch (err) {
+            if (!fallbackAllowed) {
+                return rateLimiterUnavailable('Distributed strict rate limiter request failed.');
+            }
             return checkMemoryRateLimit(identifier, maxRequests, windowMs);
         }
     }
+
+    if (!fallbackAllowed) {
+        return rateLimiterUnavailable(initError?.message || 'Distributed strict rate limiting is required but unavailable.');
+    }
+
     return checkMemoryRateLimit(identifier, maxRequests, windowMs);
 }
 
@@ -252,11 +313,12 @@ function getCredentialRateLimitKey(endpoint, credential) {
 function getRateLimitInfo() {
     initRedis();
     return {
-        backend: useRedis ? 'redis' : 'memory',
+        backend: useRedis ? 'redis' : (shouldAllowMemoryFallback() ? 'memory' : 'unavailable'),
         instanceId: INSTANCE_ID,
         instanceRequests: instanceRequestCount,
         memoryStoreSize: memoryStore.size,
-        redisConfigured: !!process.env.UPSTASH_REDIS_REST_URL,
+        redisConfigured: !!process.env.UPSTASH_REDIS_REST_URL && !!process.env.UPSTASH_REDIS_REST_TOKEN,
+        fallbackAllowed: shouldAllowMemoryFallback(),
         initError: initError?.message || null,
     };
 }

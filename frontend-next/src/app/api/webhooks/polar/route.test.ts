@@ -261,13 +261,20 @@ describe("Polar subscription lifecycle handlers", () => {
             },
         } as never);
 
-        const subscriptionUpdate = mocks.state.updates.find((entry) => entry.values.subscription_plan === "tier4");
-        expect(subscriptionUpdate?.values).toMatchObject({
-            subscription_plan: "tier4",
-            polar_product_id: "prod_agency_monthly",
-            monthly_credit_allowance: 3500,
+        expect(mocks.state.rpcCalls).toContainEqual({
+            name: "activate_subscription_profile",
+            args: {
+                p_user_id: "user_1",
+                p_subscription_id: "sub_agency_1",
+                p_subscription_plan: "tier4",
+                p_polar_customer_id: "cus_1",
+                p_polar_product_id: "prod_agency_monthly",
+                p_billing_cycle: "monthly",
+                p_monthly_credit_allowance: 3500,
+                p_next_billing_date: "2026-09-10T00:00:00.000Z",
+            },
         });
-        expect(mocks.state.updates[0]?.values).toMatchObject({ credits_remaining: 3650 });
+        expect(mocks.state.updates).toHaveLength(0);
     });
 
     it("keeps annual drip metadata through cancellation and stores the paid-period end", async () => {

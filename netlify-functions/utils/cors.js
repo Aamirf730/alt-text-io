@@ -71,15 +71,17 @@ const ALLOWED_PREVIEW_PREFIXES = (
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // RATE LIMITING — delegated to rate-limiter.js
-// Uses Upstash Redis when configured, falls back to in-memory.
+// Uses Upstash Redis when configured. Local development can fall back to
+// in-memory; serverless production fails closed if the distributed backend is unavailable.
 // See rate-limiter.js for setup instructions.
 // ═══════════════════════════════════════════════════════════════════════════════
 const { checkRateLimit: distributedRateLimit, checkStrictRateLimit, getRateLimitInfo, INSTANCE_ID } = require('./rate-limiter');
 
 /**
  * Check rate limit for a client IP.
- * NOW ASYNC — delegates to distributed rate limiter (Upstash Redis)
- * with in-memory fallback.
+ * NOW ASYNC — delegates to the shared rate limiter. Local development may use
+ * in-memory fallback; production returns a temporary service error if the
+ * distributed backend is unavailable.
  *
  * @param {string} clientIp - Client IP address
  * @param {number} maxRequests - Maximum requests allowed (default: 60)
@@ -193,6 +195,22 @@ function getClientIp(event) {
  * @returns {Object} - Response object
  */
 function rateLimitExceededResponse(headers, rateLimitInfo) {
+  if (rateLimitInfo?.statusCode === 503 || rateLimitInfo?.backend === 'unavailable') {
+    const retryAfter = Math.max(1, Math.ceil((rateLimitInfo.resetAt - Date.now()) / 1000));
+    return {
+      statusCode: 503,
+      headers: {
+        ...headers,
+        'Retry-After': retryAfter.toString(),
+      },
+      body: JSON.stringify({
+        error: 'Rate limiter unavailable',
+        message: 'Request throttling is temporarily unavailable. Please try again shortly.',
+        retryAfter,
+      }),
+    };
+  }
+
   const retryAfter = Math.max(1, Math.ceil((rateLimitInfo.resetAt - Date.now()) / 1000));
   const limit = Number.isFinite(rateLimitInfo.limit)
     ? rateLimitInfo.limit

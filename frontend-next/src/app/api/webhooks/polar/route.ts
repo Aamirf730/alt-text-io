@@ -588,35 +588,7 @@ async function updateUserCredits(
     paymentId?: string,
 ) {
     if (isSubscription) {
-        // Reset plan credits while preserving unspent promotional and paid
-        // pack balances.
-        const { data: profile, error: fetchError } = await getSupabase()
-            .from("profiles")
-            .select("bonus_credits_remaining, purchased_credits_remaining")
-            .eq("id", userId)
-            .single();
-
-        if (fetchError) {
-            console.error("Error fetching persistent credit balances:", safeServerError(fetchError));
-            throw fetchError;
-        }
-
-        const bonusCredits = Number(profile?.bonus_credits_remaining || 0);
-        const purchasedCredits = Number(profile?.purchased_credits_remaining || 0);
-        const { error } = await getSupabase()
-            .from("profiles")
-            .update({
-                credits_remaining: credits + bonusCredits + purchasedCredits,
-                total_processed: 0,
-                subscription_status: "active",
-                updated_at: new Date().toISOString(),
-            })
-            .eq("id", userId);
-
-        if (error) {
-            console.error("Error updating subscription credits:", safeServerError(error));
-            throw error;
-        }
+        throw new Error("Subscription credit activation must use activateSubscriptionProfile");
     } else {
         if (!paymentId) {
             throw new Error("One-time credit purchases require a payment ID");
@@ -641,6 +613,46 @@ async function updateUserCredits(
         }
     }
 
+}
+
+async function activateSubscriptionProfile({
+    userId,
+    subscriptionId,
+    planId,
+    polarCustomerId,
+    polarProductId,
+    billingCycle,
+    monthlyCreditAllowance,
+    nextBillingDate,
+}: {
+    userId: string;
+    subscriptionId: string;
+    planId: string;
+    polarCustomerId: string | null;
+    polarProductId: string | null;
+    billingCycle: "monthly" | "annual";
+    monthlyCreditAllowance: number;
+    nextBillingDate: string | null;
+}) {
+    const { data, error } = await getSupabase().rpc("activate_subscription_profile", {
+        p_user_id: userId,
+        p_subscription_id: subscriptionId,
+        p_subscription_plan: planId,
+        p_polar_customer_id: polarCustomerId,
+        p_polar_product_id: polarProductId,
+        p_billing_cycle: billingCycle,
+        p_monthly_credit_allowance: monthlyCreditAllowance,
+        p_next_billing_date: nextBillingDate,
+    });
+
+    if (error) {
+        console.error("Error activating subscription profile:", safeServerError(error));
+        throw error;
+    }
+
+    if (!data?.success) {
+        throw new Error(data?.error || "Subscription activation failed");
+    }
 }
 
 const polarWebhookHandlers = {
@@ -834,32 +846,20 @@ const polarWebhookHandlers = {
                 isAnnual,
             });
 
-            // Monthly and annual plans both start with one monthly allowance;
-            // annual plans receive the remaining months through the drip job.
-            const creditsToGrant = monthlyAllowance;
-
-            if (creditsToGrant > 0) {
-                await updateUserCredits(userId, creditsToGrant, true);
-                console.log("Subscription allowance initialized");
-            } else {
+            if (monthlyAllowance <= 0) {
                 console.warn("No credits found for Polar subscription product");
             }
 
-            await getSupabase()
-                .from("profiles")
-                .update({
-                    subscription_plan: planId,
-                    subscription_status: "active",
-                    subscription_id: subscription.id,
-                    polar_customer_id: subscription.customer?.id || null,
-                    polar_product_id: productId,
-                    billing_cycle: billingCycle,
-                    monthly_credit_allowance: monthlyAllowance,
-                    next_billing_date: getSubscriptionEnd(subscription),
-                    credits_last_renewed_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString(),
-                })
-                .eq("id", userId);
+            await activateSubscriptionProfile({
+                userId,
+                subscriptionId: subscription.id,
+                planId,
+                polarCustomerId: subscription.customer?.id || null,
+                polarProductId: productId,
+                billingCycle,
+                monthlyCreditAllowance: monthlyAllowance,
+                nextBillingDate: getSubscriptionEnd(subscription),
+            });
 
             console.log(`Subscription profile configured for ${planId} (${billingCycle})`);
 

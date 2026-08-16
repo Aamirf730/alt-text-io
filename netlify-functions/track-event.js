@@ -5,6 +5,7 @@ const {
   checkRateLimit,
   getClientIp,
   getCorsHeaders,
+  rateLimitExceededResponse,
   validateAuthHeader,
 } = require('./utils/cors');
 
@@ -141,14 +142,7 @@ function createHandler({
     const clientIp = getClientIp({ ...event, headers: requestHeaders });
     const rateLimit = await checkRateLimitFn(`track-event:${clientIp}`, 120, 60000);
     if (!rateLimit.allowed) {
-      return {
-        statusCode: 429,
-        headers: {
-          ...headers,
-          'Retry-After': Math.max(1, Math.ceil((rateLimit.resetAt - Date.now()) / 1000)).toString(),
-        },
-        body: JSON.stringify({ error: 'Too many requests' }),
-      };
+      return rateLimitExceededResponse(headers, rateLimit);
     }
 
     let body;

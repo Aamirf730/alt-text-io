@@ -1,6 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import Module from 'node:module';
 
+const ORIGINAL_ENV = {
+    NODE_ENV: process.env.NODE_ENV,
+    NETLIFY: process.env.NETLIFY,
+    CONTEXT: process.env.CONTEXT,
+    RATE_LIMIT_ALLOW_MEMORY_FALLBACK: process.env.RATE_LIMIT_ALLOW_MEMORY_FALLBACK,
+};
+
 const mockRedisLimiters = [];
 const mockUpstashRedis = {
     Redis: class MockRedis {
@@ -43,6 +50,17 @@ beforeEach(() => {
     // Ensure Upstash env vars are NOT set (forces in-memory fallback)
     delete process.env.UPSTASH_REDIS_REST_URL;
     delete process.env.UPSTASH_REDIS_REST_TOKEN;
+    delete process.env.NETLIFY;
+    delete process.env.CONTEXT;
+    delete process.env.RATE_LIMIT_ALLOW_MEMORY_FALLBACK;
+    process.env.NODE_ENV = 'test';
+});
+
+afterEach(() => {
+    process.env.NODE_ENV = ORIGINAL_ENV.NODE_ENV;
+    process.env.NETLIFY = ORIGINAL_ENV.NETLIFY;
+    process.env.CONTEXT = ORIGINAL_ENV.CONTEXT;
+    process.env.RATE_LIMIT_ALLOW_MEMORY_FALLBACK = ORIGINAL_ENV.RATE_LIMIT_ALLOW_MEMORY_FALLBACK;
 });
 
 describe('rate-limiter (in-memory fallback)', () => {
@@ -95,6 +113,7 @@ describe('rate-limiter (in-memory fallback)', () => {
         expect(info).toHaveProperty('instanceRequests');
         expect(info).toHaveProperty('memoryStoreSize');
         expect(info).toHaveProperty('redisConfigured', false);
+        expect(info).toHaveProperty('fallbackAllowed', true);
     });
 
     it('checkStrictRateLimit enforces lower limits', async () => {
@@ -127,6 +146,51 @@ describe('rate-limiter (in-memory fallback)', () => {
         expect(getCredentialRateLimitKey('generate-alt-text', credential)).toBe(credentialKey);
         expect(getCredentialRateLimitKey('generate-alt-text', 'a-different-credential')).not.toBe(credentialKey);
         expect(getCredentialRateLimitKey('get-usage', credential)).not.toBe(credentialKey);
+    });
+});
+
+describe('rate-limiter (production fail-closed)', () => {
+    it('returns an unavailable backend when distributed rate limiting is required but Upstash is missing', async () => {
+        process.env.NODE_ENV = 'production';
+        process.env.NETLIFY = 'true';
+        process.env.CONTEXT = 'production';
+
+        const { checkRateLimit, getRateLimitInfo } = await import('./rate-limiter.js');
+        const result = await checkRateLimit('prod-ip', 5, 60000);
+        const info = getRateLimitInfo();
+
+        expect(result.allowed).toBe(false);
+        expect(result.backend).toBe('unavailable');
+        expect(result.statusCode).toBe(503);
+        expect(info.backend).toBe('unavailable');
+        expect(info.fallbackAllowed).toBe(false);
+    });
+
+    it('returns an unavailable backend when Redis initialization fails in production', async () => {
+        process.env.NODE_ENV = 'production';
+        process.env.NETLIFY = 'true';
+        process.env.CONTEXT = 'production';
+        process.env.UPSTASH_REDIS_REST_URL = 'https://redis.example.test';
+        process.env.UPSTASH_REDIS_REST_TOKEN = 'test-token';
+
+        const originalModuleLoad = Module._load;
+        Module._load = function load(request, parent, isMain) {
+            if (request === '@upstash/redis') {
+                throw new Error('redis init failed');
+            }
+            return originalModuleLoad.call(this, request, parent, isMain);
+        };
+
+        try {
+            const { checkRateLimit } = await import('./rate-limiter.js');
+            const result = await checkRateLimit('prod-ip', 5, 60000);
+
+            expect(result.allowed).toBe(false);
+            expect(result.backend).toBe('unavailable');
+            expect(result.statusCode).toBe(503);
+        } finally {
+            Module._load = originalModuleLoad;
+        }
     });
 });
 

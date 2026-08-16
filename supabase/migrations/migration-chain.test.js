@@ -18,7 +18,7 @@ test('tracked migrations have one ordered, canonical history', () => {
   assert.ok(files.length > 1);
   assert.equal(new Set(versions).size, versions.length);
   assert.equal(files[0], '20260625140000_bootstrap_schema.sql');
-  assert.equal(files.at(-1), '20260812090651_isolate_customer_offer_claim.sql');
+  assert.equal(files.at(-1), '20260816092527_activate_subscription_atomically.sql');
 });
 
 test('bootstrap defines every foundational table and reporting view', () => {
@@ -151,4 +151,24 @@ test('customer offer exposes only an invoker wrapper around private privileged l
   assert.match(isolation, /caller_user_id <> \(select auth\.uid\(\)\)/);
   assert.match(isolation, /create or replace function public\.claim_wpgeared_customer_offer\(\)/);
   assert.match(isolation, /security invoker/);
+});
+
+test('subscription activation applies credits and billing metadata atomically', () => {
+  const activation = fs.readFileSync(
+    path.join(migrationsDirectory, '20260816092527_activate_subscription_atomically.sql'),
+    'utf8',
+  ).toLowerCase();
+
+  assert.match(activation, /create or replace function public\.activate_subscription_profile\(/);
+  assert.match(activation, /security definer/);
+  assert.match(activation, /set search_path = ''/);
+  assert.match(activation, /where p\.id = p_user_id\s+for update/);
+  assert.match(activation, /credits_remaining = v_allowance \+ v_bonus_credits \+ v_purchased_credits/);
+  assert.match(activation, /subscription_plan = trim\(p_subscription_plan\)/);
+  assert.match(activation, /subscription_id = trim\(p_subscription_id\)/);
+  assert.match(activation, /monthly_credit_allowance = nullif\(v_allowance, 0\)/);
+  assert.match(activation, /grant execute on function public\.activate_subscription_profile\(/);
+  assert.match(activation, /to service_role/);
+  assert.doesNotMatch(activation, /grant execute on function public\.activate_subscription_profile[\s\S]*to anon/);
+  assert.doesNotMatch(activation, /grant execute on function public\.activate_subscription_profile[\s\S]*to authenticated/);
 });

@@ -8,6 +8,7 @@ const {
   handlePreflight,
   getClientIp,
   checkRateLimit,
+  rateLimitExceededResponse,
   methodNotAllowedResponse,
   unauthorizedResponse,
   forbiddenResponse,
@@ -366,14 +367,7 @@ exports.handler = async (event) => {
   const clientIp = getClientIp(event);
   const rateLimit = await checkRateLimit(`admin-lifecycle-test-send:${clientIp}`, 10, 60000);
   if (!rateLimit.allowed) {
-    return {
-      statusCode: 429,
-      headers: {
-        ...headers,
-        'Retry-After': Math.max(1, Math.ceil((rateLimit.resetAt - Date.now()) / 1000)).toString(),
-      },
-      body: JSON.stringify({ error: 'Too many requests' }),
-    };
+    return rateLimitExceededResponse(headers, rateLimit);
   }
 
   try {

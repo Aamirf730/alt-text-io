@@ -119,5 +119,23 @@ describe('CORS utilities', () => {
             expect(response.headers['X-RateLimit-Instance']).toBeUndefined();
             expect(JSON.parse(response.body).error).toBe('Too many requests');
         });
+
+        it('returns a 503 response when the distributed rate limiter is unavailable', () => {
+            const resetAt = new Date(Date.now() + 30_000);
+            const response = rateLimitExceededResponse(
+                { 'Content-Type': 'application/json' },
+                {
+                    backend: 'unavailable',
+                    statusCode: 503,
+                    resetAt,
+                }
+            );
+
+            expect(response.statusCode).toBe(503);
+            expect(response.headers['Retry-After']).toBeDefined();
+            expect(JSON.parse(response.body)).toMatchObject({
+                error: 'Rate limiter unavailable',
+            });
+        });
     });
 });
