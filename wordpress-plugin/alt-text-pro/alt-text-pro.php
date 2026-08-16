@@ -3,7 +3,7 @@
  * Plugin Name: Alt Text Pro
  * Plugin URI: https://www.alt-text.pro
  * Description: Draft AI alt text for WordPress images, review it, and fill missing Media Library alt attributes in small batches.
- * Version:           1.7.18
+ * Version:           1.7.19
  * Author: Alt Text Pro
  * Author URI: https://www.alt-text.pro/about
  * License: GPL v2 or later
@@ -20,7 +20,8 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('ALT_TEXT_PRO_VERSION', '1.7.18');
+define('ALT_TEXT_PRO_VERSION', '1.7.19');
+// Version 1.7.19 - Fix: keep Gutenberg block metadata aligned with rendered image markup during post-level alt-text regeneration.
 // Version 1.7.18 - Security: enforce per-media authorization and bind bulk jobs to their owners.
 // Version 1.7.17 - Security: authenticate connect callbacks and fail closed when API-key encryption is unavailable.
 // Version 1.7.15 - Branding: align the plugin UI, logo, and distribution artwork with the white, yellow, and black brand palette.
@@ -747,6 +748,192 @@ class AltTextPro
     }
 
     /**
+     * Keep block metadata and rendered image HTML aligned after regenerating alt text.
+     */
+    private function sync_post_content_image_alt_text($post_content, array $content_updates)
+    {
+        if (empty($post_content) || empty($content_updates)) {
+            return $post_content;
+        }
+
+        $content = $post_content;
+
+        if (
+            function_exists('parse_blocks')
+            && function_exists('serialize_block')
+            && strpos($post_content, '<!-- wp:') !== false
+        ) {
+            $blocks = parse_blocks($post_content);
+
+            if (is_array($blocks) && !empty($blocks)) {
+                $did_update_blocks = false;
+
+                foreach ($blocks as $index => $block) {
+                    $blocks[$index] = $this->sync_image_block_alt_text($block, $content_updates, $did_update_blocks);
+                }
+
+                if ($did_update_blocks) {
+                    $serialized = '';
+                    foreach ($blocks as $block) {
+                        $serialized .= serialize_block($block);
+                    }
+                    $content = $serialized;
+                }
+            }
+        }
+
+        return $this->sync_html_image_alt_text($content, $content_updates);
+    }
+
+    /**
+     * Recursively update Gutenberg block metadata and inline HTML for attachment alt text.
+     */
+    private function sync_image_block_alt_text(array $block, array $content_updates, &$did_update_blocks)
+    {
+        if (!empty($block['attrs']) && is_array($block['attrs'])) {
+            if (
+                isset($block['attrs']['id'])
+                && isset($content_updates[intval($block['attrs']['id'])])
+            ) {
+                $attachment_id = intval($block['attrs']['id']);
+                $new_alt = $content_updates[$attachment_id];
+
+                if (!isset($block['attrs']['alt']) || $block['attrs']['alt'] !== $new_alt) {
+                    $block['attrs']['alt'] = $new_alt;
+                    $did_update_blocks = true;
+                }
+            }
+
+            if (
+                isset($block['attrs']['mediaId'])
+                && isset($content_updates[intval($block['attrs']['mediaId'])])
+            ) {
+                $attachment_id = intval($block['attrs']['mediaId']);
+                $new_alt = $content_updates[$attachment_id];
+
+                if (!isset($block['attrs']['mediaAlt']) || $block['attrs']['mediaAlt'] !== $new_alt) {
+                    $block['attrs']['mediaAlt'] = $new_alt;
+                    $did_update_blocks = true;
+                }
+            }
+
+            if (!empty($block['attrs']['images']) && is_array($block['attrs']['images'])) {
+                foreach ($block['attrs']['images'] as $image_index => $image_attrs) {
+                    if (
+                        is_array($image_attrs)
+                        && isset($image_attrs['id'])
+                        && isset($content_updates[intval($image_attrs['id'])])
+                    ) {
+                        $attachment_id = intval($image_attrs['id']);
+                        $new_alt = $content_updates[$attachment_id];
+
+                        if (!isset($image_attrs['alt']) || $image_attrs['alt'] !== $new_alt) {
+                            $block['attrs']['images'][$image_index]['alt'] = $new_alt;
+                            $did_update_blocks = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (!empty($block['innerBlocks']) && is_array($block['innerBlocks'])) {
+            foreach ($block['innerBlocks'] as $index => $inner_block) {
+                $block['innerBlocks'][$index] = $this->sync_image_block_alt_text($inner_block, $content_updates, $did_update_blocks);
+            }
+        }
+
+        if (!empty($block['innerHTML']) && is_string($block['innerHTML'])) {
+            $updated_inner_html = $this->sync_html_image_alt_text($block['innerHTML'], $content_updates);
+            if ($updated_inner_html !== $block['innerHTML']) {
+                $block['innerHTML'] = $updated_inner_html;
+                $did_update_blocks = true;
+            }
+        }
+
+        if (!empty($block['innerContent']) && is_array($block['innerContent'])) {
+            foreach ($block['innerContent'] as $index => $inner_content) {
+                if (!is_string($inner_content) || strpos($inner_content, '<img') === false) {
+                    continue;
+                }
+
+                $updated_inner_content = $this->sync_html_image_alt_text($inner_content, $content_updates);
+                if ($updated_inner_content !== $inner_content) {
+                    $block['innerContent'][$index] = $updated_inner_content;
+                    $did_update_blocks = true;
+                }
+            }
+        }
+
+        return $block;
+    }
+
+    /**
+     * Update image alt attributes in raw HTML for classic content and block markup.
+     */
+    private function sync_html_image_alt_text($html, array $content_updates)
+    {
+        if (!is_string($html) || $html === '' || empty($content_updates)) {
+            return $html;
+        }
+
+        return preg_replace_callback(
+            '/<img\b[^>]*>/i',
+            function ($matches) use ($content_updates) {
+                $image_tag = $matches[0];
+                $attachment_id = 0;
+                $id_patterns = array(
+                    '/\bwp-image-(\d+)\b/i',
+                    '/\bdata-id\s*=\s*["\'](\d+)["\']/i',
+                    '/\bdata-attachment-id\s*=\s*["\'](\d+)["\']/i',
+                );
+
+                foreach ($id_patterns as $pattern) {
+                    if (preg_match($pattern, $image_tag, $id_match)) {
+                        $attachment_id = intval($id_match[1]);
+                        break;
+                    }
+                }
+
+                if (!$attachment_id || !isset($content_updates[$attachment_id])) {
+                    return $image_tag;
+                }
+
+                $updated_tag = preg_replace(
+                    '/\s+alt\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>]+)/i',
+                    '',
+                    $image_tag,
+                    1
+                );
+
+                if (!is_string($updated_tag)) {
+                    return $image_tag;
+                }
+
+                $updated_tag = preg_replace('/\s*(\/?>)$/', ' $1', $updated_tag, 1);
+                if (!is_string($updated_tag)) {
+                    return $image_tag;
+                }
+
+                $escaped_alt = esc_attr($content_updates[$attachment_id]);
+                $closing_offset = strrpos($updated_tag, '/>');
+
+                if ($closing_offset === false) {
+                    $closing_offset = strrpos($updated_tag, '>');
+                }
+
+                if ($closing_offset === false) {
+                    return $image_tag;
+                }
+
+                return substr($updated_tag, 0, $closing_offset)
+                    . ' alt="' . $escaped_alt . '"'
+                    . substr($updated_tag, $closing_offset);
+            },
+            $html
+        );
+    }
+
+    /**
      * AJAX handler for generating alt-text for all images in a specific post
      */
     public function ajax_generate_post_alt_text()
@@ -844,13 +1031,9 @@ class AltTextPro
             }
         }
 
-        // ── Update alt attributes inside the post_content HTML ──
-        // WordPress stores content-image alt text in the block markup
-        // (<img alt="...">), not in attachment metadata. So we must
-        // patch the actual post_content for content images to pick up
-        // the newly generated alt text in the block editor.
+        // Keep both Gutenberg block attributes and rendered HTML in sync.
         // Include BOTH newly generated AND skipped (already had metadata) images,
-        // because skipped images may have alt text in metadata but NOT in the HTML.
+        // because skipped images may have alt text in metadata but NOT in the post content yet.
         $content_updates = array();
         foreach ($results['details'] as $detail) {
             if ($detail['status'] === 'success' && !empty($detail['alt_text'])) {
@@ -868,34 +1051,16 @@ class AltTextPro
         if (!empty($content_updates)) {
             $post = get_post($post_id);
             if ($post && !empty($post->post_content)) {
-                $content = $post->post_content;
+                $content = $this->sync_post_content_image_alt_text($post->post_content, $content_updates);
 
-                foreach ($content_updates as $att_id => $alt_text) {
-                    $escaped_alt = esc_attr($alt_text);
-                    $pattern = '/<img\b([^>]*\bwp-image-' . intval($att_id) . '\b[^>]*?)(\/?>)/i';
-
-                    // Match <img> tags that reference wp-image-{id}
-                    $content = preg_replace_callback(
-                        $pattern,
-                        function ($matches) use ($escaped_alt) {
-                        $attrs = $matches[1];
-                        $close = $matches[2];
-
-                        // Strip any existing quoted or unquoted alt attribute.
-                        $attrs = preg_replace('/\s+alt\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>]+)/i', '', $attrs);
-
-                        // Insert the new alt attribute
-                        return '<img' . $attrs . ' alt="' . $escaped_alt . '"' . $close;
-                    },
-                        $content
-                    );
+                $update_result = true;
+                if ($content !== $post->post_content) {
+                    // Save the updated content back to the post only when it actually changed.
+                    $update_result = wp_update_post(array(
+                        'ID' => $post_id,
+                        'post_content' => $content,
+                    ), true);
                 }
-
-                // Save the updated content back to the post
-                $update_result = wp_update_post(array(
-                    'ID' => $post_id,
-                    'post_content' => $content,
-                ), true);
 
                 if (is_wp_error($update_result)) {
                     $results['content_update_error'] = __('Alt text was saved to the Media Library, but the post content could not be updated automatically.', 'alt-text-pro');
