@@ -2,7 +2,7 @@
 
 ## 2026-08-16: P1 billing activation atomicity and distributed rate-limit hardening release in progress
 
-- Status: production migration applied and verified; app release commit/deploy is in progress.
+- Status: released to production from Git-backed Netlify deploy `6a818ce5cf1f6c0008a4552c` at commit `aa4db95` on `main`.
 - Subscription activation fix: added migration `supabase/migrations/20260816092527_activate_subscription_atomically.sql` with service-role RPC `public.activate_subscription_profile(...)`, which locks the profile row and applies the subscription plan metadata, monthly allowance, next billing date, renewal timestamp, and reset aggregate credits in one atomic database operation.
 - Webhook change: `frontend-next/src/app/api/webhooks/polar/route.ts` now routes `subscription.active` through the new RPC instead of performing one credit update followed by a separate profile update. One-time pack fulfillment still uses the existing idempotent credit-pack RPC.
 - Rate-limit hardening: `netlify-functions/utils/rate-limiter.js` now allows in-memory fallback only for local/dev contexts or an explicit `RATE_LIMIT_ALLOW_MEMORY_FALLBACK=true` override. Netlify/production contexts fail closed with a temporary `503` response if Upstash is missing or Redis initialization/request handling fails. `netlify-functions/utils/cors.js` now renders that backend-unavailable state as `503 Rate limiter unavailable` instead of a misleading `429`.
@@ -11,6 +11,7 @@
 - Verification: `node --test supabase/migrations/migration-chain.test.js` passed (11 tests); `frontend-next/src/app/api/webhooks/polar/route.test.ts` passed (24 tests) from the `frontend-next` project root; `netlify-functions/utils/rate-limiter.test.js` passed (10 tests); `netlify-functions/utils/cors.test.js` passed (17 tests); `find netlify-functions -name '*.js' -not -path '*/node_modules/*' -print0 | xargs -0 -n 1 node --check` passed; `./frontend-next/node_modules/.bin/tsc --noEmit -p frontend-next/tsconfig.json` passed; `git diff --check` passed.
 - Production migration verification: Supabase production project `ALT-Text-Ai` has migration ledger entry `20260816092527_activate_subscription_atomically`. RPC `public.activate_subscription_profile(uuid,text,text,text,text,text,integer,timestamptz)` exists, runs as `SECURITY DEFINER`, grants `EXECUTE` to `service_role`, and denies `anon`/`authenticated`.
 - Release preflight: Netlify production has both `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` accessible, so the fail-closed limiter should use distributed Redis in production rather than returning backend-unavailable responses.
+- Production deploy verification: Netlify deploy `6a818ce5cf1f6c0008a4552c` is ready, `manual_deploy = false`, `branch = main`, and `commit_ref = aa4db95607d9f300bf8da7ccadac4a31612fc5a0`. Live smoke checks returned HTTP 200 for `/`, `/admin`, `/connect`, `/api/get-plans`, and `/api/health`; unsigned Polar webhook returned 403; public tracker rejected reserved `polar_webhook` source with 403 and accepted a normal anonymous page-view event with 200.
 
 ## 2026-08-16: Gutenberg post-content alt sync fix applied to main worktree
 
