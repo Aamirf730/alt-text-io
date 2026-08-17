@@ -9,6 +9,8 @@ The seven pending migrations were applied to production before the application r
 
 Read-only post-migration checks passed: all new service-role RPCs exist, the promotional grant ledger and reservation cleanup indexes exist, the five-minute reservation reaper is active, accounting constraints are present, the subscription lookup index exists, the client API-key table privilege is revoked, authenticated access to `private` schema is available for the offer wrapper, and the legacy unique profile-email constraint is gone. Post-deploy smoke checks returned HTTP 200 for `/`, `/admin`, `/connect`, a Next static asset, and the plugin ZIP; `/api/health` reported a healthy Redis backend with the public probe skipped. The raw audit reports remain outside the release commit.
 
+WordPress.org publication is complete separately: trunk revision `3650534` and tag revision `3650537` published plugin 1.7.24. The WordPress.org API reports version 1.7.24 and the versioned download returns HTTP 200.
+
 ## H1/H2/H3/H4 and complete website release — live
 
 The H1/H2/H3/H4 SaaS fixes and the complete website release are live. The release used Git-backed Netlify builds to verify the Next static path mapping and public assets before production promotion.

@@ -1,5 +1,11 @@
 # Progress
 
+## 2026-08-17: Published WordPress plugin 1.7.24
+
+- Status: plugin 1.7.24 is published through the WordPress.org SVN channel. Trunk commit `3650534` and tag `1.7.24` revision `3650537` were accepted under the authenticated `aamirfaiz` account.
+- Public verification now reports WordPress.org version `1.7.24`; `https://downloads.wordpress.org/plugin/alt-text-pro.1.7.24.zip` returns HTTP 200. The archive was also checked locally with `unzip -t`.
+- The SaaS website download remains version 1.7.24 and is independent of WordPress.org directory propagation.
+
 ## 2026-08-17: Audit-hardening release deployed
 
 - Status: all seven migrations for the current audit-hardening release are applied successfully to production, and the matching application/plugin release is live from Git-backed `main`. The code release is in `0429744`, migration-history reconciliation is in `b342604`, and the release evidence follow-up is recorded after deploy.
