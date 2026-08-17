@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 
-const { recordPluginConnectCompleted } = require('./plugin-connect-event.js');
+const {
+  recordPluginConnectCompleted,
+  getPluginConnectionStatus,
+} = require('./plugin-connect-event.js');
 
 function createSupabaseMock({ existingEvents = [], selectError = null, insertError = null, updateError = null } = {}) {
   const insert = vi.fn(() => Promise.resolve({ error: insertError }));
@@ -104,5 +107,54 @@ describe('plugin connect event recording', () => {
     });
     expect(calls.eqUpdate).toHaveBeenCalledWith('id', 'existing-event');
     expect(calls.insert).not.toHaveBeenCalled();
+  });
+
+  it('reports a completed WordPress connection without treating an API key as proof', async () => {
+    const maybeSingle = vi.fn(() => Promise.resolve({
+      data: {
+        occurred_at: '2026-08-17T10:00:00.000Z',
+        created_at: '2026-08-17T10:00:00.000Z',
+        source: 'wordpress_plugin_auth',
+      },
+      error: null,
+    }));
+    const limit = vi.fn(() => ({ maybeSingle }));
+    const secondOrder = vi.fn(() => ({ limit }));
+    const firstOrder = vi.fn(() => ({ order: secondOrder }));
+    const inSource = vi.fn(() => ({ order: firstOrder }));
+    const userEq = vi.fn(() => ({ in: inSource }));
+    const eventEq = vi.fn(() => ({ eq: userEq }));
+    const select = vi.fn(() => ({ eq: eventEq }));
+    const from = vi.fn(() => ({ select }));
+
+    const result = await getPluginConnectionStatus({ from }, 'user-1');
+
+    expect(result).toEqual({
+      connected: true,
+      connectedAt: '2026-08-17T10:00:00.000Z',
+      source: 'wordpress_plugin_auth',
+    });
+    expect(inSource).toHaveBeenCalledWith('source', [
+      'wordpress_plugin_auth',
+      'wordpress_connect',
+    ]);
+  });
+
+  it('does not treat a missing connection event as connected', async () => {
+    const maybeSingle = vi.fn(() => Promise.resolve({ data: null, error: null }));
+    const limit = vi.fn(() => ({ maybeSingle }));
+    const secondOrder = vi.fn(() => ({ limit }));
+    const firstOrder = vi.fn(() => ({ order: secondOrder }));
+    const inSource = vi.fn(() => ({ order: firstOrder }));
+    const userEq = vi.fn(() => ({ in: inSource }));
+    const eventEq = vi.fn(() => ({ eq: userEq }));
+    const select = vi.fn(() => ({ eq: eventEq }));
+    const from = vi.fn(() => ({ select }));
+
+    await expect(getPluginConnectionStatus({ from }, 'user-1')).resolves.toEqual({
+      connected: false,
+      connectedAt: null,
+      source: null,
+    });
   });
 });

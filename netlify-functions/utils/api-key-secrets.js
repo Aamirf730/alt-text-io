@@ -54,10 +54,15 @@ function decryptApiKey(encryptedApiKey) {
     return null;
   }
 
+  // Keep configuration failures distinguishable from invalid or tampered
+  // ciphertext. Callers can then return an actionable service-configuration
+  // response instead of incorrectly reporting that a customer's key is lost.
+  const encryptionKey = getEncryptionKey();
+
   try {
     const decipher = crypto.createDecipheriv(
       'aes-256-gcm',
-      getEncryptionKey(),
+      encryptionKey,
       Buffer.from(ivEncoded, 'base64url')
     );
     decipher.setAuthTag(Buffer.from(tagEncoded, 'base64url'));

@@ -58,6 +58,11 @@
   }
 }
 
+/* Dashboard controls should read as deliberate actions, never split labels. */
+.dashboard-shell button {
+  white-space: nowrap;
+}
+
 .dark {
   /* Neutralize dark mode to enforce bright theme */
   --background: 0 0% 100%;
@@ -415,6 +420,22 @@
 .credit-progress::-moz-progress-bar,
 .confidence-progress.confidence-high::-moz-progress-bar {
   background: #1976a8;
+  border-radius: 9999px;
+}
+
+.operations-credit-progress {
+  appearance: none;
+  border: 0;
+}
+
+.operations-credit-progress::-webkit-progress-bar {
+  background: #e2e8f0;
+  border-radius: 9999px;
+}
+
+.operations-credit-progress::-webkit-progress-value,
+.operations-credit-progress::-moz-progress-bar {
+  background: #000000;
   border-radius: 9999px;
 }
 

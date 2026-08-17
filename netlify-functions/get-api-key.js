@@ -32,6 +32,18 @@ function parseJsonBody(event) {
   return JSON.parse(rawBody);
 }
 
+function encryptionConfigurationResponse(headers) {
+  return {
+    statusCode: 503,
+    headers,
+    body: JSON.stringify({
+      success: false,
+      code: 'api_key_encryption_not_configured',
+      error: 'API key service is temporarily unavailable. Please contact support.',
+    }),
+  };
+}
+
 exports.handler = async (event, context) => {
   // Get secure CORS headers (origin-validated)
   const headers = getCorsHeaders(event.headers, ['GET', 'POST', 'OPTIONS']);
@@ -150,20 +162,41 @@ exports.handler = async (event, context) => {
     }
 
     if (!apiKey && apiKeyRecord?.api_key_encrypted) {
-      apiKey = decryptApiKey(apiKeyRecord.api_key_encrypted);
+      try {
+        apiKey = decryptApiKey(apiKeyRecord.api_key_encrypted);
+      } catch (error) {
+        if (error?.code === 'API_KEY_ENCRYPTION_SECRET_MISSING') {
+          console.error('API_KEY_ENCRYPTION_SECRET is not configured');
+          return encryptionConfigurationResponse(headers);
+        }
+        throw error;
+      }
       if (!apiKey) {
-        console.error('Stored API key decryption failed');
+        console.error('Stored API key decryption failed; rotation is required');
         return {
-          statusCode: 500,
+          statusCode: 409,
           headers,
-          body: JSON.stringify({ error: 'Stored API key could not be recovered' }),
+          body: JSON.stringify({
+            success: false,
+            code: 'api_key_rotation_required',
+            error: 'Your stored API key could not be recovered. Generate a new key to continue.',
+          }),
         };
       }
     } else if (!apiKey && apiKeyRecord?.api_key) {
       // Migrate a legacy plaintext key during an authorized retrieval. The
       // plaintext is never returned from the database after this update.
       apiKey = apiKeyRecord.api_key;
-      const apiKeyEncrypted = encryptApiKey(apiKey);
+      let apiKeyEncrypted;
+      try {
+        apiKeyEncrypted = encryptApiKey(apiKey);
+      } catch (error) {
+        if (error?.code === 'API_KEY_ENCRYPTION_SECRET_MISSING') {
+          console.error('API_KEY_ENCRYPTION_SECRET is not configured');
+          return encryptionConfigurationResponse(headers);
+        }
+        throw error;
+      }
       const { error: migrateError } = await supabase
         .from('api_keys')
         .update({

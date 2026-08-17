@@ -89,6 +89,52 @@ async function recordPluginConnectCompleted(supabase, {
   }
 }
 
+async function getPluginConnectionStatus(supabase, userId) {
+  if (!supabase || !userId) {
+    return {
+      connected: false,
+      connectedAt: null,
+      source: null,
+    };
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('marketing_events')
+      .select('occurred_at, created_at, source')
+      .eq('event_name', 'connect_completed')
+      .eq('user_id', userId)
+      .in('source', ['wordpress_plugin_auth', 'wordpress_connect'])
+      .order('occurred_at', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.warn('plugin-connect-event: status lookup failed', error.message);
+      return {
+        connected: false,
+        connectedAt: null,
+        source: null,
+      };
+    }
+
+    return {
+      connected: Boolean(data),
+      connectedAt: data?.occurred_at || data?.created_at || null,
+      source: data?.source || null,
+    };
+  } catch (error) {
+    console.warn('plugin-connect-event: status lookup failed', error.message);
+    return {
+      connected: false,
+      connectedAt: null,
+      source: null,
+    };
+  }
+}
+
 module.exports = {
   recordPluginConnectCompleted,
+  getPluginConnectionStatus,
 };

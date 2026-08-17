@@ -20,24 +20,76 @@ type UsageHistoryItem = {
 };
 
 type UpgradeModalView = "plans" | "credit-packs";
+
+const DASHBOARD_IMAGE_MAX_DIMENSION = 1600;
+const DASHBOARD_IMAGE_MAX_BASE64_BYTES = 3 * 1024 * 1024;
+
+function getBase64PayloadSize(dataUrl: string) {
+    const commaIndex = dataUrl.indexOf(',');
+    if (commaIndex === -1) return 0;
+
+    return Math.ceil((dataUrl.length - commaIndex - 1) * 3 / 4);
+}
+
+function loadImageForDashboard(file: File): Promise<HTMLImageElement> {
+    return new Promise((resolve, reject) => {
+        const objectUrl = URL.createObjectURL(file);
+        const image = new Image();
+
+        image.onload = () => {
+            URL.revokeObjectURL(objectUrl);
+            resolve(image);
+        };
+        image.onerror = () => {
+            URL.revokeObjectURL(objectUrl);
+            reject(new Error('This image could not be prepared for generation.'));
+        };
+        image.src = objectUrl;
+    });
+}
+
+async function prepareDashboardImage(file: File) {
+    const image = await loadImageForDashboard(file);
+    const longestSide = Math.max(image.naturalWidth, image.naturalHeight);
+    const initialScale = Math.min(1, DASHBOARD_IMAGE_MAX_DIMENSION / longestSide);
+    let width = Math.max(1, Math.round(image.naturalWidth * initialScale));
+    let height = Math.max(1, Math.round(image.naturalHeight * initialScale));
+
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext('2d');
+
+        if (!context) {
+            throw new Error('This browser could not prepare the image for generation.');
+        }
+
+        context.drawImage(image, 0, 0, width, height);
+
+        for (const quality of [0.82, 0.72, 0.62, 0.52, 0.42]) {
+            const dataUrl = canvas.toDataURL('image/jpeg', quality);
+            if (getBase64PayloadSize(dataUrl) <= DASHBOARD_IMAGE_MAX_BASE64_BYTES) {
+                return dataUrl;
+            }
+        }
+
+        width = Math.max(640, Math.round(width * 0.8));
+        height = Math.max(640, Math.round(height * 0.8));
+    }
+
+    throw new Error('This image is too large to process. Please choose a smaller image.');
+}
+
 import { toast } from "sonner";
 import {
-    Brain, Zap, CheckCircle, Star, ArrowRight, Users, Shield, Rocket,
-    Chrome, Upload, Eye, EyeOff, Download, Check, Search, History,
-    CreditCard, Calendar, TrendingUp, Key, Copy, Info, AlertTriangle,
-    RefreshCw, Book, FileText, HelpCircle, Settings, Code, DollarSign,
-    Wrench, Globe, LogOut, MessageCircle, Image as ImageIcon, Crown, X
+    ArrowRight, Shield, Upload, Eye, EyeOff, Download, Check,
+    CreditCard, Key, Copy, AlertTriangle, RefreshCw, Book, FileText,
+    HelpCircle, Settings, LogOut, MessageCircle, Image as ImageIcon, Crown, X,
+    LayoutDashboard, Menu, PanelLeftClose, Sparkles, Layers3, BarChart3,
+    ChevronRight, CircleCheck, PlugZap
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Separator } from "@/components/ui/separator";
-import Navbar from '@/components/Navbar';
-import Footer from '@/components/Footer';
 
 export default function Dashboard() {
     const [user, setUser] = useState<any>(null);
@@ -56,7 +108,10 @@ export default function Dashboard() {
     const [isLoadingHistory, setIsLoadingHistory] = useState(false);
     const [showApiKey, setShowApiKey] = useState(false);
     const [apiKey, setApiKey] = useState<string | null>(null);
+    const [apiKeyError, setApiKeyError] = useState<string | null>(null);
+    const [apiKeyErrorCode, setApiKeyErrorCode] = useState<string | null>(null);
     const [isLoadingApiKey, setIsLoadingApiKey] = useState(false);
+    const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
 
     const router = useRouter();
     const currentPlan = String(usageStats?.plan || 'free');
@@ -104,6 +159,23 @@ export default function Dashboard() {
         : 'Credits left this month';
     const hasApiKeyReady = Boolean(apiKey);
     const hasGeneratedFirstAltText = Number(usageStats?.total_processed || 0) > 0 || history.length > 0;
+    const isPluginConnected = usageStats?.plugin_connected === true;
+    const showFirstRunOnboarding = !isPluginConnected || !hasGeneratedFirstAltText;
+    const accountInitial = String(user?.email || 'A').charAt(0).toUpperCase();
+    const firstName = String(user?.email || 'there').split('@')[0].split(/[._-]/)[0] || 'there';
+    const renewalDateValue = subscriptionData?.subscription?.next_billing_date || null;
+    const renewalDateLabel = renewalDateValue
+        ? new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(renewalDateValue))
+        : currentPlan === 'free'
+        ? 'No renewal scheduled'
+        : 'Billing date unavailable';
+    const dashboardNavItems = [
+        { label: 'Overview', href: '#overview', icon: LayoutDashboard },
+        { label: 'Generate', href: '#generate', icon: Sparkles },
+        { label: 'Activity', href: '#activity', icon: ImageIcon },
+        { label: 'Usage', href: '#usage', icon: BarChart3 },
+        { label: 'Settings', href: '#settings', icon: Settings },
+    ];
     const selectedUpgradeDetails = selectedUpgradePlan
         ? getPurchaseOption(selectedUpgradePlan.id)
         : undefined;
@@ -167,6 +239,19 @@ export default function Dashboard() {
         setUpgradeBillingCycle('monthly');
         setSelectedUpgradePlan(null);
         setShowUpgradeModal(true);
+    };
+
+    const signOut = async () => {
+        try {
+            const { error } = await supabase.auth.signOut();
+            if (!error) {
+                toast.success("Logged out successfully");
+                router.push("/");
+            }
+        } catch (error) {
+            console.error("Logout failed:", error);
+            toast.error("Logout failed");
+        }
     };
 
     // Redirect to Polar.sh checkout
@@ -254,6 +339,8 @@ export default function Dashboard() {
         if (!user?.id || !user?.token) return;
 
         setIsLoadingApiKey(true);
+        setApiKeyError(null);
+        setApiKeyErrorCode(null);
         try {
             const response = await fetch(`${getApiBase()}/get-api-key`, {
                 method: 'GET',
@@ -265,13 +352,24 @@ export default function Dashboard() {
             const data = await response.json();
 
             if (!response.ok || !data.success || !data.api_key) {
-                throw new Error(data.error || 'Failed to load API key');
+                const error = new Error(data.error || 'Failed to load API key') as Error & { code?: string };
+                error.code = data.code;
+                throw error;
             }
 
             setApiKey(data.api_key);
+            setApiKeyErrorCode(null);
         } catch (error) {
-            console.error('Error loading API key:', error);
-            toast.error('Error loading API key');
+            const typedError = error as Error & { code?: string };
+            setApiKey(null);
+            setApiKeyError(typedError.message);
+            setApiKeyErrorCode(typedError.code || null);
+            if (typedError.code === 'api_key_encryption_not_configured') {
+                console.warn('API key service is not configured:', typedError.message);
+            } else {
+                console.error('Error loading API key:', error);
+                toast.error('Error loading API key');
+            }
         } finally {
             setIsLoadingApiKey(false);
         }
@@ -317,7 +415,8 @@ export default function Dashboard() {
                             plan: usageData.data.subscription_plan || 'free',
                             subscription_status: usageData.data.subscription_status || null,
                             billing_cycle: usageData.data.billing_cycle || null,
-                            monthly_credit_allowance: usageData.data.monthly_credit_allowance || null
+                            monthly_credit_allowance: usageData.data.monthly_credit_allowance || null,
+                            plugin_connected: usageData.data.plugin_connected === true,
                         });
                     } else {
                         throw new Error('Invalid API response format');
@@ -338,7 +437,8 @@ export default function Dashboard() {
                     setUsageStats({
                         credits_remaining: 0,
                         total_processed: 0,
-                        plan: 'free'
+                        plan: 'free',
+                        plugin_connected: false,
                     });
                 } else {
                     setUsageStats({
@@ -349,7 +449,8 @@ export default function Dashboard() {
                         plan: profile.subscription_plan || 'free',
                         subscription_status: profile.subscription_status || null,
                         billing_cycle: profile.billing_cycle || null,
-                        monthly_credit_allowance: profile.monthly_credit_allowance || null
+                        monthly_credit_allowance: profile.monthly_credit_allowance || null,
+                        plugin_connected: false,
                     });
                 }
             }
@@ -426,16 +527,20 @@ export default function Dashboard() {
         return () => window.clearTimeout(timer);
     }, [loadHistory, user?.id]);
 
-    const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (file && file.type.startsWith('image/')) {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                setTestImage(e.target?.result as string);
+            try {
+                const preparedImage = await prepareDashboardImage(file);
+                setTestImage(preparedImage);
                 setTestResult(null);
                 setGeneratedAltText("");
-            };
-            reader.readAsDataURL(file);
+            } catch (error) {
+                console.error('Failed to prepare dashboard image:', error);
+                toast.error(error instanceof Error ? error.message : 'This image could not be prepared for generation.');
+            } finally {
+                event.target.value = '';
+            }
         }
     };
 
@@ -463,6 +568,7 @@ export default function Dashboard() {
             }
 
             setApiKey(data.api_key);
+            setApiKeyError(null);
             toast.success("API Key rotated successfully");
         } catch (error) {
             console.error('Error rotating API key:', error);
@@ -614,610 +720,550 @@ export default function Dashboard() {
     }
 
     return (
-        <div className="min-h-screen bg-notebook-paper text-notebook-slate pb-20 font-sans selection:bg-notebook-blue/10 selection:text-notebook-slate">
-            {/* Navigation */}
-            <nav className="bg-white/80 backdrop-blur-xl border-b border-gray-100 sticky top-0 z-50">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex items-center justify-between h-20">
-                        <Link href="/" className="flex items-center space-x-3 group">
-                            <NextImage
-                                src="/logo-alt-text-pro.png"
-                                alt="Alt Text Pro Logo"
-                                width={40}
-                                height={40}
-                                className="h-10 w-10 object-contain transition-transform group-hover:rotate-12"
-                            />
-                            <span className="text-2xl font-bold text-notebook-slate tracking-tight font-outfit">Alt Text Pro</span>
-                        </Link>
-                        <div className="flex items-center space-x-6">
-                            <div className="hidden md:block text-xs text-slate-400 font-medium">
-                                <span className="opacity-70 uppercase tracking-widest">Account:</span> <span className="text-notebook-slate ml-2">{user?.email}</span>
-                            </div>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                className="text-slate-500 hover:text-notebook-blue hover:bg-notebook-blue/5 rounded-full px-4 transition-all"
-                                onClick={async () => {
-                                    try {
-                                        const { error } = await supabase.auth.signOut();
-                                        if (!error) {
-                                            toast.success("Logged out successfully");
-                                            router.push("/");
-                                        }
-                                    } catch (error) {
-                                        toast.error("Logout failed");
-                                    }
-                                }}
+        <div className="dashboard-shell min-h-screen bg-[#f7f7f5] text-notebook-slate font-lato selection:bg-notebook-yellow selection:text-black">
+            <aside className="fixed inset-y-0 left-0 z-50 hidden w-[248px] flex-col bg-notebook-black px-4 py-5 text-white lg:flex">
+                <Link href="/" className="flex items-center gap-3 px-2 py-2">
+                    <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white">
+                        <NextImage
+                            src="/logo-alt-text-pro.png"
+                            alt="Alt Text Pro"
+                            width={36}
+                            height={36}
+                            className="h-9 w-9 object-contain"
+                        />
+                    </span>
+                    <span className="font-lato text-xl font-semibold tracking-tight">Alt Text Pro</span>
+                </Link>
+
+                <nav className="mt-10 space-y-2" aria-label="Dashboard navigation">
+                    {dashboardNavItems.map((item, index) => {
+                        const Icon = item.icon;
+                        return (
+                            <a
+                                key={item.label}
+                                href={item.href}
+                                className={`flex min-h-12 items-center gap-3 rounded-xl px-4 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-notebook-yellow ${index === 0 ? 'bg-notebook-yellow text-black' : 'text-white/70 hover:bg-white/10 hover:text-white'}`}
                             >
-                                <LogOut className="h-4 w-4 mr-2" />
-                                Sign Out
-                            </Button>
-                        </div>
-                    </div>
-                </div>
-            </nav>
+                                <Icon className="h-5 w-5" />
+                                {item.label}
+                            </a>
+                        );
+                    })}
+                </nav>
 
-            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 relative z-10">
-                {/* Header Section */}
-                <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-16">
-                    <div className="space-y-3">
-                        <div className="inline-flex items-center space-x-2 bg-notebook-blue/5 text-notebook-blue px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border border-notebook-blue/10">
-                            <Rocket className="h-3 w-3" />
-                            <span>Dashboard Overview</span>
+                <div className="mt-6 border-t border-white/10 pt-6">
+                    <Link
+                        href="/docs"
+                        className="flex min-h-12 items-center gap-3 rounded-xl px-4 text-sm font-semibold text-white/70 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-notebook-yellow"
+                    >
+                        <HelpCircle className="h-5 w-5" />
+                        Help & docs
+                    </Link>
+                </div>
+
+                <div className="mt-auto space-y-4">
+                    <div className="rounded-2xl border border-white/15 bg-white/[0.06] p-4">
+                        <div className="flex items-center justify-between gap-3">
+                            <span className="text-xs text-white/60">Current plan</span>
+                            <span className="rounded-full bg-notebook-yellow px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-black">
+                                {basePlanLabel}
+                            </span>
                         </div>
-                        <h1 className="text-4xl font-semibold text-notebook-slate tracking-tight font-outfit">Overview</h1>
-                        <p className="text-slate-500 font-medium">Manage your account, credits, and see your recent activity.</p>
+                        <p className="mt-3 text-xs font-medium text-white/80">{renewalDateLabel}</p>
                     </div>
-                    <div className="flex items-center gap-4">
-                        <span className="text-[10px] font-bold text-slate-500 bg-white border border-gray-100 px-4 py-2 rounded-full shadow-sm uppercase tracking-widest">
-                            v{PLUGIN_VERSION}
+
+                    <button
+                        type="button"
+                        onClick={signOut}
+                        className="flex w-full items-center gap-3 rounded-xl border-t border-white/10 px-2 pt-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-notebook-yellow"
+                    >
+                        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-sm font-bold text-black">
+                            {accountInitial}
                         </span>
-                        <a
-                            href={`/wordpress-plugin/alt-text-pro-plugin-${PLUGIN_VERSION}.zip`}
-                            download={`alt-text-pro-plugin-${PLUGIN_VERSION}.zip`}
-                            onClick={() => trackMarketingEvent("plugin_downloaded", {
-                                source: "dashboard",
-                                userId: user?.id,
-                                userEmail: user?.email,
-                                properties: {
-                                    plugin_version: PLUGIN_VERSION,
-                                    location: "dashboard_header",
-                                },
-                            })}
-                            className="inline-flex items-center px-6 py-3 text-sm font-semibold text-white bg-notebook-blue hover:bg-notebook-blue/90 transition-all rounded-full shadow-sm hover:-translate-y-0.5"
-                        >
-                            <Download className="h-4 w-4 mr-2" />
-                            Download Plugin
-                        </a>
-                    </div>
+                        <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-semibold text-white">{user?.email}</span>
+                            <span className="block text-xs text-white/50">Sign out</span>
+                        </span>
+                        <LogOut className="h-4 w-4 text-white/60" />
+                    </button>
                 </div>
+            </aside>
 
-                {/* First-run onboarding */}
-                <Card className="bg-white border-notebook-slate/5 shadow-notebook rounded-[2rem] mb-16 overflow-hidden">
-                    <CardContent className="p-8 lg:p-10">
-                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8 mb-8">
-                            <div className="space-y-3">
-                                <div className="inline-flex items-center space-x-2 bg-notebook-teal/10 text-notebook-blue px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border border-notebook-teal/20">
-                                    <CheckCircle className="h-3 w-3" />
-                                    <span>First Alt Text Setup</span>
-                                </div>
-                                <h2 className="text-2xl font-semibold text-notebook-slate tracking-tight font-outfit">
-                                    Connect WordPress, then generate one image.
-                                </h2>
-                                <p className="text-sm text-slate-500 max-w-2xl leading-relaxed">
-                                    The fastest path is to install the plugin, click Connect in WordPress, then run one manual generation before starting a bulk batch.
-                                </p>
-                            </div>
-                            <div className="flex flex-col sm:flex-row gap-3">
-                                <Link
-                                    href="/docs#installation"
-                                    className="inline-flex items-center justify-center px-5 py-3 text-xs font-bold text-notebook-slate bg-notebook-cloud/30 hover:bg-notebook-cloud/60 border border-notebook-cloud transition-all rounded-2xl uppercase tracking-widest font-outfit"
-                                >
-                                    Setup Guide <ArrowRight className="h-4 w-4 ml-2" />
-                                </Link>
-                            </div>
+            {isMobileNavOpen && (
+                <div className="fixed inset-0 z-[70] lg:hidden">
+                    <button
+                        type="button"
+                        aria-label="Close navigation"
+                        className="absolute inset-0 bg-black/45"
+                        onClick={() => setIsMobileNavOpen(false)}
+                    />
+                    <aside id="mobile-dashboard-nav" className="relative flex h-full w-[min(86vw,320px)] flex-col bg-black p-5 text-white shadow-2xl">
+                        <div className="flex items-center justify-between">
+                            <Link href="/" className="flex items-center gap-3" onClick={() => setIsMobileNavOpen(false)}>
+                                <NextImage src="/logo-alt-text-pro.png" alt="Alt Text Pro" width={40} height={40} className="h-10 w-10 rounded-xl bg-white object-contain p-1" />
+                                <span className="font-lato text-lg font-semibold">Alt Text Pro</span>
+                            </Link>
+                            <button type="button" onClick={() => setIsMobileNavOpen(false)} className="rounded-lg p-2 text-white/70 hover:bg-white/10" aria-label="Close navigation">
+                                <PanelLeftClose className="h-5 w-5" />
+                            </button>
                         </div>
-
-                        <div className="grid md:grid-cols-3 gap-4">
-                            {[
-                                {
-                                    label: "1. Install plugin",
-                                    body: `Use version ${PLUGIN_VERSION} from this dashboard or WordPress.org.`,
-                                    status: "Ready",
-                                    icon: Chrome,
-                                    complete: true,
-                                },
-                                {
-                                    label: "2. Connect account",
-                                    body: hasApiKeyReady ? "Your API key is ready if the plugin needs manual fallback." : "Open Alt Text Pro in WordPress and click Connect.",
-                                    status: hasApiKeyReady ? "Key ready" : "Next",
-                                    icon: Key,
-                                    complete: hasApiKeyReady,
-                                },
-                                {
-                                    label: "3. Generate one image",
-                                    body: hasGeneratedFirstAltText ? "Your first generation is complete. Try a small bulk batch next." : "Generate one manual alt text before running a bulk job.",
-                                    status: hasGeneratedFirstAltText ? "Complete" : "Recommended",
-                                    icon: ImageIcon,
-                                    complete: hasGeneratedFirstAltText,
-                                },
-                            ].map((step) => {
-                                const Icon = step.icon;
+                        <nav className="mt-8 space-y-2" aria-label="Mobile dashboard navigation">
+                            {dashboardNavItems.map((item, index) => {
+                                const Icon = item.icon;
                                 return (
-                                    <div key={step.label} className="rounded-3xl border border-notebook-cloud bg-notebook-cloud/10 p-6">
-                                        <div className="flex items-start justify-between gap-4 mb-5">
-                                            <div className="w-11 h-11 bg-white rounded-2xl flex items-center justify-center shadow-sm border border-notebook-slate/5">
-                                                <Icon className="h-5 w-5 text-notebook-blue" />
-                                            </div>
-                                            <span className={`text-[9px] font-bold uppercase tracking-widest rounded-full px-2.5 py-1 ${step.complete ? 'bg-green-50 text-green-700 border border-green-100' : 'bg-white text-slate-500 border border-notebook-cloud'}`}>
-                                                {step.status}
-                                            </span>
-                                        </div>
-                                        <h3 className="text-sm font-bold text-notebook-slate uppercase tracking-widest font-outfit mb-3">
-                                            {step.label}
-                                        </h3>
-                                        <p className="text-sm text-slate-500 leading-relaxed">
-                                            {step.body}
-                                        </p>
-                                    </div>
+                                    <a
+                                        key={item.label}
+                                        href={item.href}
+                                        onClick={() => setIsMobileNavOpen(false)}
+                                        className={`flex min-h-12 items-center gap-3 rounded-xl px-4 text-sm font-semibold ${index === 0 ? 'bg-notebook-yellow text-black' : 'text-white/75 hover:bg-white/10 hover:text-white'}`}
+                                    >
+                                        <Icon className="h-5 w-5" />
+                                        {item.label}
+                                    </a>
                                 );
                             })}
-                        </div>
-                    </CardContent>
-                </Card>
+                        </nav>
+                        <button type="button" onClick={signOut} className="mt-auto flex min-h-12 items-center gap-3 rounded-xl border border-white/10 px-4 text-sm font-semibold text-white/80">
+                            <LogOut className="h-5 w-5" />
+                            Sign out
+                        </button>
+                    </aside>
+                </div>
+            )}
 
-                {/* Stats Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
-                    {/* Credits Card */}
-                    <Card className="bg-white border-notebook-slate/5 shadow-notebook rounded-[2rem] hover:shadow-notebook-lg transition-all duration-300 group overflow-hidden">
-                        <CardContent className="p-10">
-                            <div className="flex justify-between items-start mb-10">
+            <main id="overview" className="min-h-screen scroll-mt-6 lg:ml-[248px]">
+                <div className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-black/10 bg-white/95 px-4 backdrop-blur lg:hidden">
+                    <button
+                        type="button"
+                        aria-label="Open dashboard navigation"
+                        aria-controls="mobile-dashboard-nav"
+                        aria-expanded={isMobileNavOpen}
+                        onClick={() => setIsMobileNavOpen(true)}
+                        className="rounded-xl border border-black/10 p-2.5 text-black"
+                    >
+                        <Menu className="h-5 w-5" />
+                    </button>
+                    <span className="font-lato text-lg font-semibold">Operations console</span>
+                    <span className="flex h-9 w-9 items-center justify-center rounded-full bg-notebook-yellow text-xs font-bold text-black">{accountInitial}</span>
+                </div>
+
+                <div className="mx-auto max-w-[1480px] px-4 py-7 sm:px-6 lg:px-8 xl:px-10 xl:py-9">
+                    <header className="mb-7 flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
+                        <div>
+                            <h1 className="font-lato text-3xl font-semibold tracking-tight text-black sm:text-4xl">
+                                Operations Console
+                            </h1>
+                            <p className="mt-2 text-sm text-slate-500 sm:text-base">
+                                Welcome back, <span className="capitalize">{firstName}</span>. Monitor alt text generation and manage your workflow.
+                            </p>
+                        </div>
+
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center xl:flex-nowrap">
+                            <div className="flex shrink-0 items-center gap-3 rounded-2xl border border-black/10 bg-white px-4 py-3 xl:min-w-[256px]">
+                                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-notebook-yellow/25">
+                                    <NextImage src="/logos/wordpress.svg" alt="" aria-hidden width={24} height={24} className="h-6 w-6" />
+                                </span>
+                                <div className="min-w-0">
+                                    <p className="flex items-center gap-2 whitespace-nowrap text-sm font-semibold text-black">
+                                        WordPress {isPluginConnected ? 'connected' : 'not connected'}
+                                        <span className={`h-2 w-2 rounded-full ${isPluginConnected ? 'bg-emerald-500' : 'bg-amber-500'}`} aria-hidden />
+                                    </p>
+                                    <p className="whitespace-nowrap text-xs text-slate-500">{isPluginConnected ? 'Plugin connection active' : 'Finish setup to start generating'}</p>
+                                </div>
+                            </div>
+
+                            <div className="flex shrink-0 items-center gap-3 rounded-2xl border border-black/10 bg-white px-4 py-3 xl:min-w-[180px]">
+                                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-notebook-yellow">
+                                    <CreditCard className="h-5 w-5 text-black" />
+                                </span>
                                 <div>
-                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.25em] mb-4">Available Credits</p>
-                                    <h3 className="text-5xl font-medium text-notebook-slate tracking-tighter font-outfit flex items-baseline">
-                                        {creditsRemaining.toLocaleString()}
-                                    </h3>
-                                    <p className="text-xs text-slate-500 mt-3 leading-relaxed max-w-[260px]">
-                                        {creditCardDescription}
+                                    <p className="whitespace-nowrap text-sm font-semibold text-black">{creditsRemaining.toLocaleString()} credits</p>
+                                    <p className="whitespace-nowrap text-xs text-slate-500">{creditsUsed.toLocaleString()} used this cycle</p>
+                                </div>
+                            </div>
+
+                            <Link
+                                href="/docs#bulk-processing"
+                                className="inline-flex min-h-14 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-2xl bg-notebook-yellow px-5 text-sm font-bold text-black shadow-notebook transition-transform hover:-translate-y-0.5 hover:bg-yellow-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 xl:min-w-[232px]"
+                            >
+                                <Layers3 className="h-5 w-5" />
+                                Start bulk generation
+                            </Link>
+                        </div>
+                    </header>
+
+                    {showFirstRunOnboarding && (
+                        <section
+                            aria-labelledby="setup-heading"
+                            className="mb-7 flex flex-col gap-4 rounded-2xl border border-notebook-yellow/80 bg-[#fffdf2] p-4 shadow-notebook sm:flex-row sm:items-center sm:justify-between sm:p-5"
+                        >
+                            <div className="flex items-start gap-4">
+                                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-notebook-yellow text-black">
+                                    {isPluginConnected ? <Sparkles className="h-5 w-5" /> : <PlugZap className="h-5 w-5" />}
+                                </span>
+                                <div>
+                                    <h2 id="setup-heading" className="font-lato text-lg font-semibold text-black">
+                                        {isPluginConnected ? 'Generate your first alt text' : 'Connect your WordPress plugin'}
+                                    </h2>
+                                    <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
+                                        {isPluginConnected
+                                            ? 'Your account is connected. Try one image before starting a larger media-library batch.'
+                                            : hasApiKeyReady
+                                            ? 'Your API key is ready. Open Alt Text Pro in WordPress and finish connecting the plugin.'
+                                            : 'Install Alt Text Pro, connect your account, and your dashboard will begin tracking activity.'}
                                     </p>
                                 </div>
-                                <div className="p-4 bg-notebook-teal/10 text-notebook-blue rounded-3xl group-hover:scale-105 transition-transform duration-500">
-                                    <Zap className="h-7 w-7" />
+                            </div>
+                            <a
+                                href={isPluginConnected ? '#generate' : '/docs#installation'}
+                                className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-black/15 bg-white px-4 text-sm font-semibold text-black transition-colors hover:bg-black hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
+                            >
+                                {isPluginConnected ? 'Generate an image' : 'Open setup guide'}
+                                <ChevronRight className="h-4 w-4" />
+                            </a>
+                        </section>
+                    )}
+
+                    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+                        <section id="activity" aria-labelledby="activity-heading" className="scroll-mt-24 overflow-hidden rounded-2xl border border-black/10 bg-white shadow-notebook">
+                            <div className="flex flex-col gap-3 border-b border-black/10 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                                <div>
+                                    <h2 id="activity-heading" className="font-lato text-xl font-semibold text-black">Recent activity</h2>
+                                    <p className="mt-1 text-sm text-slate-500">Your latest generated alt text</p>
                                 </div>
-                            </div>
-                            <progress
-                                className="credit-progress w-full bg-notebook-cloud rounded-full h-1.5 mb-6 overflow-hidden"
-                                value={creditUsagePercent}
-                                max={100}
-                                aria-label="Credit usage"
-                            />
-                            <div className="flex justify-between items-center">
-                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">
-                                    {creditsUsed.toLocaleString()} used
-                                </span>
-                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">
-                                    {creditUsageLimit.toLocaleString()} {currentPlan === 'free' ? 'total available' : billingCycle === 'annual' ? 'monthly allowance' : 'plan credits'}
+                                <span className="inline-flex w-fit items-center rounded-full bg-notebook-yellow/30 px-3 py-1.5 text-xs font-semibold text-black">
+                                    {(usageStats?.total_processed || 0).toLocaleString()} images optimized
                                 </span>
                             </div>
-                            <div className="mt-7 rounded-2xl border border-amber-100 bg-amber-50/50 p-5">
-                                <div className="flex items-start justify-between gap-4">
-                                    <div>
-                                        <p className="text-[10px] font-bold text-amber-700 uppercase tracking-[0.2em]">Top up credits</p>
-                                        <p className="text-xs text-slate-600 mt-2 leading-relaxed">
-                                            {isCreditPackEligible
-                                                ? "Need more credits? Choose a one-time pack."
-                                                : "Available to paid subscribers only."}
-                                        </p>
+
+                            <div className="hidden grid-cols-[72px_minmax(0,1fr)_130px_130px_48px] items-center gap-4 border-b border-black/10 bg-[#fafafa] px-6 py-3 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 md:grid">
+                                <span>Image</span>
+                                <span>Generated alt text / source</span>
+                                <span>Status</span>
+                                <span>Date</span>
+                                <span className="sr-only">Actions</span>
+                            </div>
+
+                            <div aria-live="polite">
+                                {isLoadingHistory ? (
+                                    <div className="flex min-h-72 flex-col items-center justify-center px-6 py-12 text-center">
+                                        <RefreshCw className="h-7 w-7 animate-spin text-black" />
+                                        <p className="mt-4 text-sm font-semibold text-black">Loading activity</p>
+                                        <p className="mt-1 text-sm text-slate-500">Fetching your latest generations.</p>
                                     </div>
+                                ) : history.length > 0 ? (
+                                    history.slice(0, 5).map((item, index) => (
+                                        <article
+                                            key={item.id || index}
+                                            className="grid grid-cols-[56px_minmax(0,1fr)_40px] items-start gap-x-3 gap-y-2 border-b border-black/10 px-5 py-4 last:border-b-0 hover:bg-[#fffdf2] md:grid-cols-[72px_minmax(0,1fr)_130px_130px_48px] md:items-center md:gap-4 md:px-6"
+                                        >
+                                            <div className="col-start-1 row-start-1 flex h-14 w-14 items-center justify-center rounded-xl border border-black/10 bg-notebook-yellow/25 md:col-auto md:row-auto">
+                                                <ImageIcon className="h-6 w-6 text-black" />
+                                            </div>
+                                            <div className="col-start-2 row-start-1 min-w-0 md:col-auto md:row-auto">
+                                                <p className="line-clamp-2 text-sm font-semibold leading-6 text-black">{item.alt}</p>
+                                                <p className="mt-1 truncate text-xs text-slate-500">{item.context || 'WordPress media'}</p>
+                                            </div>
+                                            <div className="col-start-2 row-start-2 md:col-auto md:row-auto">
+                                                <span className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700">
+                                                    <CircleCheck className="h-3.5 w-3.5" />
+                                                    Generated
+                                                </span>
+                                            </div>
+                                            <time className="col-start-2 row-start-3 text-xs leading-5 text-slate-500 md:col-auto md:row-auto" dateTime={item.date}>
+                                                {new Date(item.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                                                <span className="ml-1 md:ml-0 md:block">{new Date(item.date).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}</span>
+                                            </time>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(item.alt);
+                                                    toast.success("Copied to clipboard");
+                                                }}
+                                                className="col-start-3 row-start-1 flex h-10 w-10 items-center justify-center rounded-xl border border-black/10 text-slate-500 transition-colors hover:bg-black hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 md:col-auto md:row-auto"
+                                                aria-label="Copy generated alt text"
+                                            >
+                                                <Copy className="h-4 w-4" />
+                                            </button>
+                                        </article>
+                                    ))
+                                ) : (
+                                    <div className="flex min-h-72 flex-col items-center justify-center px-6 py-12 text-center">
+                                        <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-notebook-yellow/30">
+                                            <ImageIcon className="h-6 w-6 text-black" />
+                                        </span>
+                                        <p className="mt-4 text-sm font-semibold text-black">No generations yet</p>
+                                        <p className="mt-1 max-w-sm text-sm leading-6 text-slate-500">Upload one image below to create your first reviewable alt text draft.</p>
+                                        <a href="#generate" className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-black underline decoration-notebook-yellow decoration-4 underline-offset-4">
+                                            Generate alt text <ArrowRight className="h-4 w-4" />
+                                        </a>
+                                    </div>
+                                )}
+                            </div>
+                        </section>
+
+                        <aside className="space-y-6" aria-label="Dashboard controls">
+                            <section aria-labelledby="quick-actions-heading" className="rounded-2xl border border-black/10 bg-white p-5 shadow-notebook">
+                                <h2 id="quick-actions-heading" className="font-lato text-lg font-semibold text-black">Quick actions</h2>
+                                <div className="mt-4 divide-y divide-black/10">
+                                    {[
+                                        { label: 'Generate alt text', help: 'Upload and review one image', href: '#generate', icon: Sparkles },
+                                        { label: 'Bulk generator', help: 'Process images inside WordPress', href: '/docs#bulk-processing', icon: Layers3 },
+                                        { label: 'Usage & credits', help: 'Review your allowance', href: '#usage', icon: BarChart3 },
+                                        { label: 'API settings', help: 'Manage your plugin key', href: '#settings', icon: Key },
+                                    ].map((action) => {
+                                        const Icon = action.icon;
+                                        return (
+                                            <a
+                                                key={action.label}
+                                                href={action.href}
+                                                className="group flex min-h-[72px] items-center gap-3 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
+                                            >
+                                                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-black/10 bg-[#fafafa] group-hover:bg-notebook-yellow">
+                                                    <Icon className="h-5 w-5 text-black" />
+                                                </span>
+                                                <span className="min-w-0 flex-1">
+                                                    <span className="block text-sm font-semibold text-black">{action.label}</span>
+                                                    <span className="mt-0.5 block text-xs text-slate-500">{action.help}</span>
+                                                </span>
+                                                <ChevronRight className="h-4 w-4 text-slate-400 transition-transform group-hover:translate-x-0.5 group-hover:text-black" />
+                                            </a>
+                                        );
+                                    })}
+                                </div>
+                            </section>
+
+                            <section id="usage" aria-labelledby="usage-heading" className="scroll-mt-24 rounded-2xl border border-black/10 bg-white p-5 shadow-notebook">
+                                <div className="flex items-center justify-between gap-3">
+                                    <h2 id="usage-heading" className="font-lato text-lg font-semibold text-black">Plan & usage</h2>
+                                    <span className="rounded-full bg-notebook-yellow px-3 py-1 text-xs font-bold text-black">{displayPlanLabel}</span>
+                                </div>
+                                <div className="mt-6 flex items-end justify-between gap-3">
+                                    <div>
+                                        <p className="text-xs font-medium text-slate-500">Credits used</p>
+                                        <p className="mt-1 font-lato text-2xl font-semibold text-black">{creditsUsed.toLocaleString()}</p>
+                                    </div>
+                                    <p className="text-sm text-slate-500">of {creditUsageLimit.toLocaleString()}</p>
+                                </div>
+                                <progress
+                                    className="operations-credit-progress mt-4 h-2 w-full overflow-hidden rounded-full bg-slate-100"
+                                    value={creditUsagePercent}
+                                    max={100}
+                                    aria-label={`${creditUsagePercent.toFixed(0)} percent of available credits used`}
+                                />
+                                <p className="mt-3 text-xs leading-5 text-slate-500">{creditCardDescription}</p>
+
+                                <ul className="mt-5 space-y-3 border-t border-black/10 pt-5 text-sm text-slate-600">
+                                    <li className="flex items-center gap-2"><CircleCheck className="h-4 w-4 text-emerald-600" /> WordPress plugin included</li>
+                                    <li className="flex items-center gap-2"><CircleCheck className="h-4 w-4 text-emerald-600" /> One credit per successful image</li>
+                                    <li className="flex items-center gap-2"><CircleCheck className="h-4 w-4 text-emerald-600" /> Bonus and purchased credits persist</li>
+                                </ul>
+
+                                <div className="mt-6 grid gap-3">
+                                    {usageStats?.plan && usageStats.plan !== 'free' && subscriptionData?.subscription?.polar_customer_id ? (
+                                        <button type="button" onClick={openCustomerPortal} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-black/15 bg-white px-4 text-sm font-semibold text-black hover:bg-black hover:text-white">
+                                            Manage billing <ArrowRight className="h-4 w-4" />
+                                        </button>
+                                    ) : usageStats?.plan && usageStats.plan !== 'free' ? (
+                                        <button type="button" onClick={() => router.push('/#pricing')} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-black/15 bg-white px-4 text-sm font-semibold text-black hover:bg-black hover:text-white">
+                                            View plan details <ArrowRight className="h-4 w-4" />
+                                        </button>
+                                    ) : (
+                                        <button type="button" onClick={openUpgradePlans} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-notebook-yellow px-4 text-sm font-bold text-black hover:bg-yellow-300">
+                                            Upgrade plan <ArrowRight className="h-4 w-4" />
+                                        </button>
+                                    )}
                                     <button
                                         type="button"
                                         onClick={openCreditPacks}
                                         disabled={!isCreditPackEligible}
-                                        aria-disabled={!isCreditPackEligible}
-                                        title={!isCreditPackEligible ? "Available to paid subscribers only" : undefined}
-                                        className="text-notebook-blue text-xs font-semibold flex items-center group/btn font-outfit uppercase tracking-[0.15em] disabled:cursor-not-allowed disabled:text-slate-400 disabled:opacity-70"
+                                        title={!isCreditPackEligible ? 'Available to paid subscribers only' : undefined}
+                                        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-black/15 px-4 text-sm font-semibold text-black hover:bg-[#fafafa] disabled:cursor-not-allowed disabled:opacity-45"
                                     >
-                                        Top up <ArrowRight className="h-3 w-3 ml-2 transition-transform group-hover/btn:translate-x-1" />
+                                        Top up credits
                                     </button>
                                 </div>
-                                {!isCreditPackEligible && (
-                                    <p className="text-[11px] text-amber-800/70 mt-3 leading-relaxed">
-                                        Subscribe to a monthly or annual plan to unlock the 500- and 1,200-credit packs.
-                                    </p>
-                                )}
-                            </div>
-                        </CardContent>
-                    </Card>
+                            </section>
+                        </aside>
+                    </div>
 
-                    {/* Generated Card */}
-                    <Card className="bg-white border-notebook-slate/5 shadow-notebook rounded-[2rem] hover:shadow-notebook-lg transition-all duration-300 group overflow-hidden">
-                        <CardContent className="p-10">
-                            <div className="flex justify-between items-start mb-10">
+                    <section id="generate" aria-labelledby="generate-heading" className="mt-6 scroll-mt-24 overflow-hidden rounded-2xl border border-black/10 bg-white shadow-notebook">
+                        <div className="border-b border-black/10 px-5 py-5 sm:px-6">
+                            <div className="flex items-center gap-3">
+                                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-notebook-yellow">
+                                    <Sparkles className="h-5 w-5 text-black" />
+                                </span>
                                 <div>
-                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.25em] mb-4">Images Optimized</p>
-                                    <h3 className="text-5xl font-medium text-notebook-slate tracking-tighter font-outfit">{usageStats?.total_processed || 0}</h3>
-                                </div>
-                                <div className="p-4 bg-slate-50 text-notebook-slate rounded-3xl group-hover:scale-105 transition-transform duration-500">
-                                    <ImageIcon className="h-7 w-7" />
+                                    <h2 id="generate-heading" className="font-lato text-xl font-semibold text-black">Generate alt text</h2>
+                                    <p className="mt-1 text-sm text-slate-500">Test one image before starting a WordPress bulk batch.</p>
                                 </div>
                             </div>
-                            <div className="mt-8 flex items-center space-x-3">
-                                <div className="flex -space-x-2">
-                                    {[1, 2, 3].map((i) => (
-                                        <div key={i} className="w-8 h-8 rounded-full border-2 border-white bg-notebook-cloud flex items-center justify-center text-[10px] font-bold text-slate-400">
-                                            {i}
-                                        </div>
-                                    ))}
-                                </div>
-                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">Images Processed</p>
-                            </div>
-                        </CardContent>
-                    </Card>
+                        </div>
 
-                    {/* Plan Card */}
-                    <Card className="bg-white border-notebook-slate/5 shadow-notebook rounded-[2rem] hover:shadow-notebook-lg transition-all duration-300 group overflow-hidden">
-                        <CardContent className="p-10">
-                            <div className="flex justify-between items-start mb-10">
-                                <div>
-                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.25em] mb-4">Your Current Plan</p>
-                                    <h3 className="text-4xl font-medium text-notebook-slate tracking-tight font-outfit capitalize">{displayPlanLabel}</h3>
-                                    {billingCycle === 'annual' && monthlyCreditAllowance > 0 && (
-                                        <p className="text-xs text-slate-500 mt-3">
-                                            {monthlyCreditAllowance.toLocaleString()} credits added monthly
-                                        </p>
+                        <div className="grid gap-6 p-5 sm:p-6 lg:grid-cols-2">
+                            <div>
+                                <button
+                                    type="button"
+                                    className="flex min-h-[260px] w-full cursor-pointer flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-black/15 bg-[#fafafa] p-6 text-center transition-colors hover:border-black hover:bg-[#fffdf2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
+                                    onClick={() => document.getElementById('operations-image-upload')?.click()}
+                                >
+                                    <input id="operations-image-upload" type="file" className="sr-only" accept="image/*" onChange={handleImageUpload} />
+                                    {testImage ? (
+                                        <span className="relative block aspect-video w-full overflow-hidden rounded-xl">
+                                            <NextImage src={testImage} alt="Selected image preview" fill unoptimized sizes="(min-width: 1024px) 50vw, 100vw" className="object-cover" />
+                                        </span>
+                                    ) : (
+                                        <>
+                                            <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-notebook-yellow text-black">
+                                                <Upload className="h-6 w-6" />
+                                            </span>
+                                            <span className="mt-5 text-sm font-semibold text-black">Choose an image</span>
+                                            <span className="mt-1 text-xs text-slate-500">PNG, JPG, WEBP, or GIF</span>
+                                        </>
                                     )}
-                                </div>
-                                <div className="p-4 bg-orange-50 text-orange-500 rounded-3xl group-hover:scale-105 transition-transform duration-500">
-                                    <Crown className="h-7 w-7" />
-                                </div>
-                            </div>
-                            <div className="mt-7">
-                                {usageStats?.plan && usageStats.plan !== 'free' ? (
-                                    <div className="flex flex-col gap-4">
-                                        {subscriptionData?.subscription?.polar_customer_id ? (
-	                                            <>
-	                                                <button
-	                                                    onClick={openCustomerPortal}
-	                                                    className="text-xs text-notebook-blue font-semibold hover:opacity-80 transition-all flex items-center font-outfit uppercase tracking-[0.15em]"
-	                                                >
-	                                                    Manage Subscription <ArrowRight className="h-4 w-4 ml-2" />
-	                                                </button>
-	                                                <button
-	                                                    onClick={openCustomerPortal}
-	                                                    className="text-[10px] text-slate-500 hover:text-red-500 transition-colors uppercase tracking-[0.2em] font-bold text-left"
-	                                                >
-                                                    Cancel Subscription
-                                                </button>
-                                            </>
-                                        ) : (
-                                            <button
-                                                onClick={() => router.push('/#pricing')}
-                                                className="text-xs text-notebook-blue font-semibold hover:opacity-80 transition-all flex items-center font-outfit uppercase tracking-[0.15em]"
-                                            >
-                                                Plan Details <ArrowRight className="h-4 w-4 ml-2" />
-                                            </button>
-                                        )}
-                                    </div>
-                                ) : (
-                                    <button
-                                        onClick={openUpgradePlans}
-                                        className="text-xs text-notebook-slate font-semibold hover:text-notebook-blue transition-all flex items-center group/btn font-outfit uppercase tracking-[0.15em]"
-                                    >
-                                        Upgrade Your Plan <ArrowRight className="h-4 w-4 ml-2 transition-transform group-hover/btn:translate-x-1" />
-                                    </button>
-                                )}
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
-
-                <div className="grid lg:grid-cols-3 gap-8">
-                    {/* Main Content Area - Left 2/3 */}
-                    <div className="lg:col-span-2 space-y-8">
-
-                        {/* Quick Test Section */}
-                        <Card className="bg-white border-notebook-slate/5 shadow-notebook rounded-[2rem] overflow-hidden group">
-                            <CardContent className="p-10">
-                                <div className="flex items-center space-x-4 mb-12">
-                                    <div className="p-3 bg-notebook-teal/10 text-notebook-blue rounded-2xl border border-notebook-teal/20">
-                                        <Brain className="h-6 w-6" />
-                                    </div>
+                                </button>
+                                <div className="mt-4 flex items-center justify-between rounded-xl border border-black/10 bg-white px-4 py-3">
                                     <div>
-                                        <h2 className="text-2xl font-semibold text-notebook-slate tracking-tight font-outfit">Quick Generate</h2>
-                                        <p className="text-xs font-medium text-slate-500 uppercase tracking-widest mt-1">Create Alt Text in One Click</p>
+                                        <p className="text-xs font-semibold text-black">Generation mode</p>
+                                        <p className="mt-0.5 text-xs text-slate-500">Reviewable AI draft</p>
                                     </div>
+                                    <span className="inline-flex items-center gap-2 text-xs font-semibold text-emerald-700">
+                                        <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden /> Ready
+                                    </span>
                                 </div>
+                            </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                                    <div className="space-y-8">
-                                        <div
-                                            className="border-2 border-dashed border-notebook-cloud rounded-[2rem] p-12 text-center cursor-pointer hover:border-notebook-blue/30 hover:bg-notebook-cloud/30 transition-all duration-500 group/drop bg-notebook-cloud/10"
-                                            onClick={() => document.getElementById('image-upload-input')?.click()}
-                                        >
-                                            <input
-                                                id="image-upload-input"
-                                                type="file"
-                                                className="hidden"
-                                                accept="image/*"
-                                                onChange={handleImageUpload}
-                                            />
-                                            {testImage ? (
-                                                <div className="relative aspect-video rounded-2xl overflow-hidden shadow-sm">
-                                                    <NextImage
-                                                        src={testImage}
-                                                        alt="Upload preview"
-                                                        fill
-                                                        unoptimized
-                                                        sizes="(min-width: 768px) 50vw, 100vw"
-                                                        className="object-cover"
-                                                    />
-                                                    <div className="absolute inset-0 bg-notebook-slate/20 opacity-0 group-hover/drop:opacity-100 transition-opacity flex items-center justify-center">
-                                                        <p className="text-white text-xs font-bold uppercase tracking-widest">Change Image</p>
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <div className="py-6 flex flex-col items-center">
-                                                    <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-6 shadow-sm border border-gray-50 group-hover/drop:scale-110 transition-transform duration-500">
-                                                        <Upload className="h-6 w-6 text-notebook-blue" />
-                                                    </div>
-                                                    <p className="text-sm font-semibold text-notebook-slate mb-2">Drop image here</p>
-                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">or click to browse filesystem</p>
-                                                </div>
-                                            )}
+                            <div className="flex min-h-[320px] flex-col">
+                                <div className="flex flex-1 flex-col rounded-2xl border border-black/10 bg-[#fafafa] p-5 sm:p-6" aria-live="polite">
+                                    {isGenerating ? (
+                                        <div className="flex flex-1 flex-col items-center justify-center text-center">
+                                            <RefreshCw className="h-8 w-8 animate-spin text-black" />
+                                            <p className="mt-4 text-sm font-semibold text-black">Analyzing image</p>
+                                            <p className="mt-1 text-xs text-slate-500">Creating a concise, reviewable description.</p>
                                         </div>
-
-                                        <div className="flex items-center justify-between p-6 bg-notebook-cloud/20 rounded-3xl border border-notebook-cloud/50">
-                                            <div className="flex items-center space-x-4">
-                                                <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm border border-notebook-slate/5">
-                                                    <Settings className="h-5 w-5 text-slate-400" />
-                                                </div>
-                                                <div>
-                                                    <p className="text-xs font-bold text-notebook-slate uppercase tracking-widest">Generation Mode</p>
-                                                    <p className="text-[10px] font-medium text-slate-500 font-outfit">Reviewable AI draft</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center space-x-2">
-                                                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Live</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex flex-col h-full">
-                                        <div className="flex-1 bg-notebook-cloud/10 rounded-[2rem] p-8 border border-notebook-cloud/50 relative overflow-hidden group/result">
-                                            {isGenerating ? (
-                                                <div className="h-full flex flex-col items-center justify-center space-y-6">
-                                                    <div className="relative w-16 h-16">
-                                                        <div className="absolute inset-0 border-4 border-notebook-blue/10 rounded-full"></div>
-                                                        <div className="absolute inset-0 border-4 border-t-notebook-blue rounded-full animate-spin"></div>
-                                                    </div>
-                                                    <div className="text-center">
-                                                        <p className="text-sm font-semibold text-notebook-slate mb-1">Analyzing image...</p>
-                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Understanding image data</p>
-                                                    </div>
-                                                </div>
-                                            ) : generatedAltText ? (
-                                                <div className="h-full flex flex-col">
-                                                    <div className="flex items-center justify-between mb-6">
-                                                        <span className="text-[10px] font-bold text-notebook-blue uppercase tracking-widest bg-notebook-teal/10 px-3 py-1 rounded-full">Ready to Use</span>
-                                                        <button
-                                                            onClick={() => {
-                                                                navigator.clipboard.writeText(generatedAltText);
-                                                                toast.success("Copied to clipboard");
-                                                            }}
-                                                            className="p-2 hover:bg-white rounded-xl transition-colors shadow-none hover:shadow-sm border-transparent hover:border-gray-100 border text-slate-400 hover:text-notebook-blue"
-                                                        >
-                                                            <Copy className="h-4 w-4" />
-                                                        </button>
-                                                    </div>
-                                                    <div className="flex-1 text-notebook-slate text-sm font-medium leading-relaxed bg-white/50 rounded-2xl p-6 border border-white">
-                                                        {generatedAltText}
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <div className="h-full flex flex-col items-center justify-center text-center opacity-40">
-                                                    <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center mb-4 shadow-sm">
-                                                        <FileText className="h-5 w-5 text-slate-300" />
-                                                    </div>
-                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Waiting for image</p>
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        <button
-                                            onClick={generateTestAltText}
-                                            disabled={!testImage || isGenerating}
-                                            className="mt-6 w-full py-4 bg-notebook-slate text-white rounded-2xl font-semibold text-sm hover:bg-notebook-slate/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md uppercase tracking-[0.2em] font-outfit"
-                                        >
-                                            {isGenerating ? 'Generating...' : 'Start Analysis'}
-                                        </button>
-                                    </div>
-                                </div>
-                            </CardContent>
-                        </Card>
-
-                        {/* Recent History */}
-                        <Card className="bg-white border-notebook-slate/5 shadow-notebook rounded-[2rem] overflow-hidden">
-                            <CardContent className="p-10">
-                                <div className="flex items-center justify-between mb-12">
-                                    <div className="flex items-center space-x-4">
-                                        <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl border border-indigo-100">
-                                            <History className="h-6 w-6" />
-                                        </div>
-                                        <div>
-                                            <h2 className="text-2xl font-semibold text-notebook-slate tracking-tight font-outfit">Recent Activity</h2>
-                                            <p className="text-xs font-medium text-slate-500 uppercase tracking-widest mt-1">Your Generated Alt Text</p>
-                                        </div>
-                                    </div>
-                                    <Button variant="ghost" size="sm" className="text-slate-500 hover:text-notebook-blue font-bold uppercase tracking-widest text-[10px]">Archive View</Button>
-                                </div>
-
-                                <div className="space-y-6">
-                                    {isLoadingHistory ? (
-                                        <div className="text-center py-20 bg-notebook-cloud/10 rounded-[2rem] border border-dashed border-notebook-cloud">
-                                            <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm">
-                                                <RefreshCw className="h-6 w-6 text-slate-200 animate-spin" />
-                                            </div>
-                                            <p className="text-sm font-semibold text-slate-400">Loading activity</p>
-                                        </div>
-                                    ) : history.length > 0 ? (
-                                        history.map((item, index) => (
-                                            <div key={item.id || index} className="flex items-center space-x-6 p-6 rounded-[1.5rem] hover:bg-notebook-cloud/30 transition-all group border border-transparent hover:border-notebook-cloud/50">
-                                                <div className="h-16 w-16 rounded-xl bg-notebook-cloud/50 overflow-hidden flex-shrink-0 border border-notebook-cloud group-hover:scale-105 transition-transform flex items-center justify-center">
-                                                    <ImageIcon className="h-6 w-6 text-slate-300" />
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-sm font-medium text-notebook-slate line-clamp-2 leading-relaxed italic">"{item.alt}"</p>
-                                                    {item.context && (
-                                                        <p className="text-xs text-slate-400 mt-1 line-clamp-1">{item.context}</p>
-                                                    )}
-                                                    <p className="text-[10px] text-slate-400 mt-2 uppercase tracking-widest font-bold font-outfit">{new Date(item.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</p>
-                                                </div>
+                                    ) : generatedAltText ? (
+                                        <>
+                                            <div className="flex items-center justify-between gap-3">
+                                                <span className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700">
+                                                    <CircleCheck className="h-3.5 w-3.5" /> Ready to review
+                                                </span>
                                                 <button
+                                                    type="button"
                                                     onClick={() => {
-                                                        navigator.clipboard.writeText(item.alt);
+                                                        navigator.clipboard.writeText(generatedAltText);
                                                         toast.success("Copied to clipboard");
                                                     }}
-                                                    className="p-3 text-slate-300 hover:text-notebook-blue hover:bg-white rounded-xl transition-all shadow-none hover:shadow-sm"
+                                                    className="flex h-10 w-10 items-center justify-center rounded-xl border border-black/10 text-slate-500 hover:bg-black hover:text-white"
+                                                    aria-label="Copy generated alt text"
                                                 >
                                                     <Copy className="h-4 w-4" />
                                                 </button>
                                             </div>
-                                        ))
+                                            <p className="mt-5 flex-1 rounded-xl bg-white p-4 text-sm font-medium leading-7 text-black">{generatedAltText}</p>
+                                        </>
                                     ) : (
-                                        <div className="text-center py-20 bg-notebook-cloud/10 rounded-[2rem] border border-dashed border-notebook-cloud">
-                                            <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm">
-                                                <ImageIcon className="h-6 w-6 text-slate-200" />
-                                            </div>
-                                            <p className="text-sm font-semibold text-slate-400">Activity log is currently empty</p>
-                                            <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest mt-2">Start generating alt text above</p>
+                                        <div className="flex flex-1 flex-col items-center justify-center text-center">
+                                            <FileText className="h-8 w-8 text-slate-300" />
+                                            <p className="mt-4 text-sm font-semibold text-black">Your generated alt text will appear here</p>
+                                            <p className="mt-1 max-w-xs text-xs leading-5 text-slate-500">Choose an image, then generate a draft you can review before using it.</p>
                                         </div>
                                     )}
                                 </div>
-                            </CardContent>
-                        </Card>
-                    </div>
+                                <button
+                                    type="button"
+                                    onClick={generateTestAltText}
+                                    disabled={!testImage || isGenerating}
+                                    className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-black px-5 text-sm font-bold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
+                                >
+                                    <Sparkles className="h-4 w-4" />
+                                    {isGenerating ? 'Generating alt text…' : 'Generate alt text'}
+                                </button>
+                            </div>
+                        </div>
+                    </section>
 
-                    {/* Sidebar Area */}
-                    <div className="space-y-8">
-                        {/* API Key Section */}
-                        <Card className="bg-white border-notebook-slate/5 shadow-notebook relative overflow-hidden group rounded-[2rem]">
-                            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-teal-500/20 to-teal-500 group-hover:h-2 transition-all"></div>
-                            <CardContent className="p-8">
-                                <div className="flex items-center space-x-4 mb-10">
-                                    <div className="p-3 bg-teal-50 text-teal-600 rounded-2xl border border-teal-100">
-                                        <Key className="h-6 w-6" />
-                                    </div>
-                                    <div>
-                                        <h2 className="text-xl font-semibold text-notebook-slate tracking-tight font-outfit">API Settings</h2>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Your API Key</p>
-                                    </div>
+                    <section id="settings" aria-labelledby="settings-heading" className="mt-6 scroll-mt-24 grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
+                        <div className="rounded-2xl border border-black/10 bg-white p-5 shadow-notebook sm:p-6">
+                            <div className="flex items-center gap-3">
+                                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-notebook-yellow"><Key className="h-5 w-5 text-black" /></span>
+                                <div>
+                                    <h2 id="settings-heading" className="font-lato text-xl font-semibold text-black">API settings</h2>
+                                    <p className="mt-1 text-sm text-slate-500">Manage the key used by your WordPress plugin.</p>
                                 </div>
-
-                                <div className="space-y-6">
-                                    <div className="relative group/key">
-                                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 block">
-                                            Secret API Key
-                                        </label>
-                                        <div className="flex items-center bg-notebook-cloud/20 border border-notebook-cloud rounded-2xl overflow-hidden focus-within:ring-2 focus-within:ring-teal-500/20 focus-within:border-teal-500/50 transition-all">
-                                            <div className="pl-5 py-4 flex-1 overflow-hidden">
-                                                {isLoadingApiKey ? (
-                                                    <div className="h-4 w-3/4 bg-slate-200 animate-pulse rounded"></div>
-                                                ) : (
-                                                    <span className="text-xs font-mono text-notebook-slate/70 truncate block">
-                                                        {showApiKey ? apiKey : '••••••••••••••••••••••••••••••'}
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <button
-                                                onClick={() => setShowApiKey(!showApiKey)}
-                                                className="p-4 text-slate-300 hover:text-notebook-slate transition-colors"
-                                                title={showApiKey ? "Hide Key" : "Show Key"}
-                                            >
-                                                {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                                            </button>
-                                            <div className="w-px h-10 bg-notebook-cloud"></div>
-                                            <button
-                                                onClick={() => {
-                                                    if (apiKey) {
-                                                        navigator.clipboard.writeText(apiKey);
-                                                        toast.success("API key copied to clipboard");
-                                                    }
-                                                }}
-                                                className="p-4 text-slate-300 hover:text-teal-600 hover:bg-white transition-colors"
-                                                title="Copy to Clipboard"
-                                            >
-                                                <Copy className="h-4 w-4" />
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    <Button
-                                        variant="outline"
-                                        className="w-full h-12 border-notebook-cloud text-notebook-slate hover:bg-notebook-cloud/30 hover:border-notebook-cloud font-semibold text-xs uppercase tracking-widest font-outfit transition-all"
-                                        onClick={rotateApiKey}
-                                        disabled={isLoadingApiKey}
-                                    >
-                                        <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingApiKey ? 'animate-spin' : ''}`} />
-                                        {isLoadingApiKey ? 'Generating...' : 'Generate New Key'}
-                                    </Button>
-
-                                    <div className="p-5 bg-orange-50/50 border border-orange-100 rounded-[1.5rem] flex items-start space-x-4">
-                                        <AlertTriangle className="h-5 w-5 text-orange-400 shrink-0 mt-0.5" />
-                                        <p className="text-[10px] text-orange-800/70 leading-relaxed font-medium">
-                                            This key gives access to your account. Change it immediately if you think someone else has it.
-                                        </p>
-                                    </div>
+                            </div>
+                            <p className="mt-6 text-xs font-semibold text-slate-600">Secret API key</p>
+                            <div className="mt-2 flex overflow-hidden rounded-xl border border-black/15 bg-[#fafafa] focus-within:ring-2 focus-within:ring-black">
+                                <div className="min-w-0 flex-1 px-4 py-3.5 font-mono text-xs text-black" aria-label="Secret API key">
+                                    {isLoadingApiKey ? 'Loading…' : apiKeyError ? 'Unavailable' : showApiKey ? apiKey : '••••••••••••••••••••••••••••••'}
                                 </div>
-                            </CardContent>
-                        </Card>
+                                <button type="button" onClick={() => setShowApiKey(!showApiKey)} disabled={!apiKey} className="flex w-12 items-center justify-center border-l border-black/10 text-slate-500 hover:bg-white hover:text-black disabled:cursor-not-allowed disabled:opacity-40" aria-label={showApiKey ? 'Hide API key' : 'Show API key'}>
+                                    {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        if (apiKey) {
+                                            navigator.clipboard.writeText(apiKey);
+                                            toast.success("API key copied to clipboard");
+                                        }
+                                    }}
+                                    disabled={!apiKey}
+                                    className="flex w-12 items-center justify-center border-l border-black/10 text-slate-500 hover:bg-white hover:text-black disabled:cursor-not-allowed disabled:opacity-40"
+                                    aria-label="Copy API key"
+                                >
+                                    <Copy className="h-4 w-4" />
+                                </button>
+                            </div>
+                            {apiKeyError && (
+                                <p className="mt-3 text-xs leading-5 text-amber-800" role="status">
+                                    {apiKeyError}
+                                </p>
+                            )}
+                            <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+                                <button type="button" onClick={rotateApiKey} disabled={isLoadingApiKey || apiKeyErrorCode === 'api_key_encryption_not_configured'} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-black/15 px-4 text-sm font-semibold text-black hover:bg-[#fafafa] disabled:opacity-50">
+                                    <RefreshCw className={`h-4 w-4 ${isLoadingApiKey ? 'animate-spin' : ''}`} />
+                                    Generate new key
+                                </button>
+                                <a
+                                    href={`/wordpress-plugin/alt-text-pro-plugin-${PLUGIN_VERSION}.zip`}
+                                    download={`alt-text-pro-plugin-${PLUGIN_VERSION}.zip`}
+                                    onClick={() => trackMarketingEvent("plugin_downloaded", {
+                                        source: "dashboard",
+                                        userId: user?.id,
+                                        userEmail: user?.email,
+                                        properties: { plugin_version: PLUGIN_VERSION, location: "dashboard_settings" },
+                                    })}
+                                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-notebook-yellow px-4 text-sm font-bold text-black hover:bg-yellow-300"
+                                >
+                                    <Download className="h-4 w-4" /> Download plugin v{PLUGIN_VERSION}
+                                </a>
+                            </div>
+                            <p className="mt-4 flex items-start gap-2 text-xs leading-5 text-amber-800">
+                                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                                Rotating the key disconnects the old key immediately. Update WordPress after rotating it.
+                            </p>
+                        </div>
 
-                        {/* Help & Support */}
-                        <Card className="bg-white border-notebook-slate/5 shadow-notebook relative overflow-hidden group rounded-[2rem]">
-                            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-notebook-teal/20 to-notebook-blue group-hover:h-2 transition-all"></div>
-                            <CardContent className="p-8">
-                                <div className="flex items-center space-x-4 mb-10">
-                                    <div className="p-3 bg-notebook-teal/10 text-notebook-blue rounded-2xl border border-notebook-teal/20">
-                                        <HelpCircle className="h-6 w-6" />
-                                    </div>
-                                    <div>
-                                        <h2 className="text-xl font-semibold text-notebook-slate tracking-tight font-outfit">Help & Support</h2>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Knowledge & Support</p>
-                                    </div>
-                                </div>
+                        <div className="rounded-2xl border border-black/10 bg-black p-5 text-white shadow-notebook sm:p-6">
+                            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-notebook-yellow text-black"><HelpCircle className="h-5 w-5" /></span>
+                            <h2 className="mt-5 font-lato text-xl font-semibold">Help & support</h2>
+                            <p className="mt-2 text-sm leading-6 text-white/65">Find installation guidance or contact us if your WordPress connection needs attention.</p>
+                            <div className="mt-6 grid gap-3">
+                                <Link href="/docs" className="inline-flex min-h-11 items-center justify-between rounded-xl border border-white/15 px-4 text-sm font-semibold text-white hover:bg-white/10">
+                                    Documentation <Book className="h-4 w-4" />
+                                </Link>
+                                <Link href="/contact" className="inline-flex min-h-11 items-center justify-between rounded-xl border border-white/15 px-4 text-sm font-semibold text-white hover:bg-white/10">
+                                    Contact support <MessageCircle className="h-4 w-4" />
+                                </Link>
+                            </div>
+                        </div>
+                    </section>
 
-                                <div className="space-y-4">
-                                    <Link href="/docs" className="flex items-center justify-between p-5 rounded-2xl border border-notebook-cloud hover:border-notebook-blue/30 hover:bg-notebook-teal/10 transition-all group/link">
-                                        <div className="flex items-center space-x-4">
-                                            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm border border-notebook-slate/5">
-                                                <Book className="h-5 w-5 text-slate-400 group-hover/link:text-notebook-blue transition-colors" />
-                                            </div>
-                                            <span className="font-semibold text-notebook-slate group-hover/link:text-notebook-slate">Documentation</span>
-                                        </div>
-                                        <ArrowRight className="h-4 w-4 text-slate-300 group-hover/link:text-notebook-blue group-hover/link:translate-x-1 transition-all" />
-                                    </Link>
+                    <footer className="mt-8 flex flex-col gap-2 border-t border-black/10 py-6 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+                        <p>Alt Text Pro v{PLUGIN_VERSION} · System status: active</p>
+                        <p>© 2026 Alt Text Pro. Built for accessible publishing.</p>
+                    </footer>
 
-                                    <Link href="/contact" className="flex items-center justify-between p-5 rounded-2xl border border-notebook-cloud hover:border-notebook-blue/30 hover:bg-notebook-teal/10 transition-all group/link">
-                                        <div className="flex items-center space-x-4">
-                                            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm border border-notebook-slate/5">
-                                                <MessageCircle className="h-5 w-5 text-slate-400 group-hover/link:text-notebook-blue transition-colors" />
-                                            </div>
-                                            <span className="font-semibold text-notebook-slate group-hover/link:text-notebook-slate">Contact Support</span>
-                                        </div>
-                                        <ArrowRight className="h-4 w-4 text-slate-300 group-hover/link:text-notebook-blue group-hover/link:translate-x-1 transition-all" />
-                                    </Link>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </div>
-                </div>
-
-                {/* Footer */}
-                <div className="mt-20 text-center pb-12 border-t border-notebook-cloud pt-12">
-                    <p className="text-slate-400 text-[10px] font-bold uppercase tracking-[0.3em]">
-                        Alt Text Pro System v{PLUGIN_VERSION} • System Status: <span className="text-green-500">Active</span>
-                    </p>
-                    <p className="text-[10px] text-slate-300 mt-4 font-medium">© 2026 ALT Text Pro. All rights reserved.</p>
                 </div>
             </main>
             {/* Upgrade Modal */}
@@ -1238,12 +1284,12 @@ export default function Dashboard() {
                                     <Crown className="h-3.5 w-3.5" />
                                     <span>Plan Management</span>
                                 </div>
-                                <h2 className="text-4xl font-semibold text-[#1A1C1E] mb-4 tracking-tight font-outfit">
+                                <h2 className="text-4xl font-semibold text-[#1A1C1E] mb-4 tracking-tight font-lato">
                                     {upgradeModalView === "credit-packs"
                                         ? <>Top up <span className="text-[#000000]">credits</span></>
                                         : <>Choose a <span className="text-[#000000]">Plan</span></>}
                                 </h2>
-                                <p className="text-[#5F6368] text-lg font-inter">
+                                <p className="text-[#5F6368] text-lg font-lato">
                                     {upgradeModalView === "credit-packs"
                                         ? "Choose a one-time pack to add credits to your account."
                                         : "Compare the available plans and credit allowances."}
@@ -1259,13 +1305,13 @@ export default function Dashboard() {
                                         <div className="w-20 h-20 bg-notebook-teal/10 rounded-[1.5rem] flex items-center justify-center mx-auto mb-8">
                                             <Crown className="h-10 w-10 text-[#000000]" />
                                         </div>
-                                        <h3 className="text-2xl font-semibold text-[#1A1C1E] mb-2 font-outfit">
+                                        <h3 className="text-2xl font-semibold text-[#1A1C1E] mb-2 font-lato">
                                             {selectedUpgradePlan.name}{selectedUpgradeIsPack ? '' : ' Plan'}
                                         </h3>
-                                        <div className="text-5xl font-semibold text-[#1A1C1E] mb-8 font-outfit">
-                                            {selectedUpgradePlan.price}<span className="text-xl text-[#5F6368] font-normal font-inter">{selectedUpgradeIsPack ? ' one time' : selectedUpgradePlan.id.endsWith('_annual') ? '/yr' : '/mo'}</span>
+                                        <div className="text-5xl font-semibold text-[#1A1C1E] mb-8 font-lato">
+                                            {selectedUpgradePlan.price}<span className="text-xl text-[#5F6368] font-normal font-lato">{selectedUpgradeIsPack ? ' one time' : selectedUpgradePlan.id.endsWith('_annual') ? '/yr' : '/mo'}</span>
                                         </div>
-                                        <div className="space-y-5 text-left mb-10 pt-8 border-t border-[#F1F3F4] font-inter">
+                                        <div className="space-y-5 text-left mb-10 pt-8 border-t border-[#F1F3F4] font-lato">
                                             {selectedUpgradeDetails?.features.map((feature) => (
                                                 <div key={feature} className="flex items-center text-[#5F6368]">
                                                     <div className="w-5 h-5 rounded-full bg-notebook-teal/10 flex items-center justify-center mr-4 shrink-0">
@@ -1304,7 +1350,7 @@ export default function Dashboard() {
                                 <div className="space-y-12">
                                     {upgradeModalView === "plans" && <div>
                                         <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
-                                            <h3 className="text-lg font-semibold text-[#1A1C1E] font-outfit border-l-4 border-[#000000] pl-4">Subscription Plans</h3>
+                                            <h3 className="text-lg font-semibold text-[#1A1C1E] font-lato border-l-4 border-[#000000] pl-4">Subscription Plans</h3>
                                             <div className="inline-flex rounded-xl border border-[#F1F3F4] bg-[#FAF9F6] p-1" role="group" aria-label="Billing cycle">
                                                 <button
                                                     type="button"
@@ -1339,15 +1385,15 @@ export default function Dashboard() {
                                                             Most popular
                                                         </div>
                                                     )}
-                                                    <h4 className="text-lg font-semibold text-[#1A1C1E] font-outfit">{plan.name}</h4>
+                                                    <h4 className="text-lg font-semibold text-[#1A1C1E] font-lato">{plan.name}</h4>
                                                     <div className="mt-4 mb-8">
-                                                        <span className="text-4xl font-semibold text-[#1A1C1E] font-outfit">{upgradeBillingCycle === 'annual' ? plan.annualPrice : plan.monthlyPrice}</span>
-                                                        <span className="text-[#5F6368] font-normal ml-1 font-inter">/{upgradeBillingCycle === 'annual' ? 'yr' : 'mo'}</span>
+                                                        <span className="text-4xl font-semibold text-[#1A1C1E] font-lato">{upgradeBillingCycle === 'annual' ? plan.annualPrice : plan.monthlyPrice}</span>
+                                                        <span className="text-[#5F6368] font-normal ml-1 font-lato">/{upgradeBillingCycle === 'annual' ? 'yr' : 'mo'}</span>
                                                         {upgradeBillingCycle === 'annual' && (
                                                             <p className="mt-2 text-xs text-[#5F6368]">Equivalent to {plan.annualMonthlyPrice}/mo</p>
                                                         )}
                                                     </div>
-                                                    <ul className="space-y-4 mb-10 flex-1 font-inter">
+                                                    <ul className="space-y-4 mb-10 flex-1 font-lato">
                                                         <li className="flex items-start text-sm text-[#5F6368]">
                                                             <div className="w-5 h-5 rounded-full bg-slate-50 flex items-center justify-center mr-3 mt-0.5 shrink-0">
                                                                 <Check className="h-3 w-3 text-[#000000]" aria-hidden="true" />
@@ -1384,7 +1430,7 @@ export default function Dashboard() {
                                     </div>}
 
                                     <div>
-                                        <h3 className="text-lg font-semibold text-[#1A1C1E] mb-3 font-outfit border-l-4 border-amber-400 pl-4">Credits (One-Time)</h3>
+                                        <h3 className="text-lg font-semibold text-[#1A1C1E] mb-3 font-lato border-l-4 border-amber-400 pl-4">Credits (One-Time)</h3>
                                         <p className="text-sm text-[#5F6368] mb-8 ml-4">Available to paid subscribers only.</p>
                                         <div className="grid md:grid-cols-2 gap-8">
                                             {CREDIT_PACKS.map((pack) => (
@@ -1392,12 +1438,12 @@ export default function Dashboard() {
                                                     key={pack.id}
                                                     className="flex flex-col rounded-[2rem] border border-[#F1F3F4] bg-[#FAF9F6] p-8 transition-all hover:shadow-lg"
                                                 >
-                                                    <h4 className="text-lg font-semibold text-[#1A1C1E] font-outfit">{pack.name}</h4>
+                                                    <h4 className="text-lg font-semibold text-[#1A1C1E] font-lato">{pack.name}</h4>
                                                     <div className="mt-4 mb-8">
-                                                        <span className="text-4xl font-semibold text-[#1A1C1E] font-outfit">{pack.price}</span>
-                                                        <span className="text-[#5F6368] font-normal ml-2 font-inter text-sm">one-time purchase</span>
+                                                        <span className="text-4xl font-semibold text-[#1A1C1E] font-lato">{pack.price}</span>
+                                                        <span className="text-[#5F6368] font-normal ml-2 font-lato text-sm">one-time purchase</span>
                                                     </div>
-                                                    <ul className="space-y-4 mb-10 flex-1 font-inter">
+                                                    <ul className="space-y-4 mb-10 flex-1 font-lato">
                                                         {pack.features.map((feature) => (
                                                             <li key={feature} className="flex items-start text-sm text-[#5F6368]">
                                                                 <div className="w-5 h-5 rounded-full bg-amber-50 flex items-center justify-center mr-3 mt-0.5 shrink-0">

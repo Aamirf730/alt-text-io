@@ -11,7 +11,10 @@ const {
   methodNotAllowedResponse,
 } = require('./utils/cors');
 const { getMonthlyCreditState } = require('./utils/api-key-validator');
-const { recordPluginConnectCompleted } = require('./utils/plugin-connect-event');
+const {
+  recordPluginConnectCompleted,
+  getPluginConnectionStatus,
+} = require('./utils/plugin-connect-event');
 const { extractPluginVersion } = require('./utils/plugin-version');
 const { fetchAllRows } = require('./utils/paginated-query');
 const { getPlanCredits } = require('./utils/subscription-plans');
@@ -143,6 +146,11 @@ exports.handler = async (event, context) => {
       });
     }
 
+    const pluginConnection = await getPluginConnectionStatus(
+      supabase,
+      userId || authUser.id,
+    );
+
     // Get every usage page. PostgREST commonly caps an un-ranged select at
     // 1,000 rows, which would make customer totals silently undercount.
     let usageLogs;
@@ -212,6 +220,9 @@ exports.handler = async (event, context) => {
           subscription_status: profile.subscription_status || 'active',
           billing_cycle: profile.billing_cycle || null,
           monthly_credit_allowance: profile.monthly_credit_allowance || null,
+          plugin_connected: pluginConnection.connected,
+          plugin_connected_at: pluginConnection.connectedAt,
+          plugin_connection_source: pluginConnection.source,
           recent_usage: usageLogs ? usageLogs.slice(0, 10) : [] // Last 10 generations
         }
       }),

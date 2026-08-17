@@ -99,3 +99,64 @@ passed
 - `npm run build`: passed; existing lint warnings remain outside this hero change.
 
 Final result: passed
+
+---
+
+# Dashboard Operations Console — Design QA
+
+- Source visual truth: `/Users/aamirfaiz/.codex/generated_images/019fd38f-5ba0-7df3-9cc9-c9b022488731/exec-d3e625c2-4eb2-48fc-bf5a-979c9d45e460.png`
+- Browser-rendered implementation: `http://localhost:3107/dashboard`
+- Desktop implementation screenshot: `/tmp/alt-text-dashboard-desktop-clean-wide.png`
+- Mobile implementation screenshot: `/tmp/alt-text-dashboard-default.png`
+- Side-by-side comparison: `/tmp/alt-text-dashboard-design-comparison-clean-wide.png`
+- Viewport: desktop CSS viewport `1488 × 1058`; mobile responsive check `582 × 1260`
+- Source pixels: `1487 × 1058`
+- Desktop capture pixels before normalization: `2221 × 1579`
+- Density normalization: the in-app browser capture was cropped to its first continuous viewport segment, then resized to `1487 × 1058` with Lanczos resampling before comparison. This removes capture-only repetition of fixed navigation without changing page content.
+- State: authenticated, WordPress connected, paid monthly plan, five recent generations. The reference's disconnected setup banner is intentionally absent because the product requirement is to hide onboarding after connection and first generation.
+
+## Findings
+
+No actionable P0, P1, or P2 findings remain.
+
+- Typography: Outfit/Inter hierarchy, optical weights, line heights, and table-label tracking are consistent with the selected operations-console direction and the existing product typography.
+- Spacing and layout: desktop sidebar, header status cards, activity table, quick actions, and plan card retain the source hierarchy. Mobile collapses to a sticky header, single-column content, and compact activity rows without horizontal overflow.
+- Colors and tokens: the source teal treatment was intentionally remapped to Alt Text Pro's current black, yellow, white, gray, and green semantic-status palette. The usage progress bar uses black rather than the old unrelated blue token.
+- Image and icon fidelity: the existing Alt Text Pro and WordPress assets are used. Usage history does not expose media URLs, so truthful yellow image-icon tiles replace the source's thumbnails instead of fabricating customer images.
+- Copy and content: labels describe real product behavior. “Start bulk generation” links to the WordPress bulk guide because a SaaS control cannot directly start a WordPress job.
+
+## Open Questions
+
+- P3 follow-up: real activity thumbnails would improve scan speed if a future privacy-reviewed API adds stable media preview URLs. This is not supported by the current history payload.
+
+## Full-view Comparison Evidence
+
+The combined reference/implementation image at `/tmp/alt-text-dashboard-design-comparison-clean-wide.png` was inspected as one comparison input. Major-region proportions, hierarchy, card density, sidebar navigation, status summary, activity rows, quick actions, and plan usage all align. The intentional differences are the current brand palette, connected-state onboarding behavior, and truthful icon tiles.
+
+## Focused Region Evidence
+
+The desktop comparison is normalized and large enough for table copy, icons, status chips, and usage controls to remain readable. A separate mobile capture at `/tmp/alt-text-dashboard-default.png` was inspected for the compact header, status-card stacking, CTA width, activity-row wrapping, and action placement, so an additional crop was not needed.
+
+## Comparison History
+
+1. Initial mobile pass found a P2 density issue: activity metadata stacked into overly tall rows. The rows were changed to a compact three-column mobile grid with the copy action kept visible and date/time kept together. Post-fix evidence: `/tmp/alt-text-dashboard-default.png`.
+2. Initial desktop pass found a P2 token mismatch: the native usage progress bar inherited the legacy blue fill. A dashboard-specific progress style now uses the current black brand token. Post-fix evidence: `/tmp/alt-text-dashboard-design-comparison-clean-wide.png`.
+3. Final desktop and mobile passes found no remaining P0/P1/P2 issue.
+
+## Primary Interactions Tested
+
+- Mobile navigation opens, exposes all five dashboard destinations, and closes after selecting Generate.
+- Dashboard anchor navigation reaches Generate and removes the mobile drawer from the accessibility tree.
+- Core controls have visible accessible names; empty upload state correctly keeps generation disabled.
+- Browser console check found no application errors; only normal React development and hot-reload messages were present.
+- The temporary visual-QA data path was removed before final tests and build; the authenticated redirect remains intact.
+
+## Implementation Checklist
+
+- [x] Preserve real auth, billing, API-key, usage, and generation workflows.
+- [x] Hide first-run onboarding only after plugin connection and first successful generation.
+- [x] Match the selected desktop operations-console structure in the current brand palette.
+- [x] Provide responsive sidebar navigation and compact mobile activity rows.
+- [x] Run source regression tests, TypeScript, production build, and whitespace validation.
+
+final result: passed
