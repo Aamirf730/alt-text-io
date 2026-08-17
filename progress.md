@@ -1,10 +1,11 @@
 # Progress
 
-## 2026-08-17: Production database release gate completed
+## 2026-08-17: Audit-hardening release deployed
 
-- Status: all seven migrations for the current audit-hardening release are applied successfully to production. The application and plugin release is committed locally as `0429744` plus migration-history reconciliation `b342604`; the Git-backed `main` push and Netlify build remain pending until the final documentation pass.
+- Status: all seven migrations for the current audit-hardening release are applied successfully to production, and the matching application/plugin release is live from Git-backed `main`. The code release is in `0429744`, migration-history reconciliation is in `b342604`, and the release evidence follow-up is recorded after deploy.
 - Production migration ledger entries are `20260817055942` through `20260817060012`; the repository filenames now use those recorded versions so a future migration check will not replay the applied SQL.
 - Read-only verification confirms the activation, renewal, API-key issuance, promotional-grant, subscription-revocation, pack-revocation, reservation-reaper, and legacy `use_credit` functions; the promotional ledger, reservation indexes, accounting constraints, subscription index, private-schema usage, and five-minute cron reaper are present. Authenticated clients no longer have table-level `SELECT` on `public.api_keys`, and the old unique profile-email constraint is absent.
+- Netlify deploy `6a82a4900eacef0008b49937` is ready, Git-backed, on `main`, and built commit `393fa93fb8d8ac5fde3f244607c8b9d3bfb9e247`. Post-deploy smoke checks returned HTTP 200 for `/`, `/admin`, `/connect`, the first Next static asset, and `/downloads/alt-text-pro.zip`; `/api/health` reported `backend: redis`, `probe: skipped`, and `status: healthy`. The production plugin ZIP is version 1.7.24 and passes `unzip -t`.
 - The four raw audit artifacts remain intentionally untracked: `CODE_AUDIT_REPORT.md`, `audit-evidence/2026-08-17/`, `full-project-code-audit-and-issue-report.json`, and `report.md`.
 
 ## 2026-08-17: Implemented Supabase audit findings 32 through 39 locally

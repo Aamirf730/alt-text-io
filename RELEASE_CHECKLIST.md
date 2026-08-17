@@ -1,13 +1,13 @@
 # Release Checklist
 
 **Last updated:** 2026-08-17
-**Status:** MIGRATION APPLIED — the audit-hardening application release is committed locally and awaiting the Git-backed `main` push; production deployment evidence will be added after the Netlify build.
+**Status:** RELEASED — the audit-hardening migrations and matching Git-backed application/plugin release are live; production smoke evidence is recorded below.
 
 ## 2026-08-17 audit-hardening release gate
 
-The seven pending migrations were applied to production before the application release. The Supabase migration tool recorded versions `20260817055942`, `20260817055946`, `20260817055952`, `20260817055957`, `20260817060001`, `20260817060006`, and `20260817060012`; the repository filenames were reconciled to those versions in commit `b342604`. The application/plugin release contents are in commit `0429744`, with the migration-history reconciliation in `b342604`; `main` has not yet been pushed.
+The seven pending migrations were applied to production before the application release. The Supabase migration tool recorded versions `20260817055942`, `20260817055946`, `20260817055952`, `20260817055957`, `20260817060001`, `20260817060006`, and `20260817060012`; the repository filenames were reconciled to those versions in commit `b342604`. The application/plugin release contents are in commit `0429744`, with the migration-history reconciliation in `b342604`; the Git-backed `main` deployment is ready at deploy `6a82a4900eacef0008b49937` and commit `393fa93fb8d8ac5fde3f244607c8b9d3bfb9e247`.
 
-Read-only post-migration checks passed: all new service-role RPCs exist, the promotional grant ledger and reservation cleanup indexes exist, the five-minute reservation reaper is active, accounting constraints are present, the subscription lookup index exists, the client API-key table privilege is revoked, authenticated access to `private` schema is available for the offer wrapper, and the legacy unique profile-email constraint is gone. The raw audit reports remain outside the release commit.
+Read-only post-migration checks passed: all new service-role RPCs exist, the promotional grant ledger and reservation cleanup indexes exist, the five-minute reservation reaper is active, accounting constraints are present, the subscription lookup index exists, the client API-key table privilege is revoked, authenticated access to `private` schema is available for the offer wrapper, and the legacy unique profile-email constraint is gone. Post-deploy smoke checks returned HTTP 200 for `/`, `/admin`, `/connect`, a Next static asset, and the plugin ZIP; `/api/health` reported a healthy Redis backend with the public probe skipped. The raw audit reports remain outside the release commit.
 
 ## H1/H2/H3/H4 and complete website release — live
 
