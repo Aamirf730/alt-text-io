@@ -1,7 +1,13 @@
 # Release Checklist
 
-**Last updated:** 2026-08-07
-**Status:** RELEASED — the approved C1/C2/C3, H1/H2/H3/H4, and M3 fix sets are live; production evidence and follow-up observations are recorded below.
+**Last updated:** 2026-08-17
+**Status:** MIGRATION APPLIED — the audit-hardening application release is committed locally and awaiting the Git-backed `main` push; production deployment evidence will be added after the Netlify build.
+
+## 2026-08-17 audit-hardening release gate
+
+The seven pending migrations were applied to production before the application release. The Supabase migration tool recorded versions `20260817055942`, `20260817055946`, `20260817055952`, `20260817055957`, `20260817060001`, `20260817060006`, and `20260817060012`; the repository filenames were reconciled to those versions in commit `b342604`. The application/plugin release contents are in commit `0429744`, with the migration-history reconciliation in `b342604`; `main` has not yet been pushed.
+
+Read-only post-migration checks passed: all new service-role RPCs exist, the promotional grant ledger and reservation cleanup indexes exist, the five-minute reservation reaper is active, accounting constraints are present, the subscription lookup index exists, the client API-key table privilege is revoked, authenticated access to `private` schema is available for the offer wrapper, and the legacy unique profile-email constraint is gone. The raw audit reports remain outside the release commit.
 
 ## H1/H2/H3/H4 and complete website release — live
 
