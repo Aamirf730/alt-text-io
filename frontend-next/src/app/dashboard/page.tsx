@@ -10,6 +10,7 @@ import { trackMarketingEvent } from '@/lib/analytics';
 import { getPolarProductId } from '@/lib/polar-products';
 import { CREDIT_PACKS, getPurchaseOption, SUBSCRIPTION_PLANS } from '@/lib/pricing-catalog';
 import { isCreditPackEligibleSubscriber } from '@/lib/credit-pack-eligibility';
+import { getUsageDisplayLimit } from '@/lib/credit-display';
 
 type UsageHistoryItem = {
     id: string;
@@ -48,6 +49,7 @@ export default function Dashboard() {
     const [showUpgradeModal, setShowUpgradeModal] = useState(false);
     const [selectedUpgradePlan, setSelectedUpgradePlan] = useState<any>(null);
     const [upgradeModalView, setUpgradeModalView] = useState<UpgradeModalView>("plans");
+    const [upgradeBillingCycle, setUpgradeBillingCycle] = useState<'monthly' | 'annual'>('monthly');
     const [isGenerating, setIsGenerating] = useState(false);
     const [generatedAltText, setGeneratedAltText] = useState("");
     const [history, setHistory] = useState<UsageHistoryItem[]>([]);
@@ -72,7 +74,8 @@ export default function Dashboard() {
     const planAllowance = monthlyCreditLimit || (billingCycle === 'annual' && monthlyCreditAllowance > 0 ? monthlyCreditAllowance : currentPlanLimit);
     const creditsUsed = Number(usageStats?.monthly_credits_used ?? usageStats?.total_processed ?? 0);
     const creditsRemaining = Number(usageStats?.monthly_credits_remaining ?? usageStats?.credits_remaining ?? 0);
-    const creditUsagePercent = planAllowance > 0 ? Math.min((creditsUsed / planAllowance) * 100, 100) : 0;
+    const creditUsageLimit = getUsageDisplayLimit(currentPlan, planAllowance, creditsRemaining, creditsUsed);
+    const creditUsagePercent = creditUsageLimit > 0 ? Math.min((creditsUsed / creditUsageLimit) * 100, 100) : 0;
     const planLabels: Record<string, string> = {
         free: 'Free',
         tier1: 'Lite',
@@ -161,6 +164,7 @@ export default function Dashboard() {
 
     const openUpgradePlans = () => {
         setUpgradeModalView("plans");
+        setUpgradeBillingCycle('monthly');
         setSelectedUpgradePlan(null);
         setShowUpgradeModal(true);
     };
@@ -781,18 +785,18 @@ export default function Dashboard() {
                                     <Zap className="h-7 w-7" />
                                 </div>
                             </div>
-                            <div className="w-full bg-notebook-cloud rounded-full h-1.5 mb-6 overflow-hidden">
-                                <div
-                                    className="bg-notebook-blue h-full rounded-full transition-all duration-1000 ease-out"
-                                    style={{ width: `${creditUsagePercent}%` }}
-                                ></div>
-                            </div>
+                            <progress
+                                className="credit-progress w-full bg-notebook-cloud rounded-full h-1.5 mb-6 overflow-hidden"
+                                value={creditUsagePercent}
+                                max={100}
+                                aria-label="Credit usage"
+                            />
                             <div className="flex justify-between items-center">
                                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">
                                     {creditsUsed.toLocaleString()} used
                                 </span>
                                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">
-                                    {planAllowance.toLocaleString()} {billingCycle === 'annual' ? 'monthly allowance' : 'plan credits'}
+                                    {creditUsageLimit.toLocaleString()} {currentPlan === 'free' ? 'total available' : billingCycle === 'annual' ? 'monthly allowance' : 'plan credits'}
                                 </span>
                             </div>
                             <div className="mt-7 rounded-2xl border border-amber-100 bg-amber-50/50 p-5">
@@ -1259,7 +1263,7 @@ export default function Dashboard() {
                                             {selectedUpgradePlan.name}{selectedUpgradeIsPack ? '' : ' Plan'}
                                         </h3>
                                         <div className="text-5xl font-semibold text-[#1A1C1E] mb-8 font-outfit">
-                                            {selectedUpgradePlan.price}<span className="text-xl text-[#5F6368] font-normal font-inter">{selectedUpgradeIsPack ? ' one time' : '/mo'}</span>
+                                            {selectedUpgradePlan.price}<span className="text-xl text-[#5F6368] font-normal font-inter">{selectedUpgradeIsPack ? ' one time' : selectedUpgradePlan.id.endsWith('_annual') ? '/yr' : '/mo'}</span>
                                         </div>
                                         <div className="space-y-5 text-left mb-10 pt-8 border-t border-[#F1F3F4] font-inter">
                                             {selectedUpgradeDetails?.features.map((feature) => (
@@ -1299,7 +1303,27 @@ export default function Dashboard() {
                             ) : (
                                 <div className="space-y-12">
                                     {upgradeModalView === "plans" && <div>
-                                        <h3 className="text-lg font-semibold text-[#1A1C1E] mb-8 font-outfit border-l-4 border-[#000000] pl-4">Monthly Subscriptions</h3>
+                                        <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
+                                            <h3 className="text-lg font-semibold text-[#1A1C1E] font-outfit border-l-4 border-[#000000] pl-4">Subscription Plans</h3>
+                                            <div className="inline-flex rounded-xl border border-[#F1F3F4] bg-[#FAF9F6] p-1" role="group" aria-label="Billing cycle">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setUpgradeBillingCycle('monthly')}
+                                                    aria-pressed={upgradeBillingCycle === 'monthly'}
+                                                    className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${upgradeBillingCycle === 'monthly' ? 'bg-[#000000] text-white' : 'text-[#5F6368] hover:text-[#1A1C1E]'}`}
+                                                >
+                                                    Monthly
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setUpgradeBillingCycle('annual')}
+                                                    aria-pressed={upgradeBillingCycle === 'annual'}
+                                                    className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${upgradeBillingCycle === 'annual' ? 'bg-[#000000] text-white' : 'text-[#5F6368] hover:text-[#1A1C1E]'}`}
+                                                >
+                                                    Annual
+                                                </button>
+                                            </div>
+                                        </div>
                                         <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-8">
                                             {SUBSCRIPTION_PLANS.filter((plan) => plan.id !== 'free').map((plan) => (
                                                 <article
@@ -1317,8 +1341,11 @@ export default function Dashboard() {
                                                     )}
                                                     <h4 className="text-lg font-semibold text-[#1A1C1E] font-outfit">{plan.name}</h4>
                                                     <div className="mt-4 mb-8">
-                                                        <span className="text-4xl font-semibold text-[#1A1C1E] font-outfit">{plan.monthlyPrice}</span>
-                                                        <span className="text-[#5F6368] font-normal ml-1 font-inter">/mo</span>
+                                                        <span className="text-4xl font-semibold text-[#1A1C1E] font-outfit">{upgradeBillingCycle === 'annual' ? plan.annualPrice : plan.monthlyPrice}</span>
+                                                        <span className="text-[#5F6368] font-normal ml-1 font-inter">/{upgradeBillingCycle === 'annual' ? 'yr' : 'mo'}</span>
+                                                        {upgradeBillingCycle === 'annual' && (
+                                                            <p className="mt-2 text-xs text-[#5F6368]">Equivalent to {plan.annualMonthlyPrice}/mo</p>
+                                                        )}
                                                     </div>
                                                     <ul className="space-y-4 mb-10 flex-1 font-inter">
                                                         <li className="flex items-start text-sm text-[#5F6368]">
@@ -1338,7 +1365,11 @@ export default function Dashboard() {
                                                     </ul>
                                                     <Button
                                                         type="button"
-                                                        onClick={() => handleUpgradePlan(`${plan.id}_monthly`, plan.name, plan.monthlyPrice)}
+                                                        onClick={() => handleUpgradePlan(
+                                                            `${plan.id}_${upgradeBillingCycle}`,
+                                                            plan.name,
+                                                            upgradeBillingCycle === 'annual' ? plan.annualPrice : plan.monthlyPrice,
+                                                        )}
                                                         className={`w-full rounded-xl font-medium ${
                                                             plan.featured
                                                                 ? 'bg-[#000000] text-white hover:bg-[#000000] shadow-[0_10px_24px_rgba(0,0,0,0.18)]'

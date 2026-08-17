@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react";
+import React, { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { supabase } from "@/lib/supabase";
@@ -121,6 +121,7 @@ function ConnectPageContent() {
     const [isConnecting, setIsConnecting] = useState(false);
     const [connected, setConnected] = useState(false);
     const [user, setUser] = useState<any>(null);
+    const authenticatedEmailRef = useRef<string | null>(null);
     const [error, setError] = useState("");
     const [statusMessage, setStatusMessage] = useState("Connecting your account...");
     const [hasCallbackTarget, setHasCallbackTarget] = useState(Boolean(queryCallbackUrl));
@@ -407,18 +408,11 @@ function ConnectPageContent() {
                 const { data: { session } } = await supabase.auth.getSession();
                 if (session?.user) {
                     setUser(session.user);
-                    const wasPendingEmailSignup = consumePendingSignup(session.user.email || "");
-                    if (hasWordPressConnectContext(queryCallbackUrl, querySource)) {
-                        trackMarketingEvent("signup_created", {
-                            source: "wordpress_connect",
-                            properties: {
-                                signup_method: wasPendingEmailSignup
-                                    ? "email_confirmation"
-                                    : "authenticated_connect_visit",
-                                source: "wordpress_plugin_connect",
-                            },
-                        });
-                    }
+                    authenticatedEmailRef.current = session.user.email || null;
+                    // Clear a pending signup marker left by the email-confirmation
+                    // flow, but do not treat a routine authenticated visit as a
+                    // new signup.
+                    consumePendingSignup(session.user.email || "");
                     await prepareAuthenticatedConnection(session.access_token);
                 }
             } catch (err) {
@@ -508,7 +502,7 @@ function ConnectPageContent() {
                 trackMarketingEvent("connect_completed", {
                     source: "wordpress_connect",
                     userId: data.user_id,
-                    userEmail: user?.email,
+                    userEmail: authenticatedEmailRef.current,
                     properties: {
                         has_callback: Boolean(callbackUrl),
                         source: source || "direct",
@@ -599,6 +593,7 @@ function ConnectPageContent() {
 
                     // Logged in — require destination confirmation before fetching the API key.
                     setUser(result.data.user);
+                    authenticatedEmailRef.current = result.data.user.email || null;
                     const session = result.data.session;
                     if (session) {
                         await prepareAuthenticatedConnection(session.access_token);
@@ -620,6 +615,7 @@ function ConnectPageContent() {
         }
 
         setUser(session.user);
+        authenticatedEmailRef.current = session.user.email || null;
         if (hasWordPressConnectContext(queryCallbackUrl, querySource)) {
             trackMarketingEvent("signup_created", {
                 source: "wordpress_connect",
@@ -1313,20 +1309,8 @@ export default function ConnectPage() {
     return (
         <Suspense
             fallback={
-                <main aria-busy="true" style={{
-                    minHeight: "100vh",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    background: "linear-gradient(135deg, #000000 0%, #222222 50%, #000000 100%)",
-                }}>
-                    <div style={{
-                        background: "#ffffff",
-                        borderRadius: "20px",
-                        padding: "60px 40px",
-                        textAlign: "center",
-                        color: "#64748b",
-                    }}>
+                <main aria-busy="true" className="connect-page">
+                    <div className="connect-card connect-card-fallback">
                         Loading...
                     </div>
                 </main>

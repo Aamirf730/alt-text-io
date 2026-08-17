@@ -5,6 +5,7 @@
 
 create schema if not exists private;
 revoke all on schema private from public, anon, authenticated;
+grant usage on schema private to authenticated;
 
 create or replace function private.claim_wpgeared_customer_offer_for_caller(
   caller_user_id uuid

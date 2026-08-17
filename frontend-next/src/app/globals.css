@@ -350,3 +350,75 @@
   border: 1px solid rgba(255, 255, 255, 0.2);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
 }
+
+.toaster {
+  --normal-bg: #fee11c;
+  --normal-text: #000000;
+  --normal-border: #e8c900;
+  --normal-bg-hover: #f5d900;
+  --border-radius: var(--radius);
+}
+
+.landing-dots {
+  height: auto;
+  z-index: 1;
+  object-fit: contain;
+}
+
+.landing-dots-one {
+  top: 12%;
+  left: 33%;
+  width: 20%;
+}
+
+.landing-dots-two {
+  top: 47%;
+  left: 22%;
+  width: 35%;
+}
+
+.landing-pulse-delay-500 {
+  animation-delay: 0.5s;
+}
+
+.landing-pulse-delay-1000 {
+  animation-delay: 1s;
+}
+
+.landing-pulse-delay-1500 {
+  animation-delay: 1.5s;
+}
+
+.credit-progress,
+.confidence-progress {
+  appearance: none;
+  border: 0;
+}
+
+.credit-progress::-webkit-progress-bar,
+.confidence-progress::-webkit-progress-bar {
+  background: #e2e8f0;
+  border-radius: 9999px;
+}
+
+.credit-progress::-webkit-progress-value,
+.confidence-progress.confidence-high::-webkit-progress-value {
+  background: #1976a8;
+  border-radius: 9999px;
+}
+
+.confidence-progress.confidence-low::-webkit-progress-value {
+  background: #f87171;
+  border-radius: 9999px;
+}
+
+.credit-progress::-moz-progress-bar,
+.confidence-progress.confidence-high::-moz-progress-bar {
+  background: #1976a8;
+  border-radius: 9999px;
+}
+
+.confidence-progress.confidence-low::-moz-progress-bar {
+  background: #f87171;
+  border-radius: 9999px;
+}

@@ -15,13 +15,43 @@ const {
 // Initialize Supabase client with service role key for admin access
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+const supabase = supabaseUrl && supabaseServiceKey
+  ? createClient(supabaseUrl, supabaseServiceKey)
+  : null;
 
 // Superuser emails (comma-separated list from environment variable)
 const SUPERUSER_EMAILS = (process.env.SUPERUSER_EMAILS || '').split(',').map(email => email.trim().toLowerCase()).filter(Boolean);
 
 // Stricter rate limit for admin endpoints
 const ADMIN_RATE_LIMIT = 10;
+
+function getDevelopmentErrorDetails(error) {
+  if (process.env.NODE_ENV !== 'development' || !error?.message) {
+    return {};
+  }
+
+  return { details: String(error.message) };
+}
+
+async function fetchAllAuthUsers(authAdmin, { perPage = 1000, maxPages = 100 } = {}) {
+  const users = [];
+
+  for (let page = 1; page <= maxPages + 1; page += 1) {
+    const { data, error } = await authAdmin.listUsers({ page, perPage });
+    if (error) throw new Error(`Failed to list users: ${error.message}`);
+
+    const batch = data?.users || [];
+    if (page > maxPages) {
+      if (batch.length === 0) return users;
+      throw new Error('Auth user pagination limit reached');
+    }
+
+    users.push(...batch);
+    if (batch.length < perPage) return users;
+  }
+
+  return users;
+}
 
 exports.handler = async (event, context) => {
   // Get secure CORS headers (origin-validated)
@@ -30,6 +60,14 @@ exports.handler = async (event, context) => {
   // Handle preflight OPTIONS request
   const preflightResponse = handlePreflight(event);
   if (preflightResponse) return preflightResponse;
+
+  if (!supabase) {
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ error: 'Server configuration error' }),
+    };
+  }
 
   // Stricter rate limiting for delete endpoints
   const clientIp = getClientIp(event);
@@ -90,14 +128,18 @@ exports.handler = async (event, context) => {
     const errors = [];
 
     // Get all users from auth
-    const { data: { users: allUsers }, error: listError } = await supabase.auth.admin.listUsers();
-
-    if (listError) {
+    let allUsers;
+    try {
+      allUsers = await fetchAllAuthUsers(supabase.auth.admin);
+    } catch (listError) {
       console.error('Error listing users:', listError);
       return {
         statusCode: 500,
         headers,
-        body: JSON.stringify({ error: 'Failed to list users', details: listError.message }),
+        body: JSON.stringify({
+          error: 'Failed to list users',
+          ...getDevelopmentErrorDetails(listError),
+        }),
       };
     }
 
@@ -128,7 +170,7 @@ exports.handler = async (event, context) => {
           .eq('user_id', userId);
 
         if (usageError) {
-          console.error('Error deleting usage logs during an admin account deletion');
+          throw new Error(`Failed to delete usage logs: ${usageError.message}`);
         }
 
         // Delete payments
@@ -138,7 +180,7 @@ exports.handler = async (event, context) => {
           .eq('user_id', userId);
 
         if (paymentsError) {
-          console.error('Error deleting payments during an admin account deletion');
+          throw new Error(`Failed to delete payments: ${paymentsError.message}`);
         }
 
         // Delete profile
@@ -148,7 +190,7 @@ exports.handler = async (event, context) => {
           .eq('id', userId);
 
         if (profileError) {
-          console.error('Error deleting a profile during an admin account deletion');
+          throw new Error(`Failed to delete profile: ${profileError.message}`);
         }
 
         // Finally, delete the auth user
@@ -158,7 +200,8 @@ exports.handler = async (event, context) => {
           console.error('Error deleting an auth user during an admin account deletion');
           errors.push({
             email,
-            error: deleteError.message
+            error: 'Failed to delete user',
+            ...getDevelopmentErrorDetails(deleteError),
           });
         } else {
           results.push({
@@ -172,7 +215,8 @@ exports.handler = async (event, context) => {
         console.error('Unexpected admin account-deletion error');
         errors.push({
           email,
-          error: error.message
+          error: 'Failed to process user deletion',
+          ...getDevelopmentErrorDetails(error),
         });
       }
     }
@@ -196,8 +240,13 @@ exports.handler = async (event, context) => {
       headers,
       body: JSON.stringify({
         error: 'Internal server error',
-        details: error.message
+        ...getDevelopmentErrorDetails(error),
       }),
     };
   }
+};
+
+exports._private = {
+  getDevelopmentErrorDetails,
+  fetchAllAuthUsers,
 };

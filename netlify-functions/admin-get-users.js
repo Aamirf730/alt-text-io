@@ -11,11 +11,14 @@ const {
   methodNotAllowedResponse,
 } = require('./utils/cors');
 const { getEventPluginVersion } = require('./utils/plugin-version');
+const { fetchAllRows } = require('./utils/paginated-query');
 
 // Initialize Supabase client with service role key for admin access
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+const supabase = supabaseUrl && supabaseServiceKey
+  ? createClient(supabaseUrl, supabaseServiceKey)
+  : null;
 
 // Superuser emails (comma-separated list from environment variable)
 const SUPERUSER_EMAILS = (process.env.SUPERUSER_EMAILS || '').split(',').map(email => email.trim().toLowerCase()).filter(Boolean);
@@ -52,6 +55,14 @@ exports.handler = async (event, context) => {
   // Handle preflight OPTIONS request
   const preflightResponse = handlePreflight(event);
   if (preflightResponse) return preflightResponse;
+
+  if (!supabase) {
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ error: 'Server configuration error' }),
+    };
+  }
 
   // Rate limiting for admin endpoint (stricter)
   const clientIp = getClientIp(event);
@@ -137,17 +148,15 @@ exports.handler = async (event, context) => {
     let profilesError = null;
 
     try {
-      const { data: profilesData, error: profilesErr } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      profiles = profilesData || [];
-      profilesError = profilesErr;
-
-      if (profilesError) {
-        console.error('Admin profile query failed');
-      }
+      profiles = await fetchAllRows(
+        (from, to) => supabase
+          .from('profiles')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: false })
+          .range(from, to),
+        { label: 'admin profiles' }
+      );
     } catch (err) {
       console.error('Admin profile query raised an exception');
       profilesError = err;
@@ -168,17 +177,15 @@ exports.handler = async (event, context) => {
     let paymentsError = null;
 
     try {
-      const { data: paymentsData, error: paymentsErr } = await supabase
-        .from('payments')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      payments = paymentsData || [];
-      paymentsError = paymentsErr;
-
-      if (paymentsError) {
-        console.error('Admin payment query failed');
-      }
+      payments = await fetchAllRows(
+        (from, to) => supabase
+          .from('payments')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: false })
+          .range(from, to),
+        { label: 'admin payments' }
+      );
     } catch (err) {
       console.error('Admin payment query raised an exception');
       paymentsError = err;
@@ -189,16 +196,14 @@ exports.handler = async (event, context) => {
     let usageError = null;
 
     try {
-      const { data: usageData, error: usageErr } = await supabase
-        .from('user_usage_stats')
-        .select('*');
-
-      usageStats = usageData || [];
-      usageError = usageErr;
-
-      if (usageError) {
-        console.error('Admin usage query failed');
-      }
+      usageStats = await fetchAllRows(
+        (from, to) => supabase
+          .from('user_usage_stats')
+          .select('*')
+          .order('user_id', { ascending: true })
+          .range(from, to),
+        { label: 'admin usage statistics' }
+      );
     } catch (err) {
       console.error('Admin usage query raised an exception');
       usageError = err;
@@ -208,23 +213,30 @@ exports.handler = async (event, context) => {
     let pluginEventsError = null;
 
     try {
-      const { data: pluginEventsData, error: pluginEventsErr } = await supabase
-        .from('marketing_events')
-        .select('user_id,user_email,source,occurred_at,created_at,properties')
-        .eq('event_name', 'connect_completed')
-        .in('source', ['wordpress_plugin_auth', 'wordpress_connect'])
-        .order('occurred_at', { ascending: false })
-        .limit(5000);
-
-      pluginEvents = pluginEventsData || [];
-      pluginEventsError = pluginEventsErr;
-
-      if (pluginEventsError) {
-        console.error('Admin plugin-event query failed');
-      }
+      pluginEvents = await fetchAllRows(
+        (from, to) => supabase
+          .from('marketing_events')
+          .select('id,user_id,user_email,source,occurred_at,created_at,properties')
+          .eq('event_name', 'connect_completed')
+          .in('source', ['wordpress_plugin_auth', 'wordpress_connect'])
+          .order('occurred_at', { ascending: false })
+          .order('id', { ascending: false })
+          .range(from, to),
+        { label: 'admin plugin events' }
+      );
     } catch (err) {
       console.error('Admin plugin-event query raised an exception');
       pluginEventsError = err;
+    }
+
+    if (paymentsError || usageError || pluginEventsError) {
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({
+          error: 'Failed to fetch admin data'
+        }),
+      };
     }
 
     const latestPluginEvents = buildLatestPluginEventMaps(pluginEvents);

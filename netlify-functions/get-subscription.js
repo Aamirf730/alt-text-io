@@ -15,7 +15,9 @@ const { getMonthlyCreditState } = require('./utils/api-key-validator');
 // Initialize Supabase client
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+const supabase = supabaseUrl && supabaseServiceKey
+  ? createClient(supabaseUrl, supabaseServiceKey)
+  : null;
 
 exports.handler = async (event, context) => {
   // Get secure CORS headers (origin-validated)
@@ -24,6 +26,14 @@ exports.handler = async (event, context) => {
   // Handle preflight OPTIONS request
   const preflightResponse = handlePreflight(event);
   if (preflightResponse) return preflightResponse;
+
+  if (!supabase) {
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ error: 'Server configuration error' }),
+    };
+  }
 
   // Rate limiting
   const clientIp = getClientIp(event);
@@ -47,7 +57,7 @@ exports.handler = async (event, context) => {
       };
     }
 
-    const token = authHeader.replace('Bearer ', '');
+    const token = authHeader.replace(/^Bearer\s+/i, '').trim();
 
     // Verify user authentication
     const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(token);

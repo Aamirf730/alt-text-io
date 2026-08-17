@@ -9,7 +9,7 @@ const {
   releaseUserCreditReservation,
   isSupabaseConfigured,
   getMonthlyCreditState,
-  getCurrentCycleCreditsUsed,
+  getCurrentCycleCreditsUsedResult,
 } = require('./utils/api-key-validator');
 const { recordCreditsLowEvent } = require('./utils/credits-low-event');
 const {
@@ -24,6 +24,8 @@ const { getCredentialRateLimitKey } = require('./utils/rate-limiter');
 
 const GENERATION_RATE_LIMIT = 60;
 const GENERATION_RATE_WINDOW_MS = 60000;
+const DEFAULT_GEMINI_REQUEST_TIMEOUT_MS = 10000;
+const DEFAULT_GEMINI_GENERATION_BUDGET_MS = 20000;
 
 // Initialize Supabase client
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -78,6 +80,37 @@ function createAiRateLimitError(message = '') {
   return error;
 }
 
+function parseTimeoutMs(value, fallback, min = 1000, max = 60000) {
+  const parsed = Number.parseInt(String(value ?? ''), 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(min, Math.min(max, parsed));
+}
+
+function getGeminiRequestTimeoutMs() {
+  return parseTimeoutMs(
+    process.env.GEMINI_REQUEST_TIMEOUT_MS,
+    DEFAULT_GEMINI_REQUEST_TIMEOUT_MS,
+    1000,
+    30000
+  );
+}
+
+function getGeminiGenerationBudgetMs() {
+  return parseTimeoutMs(
+    process.env.GEMINI_GENERATION_BUDGET_MS,
+    DEFAULT_GEMINI_GENERATION_BUDGET_MS,
+    5000,
+    60000
+  );
+}
+
+function createAiTimeoutError() {
+  const error = new Error('AI service request timed out. Please try again.');
+  error.code = 'AI_TIMEOUT';
+  error.statusCode = 504;
+  return error;
+}
+
 function aiRateLimitResponse(headers, error) {
   const retryAfterSeconds = error.retryAfterSeconds || 15;
   return {
@@ -123,7 +156,7 @@ function detectImageMimeType(imageBase64) {
 }
 
 // Core AI integration
-async function generateAltTextWithGemini(imageBase64, context = null) {
+async function generateAltTextWithGemini(imageBase64, context = null, { timeoutMs } = {}) {
   try {
     const { GoogleGenerativeAI } = require('@google/generative-ai');
     const apiKey = process.env.AI_API_KEY || process.env.GEMINI_API_KEY;
@@ -179,7 +212,9 @@ FORMAT REQUIREMENTS:
       generationConfig: generationConfig
     });
 
-    const result = await modelWithConfig.generateContent([prompt, ...imageParts]);
+    const result = await modelWithConfig.generateContent([prompt, ...imageParts], {
+      timeout: timeoutMs || getGeminiRequestTimeoutMs(),
+    });
 
     const response = await result.response;
 
@@ -657,6 +692,14 @@ FORMAT REQUIREMENTS:
 
     return altText;
   } catch (error) {
+    if (
+      error?.name === 'AbortError' ||
+      error?.code === 'ABORT_ERR' ||
+      /request timed out|operation was aborted|aborted/i.test(String(error?.message || ''))
+    ) {
+      throw createAiTimeoutError();
+    }
+
     // Extract error message from AI Service
     let errorMessage = "Failed to generate alt-text";
     if (error.message) {
@@ -721,7 +764,7 @@ exports.handler = async (event, context) => {
       };
     }
 
-    const token = authHeader.replace('Bearer ', '');
+    const token = authHeader.replace(/^Bearer\s+/i, '').trim();
 
     if (isMissingSupabaseConfig()) {
       return {
@@ -751,6 +794,15 @@ exports.handler = async (event, context) => {
           body: JSON.stringify({ error: 'Invalid or expired token' }),
         };
       }
+
+      if (user.usage_unavailable) {
+        console.error('Current-cycle usage is unavailable during API-key authentication');
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: 'Credit status temporarily unavailable. Please try again.' }),
+        };
+      }
     } else {
       // Supabase auth token authentication
       try {
@@ -778,7 +830,15 @@ exports.handler = async (event, context) => {
           };
         }
 
-        const cycleCreditsUsed = await getCurrentCycleCreditsUsed(profile.id, profile.credits_last_renewed_at);
+        const cycleUsageResult = await getCurrentCycleCreditsUsedResult(profile.id, profile.credits_last_renewed_at);
+        if (!cycleUsageResult.success) {
+          console.error('Failed to calculate current-cycle usage during authentication recheck');
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: 'Credit status temporarily unavailable. Please try again.' }),
+          };
+        }
 
         user = {
           id: profile.id,
@@ -786,8 +846,8 @@ exports.handler = async (event, context) => {
           credits_remaining: profile.credits_remaining || 0,
           bonus_credits_remaining: profile.bonus_credits_remaining || 0,
           purchased_credits_remaining: profile.purchased_credits_remaining || 0,
-          total_processed: cycleCreditsUsed ?? profile.total_processed ?? 0,
-          plan: profile.subscription_plan || 'free_trial',
+          total_processed: cycleUsageResult.creditsUsed,
+          plan: profile.subscription_plan || 'free',
           billing_cycle: profile.billing_cycle || null,
           monthly_credit_allowance: profile.monthly_credit_allowance || null,
           credits_last_renewed_at: profile.credits_last_renewed_at || null
@@ -888,8 +948,16 @@ exports.handler = async (event, context) => {
     if (isApiKeyAuth) {
       // API key method - re-validate user
       const recheckUser = await validateApiKey(token);
+      if (!recheckUser || recheckUser.usage_unavailable) {
+        console.error('Failed to recheck API-key credit status before generation');
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: 'Credit status temporarily unavailable. Please try again.' }),
+        };
+      }
       finalMonthlyCreditState = getMonthlyCreditState(recheckUser);
-      if (!recheckUser || finalMonthlyCreditState.monthly_credits_remaining <= 0) {
+      if (finalMonthlyCreditState.monthly_credits_remaining <= 0) {
         return {
           statusCode: 402,
           headers,
@@ -904,12 +972,41 @@ exports.handler = async (event, context) => {
         .eq('id', user.id)
         .single();
 
-      const recheckCycleCreditsUsed = await getCurrentCycleCreditsUsed(user.id, recheckProfile?.credits_last_renewed_at);
+      if (recheckError) {
+        console.error('Failed to recheck profile credit status before generation');
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: 'Credit status temporarily unavailable. Please try again.' }),
+        };
+      }
+
+      if (!recheckProfile) {
+        return {
+          statusCode: 404,
+          headers,
+          body: JSON.stringify({ error: 'User profile not found' }),
+        };
+      }
+
+      const recheckCycleUsageResult = await getCurrentCycleCreditsUsedResult(
+        user.id,
+        recheckProfile.credits_last_renewed_at
+      );
+      if (!recheckCycleUsageResult.success) {
+        console.error('Failed to calculate current-cycle usage before generation');
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: 'Credit status temporarily unavailable. Please try again.' }),
+        };
+      }
+
       finalMonthlyCreditState = getMonthlyCreditState({
         ...recheckProfile,
-        total_processed: recheckCycleCreditsUsed ?? recheckProfile?.total_processed ?? 0,
+        total_processed: recheckCycleUsageResult.creditsUsed,
       });
-      if (recheckError || !recheckProfile || finalMonthlyCreditState.monthly_credits_remaining <= 0) {
+      if (finalMonthlyCreditState.monthly_credits_remaining <= 0) {
         return {
           statusCode: 402,
           headers,
@@ -960,12 +1057,20 @@ exports.handler = async (event, context) => {
     // reservation is released so the failed request is not charged.
     let altText;
     const maxRetries = 2;
+    const generationDeadline = Date.now() + getGeminiGenerationBudgetMs();
     let generationSucceeded = false;
 
     try {
       for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        const remainingBudgetMs = generationDeadline - Date.now();
+        if (remainingBudgetMs <= 0) {
+          throw createAiTimeoutError();
+        }
+
         try {
-          altText = await generateAltTextWithGemini(image_base64, context);
+          altText = await generateAltTextWithGemini(image_base64, context, {
+            timeoutMs: Math.min(getGeminiRequestTimeoutMs(), remainingBudgetMs),
+          });
 
           // Validate alt-text is not empty
           if (!altText || altText.trim().length === 0) {
@@ -1000,7 +1105,11 @@ exports.handler = async (event, context) => {
 
           // Wait before retry (exponential backoff)
           if (attempt < maxRetries) {
-            await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+            const backoffMs = Math.pow(2, attempt) * 1000;
+            if (Date.now() + backoffMs >= generationDeadline) {
+              throw aiError;
+            }
+            await new Promise(resolve => setTimeout(resolve, backoffMs));
           }
         }
       }
@@ -1057,11 +1166,12 @@ exports.handler = async (event, context) => {
       total_processed: newTotalProcessed,
     });
 
-    if (isApiKeyAuth && updatedMonthlyCreditState.monthly_credits_remaining <= 5) {
+    if (updatedMonthlyCreditState.monthly_credits_remaining <= 5) {
       await recordCreditsLowEvent(supabase, {
         userId: user.id,
         userEmail: user.email,
         creditsRemaining: updatedMonthlyCreditState.monthly_credits_remaining,
+        source: isApiKeyAuth ? 'wordpress_plugin_usage' : 'dashboard_usage',
       });
     }
 
@@ -1097,4 +1207,11 @@ exports.handler = async (event, context) => {
       body: JSON.stringify({ error: 'Alt text generation failed. Please try again.' }),
     };
   }
+};
+
+exports._private = {
+  createAiTimeoutError,
+  getGeminiGenerationBudgetMs,
+  getGeminiRequestTimeoutMs,
+  parseTimeoutMs,
 };

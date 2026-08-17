@@ -60,14 +60,31 @@ const ALLOWED_ORIGINS = [
   'http://127.0.0.1:9999',
 ];
 
-// Allowed Netlify preview deploy prefixes.
-// Only these specific deploy prefixes (e.g., "deploy-preview-42--alt-text-ai")
-// will be accepted. Set ALLOWED_PREVIEW_DOMAINS in Netlify env vars as a
-// comma-separated list to add more (e.g., "alt-text-ai,alt-text-staging").
-// Falls back to the main deploy name if not configured.
-const ALLOWED_PREVIEW_PREFIXES = (
-  process.env.ALLOWED_PREVIEW_DOMAINS || 'alt-text-ai'
-).split(',').map(d => d.trim()).filter(Boolean);
+// Preview origins must be listed exactly. Do not derive trust from a hostname
+// suffix: an attacker can register a Netlify site whose hostname ends with a
+// trusted site name. Netlify's exact deploy URL variables are also accepted
+// when present at runtime.
+function getAllowedPreviewOrigins() {
+  return new Set([
+    ...(process.env.ALLOWED_PREVIEW_ORIGINS || '')
+      .split(',')
+      .map(value => value.trim())
+      .filter(Boolean),
+    process.env.DEPLOY_PRIME_URL,
+    process.env.DEPLOY_URL,
+    process.env.URL,
+  ].filter(Boolean).map((value) => {
+    try {
+      const parsed = new URL(value);
+      if (parsed.protocol !== 'https:' || parsed.pathname !== '/' || parsed.username || parsed.password) {
+        return null;
+      }
+      return parsed.origin;
+    } catch (_error) {
+      return null;
+    }
+  }).filter(Boolean));
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // RATE LIMITING — delegated to rate-limiter.js
@@ -75,7 +92,7 @@ const ALLOWED_PREVIEW_PREFIXES = (
 // in-memory; serverless production fails closed if the distributed backend is unavailable.
 // See rate-limiter.js for setup instructions.
 // ═══════════════════════════════════════════════════════════════════════════════
-const { checkRateLimit: distributedRateLimit, checkStrictRateLimit, getRateLimitInfo, INSTANCE_ID } = require('./rate-limiter');
+const { checkRateLimit: distributedRateLimit, getRateLimitInfo, INSTANCE_ID } = require('./rate-limiter');
 
 /**
  * Check rate limit for a client IP.
@@ -111,20 +128,18 @@ function getValidatedOrigin(headers) {
     return origin;
   }
 
-  // Accept only the exact configured Netlify site or its deploy/branch
-  // subdomains. A substring match would allow an attacker-controlled site such
-  // as evil-alt-text-ai.netlify.app.
+  // Accept only exact, explicitly configured preview origins. A substring or
+  // suffix match would allow an attacker-controlled site such as
+  // evil--alt-text-ai.netlify.app.
   try {
     const parsed = new URL(origin);
-    const hostname = parsed.hostname.toLowerCase();
-    const isHttpsOrigin = parsed.protocol === 'https:' && parsed.pathname === '/';
-    const isAllowedPreview = isHttpsOrigin && ALLOWED_PREVIEW_PREFIXES.some((siteName) => {
-      const normalizedSiteName = siteName.toLowerCase();
-      return hostname === `${normalizedSiteName}.netlify.app`
-        || hostname.endsWith(`--${normalizedSiteName}.netlify.app`);
-    });
-
-    if (isAllowedPreview) return origin;
+    if (
+      parsed.protocol === 'https:' &&
+      parsed.pathname === '/' &&
+      !parsed.username &&
+      !parsed.password &&
+      getAllowedPreviewOrigins().has(parsed.origin)
+    ) return origin;
   } catch (_error) {
     // Invalid Origin headers are rejected below without reflecting their value.
   }
@@ -176,13 +191,32 @@ function handlePreflight(event) {
 }
 
 /**
+ * Return the rightmost non-empty address from a forwarded-for header.
+ * Netlify appends the edge-observed client address to X-Forwarded-For, so
+ * caller-controlled values must not be taken from the leftmost position.
+ *
+ * @param {string} value - Forwarded-for header value
+ * @returns {string} - Rightmost forwarded address, or an empty string
+ */
+function getRightmostForwardedIp(value) {
+  if (typeof value !== 'string') return '';
+
+  const addresses = value
+    .split(',')
+    .map((address) => address.trim())
+    .filter(Boolean);
+
+  return addresses[addresses.length - 1] || '';
+}
+
+/**
  * Get client IP from request
  * @param {Object} event - Netlify function event
  * @returns {string} - Client IP address
  */
 function getClientIp(event) {
   const headers = event?.headers || {};
-  return headers['x-forwarded-for']?.split(',')[0]?.trim() ||
+  return getRightmostForwardedIp(headers['x-forwarded-for']) ||
     headers['x-real-ip'] ||
     headers['client-ip'] ||
     'unknown';

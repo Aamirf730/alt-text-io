@@ -9,10 +9,17 @@ const ORIGINAL_ENV = {
 };
 
 const mockRedisLimiters = [];
+let mockRedisPing = async () => 'PONG';
+let mockRedisPingCalls = 0;
 const mockUpstashRedis = {
     Redis: class MockRedis {
         constructor(config) {
             this.config = config;
+        }
+
+        async ping() {
+            mockRedisPingCalls += 1;
+            return mockRedisPing();
         }
     },
 };
@@ -47,6 +54,8 @@ const mockUpstashRatelimit = {
 beforeEach(() => {
     vi.resetModules();
     mockRedisLimiters.length = 0;
+    mockRedisPing = async () => 'PONG';
+    mockRedisPingCalls = 0;
     // Ensure Upstash env vars are NOT set (forces in-memory fallback)
     delete process.env.UPSTASH_REDIS_REST_URL;
     delete process.env.UPSTASH_REDIS_REST_TOKEN;
@@ -114,20 +123,8 @@ describe('rate-limiter (in-memory fallback)', () => {
         expect(info).toHaveProperty('memoryStoreSize');
         expect(info).toHaveProperty('redisConfigured', false);
         expect(info).toHaveProperty('fallbackAllowed', true);
-    });
-
-    it('checkStrictRateLimit enforces lower limits', async () => {
-        const { checkStrictRateLimit } = await import('./rate-limiter.js');
-
-        // Strict: 2 requests per window
-        const r1 = await checkStrictRateLimit('strict-ip', 2, 60000);
-        expect(r1.allowed).toBe(true);
-
-        const r2 = await checkStrictRateLimit('strict-ip', 2, 60000);
-        expect(r2.allowed).toBe(true);
-
-        const r3 = await checkStrictRateLimit('strict-ip', 2, 60000);
-        expect(r3.allowed).toBe(false);
+        expect(info).toHaveProperty('fallbackOverrideRequested', false);
+        expect(info).toHaveProperty('fallbackOverrideIgnored', false);
     });
 
     it('keeps a credential quota stable across IPs without exposing the credential', async () => {
@@ -192,6 +189,28 @@ describe('rate-limiter (production fail-closed)', () => {
             Module._load = originalModuleLoad;
         }
     });
+
+    it('ignores the memory fallback override in production', async () => {
+        process.env.NODE_ENV = 'production';
+        process.env.NETLIFY = 'true';
+        process.env.CONTEXT = 'production';
+        process.env.RATE_LIMIT_ALLOW_MEMORY_FALLBACK = 'true';
+
+        const { checkRateLimit, getRateLimitInfo, checkRateLimitHealth } = await import('./rate-limiter.js');
+        const result = await checkRateLimit('prod-ip', 5, 60000);
+        const info = getRateLimitInfo();
+        const health = await checkRateLimitHealth();
+
+        expect(result.backend).toBe('unavailable');
+        expect(result.statusCode).toBe(503);
+        expect(info.fallbackAllowed).toBe(false);
+        expect(info.fallbackOverrideRequested).toBe(true);
+        expect(info.fallbackOverrideIgnored).toBe(true);
+        expect(health).toMatchObject({
+            status: 'unhealthy',
+            error: 'memory_fallback_override_forbidden',
+        });
+    });
 });
 
 describe('rate-limiter (Upstash Redis)', () => {
@@ -233,6 +252,50 @@ describe('rate-limiter (Upstash Redis)', () => {
         expect(mockRedisLimiters).toHaveLength(1);
         expect(mockRedisLimiters[0].config.limiter).toEqual({ tokens: 10, window: '60 s' });
         expect(mockRedisLimiters[0].config.prefix).toBe('alttext:ratelimit:10:60');
+    });
+
+    it('reports a healthy Redis backend after a successful ping', async () => {
+        const { checkRateLimitHealth } = await import('./rate-limiter.js');
+
+        const health = await checkRateLimitHealth();
+
+        expect(health).toMatchObject({
+            status: 'healthy',
+            backend: 'redis',
+            redisConfigured: true,
+            fallbackAllowed: false,
+        });
+    });
+
+    it('reports Redis configuration without probing it for public status', async () => {
+        const { getRateLimitStatus } = await import('./rate-limiter.js');
+
+        const status = getRateLimitStatus();
+
+        expect(status).toEqual({
+            status: 'healthy',
+            backend: 'redis',
+            probe: 'skipped',
+        });
+        expect(mockRedisPingCalls).toBe(0);
+        expect(status).not.toHaveProperty('initError');
+        expect(status).not.toHaveProperty('fallbackOverrideRequested');
+        expect(status).not.toHaveProperty('fallbackOverrideIgnored');
+    });
+
+    it('reports Redis as unavailable when the health ping fails', async () => {
+        mockRedisPing = async () => {
+            throw new Error('redis unavailable');
+        };
+
+        const { checkRateLimitHealth } = await import('./rate-limiter.js');
+        const health = await checkRateLimitHealth();
+
+        expect(health).toMatchObject({
+            status: 'unhealthy',
+            backend: 'unavailable',
+            error: 'rate_limiter_unavailable',
+        });
     });
 
     it('keeps different Redis policies isolated and reuses each policy limiter', async () => {

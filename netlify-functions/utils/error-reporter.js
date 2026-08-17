@@ -29,6 +29,7 @@ const SENSITIVE_CONTEXT_KEY = /(authorization|cookie|secret|token|api.?key|passw
 function sanitizeText(value) {
     return String(value || '')
         .replace(/Bearer\s+[A-Za-z0-9._~+\/-]+=*/gi, 'Bearer [redacted]')
+        .replace(/([?&](?:key|api[_-]?key|token|secret|password)=)[^&#\s]*/gi, '$1[redacted]')
         .replace(/\b(?:alt|altai)_[A-Za-z0-9_-]{8,}\b/g, '[redacted-api-key]')
         .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[redacted-email]')
         .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi, '[redacted-id]')

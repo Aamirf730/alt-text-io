@@ -215,7 +215,7 @@ function isMature(occurredAt, delayHours) {
 async function buildSingleUserCandidate(email, automationKey) {
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('id,email,subscription_plan,credits_remaining,created_at')
+    .select('id,email,subscription_plan,credits_remaining,marketing_unsubscribed_at,created_at')
     .eq('email', email)
     .maybeSingle();
 
@@ -224,16 +224,35 @@ async function buildSingleUserCandidate(email, automationKey) {
   }
 
   if (!profile) return null;
+  if (profile.marketing_unsubscribed_at) return null;
 
-  const { data: events, error: eventsError } = await supabase
-    .from('marketing_events')
-    .select('id,event_name,source,user_id,user_email,anonymous_id,occurred_at,created_at')
-    .or(`user_id.eq.${profile.id},user_email.eq.${email}`)
-    .order('occurred_at', { ascending: true });
+  const eventSelect = 'id,event_name,source,user_id,user_email,anonymous_id,occurred_at,created_at';
+  const [eventsByUser, eventsByEmail] = await Promise.all([
+    supabase
+      .from('marketing_events')
+      .select(eventSelect)
+      .eq('user_id', profile.id)
+      .order('occurred_at', { ascending: true }),
+    supabase
+      .from('marketing_events')
+      .select(eventSelect)
+      .eq('user_email', email)
+      .order('occurred_at', { ascending: true }),
+  ]);
 
-  if (eventsError) {
-    throw new Error(`Failed to fetch target lifecycle events: ${eventsError.message}`);
+  if (eventsByUser.error) {
+    throw new Error(`Failed to fetch target lifecycle events: ${eventsByUser.error.message}`);
   }
+  if (eventsByEmail.error) {
+    throw new Error(`Failed to fetch target lifecycle events: ${eventsByEmail.error.message}`);
+  }
+
+  const events = [...new Map(
+    [...(eventsByUser.data || []), ...(eventsByEmail.data || [])]
+      .map(event => [event.id, event])
+  ).values()].sort(
+    (a, b) => new Date(a.occurred_at || a.created_at || 0) - new Date(b.occurred_at || b.created_at || 0)
+  );
 
   const { data: usage, error: usageError } = await supabase
     .from('user_usage_stats')
@@ -245,7 +264,7 @@ async function buildSingleUserCandidate(email, automationKey) {
     throw new Error(`Failed to fetch target usage stats: ${usageError.message}`);
   }
 
-  const targetEvents = events || [];
+  const targetEvents = events;
   const totalUsageCount = Number(usage?.total_usage_count || 0);
   const actorKey = `user:${profile.id}`;
 

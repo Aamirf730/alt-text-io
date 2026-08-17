@@ -29,6 +29,9 @@ create unique index if not exists idx_api_keys_active_api_key_hash
 
 -- The browser no longer needs any secret-bearing column. Keep retrieval and
 -- legacy migration behind the service-role Netlify endpoint.
+revoke all on table public.api_keys
+  from public, anon, authenticated;
+
 revoke select (api_key, api_key_hash, api_key_encrypted)
   on public.api_keys from anon, authenticated;
 

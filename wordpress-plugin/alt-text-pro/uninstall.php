@@ -12,6 +12,7 @@ global $wpdb;
 
 delete_option('alt_text_pro_settings');
 delete_option('alt_text_pro_version');
+delete_option('alt_text_pro_api_key_storage_error');
 delete_transient('alt_text_pro_activation_redirect');
 
 wp_clear_scheduled_hook('alt_text_pro_cleanup');
@@ -25,12 +26,14 @@ $wpdb->query("DROP TABLE IF EXISTS {$logs_table}");
 $transient_prefix = $wpdb->esc_like('_transient_alt_text_pro_') . '%';
 $timeout_prefix = $wpdb->esc_like('_transient_timeout_alt_text_pro_') . '%';
 $lock_prefix = $wpdb->esc_like('alt_text_pro_bulk_lock_') . '%';
+$bulk_state_prefix = $wpdb->esc_like('alt_text_pro_bulk_state_') . '%';
 // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 $wpdb->query(
     $wpdb->prepare(
-        "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s",
+        "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s",
         $transient_prefix,
         $timeout_prefix,
-        $lock_prefix
+        $lock_prefix,
+        $bulk_state_prefix
     )
 );

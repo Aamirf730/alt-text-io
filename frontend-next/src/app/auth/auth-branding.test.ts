@@ -18,10 +18,11 @@ describe("authentication branding", () => {
   });
 
   it("allows only the documented Google Identity endpoints in CSP", () => {
-    const nextConfig = fs.readFileSync(path.resolve(root, "next.config.mjs"), "utf8");
-    expect(nextConfig).toContain("https://accounts.google.com/gsi/client");
-    expect(nextConfig).toContain("https://accounts.google.com/gsi/style");
-    expect(nextConfig).toContain("frame-src https://accounts.google.com/gsi/");
-    expect(nextConfig).toContain("connect-src 'self'");
+    const proxy = fs.readFileSync(path.resolve(root, "proxy.ts"), "utf8");
+    expect(proxy).toContain("https://accounts.google.com/gsi/client");
+    expect(proxy).toContain("https://accounts.google.com/gsi/style");
+    expect(proxy).toContain("frame-src https://accounts.google.com/gsi/");
+    expect(proxy).toContain("connect-src 'self'");
+    expect(proxy).not.toContain("unsafe-inline");
   });
 });

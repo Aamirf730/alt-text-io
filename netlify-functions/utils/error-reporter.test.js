@@ -143,4 +143,21 @@ describe('error-reporter', () => {
 
         spy.mockRestore();
     });
+
+    it('redacts secrets embedded in query-string URLs', async () => {
+        const spy = vi.spyOn(console, 'error').mockImplementation(() => { });
+        const { reportError } = await import('./error-reporter.js');
+
+        reportError('Request failed for https://example.test/callback?key=secret-key&safe=1&api_key=another-secret', {
+            functionName: 'test',
+        });
+
+        const parsed = JSON.parse(spy.mock.calls[0][1]);
+        expect(parsed.message).not.toContain('secret-key');
+        expect(parsed.message).not.toContain('another-secret');
+        expect(parsed.message).toContain('key=[redacted]');
+        expect(parsed.message).toContain('api_key=[redacted]');
+
+        spy.mockRestore();
+    });
 });

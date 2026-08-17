@@ -54,10 +54,14 @@ The database catalogue is the API source of truth. UI-facing catalogue copy is c
 
 - API-key validation uses the stored hash and supports ciphertext-backed legacy migration.
 - Generation uses reservation/finalization RPCs to prevent spending races.
-- Distributed rate limiting uses Upstash Redis when configured and a process-local fallback otherwise.
+- Gemini requests use a per-request timeout and a bounded total generation budget; `GEMINI_REQUEST_TIMEOUT_MS` and `GEMINI_GENERATION_BUDGET_MS` may override the safe defaults.
+- The daily funnel report is scheduled through `daily-funnel-report-scheduled` and requires `DAILY_FUNNEL_REPORT_SECRET` (or the existing lifecycle automation secret) for manual calls.
+- Supabase/PostgREST reads that feed usage, administration, and lifecycle reports are paginated. They fail loudly at the configured safety ceiling instead of silently returning the first 1,000 rows.
+- `API_KEY_ENCRYPTION_SECRET` is mandatory for API-key encryption and decryption; the service-role key is never used as an encryption key fallback.
+- Distributed rate limiting uses Upstash Redis. Local development may use a process-local fallback; hosted environments fail closed when Redis is unavailable, and `RATE_LIMIT_ALLOW_MEMORY_FALLBACK=true` is ignored there.
 - CORS allows the production site, configured local origins, and exact Netlify deploy-preview hostnames.
-- Public health checks expose liveness only. Database, AI, and full checks require `X-Health-Check-Secret`.
-- Error and audit console logs omit API keys, email addresses, user IDs, IP addresses, provider payloads, and generated content.
+- Public basic health checks report the configured rate-limit backend without probing Redis; secret-protected database, AI, and full checks verify backend reachability and require `X-Health-Check-Secret`.
+- Structured error logs omit API keys, email addresses, user IDs, IP addresses, provider payloads, and generated content.
 
 Required secrets belong in Netlify environment variables; never commit them to this repository.
 

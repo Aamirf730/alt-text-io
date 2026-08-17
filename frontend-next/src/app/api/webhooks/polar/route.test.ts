@@ -20,6 +20,8 @@ type TestProfile = {
 };
 
 const mocks = vi.hoisted(() => {
+    process.env.POLAR_WEBHOOK_SECRET ||= "test-webhook-secret";
+
     const state: {
         profiles: TestProfile[];
         updates: Array<{ table: string; values: Record<string, unknown>; filters: Array<[string, string]> }>;
@@ -31,6 +33,7 @@ const mocks = vi.hoisted(() => {
         reconciliations: Array<Record<string, unknown>>;
         authUsers: Array<{ id: string; email: string | null }>;
         authPageMode: "state" | "always_full";
+        updateErrors: Set<string>;
     } = {
         profiles: [],
         updates: [],
@@ -42,6 +45,7 @@ const mocks = vi.hoisted(() => {
         reconciliations: [],
         authUsers: [],
         authPageMode: "state",
+        updateErrors: new Set(),
     };
 
     const createQuery = (table: string) => {
@@ -68,6 +72,10 @@ const mocks = vi.hoisted(() => {
                     })
                 );
                 return { data: rows, error: null };
+            }
+
+            if (state.updateErrors.has(table)) {
+                return { data: null, error: { message: `${table} update failed` } };
             }
 
             state.updates.push({ table, values, filters });
@@ -123,7 +131,12 @@ const mocks = vi.hoisted(() => {
         rpc: vi.fn(async (name: string, args: Record<string, unknown>) => {
             state.operations.push(`rpc:${name}`);
             state.rpcCalls.push({ name, args });
-            return { data: { success: true }, error: null };
+            return {
+                data: name === "renew_subscription_credits"
+                    ? { success: true, renewed: true, already_processed: false }
+                    : { success: true },
+                error: null,
+            };
         }),
         auth: {
             admin: {
@@ -235,6 +248,7 @@ describe("Polar subscription lifecycle handlers", () => {
         mocks.state.reconciliations = [];
         mocks.state.authUsers = [];
         mocks.state.authPageMode = "state";
+        mocks.state.updateErrors = new Set();
     });
 
     it("provisions an Agency subscription with the new monthly allowance", async () => {
@@ -368,11 +382,20 @@ describe("Polar subscription lifecycle handlers", () => {
             }),
         } as never);
 
-        const update = mocks.state.updates.find((entry) => entry.table === "profiles")?.values;
-        expect(update).toMatchObject({
-            credits_remaining: 465,
-            total_processed: 0,
+        expect(mocks.state.rpcCalls).toContainEqual({
+            name: "renew_subscription_credits",
+            args: {
+                p_user_id: "user_1",
+                p_subscription_id: "sub_annual_1",
+                p_subscription_plan: "tier2",
+                p_current_period_start: "2026-08-23T16:10:49.335Z",
+                p_polar_product_id: "prod_standard_annual",
+                p_billing_cycle: "annual",
+                p_monthly_credit_allowance: 400,
+                p_next_billing_date: "2026-09-23T16:10:49.335Z",
+            },
         });
+        expect(mocks.state.updates).toHaveLength(0);
     });
 
     it("records a one-time payment before granting its credits", async () => {
@@ -412,6 +435,46 @@ describe("Polar subscription lifecycle handlers", () => {
             name: "grant_credit_pack_purchase",
             args: expect.objectContaining({ p_credits: 100 }),
         });
+    });
+
+    it("maps the Small Credit Pack to its 500-credit allowance", async () => {
+        await polarWebhookHandlers.onOrderPaid?.({
+            data: paidPackOrder({
+                product: {
+                    id: "prod_small_pack",
+                    name: "Small Credit Pack",
+                    metadata: {},
+                },
+            }),
+        } as never);
+
+        expect(mocks.state.rpcCalls).toContainEqual({
+            name: "grant_credit_pack_purchase",
+            args: expect.objectContaining({ p_credits: 500 }),
+        });
+    });
+
+    it("queues unknown one-time products instead of granting an ambiguous amount", async () => {
+        await polarWebhookHandlers.onOrderPaid?.({
+            data: paidPackOrder({
+                product: { id: "prod_unknown", name: "Mystery Product", metadata: {} },
+            }),
+        } as never);
+
+        expect(mocks.state.reconciliations).toContainEqual(expect.objectContaining({
+            event_name: "order.paid",
+            reason: "unknown_one_time_product",
+            payment_id: "polar_ord_order_pack_1",
+        }));
+        expect(mocks.state.rpcCalls).toHaveLength(0);
+    });
+
+    it("fails the order handler when saving the Polar customer ID fails", async () => {
+        mocks.state.updateErrors.add("profiles");
+
+        await expect(polarWebhookHandlers.onOrderPaid?.({
+            data: paidPackOrder(),
+        } as never)).rejects.toThrow("profiles update failed");
     });
 
     it("retries idempotent fulfillment after a payment insert is already recorded", async () => {
@@ -456,7 +519,7 @@ describe("Polar subscription lifecycle handlers", () => {
     it("defines one audited promotional grant path for both credit ledgers", () => {
         const migrationPath = path.resolve(
             process.cwd(),
-            "../supabase/migrations/20260805202418_fix_subscription_lifecycle_refunds.sql",
+            "../supabase/migrations/20260817120000_harden_credit_and_profile_integrity.sql",
         );
         const migration = fs.readFileSync(migrationPath, "utf8");
 
@@ -465,7 +528,7 @@ describe("Polar subscription lifecycle handlers", () => {
         expect(migration).toContain("bonus_credits_remaining = current_bonus_credits + p_credits");
         expect(migration).toContain("insert into public.audit_logs");
         expect(migration).toContain("'promotional_credit'");
-        expect(migration).toContain("grant execute on function public.grant_promotional_credits(uuid, integer, text)");
+        expect(migration).toContain("grant execute on function public.grant_promotional_credits(uuid, integer, text, text)");
     });
 
     it("defines payment and credit-pack idempotency keys", () => {
@@ -647,6 +710,33 @@ describe("Polar subscription lifecycle handlers", () => {
             args: { p_user_id: "user_1", p_subscription_id: "sub_annual_1" },
         });
         expect(mocks.state.rpcCalls).toHaveLength(1);
+    });
+
+    it("queues refund events without an order ID instead of creating an undefined payment key", async () => {
+        await polarWebhookHandlers.onOrderRefunded?.({
+            data: {
+                status: "refunded",
+                totalAmount: 1000,
+                refundedAmount: 1000,
+                customer: { id: "cus_1", email: "customer@example.com" },
+            },
+        } as never);
+
+        await polarWebhookHandlers.onRefundCreated?.({
+            data: {
+                id: "refund_without_order",
+                status: "succeeded",
+                customerId: "cus_1",
+                revokeBenefits: true,
+            },
+        } as never);
+
+        expect(mocks.state.paymentUpdates).toHaveLength(0);
+        expect(mocks.state.rpcCalls).toHaveLength(0);
+        expect(mocks.state.reconciliations).toEqual(expect.arrayContaining([
+            expect.objectContaining({ event_name: "order.refunded", reason: "missing_order_id" }),
+            expect.objectContaining({ event_name: "refund_created", reason: "missing_order_id" }),
+        ]));
     });
 
     it("rechecks a pending refund when Polar sends its final succeeded update", async () => {

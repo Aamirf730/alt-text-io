@@ -1,10 +1,19 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import healthModule from '../netlify-functions/health.js';
 
 const { handler, _private } = healthModule;
 
 afterEach(() => {
   delete process.env.HEALTH_CHECK_SECRET;
+});
+
+beforeEach(() => {
+  delete process.env.UPSTASH_REDIS_REST_URL;
+  delete process.env.UPSTASH_REDIS_REST_TOKEN;
+  delete process.env.RATE_LIMIT_ALLOW_MEMORY_FALLBACK;
+  delete process.env.NETLIFY;
+  delete process.env.CONTEXT;
+  process.env.NODE_ENV = 'test';
 });
 
 describe('health endpoint', () => {

@@ -17,7 +17,7 @@
   # NEXT_PUBLIC_SUPABASE_ANON_KEY
   # NEXT_PUBLIC_PAYPAL_CLIENT_ID
 
-[functions."daily-funnel-report"]
+[functions."daily-funnel-report-scheduled"]
   # Runs daily at 08:30 Asia/Kolkata. Netlify schedules use UTC.
   schedule = "0 3 * * *"
 
@@ -74,6 +74,16 @@
 [[redirects]]
   from = "/api/admin-marketing-funnel"
   to = "/.netlify/functions/admin-marketing-funnel"
+  status = 200
+
+[[redirects]]
+  from = "/api/admin-lifecycle-status"
+  to = "/.netlify/functions/admin-lifecycle-status"
+  status = 200
+
+[[redirects]]
+  from = "/api/admin-lifecycle-test-send"
+  to = "/.netlify/functions/admin-lifecycle-test-send"
   status = 200
 
 [[redirects]]

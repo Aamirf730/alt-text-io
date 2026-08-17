@@ -1,5 +1,6 @@
 // Daily scheduled funnel report for Alt Text Pro.
 
+const crypto = require('node:crypto');
 const nodemailer = require('nodemailer');
 const { createClient } = require('@supabase/supabase-js');
 const { getEmailFrom } = require('./utils/email-config');
@@ -49,7 +50,46 @@ function createTransporter() {
   });
 }
 
-exports.handler = async () => {
+function getHeader(headers, name) {
+  const target = name.toLowerCase();
+  const key = Object.keys(headers || {}).find(header => header.toLowerCase() === target);
+  return key ? headers[key] : undefined;
+}
+
+function getReportSecret() {
+  // Keep the existing automation secret as a migration fallback so moving the
+  // schedule to its protected wrapper does not require a second credential on
+  // an already-configured site. A dedicated secret can be used when desired.
+  return process.env.DAILY_FUNNEL_REPORT_SECRET || process.env.LIFECYCLE_AUTOMATION_SECRET || '';
+}
+
+function secretsMatch(providedSecret, configuredSecret) {
+  if (!providedSecret || !configuredSecret) return false;
+
+  const provided = Buffer.from(String(providedSecret));
+  const configured = Buffer.from(String(configuredSecret));
+  return provided.length === configured.length && crypto.timingSafeEqual(provided, configured);
+}
+
+function isAuthorizedRun(event) {
+  const providedSecret = getHeader(event?.headers, 'x-daily-funnel-report-secret');
+  const allowed = secretsMatch(providedSecret, getReportSecret());
+
+  return {
+    allowed,
+    mode: allowed && event?.__scheduledInvocation === true ? 'scheduled' : allowed ? 'manual' : 'blocked',
+  };
+}
+
+exports.handler = async (event = {}) => {
+  const authorization = isAuthorizedRun(event);
+  if (!authorization.allowed) {
+    return {
+      statusCode: 403,
+      body: JSON.stringify({ error: 'Daily funnel reporting requires a valid secret.' }),
+    };
+  }
+
   try {
     if (!supabase) {
       console.error('daily-funnel-report: Supabase is not configured.');
@@ -110,4 +150,10 @@ exports.handler = async () => {
       }),
     };
   }
+};
+
+exports._private = {
+  getReportSecret,
+  isAuthorizedRun,
+  secretsMatch,
 };

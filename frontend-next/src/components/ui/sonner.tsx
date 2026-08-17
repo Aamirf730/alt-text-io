@@ -25,15 +25,6 @@ const Toaster = ({ ...props }: ToasterProps) => {
         error: <OctagonXIcon className="size-4" />,
         loading: <Loader2Icon className="size-4 animate-spin" />,
       }}
-      style={
-        {
-          "--normal-bg": "#FEE11C",
-          "--normal-text": "#000000",
-          "--normal-border": "#E8C900",
-          "--normal-bg-hover": "#F5D900",
-          "--border-radius": "var(--radius)",
-        } as React.CSSProperties
-      }
       {...props}
     />
   )

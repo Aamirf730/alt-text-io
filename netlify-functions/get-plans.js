@@ -13,7 +13,9 @@ const {
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY; // Can use anon key for public data
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const supabase = supabaseUrl && supabaseAnonKey
+  ? createClient(supabaseUrl, supabaseAnonKey)
+  : null;
 
 exports.handler = async (event, context) => {
   // Get secure CORS headers (origin-validated)
@@ -22,6 +24,14 @@ exports.handler = async (event, context) => {
   // Handle preflight OPTIONS request
   const preflightResponse = handlePreflight(event);
   if (preflightResponse) return preflightResponse;
+
+  if (!supabase) {
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ error: 'Server configuration error' }),
+    };
+  }
 
   // Rate limiting
   const clientIp = getClientIp(event);

@@ -13,11 +13,15 @@ const {
 const { getMonthlyCreditState } = require('./utils/api-key-validator');
 const { recordPluginConnectCompleted } = require('./utils/plugin-connect-event');
 const { extractPluginVersion } = require('./utils/plugin-version');
+const { fetchAllRows } = require('./utils/paginated-query');
+const { getPlanCredits } = require('./utils/subscription-plans');
 
 // Initialize Supabase client
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+const supabase = supabaseUrl && supabaseServiceKey
+  ? createClient(supabaseUrl, supabaseServiceKey)
+  : null;
 
 exports.handler = async (event, context) => {
   // Get secure CORS headers (origin-validated)
@@ -26,6 +30,14 @@ exports.handler = async (event, context) => {
   // Handle preflight OPTIONS request
   const preflightResponse = handlePreflight(event);
   if (preflightResponse) return preflightResponse;
+
+  if (!supabase) {
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ error: 'Server configuration error' }),
+    };
+  }
 
   // Rate limiting
   const clientIp = getClientIp(event);
@@ -49,7 +61,7 @@ exports.handler = async (event, context) => {
       };
     }
 
-    const token = authHeader.replace('Bearer ', '').trim();
+    const token = authHeader.replace(/^Bearer\s+/i, '').trim();
     const pluginVersion = extractPluginVersion(event);
 
     let authUser = null;
@@ -131,15 +143,22 @@ exports.handler = async (event, context) => {
       });
     }
 
-    // Get usage statistics
-    const { data: usageLogs, error: usageError } = await supabase
-      .from('usage_logs')
-      .select('*')
-      .eq('user_id', userId || authUser.id)
-      .order('created_at', { ascending: false });
-
-    if (usageError) {
-      console.error('Error fetching usage logs:', usageError);
+    // Get every usage page. PostgREST commonly caps an un-ranged select at
+    // 1,000 rows, which would make customer totals silently undercount.
+    let usageLogs;
+    try {
+      usageLogs = await fetchAllRows(
+        (from, to) => supabase
+          .from('usage_logs')
+          .select('*')
+          .eq('user_id', userId || authUser.id)
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: false })
+          .range(from, to),
+        { label: 'usage logs' }
+      );
+    } catch (usageError) {
+      console.error('Error fetching usage logs:', usageError.message || usageError);
       return {
         statusCode: 500,
         headers,
@@ -164,7 +183,7 @@ exports.handler = async (event, context) => {
       .eq('id', profile.subscription_plan)
       .single();
 
-    const totalCredits = planDetails ? planDetails.credits : 15; // Default to 15 if plan not found
+    const totalCredits = planDetails?.credits ?? getPlanCredits(profile.subscription_plan);
     const monthlyCreditState = getMonthlyCreditState(
       { ...profile, total_processed: creditsUsed },
       totalCredits

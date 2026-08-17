@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { isPolarSubscriptionProduct, resolvePolarPlanId } from "./polar-plan-mapping";
+import {
+  isPolarSubscriptionProduct,
+  resolvePolarBillingCycle,
+  resolvePolarPlanId,
+} from "./polar-plan-mapping";
 
 describe("resolvePolarPlanId", () => {
   it("maps new standard annual product names to tier2", () => {
@@ -24,6 +28,14 @@ describe("resolvePolarPlanId", () => {
 
   it("prefers explicit metadata plan ids when available", () => {
     expect(resolvePolarPlanId("Unknown Product", { plan_id: "tier2_annual" })).toBe("tier2");
+  });
+
+  it("does not classify an unrelated manual product as an annual plan", () => {
+    expect(resolvePolarBillingCycle("Manual")).toBe("monthly");
+  });
+
+  it("uses explicit billing metadata before product-name heuristics", () => {
+    expect(resolvePolarBillingCycle("Standard Monthly", { plan_id: "tier2_annual" })).toBe("annual");
   });
 });
 

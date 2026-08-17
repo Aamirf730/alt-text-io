@@ -1,6 +1,7 @@
 // Scheduled lifecycle email automation for Alt Text Pro.
 
 const nodemailer = require('nodemailer');
+const { timingSafeEqual } = require('node:crypto');
 const { createClient } = require('@supabase/supabase-js');
 const { getEmailFrom } = require('./utils/email-config');
 const {
@@ -12,6 +13,7 @@ const {
   renderLifecycleEmail,
   selectLifecycleCandidatePerActor,
 } = require('./utils/lifecycle-automation');
+const { fetchAllRows } = require('./utils/paginated-query');
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -49,24 +51,19 @@ function getHeader(headers, name) {
   return key ? headers[key] : undefined;
 }
 
-function isPublicHttpInvocation(event) {
-  return Boolean(
-    event.httpMethod ||
-    event.path ||
-    event.rawUrl ||
-    event.rawQuery ||
-    event.rawQueryString ||
-    event.requestContext?.path ||
-    event.requestContext?.http?.path
-  );
-}
-
 function getProvidedSecret(event) {
   const headers = event.headers || {};
-  return (
-    event.queryStringParameters?.secret ||
-    getHeader(headers, 'x-lifecycle-automation-secret')
-  );
+  return getHeader(headers, 'x-lifecycle-automation-secret');
+}
+
+function secretsMatch(expected, provided) {
+  if (typeof expected !== 'string' || typeof provided !== 'string') return false;
+
+  const expectedBuffer = Buffer.from(expected, 'utf8');
+  const providedBuffer = Buffer.from(provided, 'utf8');
+  if (expectedBuffer.length !== providedBuffer.length) return false;
+
+  return timingSafeEqual(expectedBuffer, providedBuffer);
 }
 
 function isAuthorizedRun(event) {
@@ -74,12 +71,12 @@ function isAuthorizedRun(event) {
   const secret = process.env.LIFECYCLE_AUTOMATION_SECRET;
   const providedSecret = getProvidedSecret(event);
 
-  if (secret && providedSecret === secret) {
-    return { allowed: true, mode: 'manual', scheduledBody: null };
-  }
-
-  if (scheduledBody && !isPublicHttpInvocation(event)) {
-    return { allowed: true, mode: 'scheduled', scheduledBody };
+  if (secretsMatch(secret, providedSecret)) {
+    return {
+      allowed: true,
+      mode: event.__scheduledInvocation === true ? 'scheduled' : 'manual',
+      scheduledBody: event.__scheduledInvocation === true ? scheduledBody : null,
+    };
   }
 
   return { allowed: false, mode: 'blocked', scheduledBody: null };
@@ -118,17 +115,40 @@ async function getExistingSendSet(candidates) {
   const automationKeys = [...new Set(candidates.map(candidate => candidate.automation_key))];
   const actorKeys = [...new Set(candidates.map(candidate => candidate.actor_key))];
 
+  const data = await fetchAllRows(
+    (from, to) => supabase
+      .from('marketing_automation_sends')
+      .select('automation_key,actor_key,id')
+      .in('automation_key', automationKeys)
+      .in('actor_key', actorKeys)
+      .order('automation_key', { ascending: true })
+      .order('actor_key', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to),
+    { label: 'automation sends' }
+  );
+
+  return new Set(data.map(row => `${row.automation_key}:${row.actor_key}`));
+}
+
+async function filterUnsubscribedCandidates(candidates) {
+  if (!candidates.length) return [];
+
+  const userIds = [...new Set(candidates.map(candidate => candidate.user_id).filter(Boolean))];
+  if (!userIds.length) return candidates;
+
   const { data, error } = await supabase
-    .from('marketing_automation_sends')
-    .select('automation_key,actor_key')
-    .in('automation_key', automationKeys)
-    .in('actor_key', actorKeys);
+    .from('profiles')
+    .select('id')
+    .in('id', userIds)
+    .not('marketing_unsubscribed_at', 'is', null);
 
   if (error) {
-    throw new Error(`Failed to fetch automation sends: ${error.message}`);
+    throw new Error(`Failed to check lifecycle email preferences: ${error.message}`);
   }
 
-  return new Set((data || []).map(row => `${row.automation_key}:${row.actor_key}`));
+  const unsubscribedIds = new Set((data || []).map(profile => String(profile.id)));
+  return candidates.filter(candidate => !unsubscribedIds.has(String(candidate.user_id)));
 }
 
 async function reserveSend(candidate) {
@@ -189,7 +209,7 @@ exports.handler = async (event) => {
   if (!auth.allowed) {
     return {
       statusCode: 403,
-      body: JSON.stringify({ error: 'Lifecycle automation runs only on schedule or with a valid secret.' }),
+      body: JSON.stringify({ error: 'Lifecycle automation requires a valid secret.' }),
     };
   }
 
@@ -220,7 +240,8 @@ exports.handler = async (event) => {
     const candidates = buildLifecycleCandidates(events, { usageCountsByUserId });
     const authUsers = candidates.length > 0 ? await fetchAuthUsers(supabase) : [];
     const verifiedCandidates = filterCandidatesByAuthUsers(candidates, authUsers);
-    const eligibleCandidates = selectLifecycleCandidatePerActor(verifiedCandidates);
+    const optedInCandidates = await filterUnsubscribedCandidates(verifiedCandidates);
+    const eligibleCandidates = selectLifecycleCandidatePerActor(optedInCandidates);
     const existingSends = await getExistingSendSet(eligibleCandidates);
     const unsentCandidates = eligibleCandidates
       .filter(candidate => !existingSends.has(`${candidate.automation_key}:${candidate.actor_key}`))
@@ -237,6 +258,7 @@ exports.handler = async (event) => {
           candidates: candidates.length,
           verified_candidates: verifiedCandidates.length,
           eligible_candidates: eligibleCandidates.length,
+          unsubscribed: verifiedCandidates.length - optedInCandidates.length,
           suppressed_competing_candidates: verifiedCandidates.length - eligibleCandidates.length,
           rejected_recipients: candidates.length - verifiedCandidates.length,
           unsent: unsentCandidates.length,
@@ -287,6 +309,7 @@ exports.handler = async (event) => {
       candidates: candidates.length,
       verified_candidates: verifiedCandidates.length,
       eligible_candidates: eligibleCandidates.length,
+      unsubscribed: verifiedCandidates.length - optedInCandidates.length,
       suppressed_competing_candidates: verifiedCandidates.length - eligibleCandidates.length,
       ...results,
     });
@@ -299,6 +322,7 @@ exports.handler = async (event) => {
         candidates: candidates.length,
         verified_candidates: verifiedCandidates.length,
         eligible_candidates: eligibleCandidates.length,
+        unsubscribed: verifiedCandidates.length - optedInCandidates.length,
         suppressed_competing_candidates: verifiedCandidates.length - eligibleCandidates.length,
         ...results,
       }),
@@ -321,6 +345,6 @@ exports._private = {
   getHeader,
   getProvidedSecret,
   isAuthorizedRun,
-  isPublicHttpInvocation,
   parseScheduledBody,
+  filterUnsubscribedCandidates,
 };

@@ -6,6 +6,11 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const { encryptApiKey, hashApiKey } = require('./api-key-secrets');
+const { fetchAllRows } = require('./paginated-query');
+const {
+  DEFAULT_SUBSCRIPTION_PLAN,
+  getPlanCredits,
+} = require('./subscription-plans');
 
 // Initialize Supabase client
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -19,28 +24,16 @@ const supabase = supabaseUrl && supabaseServiceKey
   ? createClient(supabaseUrl, supabaseServiceKey)
   : null;
 
-const SUBSCRIPTION_PLAN_CREDITS = {
-  free: 15,
-  tier1: 150,
-  tier2: 1000,
-  tier3: 2000,
-  tier4: 3500,
-  lite: 150,
-  standard: 1000,
-  pro: 2000,
-  agency: 3500,
-};
-
 function getMonthlyCreditState(profile, planCredits = null) {
   const creditsRemaining = Number(profile?.credits_remaining || 0);
   const bonusCreditsRemaining = Number(profile?.bonus_credits_remaining || 0);
   const creditsUsed = Number(profile?.total_processed || 0);
   const purchasedCreditsRemaining = Number(profile?.purchased_credits_remaining || 0);
-  const plan = profile?.subscription_plan || profile?.plan || 'free';
+  const plan = profile?.subscription_plan || profile?.plan || DEFAULT_SUBSCRIPTION_PLAN;
   const explicitAllowance = Number(profile?.monthly_credit_allowance || 0);
-  const resolvedPlanCredits = Number(planCredits || 0) || SUBSCRIPTION_PLAN_CREDITS[plan] || 0;
+  const resolvedPlanCredits = Number(planCredits || 0) || getPlanCredits(plan, 0);
   const monthlyCreditLimit = explicitAllowance > 0 ? explicitAllowance : resolvedPlanCredits;
-  const isMonthlyLimited = Boolean(SUBSCRIPTION_PLAN_CREDITS[plan] && monthlyCreditLimit > 0);
+  const isMonthlyLimited = Boolean(getPlanCredits(plan, 0) && monthlyCreditLimit > 0);
   const monthlyCreditsRemaining = isMonthlyLimited
     ? Math.max(
       0,
@@ -63,25 +56,44 @@ function getMonthlyCreditState(profile, planCredits = null) {
   };
 }
 
-async function getCurrentCycleCreditsUsed(userId, creditsLastRenewedAt = null) {
-  if (!supabase || !userId) return null;
+async function getCurrentCycleCreditsUsedResult(userId, creditsLastRenewedAt = null) {
+  if (!supabase || !userId) {
+    return { success: false, error: 'Supabase credentials or user ID is missing' };
+  }
 
   const cycleStart = creditsLastRenewedAt
     ? new Date(creditsLastRenewedAt)
     : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 
-  const { data: usageLogs, error } = await supabase
-    .from('usage_logs')
-    .select('credits_used, created_at')
-    .eq('user_id', userId)
-    .gte('created_at', cycleStart.toISOString());
+  try {
+    const usageLogs = await fetchAllRows(
+      (from, to) => supabase
+        .from('usage_logs')
+        .select('credits_used, created_at, id')
+        .eq('user_id', userId)
+        .gte('created_at', cycleStart.toISOString())
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, to),
+      { label: 'current-cycle usage' }
+    );
 
-  if (error) {
-    console.error('Failed to calculate current-cycle usage:', error.message);
-    return null;
+    return {
+      success: true,
+      creditsUsed: usageLogs.reduce((sum, log) => sum + Number(log.credits_used || 1), 0),
+    };
+  } catch (error) {
+    console.error('Failed to calculate current-cycle usage:', error.message || error);
+    return {
+      success: false,
+      error: error.message || 'Current-cycle usage query failed',
+    };
   }
+}
 
-  return (usageLogs || []).reduce((sum, log) => sum + Number(log.credits_used || 1), 0);
+async function getCurrentCycleCreditsUsed(userId, creditsLastRenewedAt = null) {
+  const result = await getCurrentCycleCreditsUsedResult(userId, creditsLastRenewedAt);
+  return result.success ? result.creditsUsed : null;
 }
 
 function isSupabaseConfigured() {
@@ -172,7 +184,7 @@ async function validateApiKey(apiKey) {
       return null;
     }
 
-    const cycleCreditsUsed = await getCurrentCycleCreditsUsed(profile.id, profile.credits_last_renewed_at);
+    const cycleUsageResult = await getCurrentCycleCreditsUsedResult(profile.id, profile.credits_last_renewed_at);
 
     return {
       id: profile.id,
@@ -180,7 +192,10 @@ async function validateApiKey(apiKey) {
       credits_remaining: profile.credits_remaining ?? 0,
       bonus_credits_remaining: profile.bonus_credits_remaining ?? 0,
       purchased_credits_remaining: profile.purchased_credits_remaining ?? 0,
-      total_processed: cycleCreditsUsed ?? profile.total_processed ?? 0,
+      total_processed: cycleUsageResult.success
+        ? cycleUsageResult.creditsUsed
+        : profile.total_processed ?? 0,
+      usage_unavailable: !cycleUsageResult.success,
       plan: profile.subscription_plan || 'free',
       billing_cycle: profile.billing_cycle || null,
       monthly_credit_allowance: profile.monthly_credit_allowance ?? null,
@@ -202,170 +217,6 @@ async function validateApiKey(apiKey) {
  * @param {number} requiredCredits - Number of credits required (default: 1)
  * @returns {boolean} - True if user has sufficient credits
  */
-function hasSufficientCredits(user, requiredCredits = 1) {
-  if (!user) return false;
-  const credits = user.credits_remaining ?? 0;
-  return credits >= requiredCredits;
-}
-
-/**
- * Deduct credits from user (in-memory only - must call updateUserCredits to persist)
- * @param {Object} user - User object
- * @param {number} creditsToDeduct - Number of credits to deduct (default: 1)
- * @returns {Object} - Updated user object with new credit values
- */
-function deductCredits(user, creditsToDeduct = 1) {
-  if (!user) return null;
-
-  return {
-    ...user,
-    credits_remaining: Math.max(0, (user.credits_remaining ?? 0) - creditsToDeduct),
-    total_processed: (user.total_processed ?? 0) + 1,
-    updated_at: new Date().toISOString()
-  };
-}
-
-/**
- * Update user credits in profiles table (single source of truth)
- * Uses atomic update to prevent race conditions
- * 
- * @param {string} userId - User ID (UUID)
- * @param {number} creditsToDeduct - Number of credits to deduct (default: 1)
- * @param {string} altText - Generated alt text (for logging)
- * @param {string} context - Image context (for logging)
- * @returns {Object} - { success: boolean, credits_remaining: number, total_processed: number, error?: string }
- */
-async function updateUserCredits(userId, creditsToDeduct = 1, altText = null, context = null) {
-  if (!supabase) {
-    return {
-      success: false,
-      error: 'Supabase credentials not configured',
-      requiresConfiguration: true
-    };
-  }
-
-  if (!userId) {
-    return { success: false, error: 'User ID is required' };
-  }
-
-  try {
-    // CRITICAL: Use RPC function for atomic credit deduction
-    // The use_credit RPC function uses FOR UPDATE locking to prevent race conditions
-    // and performs both profile update and usage log insertion in a single transaction
-    const { data: rpcResult, error: rpcError } = await supabase
-      .rpc('use_credit', {
-        user_uuid: userId,
-        alt_text: altText,
-        context: context
-      });
-
-    // Handle RPC errors (function doesn't exist, permission issues, etc.)
-    if (rpcError) {
-      console.error('use_credit RPC failed', { code: rpcError.code || 'unknown' });
-      return {
-        success: false,
-        error: 'Credit system temporarily unavailable. Please contact support if this persists.',
-        requiresDatabaseFix: true,
-        rpcError: rpcError.message
-      };
-    }
-
-    // Parse RPC result - handle various return formats
-    if (!rpcResult) {
-      console.error('❌ CRITICAL: use_credit RPC returned null/undefined');
-      return {
-        success: false,
-        error: 'Credit system temporarily unavailable. Please contact support.',
-        requiresDatabaseFix: true
-      };
-    }
-
-    let result = rpcResult;
-
-    // Handle array response (some Supabase versions return arrays)
-    if (Array.isArray(result)) {
-      if (result.length === 0) {
-        console.error('❌ CRITICAL: use_credit RPC returned empty array');
-        return {
-          success: false,
-          error: 'Credit system temporarily unavailable. Please contact support.',
-          requiresDatabaseFix: true
-        };
-      }
-      result = result[0];
-    }
-
-    // Handle string JSON response
-    if (typeof result === 'string') {
-      try {
-        result = JSON.parse(result);
-      } catch (_parseError) {
-        console.error('use_credit RPC returned invalid JSON');
-        return {
-          success: false,
-          error: 'Invalid credit system response. Please contact support.',
-          requiresDatabaseFix: true
-        };
-      }
-    }
-
-    // Validate result is an object
-    if (!result || typeof result !== 'object') {
-      console.error('❌ CRITICAL: Unexpected RPC result format:', typeof result);
-      return {
-        success: false,
-        error: 'Invalid credit system response. Please contact support.',
-        requiresDatabaseFix: true
-      };
-    }
-
-    // Check for error in result
-    if (result.error) {
-      console.error('use_credit RPC returned an application error');
-      return {
-        success: false,
-        error: result.error || 'Credit deduction failed',
-        credits_remaining: result.credits_remaining // May be included in error response
-      };
-    }
-
-    // Check for explicit failure
-    if (result.success === false) {
-      console.error('RPC use_credit returned failure');
-      return {
-        success: false,
-        error: result.error || 'Credit deduction failed'
-      };
-    }
-
-    // Validate success response has required fields
-    if (result.credits_remaining === undefined || result.total_processed === undefined) {
-      console.error('❌ CRITICAL: RPC result missing required fields');
-      return {
-        success: false,
-        error: 'Invalid credit system response. Please contact support.',
-        requiresDatabaseFix: true
-      };
-    }
-
-    return {
-      success: true,
-      credits_remaining: result.credits_remaining,
-      bonus_credits_remaining: result.bonus_credits_remaining,
-      purchased_credits_remaining: result.purchased_credits_remaining,
-      total_processed: result.total_processed
-    };
-
-  } catch (_error) {
-    console.error('Unexpected use_credit failure');
-    return {
-      success: false,
-      error: 'Database error during credit deduction',
-      requiresDatabaseFix: true
-    };
-  }
-}
-
 function normalizeCreditRpcResult(rpcResult, operation) {
   if (!rpcResult) {
     console.error(`❌ CRITICAL: ${operation} RPC returned null/undefined`);
@@ -510,13 +361,11 @@ async function releaseUserCreditReservation(reservationId) {
 
 module.exports = {
   validateApiKey,
-  hasSufficientCredits,
-  deductCredits,
-  updateUserCredits,
   reserveUserCredit,
   finalizeUserCreditReservation,
   releaseUserCreditReservation,
   getMonthlyCreditState,
   getCurrentCycleCreditsUsed,
+  getCurrentCycleCreditsUsedResult,
   isSupabaseConfigured
 };

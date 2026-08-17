@@ -1,5 +1,6 @@
 const LOW_CREDIT_THRESHOLD = 5;
 const { getEventPluginVersion } = require('./plugin-version');
+const { fetchAllRows } = require('./paginated-query');
 
 function parsePositiveInt(value, fallback, min = 1, max = 180) {
   const parsed = Number.parseInt(String(value ?? ''), 10);
@@ -215,58 +216,71 @@ async function fetchLifecycleStatusReport(supabase, { days = 30, limit = 500 } =
   const parsedLimit = parsePositiveInt(limit, 500, 1, 1000);
   const startAt = new Date(Date.now() - parsedDays * 24 * 60 * 60 * 1000).toISOString();
 
-  const [profilesResult, eventsResult, usageResult, apiKeysResult, sendsResult] = await Promise.all([
-    supabase
-      .from('profiles')
-      .select('id,email,subscription_plan,subscription_status,credits_remaining,total_processed,created_at')
-      .order('created_at', { ascending: false })
-      .limit(parsedLimit),
-    supabase
-      .from('marketing_events')
-      .select('id,event_name,source,user_id,user_email,occurred_at,created_at,properties')
-      .gte('occurred_at', startAt)
-      .in('event_name', [
-        'signup_created',
-        'connect_completed',
-        'first_image_processed',
-        'checkout_started',
-        'purchase_completed',
-        'credits_low',
-      ])
-      .order('occurred_at', { ascending: false })
-      .limit(5000),
-    supabase
-      .from('user_usage_stats')
-      .select('user_id,total_usage_count,total_credits_used,last_usage_at'),
-    supabase
-      .from('api_keys')
-      .select('user_id,name,is_active,created_at')
-      .eq('is_active', true),
-    supabase
-      .from('marketing_automation_sends')
-      .select('id,automation_key,actor_key,user_id,user_email,status,subject,error_message,sent_at,created_at')
-      .order('created_at', { ascending: false })
-      .limit(5000),
-  ]);
+  const profilesResult = await supabase
+    .from('profiles')
+    .select('id,email,subscription_plan,subscription_status,credits_remaining,total_processed,created_at')
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
+    .range(0, parsedLimit - 1);
 
-  for (const [label, result] of [
-    ['profiles', profilesResult],
-    ['marketing events', eventsResult],
-    ['usage stats', usageResult],
-    ['api keys', apiKeysResult],
-    ['automation sends', sendsResult],
-  ]) {
-    if (result.error) {
-      throw new Error(`Failed to fetch ${label}: ${result.error.message}`);
-    }
+  if (profilesResult.error) {
+    throw new Error(`Failed to fetch profiles: ${profilesResult.error.message}`);
   }
+
+  const [events, usageStats, apiKeys, automationSends] = await Promise.all([
+    fetchAllRows(
+      (from, to) => supabase
+        .from('marketing_events')
+        .select('id,event_name,source,user_id,user_email,occurred_at,created_at,properties')
+        .gte('occurred_at', startAt)
+        .in('event_name', [
+          'signup_created',
+          'connect_completed',
+          'first_image_processed',
+          'checkout_started',
+          'purchase_completed',
+          'credits_low',
+        ])
+        .order('occurred_at', { ascending: false })
+        .order('id', { ascending: false })
+        .range(from, to),
+      { label: 'lifecycle marketing events' }
+    ),
+    fetchAllRows(
+      (from, to) => supabase
+        .from('user_usage_stats')
+        .select('user_id,total_usage_count,total_credits_used,last_usage_at')
+        .order('user_id', { ascending: true })
+        .range(from, to),
+      { label: 'lifecycle usage statistics' }
+    ),
+    fetchAllRows(
+      (from, to) => supabase
+        .from('api_keys')
+        .select('user_id,name,is_active,created_at')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .order('user_id', { ascending: true })
+        .range(from, to),
+      { label: 'lifecycle API keys' }
+    ),
+    fetchAllRows(
+      (from, to) => supabase
+        .from('marketing_automation_sends')
+        .select('id,automation_key,actor_key,user_id,user_email,status,subject,error_message,sent_at,created_at')
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+        .range(from, to),
+      { label: 'lifecycle automation sends' }
+    ),
+  ]);
 
   return buildLifecycleStatusReport({
     profiles: profilesResult.data || [],
-    events: eventsResult.data || [],
-    usageStats: usageResult.data || [],
-    apiKeys: apiKeysResult.data || [],
-    automationSends: sendsResult.data || [],
+    events,
+    usageStats,
+    apiKeys,
+    automationSends,
     days: parsedDays,
   });
 }

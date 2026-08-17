@@ -270,9 +270,6 @@ class AltTextPro_Settings
 
         echo '<div class="alt-text-pro-api-key-field">';
         echo '<input type="password" id="api_key" name="alt_text_pro_settings[api_key]" value="" class="regular-text" placeholder="' . esc_attr($placeholder) . '" autocomplete="off" data-has-key="' . esc_attr($has_key ? '1' : '0') . '" />';
-        echo '<button type="button" class="button button-secondary" id="toggle-api-key" aria-label="' . esc_attr__('Show API key', 'alt-text-pro') . '">';
-        echo '<span class="dashicons dashicons-visibility"></span>';
-        echo '</button>';
         echo '<button type="button" class="button button-secondary" id="test-connection" style="margin-left: 10px;">';
         echo '<span class="dashicons dashicons-admin-plugins"></span> ' . esc_html__('Test Connection', 'alt-text-pro');
         echo '</button>';

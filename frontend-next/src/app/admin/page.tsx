@@ -306,8 +306,7 @@ export default function AdminDashboard() {
         return (
             <main className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center" aria-busy="true">
                 <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4"
-                        style={{ borderColor: '#000000' }}></div>
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
                     <p className="text-gray-600">Checking admin access...</p>
                 </div>
             </main>

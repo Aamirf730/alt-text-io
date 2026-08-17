@@ -32,18 +32,27 @@ let useRedis = false;
 let initAttempted = false;
 let initError = null;
 
-function shouldAllowMemoryFallback() {
-    if (String(process.env.RATE_LIMIT_ALLOW_MEMORY_FALLBACK || '').toLowerCase() === 'true') {
-        return true;
-    }
-
+function isHostedRuntime() {
     const context = String(process.env.CONTEXT || '').toLowerCase();
-    const runningOnNetlify = process.env.NETLIFY === 'true'
+
+    return process.env.NODE_ENV === 'production'
+        || process.env.NETLIFY === 'true'
         || context === 'production'
         || context === 'deploy-preview'
         || context === 'branch-deploy';
+}
 
-    return !runningOnNetlify && process.env.NODE_ENV !== 'production';
+function isMemoryFallbackOverrideRequested() {
+    return String(process.env.RATE_LIMIT_ALLOW_MEMORY_FALLBACK || '').toLowerCase() === 'true';
+}
+
+function shouldAllowMemoryFallback() {
+    // The override is intentionally local-only. A hosted environment must
+    // never turn a distributed-limiter outage into an in-memory quota that is
+    // bypassable across serverless instances.
+    if (isHostedRuntime()) return false;
+
+    return isMemoryFallbackOverrideRequested() || process.env.NODE_ENV !== 'production';
 }
 
 function rateLimiterUnavailable(message) {
@@ -254,47 +263,6 @@ async function checkRateLimit(identifier, maxRequests = 60, windowMs = 60000) {
 }
 
 /**
- * Create a stricter rate limiter for sensitive endpoints (e.g., auth).
- * @param {string} identifier
- * @param {number} maxRequests - Default: 10
- * @param {number} windowMs - Default: 60000 (1 min)
- */
-async function checkStrictRateLimit(identifier, maxRequests = 10, windowMs = 60000) {
-    const fallbackAllowed = shouldAllowMemoryFallback();
-    initRedis();
-
-    if (useRedis && redisClient) {
-        try {
-            const { Ratelimit } = require('@upstash/ratelimit');
-            const strictLimiter = new Ratelimit({
-                redis: redisClient,
-                limiter: Ratelimit.slidingWindow(maxRequests, `${Math.round(windowMs / 1000)} s`),
-                prefix: 'alttext:strict',
-            });
-            const result = await strictLimiter.limit(identifier);
-            return {
-                allowed: result.success,
-                limit: maxRequests,
-                remaining: result.remaining,
-                resetAt: new Date(result.reset),
-                backend: 'redis',
-            };
-        } catch (err) {
-            if (!fallbackAllowed) {
-                return rateLimiterUnavailable('Distributed strict rate limiter request failed.');
-            }
-            return checkMemoryRateLimit(identifier, maxRequests, windowMs);
-        }
-    }
-
-    if (!fallbackAllowed) {
-        return rateLimiterUnavailable(initError?.message || 'Distributed strict rate limiting is required but unavailable.');
-    }
-
-    return checkMemoryRateLimit(identifier, maxRequests, windowMs);
-}
-
-/**
  * Build a safe, deterministic identifier for an authenticated credential.
  * API keys and access tokens never appear in Redis keys or logs.
  */
@@ -312,6 +280,9 @@ function getCredentialRateLimitKey(endpoint, credential) {
  */
 function getRateLimitInfo() {
     initRedis();
+    const fallbackOverrideRequested = isMemoryFallbackOverrideRequested();
+    const hostedRuntime = isHostedRuntime();
+
     return {
         backend: useRedis ? 'redis' : (shouldAllowMemoryFallback() ? 'memory' : 'unavailable'),
         instanceId: INSTANCE_ID,
@@ -319,14 +290,137 @@ function getRateLimitInfo() {
         memoryStoreSize: memoryStore.size,
         redisConfigured: !!process.env.UPSTASH_REDIS_REST_URL && !!process.env.UPSTASH_REDIS_REST_TOKEN,
         fallbackAllowed: shouldAllowMemoryFallback(),
+        fallbackOverrideRequested,
+        fallbackOverrideIgnored: fallbackOverrideRequested && hostedRuntime,
         initError: initError?.message || null,
+    };
+}
+
+/**
+ * Return a sanitized backend snapshot without making a Redis command.
+ * Public liveness checks use this path so monitoring traffic cannot spend an
+ * Upstash command merely by asking whether the limiter is configured.
+ */
+function getRateLimitStatus() {
+    const info = getRateLimitInfo();
+
+    return {
+        status: info.backend === 'unavailable' ? 'unhealthy' : 'healthy',
+        backend: info.backend,
+        probe: 'skipped',
+    };
+}
+
+function withTimeout(promise, timeoutMs) {
+    return new Promise((resolve, reject) => {
+        let settled = false;
+        const timer = setTimeout(() => {
+            settled = true;
+            reject(new Error('Rate limiter health check timed out'));
+        }, timeoutMs);
+
+        Promise.resolve(promise).then(
+            (value) => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(timer);
+                resolve(value);
+            },
+            (error) => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(timer);
+                reject(error);
+            },
+        );
+    });
+}
+
+/**
+ * Check the active rate-limit backend itself for use by health monitoring.
+ * A successful Redis client initialization alone is not sufficient: the
+ * client may be unable to reach Redis when a health request arrives.
+ */
+async function checkRateLimitHealth(timeoutMs = 2500) {
+    const info = getRateLimitInfo();
+
+    if (useRedis && redisClient) {
+        if (typeof redisClient.ping !== 'function') {
+            return {
+                status: 'unhealthy',
+                backend: 'unavailable',
+                redisConfigured: info.redisConfigured,
+                fallbackAllowed: info.fallbackAllowed,
+                error: 'rate_limiter_unavailable',
+            };
+        }
+
+        try {
+            await withTimeout(redisClient.ping(), timeoutMs);
+
+            if (info.fallbackOverrideIgnored) {
+                return {
+                    status: 'unhealthy',
+                    backend: 'redis',
+                    redisConfigured: true,
+                    fallbackAllowed: false,
+                    fallbackOverrideIgnored: true,
+                    error: 'memory_fallback_override_forbidden',
+                };
+            }
+
+            return {
+                status: 'healthy',
+                backend: 'redis',
+                redisConfigured: true,
+                fallbackAllowed: false,
+            };
+        } catch (error) {
+            console.error('[RateLimiter] Health check failed:', error.message);
+            return {
+                status: 'unhealthy',
+                backend: 'unavailable',
+                redisConfigured: info.redisConfigured,
+                fallbackAllowed: info.fallbackAllowed,
+                error: 'rate_limiter_unavailable',
+            };
+        }
+    }
+
+    if (info.fallbackOverrideIgnored) {
+        return {
+            status: 'unhealthy',
+            backend: 'unavailable',
+            redisConfigured: info.redisConfigured,
+            fallbackAllowed: false,
+            fallbackOverrideIgnored: true,
+            error: 'memory_fallback_override_forbidden',
+        };
+    }
+
+    if (info.fallbackAllowed) {
+        return {
+            status: 'healthy',
+            backend: 'memory',
+            redisConfigured: info.redisConfigured,
+            fallbackAllowed: true,
+        };
+    }
+
+    return {
+        status: 'unhealthy',
+        backend: 'unavailable',
+        redisConfigured: info.redisConfigured,
+        fallbackAllowed: false,
+        error: 'rate_limiter_unavailable',
     };
 }
 
 module.exports = {
     checkRateLimit,
-    checkStrictRateLimit,
     getCredentialRateLimitKey,
     getRateLimitInfo,
+    getRateLimitStatus,
+    checkRateLimitHealth,
     INSTANCE_ID,
 };

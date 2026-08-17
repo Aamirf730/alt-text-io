@@ -2,6 +2,7 @@ const crypto = require('node:crypto');
 
 const ENCRYPTION_VERSION = 'v1';
 const IV_BYTES = 12;
+let missingSecretWarningLogged = false;
 
 function hashApiKey(apiKey) {
   return crypto
@@ -15,9 +16,15 @@ function generateApiKey() {
 }
 
 function getEncryptionKey() {
-  const secret = process.env.API_KEY_ENCRYPTION_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const secret = process.env.API_KEY_ENCRYPTION_SECRET;
   if (!secret) {
-    throw new Error('API key encryption secret is not configured');
+    if (!missingSecretWarningLogged) {
+      console.error('CRITICAL: API_KEY_ENCRYPTION_SECRET is required for API-key encryption/decryption.');
+      missingSecretWarningLogged = true;
+    }
+    const error = new Error('API_KEY_ENCRYPTION_SECRET is not configured');
+    error.code = 'API_KEY_ENCRYPTION_SECRET_MISSING';
+    throw error;
   }
 
   return crypto.createHash('sha256').update(secret, 'utf8').digest();

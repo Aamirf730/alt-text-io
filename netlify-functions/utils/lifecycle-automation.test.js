@@ -6,9 +6,29 @@ const {
   fetchLifecycleUsageCounts,
   filterCandidatesByAuthUsers,
   selectLifecycleCandidatePerActor,
+  renderLifecycleEmail,
 } = require('./lifecycle-automation.js');
 
 describe('lifecycle automation candidate selection', () => {
+  it('includes a signed unsubscribe link when lifecycle secrets are configured', () => {
+    const previousSecret = process.env.LIFECYCLE_AUTOMATION_SECRET;
+    process.env.LIFECYCLE_AUTOMATION_SECRET = 'test-secret';
+
+    const message = renderLifecycleEmail({
+      user_id: 'user-1',
+      user_email: 'lead@example.com',
+      subject: 'A subject',
+      preview: 'A preview',
+      cta_text: 'Open dashboard',
+      cta_url: 'https://www.alt-text.pro/dashboard',
+    });
+
+    expect(message.html).toContain('Unsubscribe');
+    expect(message.text).toContain('Unsubscribe: https://www.alt-text.pro/.netlify/functions/unsubscribe-lifecycle?token=');
+
+    if (previousSecret === undefined) delete process.env.LIFECYCLE_AUTOMATION_SECRET;
+    else process.env.LIFECYCLE_AUTOMATION_SECRET = previousSecret;
+  });
   it('selects signup users who have not connected after the delay', () => {
     const candidates = buildLifecycleCandidates([
       {

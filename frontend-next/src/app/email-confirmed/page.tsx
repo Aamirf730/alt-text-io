@@ -4,7 +4,6 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { supabase } from '@/lib/supabase';
-import { trackMarketingEvent } from '@/lib/analytics';
 import { CheckCircle, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -18,60 +17,20 @@ export default function EmailConfirmation() {
     useEffect(() => {
         const handleEmailConfirmation = async () => {
             try {
-                // Check both hash and query parameters (Supabase can use either)
-                const hashParams = new URLSearchParams(window.location.hash.substring(1));
-                const queryParams = new URLSearchParams(window.location.search);
-
-                const accessToken = hashParams.get('access_token') || queryParams.get('access_token');
-                const refreshToken = hashParams.get('refresh_token') || queryParams.get('refresh_token');
-                const type = hashParams.get('type') || queryParams.get('type');
-
-                if (type === 'signup' && accessToken) {
-                    // Set the session
-                    const { data, error: sessionError } = await supabase.auth.setSession({
-                        access_token: accessToken,
-                        refresh_token: refreshToken || ''
-                    });
-
-                    if (sessionError) {
-                        throw sessionError;
-                    }
-
-                    if (data.session) {
-                        // Email-confirmation signups have no session at the
-                        // original sign-up form. Record the funnel event only
-                        // after Supabase has confirmed and established the user
-                        // session, so the server can verify its identity.
-                        trackMarketingEvent('signup_created', {
-                            source: 'landing_page',
-                            properties: {
-                                signup_method: 'email_confirmation',
-                            },
-                        });
-                        setIsConfirmed(true);
-                        // Clear URL hash/query to clean up the URL
-                        window.history.replaceState({}, document.title, '/email-confirmed');
-                    }
+                // The secure /auth/confirm route consumes the one-time
+                // token_hash and establishes the Supabase session before this
+                // page is rendered. Never accept access/refresh tokens from a
+                // URL hash or query string here.
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                if (userError || !user) {
+                    setError('Please use the secure confirmation link or sign in again.');
                 } else {
-                    // Check if user is already confirmed (might have been redirected here after confirmation)
-                    const { data: { session } } = await supabase.auth.getSession();
-                    if (session) {
-                        if (type === 'signup') {
-                            trackMarketingEvent('signup_created', {
-                                source: 'landing_page',
-                                properties: {
-                                    signup_method: 'email_confirmation',
-                                },
-                            });
-                        }
-                        setIsConfirmed(true);
-                        // Clear URL hash/query to clean up the URL
-                        window.history.replaceState({}, document.title, '/email-confirmed');
-                    } else {
-                        // If no session and no token, show error
-                        setError('Invalid confirmation link. Please try signing up again.');
-                    }
+                    setIsConfirmed(true);
                 }
+
+                // Remove any legacy token-shaped URL fragments without reading
+                // or consuming them.
+                window.history.replaceState({}, document.title, '/email-confirmed');
             } catch (err: any) {
                 console.error('Email confirmation error:', err);
                 setError(err.message || 'Failed to confirm email. Please try again.');
@@ -100,8 +59,7 @@ export default function EmailConfirmation() {
 
                     {isLoading ? (
                         <>
-                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4"
-                                style={{ borderColor: '#000000' }}></div>
+                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
                             <h1 className="text-2xl font-bold text-gray-900 mb-2">Confirming your email...</h1>
                             <p className="text-gray-600">Please wait while we verify your account.</p>
                         </>
@@ -114,11 +72,7 @@ export default function EmailConfirmation() {
                             <p className="text-gray-600 mb-6">{error}</p>
                             <Button
                                 onClick={() => router.push('/')}
-                                className="w-full"
-                                style={{
-                                    background: 'linear-gradient(135deg, #000000 0%, #000000 100%)',
-                                    color: 'white'
-                                }}
+                                className="w-full bg-black text-white"
                             >
                                 Go to Homepage
                             </Button>
@@ -126,9 +80,9 @@ export default function EmailConfirmation() {
                     ) : isConfirmed ? (
                         <>
                             <div className="mb-4">
-                                <CheckCircle className="h-16 w-16 mx-auto" style={{ color: '#000000' }} />
+                                <CheckCircle className="h-16 w-16 mx-auto text-black" />
                             </div>
-                            <h1 className="text-3xl font-bold mb-4" style={{ color: '#000000' }}>
+                            <h1 className="text-3xl font-bold mb-4 text-black">
                                 Thanks for confirming your email!
                             </h1>
                             <p className="text-gray-600 mb-6">
@@ -137,22 +91,14 @@ export default function EmailConfirmation() {
                             <div className="space-y-3">
                                 <Button
                                     onClick={() => router.push('/dashboard')}
-                                    className="w-full"
-                                    style={{
-                                        background: 'linear-gradient(135deg, #000000 0%, #000000 100%)',
-                                        color: 'white'
-                                    }}
+                                    className="w-full bg-black text-white"
                                 >
                                     Sign In
                                 </Button>
                                 <Button
                                     onClick={() => router.push('/')}
                                     variant="outline"
-                                    className="w-full"
-                                    style={{
-                                        borderColor: '#000000',
-                                        color: '#000000'
-                                    }}
+                                    className="w-full border-black text-black"
                                 >
                                     Back to Homepage
                                 </Button>

@@ -1167,7 +1167,7 @@ select prosrc from pg_proc where proname = 'handle_new_user';
 
 **Not part of the requested change. Requires the owner's explicit go-ahead.** The instruction was "on signup every user will get 150 credits", which reads as new accounts only. Existing free users simply move to 15/month.
 
-If the owner does want to include them (e.g. as a launch goodwill gesture), there is already an audited, idempotent path — `public.grant_promotional_credits(uuid, integer, text)` from `20260805202418_fix_subscription_lifecycle_refunds.sql`, which updates both ledgers and writes an `audit_logs` row.
+If the owner does want to include them (e.g. as a launch goodwill gesture), use the audited, idempotent path — `public.grant_promotional_credits(uuid, integer, text, text)` from `20260817120000_harden_credit_and_profile_integrity.sql`, which updates both ledgers and writes an `audit_logs` row.
 
 ```sql
 -- Dry run first: how many users, how many credits?
@@ -1189,7 +1189,12 @@ begin
       and coalesce(bonus_credits_remaining, 0) = 0
       and created_at < '2026-08-09'
   loop
-    perform public.grant_promotional_credits(target.id, 150, 'signup_bonus_backfill_2026_08');
+    perform public.grant_promotional_credits(
+      target.id,
+      150,
+      'signup_bonus_backfill_2026_08',
+      'signup_bonus_backfill_2026_08:' || target.id::text
+    );
   end loop;
 end
 $$;

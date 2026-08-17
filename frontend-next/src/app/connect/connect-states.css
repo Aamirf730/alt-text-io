@@ -31,6 +31,12 @@
     padding: 28px;
 }
 
+.connect-card-fallback {
+    padding: 60px 40px;
+    color: #64748b;
+    text-align: center;
+}
+
 .connect-loading,
 .connect-success,
 .connect-confirmation,

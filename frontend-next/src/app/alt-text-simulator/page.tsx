@@ -260,13 +260,12 @@ export default function AltTextSimulatorPage() {
                                             <span className="text-slate-400">Understanding Level</span>
                                             <span className="text-notebook-slate bg-notebook-surface px-2.5 py-1 rounded-lg border border-gray-100">Illustrative: {data.confidenceLabel}</span>
                                         </div>
-                                        <div className="w-full bg-notebook-surface rounded-full h-2.5 p-0.5 border border-gray-100">
-                                            <div
-                                                className={`h-full rounded-full transition-all duration-1000 shadow-sm ${data.confidence > 50 ? 'bg-notebook-blue' : 'bg-red-400'
-                                                    }`}
-                                                style={{ width: `${data.confidence}%` }}
-                                            ></div>
-                                        </div>
+                                        <progress
+                                            className={`confidence-progress w-full bg-notebook-surface rounded-full h-2.5 p-0.5 border border-gray-100 ${data.confidence > 50 ? 'confidence-high' : 'confidence-low'}`}
+                                            value={data.confidence}
+                                            max={100}
+                                            aria-label="Illustrative understanding level"
+                                        />
                                     </div>
                                 </div>
                             </div>
@@ -289,11 +288,7 @@ export default function AltTextSimulatorPage() {
                                 {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
                                     <div
                                         key={i}
-                                        className={`bar ${isSpeaking ? 'speaking' : ''}`}
-                                        style={{
-                                            animationDelay: `-${1.2 - i * 0.15}s`,
-                                            background: '#000000'
-                                        }}
+                                        className={`bar wave-delay-${i} ${isSpeaking ? 'speaking' : ''}`}
                                     ></div>
                                 ))}
                             </div>
@@ -428,6 +423,16 @@ export default function AltTextSimulatorPage() {
                 .bar.speaking {
                     animation-duration: 400ms;
                 }
+
+                .wave-delay-0 { animation-delay: -1.2s; }
+                .wave-delay-1 { animation-delay: -1.05s; }
+                .wave-delay-2 { animation-delay: -0.9s; }
+                .wave-delay-3 { animation-delay: -0.75s; }
+                .wave-delay-4 { animation-delay: -0.6s; }
+                .wave-delay-5 { animation-delay: -0.45s; }
+                .wave-delay-6 { animation-delay: -0.3s; }
+                .wave-delay-7 { animation-delay: -0.15s; }
+                .wave-delay-8 { animation-delay: 0s; }
 
                 @keyframes sound {
                     0% { opacity: .35; height: 10px; }

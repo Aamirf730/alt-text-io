@@ -255,6 +255,29 @@ alt_text_pro_test_assert(
     'A legacy plain-text key must be replaced by authenticated encrypted storage on read.'
 );
 
+$legacy_iv = str_repeat('L', openssl_cipher_iv_length('aes-256-cbc'));
+$legacy_ciphertext = openssl_encrypt(
+    $api_key,
+    'aes-256-cbc',
+    hash('sha256', AUTH_KEY, true),
+    OPENSSL_RAW_DATA,
+    $legacy_iv
+);
+alt_text_pro_test_assert(
+    is_string($legacy_ciphertext),
+    'The legacy CBC compatibility fixture must be encryptable.'
+);
+$legacy_encrypted_key = 'enc:' . base64_encode($legacy_iv . $legacy_ciphertext);
+$alt_text_pro_test_options['alt_text_pro_settings'] = array('api_key' => $legacy_encrypted_key);
+$legacy_settings = $settings_handler->get_settings();
+$legacy_storage = get_option('alt_text_pro_settings', array());
+alt_text_pro_test_assert(
+    $legacy_settings['api_key'] === $api_key
+        && is_string($legacy_storage['api_key'])
+        && strpos($legacy_storage['api_key'], 'enc2:') === 0,
+    'Legacy CBC API-key records must remain readable and upgrade to authenticated encryption.'
+);
+
 $alt_text_pro_test_options['alt_text_pro_settings'] = array('api_key' => $tampered_key);
 $failed_storage_settings = $settings_handler->get_settings();
 alt_text_pro_test_assert(

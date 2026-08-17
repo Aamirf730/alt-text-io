@@ -392,7 +392,7 @@ class AltTextPro_Bulk_Processor
             $process_data['last_updated'] = current_time('mysql');
             $process_data['status'] = 'running';
 
-            set_transient('alt_text_pro_bulk_' . $process_id, $process_data, DAY_IN_SECONDS * 2);
+            $this->save_bulk_process_data($process_id, $process_data, DAY_IN_SECONDS * 2);
 
             $batch_result = array(
                 'id' => $image_id,
@@ -400,7 +400,7 @@ class AltTextPro_Bulk_Processor
                 'error' => $error_message
             );
             if ($can_edit_image) {
-                $batch_result['filename'] = basename(get_attached_file($image_id));
+                $batch_result['filename'] = basename((string) get_attached_file($image_id));
             }
 
             if (!$process_data['needs_next_batch']) {
@@ -471,7 +471,7 @@ class AltTextPro_Bulk_Processor
             $process_data['status'] = 'completed';
             $process_data['needs_next_batch'] = false;
             $process_data['next_batch_offset'] = null;
-            set_transient('alt_text_pro_bulk_' . $process_id, $process_data, DAY_IN_SECONDS * 2);
+            $this->save_bulk_process_data($process_id, $process_data, DAY_IN_SECONDS * 2);
             $this->complete_bulk_process($process_id);
             return array();
         }
@@ -530,7 +530,7 @@ class AltTextPro_Bulk_Processor
                 $processed++;
                 $batch_results[] = array(
                     'id' => $image_id,
-                    'filename' => basename(get_attached_file($image_id)),
+                    'filename' => basename((string) get_attached_file($image_id)),
                     'status' => 'skipped'
                 );
                 continue;
@@ -546,7 +546,7 @@ class AltTextPro_Bulk_Processor
                     $processed++;
                     $batch_results[] = array(
                         'id' => $image_id,
-                        'filename' => basename(get_attached_file($image_id)),
+                        'filename' => basename((string) get_attached_file($image_id)),
                         'status' => 'skipped'
                     );
                     continue;
@@ -616,7 +616,7 @@ class AltTextPro_Bulk_Processor
             if ($cancelled_mid_batch && (!$result['success'] || empty($result['alt_text']))) {
                 $batch_results[] = array(
                     'id' => $image_id,
-                    'filename' => basename(get_attached_file($image_id)),
+                    'filename' => basename((string) get_attached_file($image_id)),
                     'status' => 'cancelled'
                 );
                 break;
@@ -633,7 +633,7 @@ class AltTextPro_Bulk_Processor
                 );
                 $batch_results[] = array(
                     'id' => $image_id,
-                    'filename' => basename(get_attached_file($image_id)),
+                    'filename' => basename((string) get_attached_file($image_id)),
                     'status' => 'error',
                     'error' => $error_message
                 );
@@ -658,7 +658,7 @@ class AltTextPro_Bulk_Processor
                     );
                     $batch_results[] = array(
                         'id' => $image_id,
-                        'filename' => basename(get_attached_file($image_id)),
+                        'filename' => basename((string) get_attached_file($image_id)),
                         'status' => 'error',
                         'error' => $error_message
                     );
@@ -673,7 +673,7 @@ class AltTextPro_Bulk_Processor
 
                 $batch_results[] = array(
                     'id' => $image_id,
-                    'filename' => basename(get_attached_file($image_id)),
+                    'filename' => basename((string) get_attached_file($image_id)),
                     'status' => 'retrying',
                     'error' => $error_message,
                     'retry_after_seconds' => $retry_after
@@ -686,7 +686,7 @@ class AltTextPro_Bulk_Processor
                 $process_data['retry_message'] = $error_message;
                 $process_data['last_updated'] = current_time('mysql');
 
-                set_transient('alt_text_pro_bulk_' . $process_id, $process_data, DAY_IN_SECONDS * 2);
+                $this->save_bulk_process_data($process_id, $process_data, DAY_IN_SECONDS * 2);
 
                 return $batch_results;
             }
@@ -701,7 +701,7 @@ class AltTextPro_Bulk_Processor
                 );
                 $batch_results[] = array(
                     'id' => $image_id,
-                    'filename' => basename(get_attached_file($image_id)),
+                    'filename' => basename((string) get_attached_file($image_id)),
                     'status' => 'error',
                     'error' => $error_message
                 );
@@ -732,7 +732,7 @@ class AltTextPro_Bulk_Processor
                 $process_data['last_updated'] = current_time('mysql');
 
                 // Save immediately
-                set_transient('alt_text_pro_bulk_' . $process_id, $process_data, DAY_IN_SECONDS * 2);
+                $this->save_bulk_process_data($process_id, $process_data, DAY_IN_SECONDS * 2);
 
                 // Update progress
                 $this->update_bulk_process_progress($process_id, $total_processed, $all_errors, $total_successful);
@@ -746,11 +746,12 @@ class AltTextPro_Bulk_Processor
 
             if ($result['success'] && !empty($result['alt_text'])) {
                 // Update attachment alt text
-                update_post_meta($image_id, '_wp_attachment_image_alt', $result['alt_text']);
+                $alt_text = sanitize_text_field((string) $result['alt_text']);
+                update_post_meta($image_id, '_wp_attachment_image_alt', $alt_text);
 
                 // Log generation (only if alt_text exists)
-                if (!empty($result['alt_text'])) {
-                    $this->log_generation($image_id, $result['alt_text'], $result['credits_used'] ?? 1);
+                if ($alt_text !== '') {
+                    $this->log_generation($image_id, $alt_text, $result['credits_used'] ?? 1);
                 }
 
                 $processed++;
@@ -759,7 +760,7 @@ class AltTextPro_Bulk_Processor
 
                 $batch_results[] = array(
                     'id' => $image_id,
-                    'filename' => basename(get_attached_file($image_id)),
+                    'filename' => basename((string) get_attached_file($image_id)),
                     'status' => 'success'
                 );
 
@@ -771,7 +772,7 @@ class AltTextPro_Bulk_Processor
                 );
                 $batch_results[] = array(
                     'id' => $image_id,
-                    'filename' => basename(get_attached_file($image_id)),
+                    'filename' => basename((string) get_attached_file($image_id)),
                     'status' => 'error',
                     'error' => $error_message
                 );
@@ -822,9 +823,10 @@ class AltTextPro_Bulk_Processor
         }
 
         // Save process data immediately to ensure it's persisted
-        set_transient('alt_text_pro_bulk_' . $process_id, $process_data, DAY_IN_SECONDS * 2);
+        $this->save_bulk_process_data($process_id, $process_data, DAY_IN_SECONDS * 2);
 
         if ($cancelled_mid_batch) {
+            $this->delete_bulk_process_state($process_id);
             return $batch_results;
         }
 
@@ -834,9 +836,10 @@ class AltTextPro_Bulk_Processor
         // Check if processing was stopped due to credits (should not happen here as we return early, but safety check)
         if (isset($process_data['status']) && $process_data['status'] === 'stopped_no_credits') {
             // Complete process early due to credits exhaustion
-            $this->complete_bulk_process($process_id, true);
             $process_data['needs_next_batch'] = false;
-            set_transient('alt_text_pro_bulk_' . $process_id, $process_data, DAY_IN_SECONDS);
+            $process_data['next_batch_offset'] = null;
+            $this->save_bulk_process_data($process_id, $process_data, DAY_IN_SECONDS);
+            $this->complete_bulk_process($process_id, true);
             return;
         }
 
@@ -854,12 +857,12 @@ class AltTextPro_Bulk_Processor
             $process_data['next_batch_offset'] = $next_batch_offset;
             $process_data['needs_next_batch'] = true;
 
-            set_transient('alt_text_pro_bulk_' . $process_id, $process_data, DAY_IN_SECONDS * 2);
+            $this->save_bulk_process_data($process_id, $process_data, DAY_IN_SECONDS * 2);
         } elseif ($process_data['status'] === 'running') {
             $process_data['status'] = 'completed';
             $process_data['needs_next_batch'] = false;
             $process_data['next_batch_offset'] = null;
-            set_transient('alt_text_pro_bulk_' . $process_id, $process_data, DAY_IN_SECONDS * 2);
+            $this->save_bulk_process_data($process_id, $process_data, DAY_IN_SECONDS * 2);
             $this->complete_bulk_process($process_id);
         }
 
@@ -1035,8 +1038,8 @@ class AltTextPro_Bulk_Processor
             'user_id' => get_current_user_id()
         );
 
-        // Store process data (expires in 24 hours)
-        set_transient('alt_text_pro_bulk_' . $process_id, $process_data, DAY_IN_SECONDS);
+        // Store durable process data; the transient is only the fast cache.
+        $this->save_bulk_process_data($process_id, $process_data, DAY_IN_SECONDS);
 
         return $process_id;
     }
@@ -1076,7 +1079,7 @@ class AltTextPro_Bulk_Processor
                 $successful = $actual_successful_count;
                 // Update stored value for consistency
                 $process_data['successful'] = $successful;
-                set_transient('alt_text_pro_bulk_' . $process_id, $process_data, DAY_IN_SECONDS * 2);
+                $this->save_bulk_process_data($process_id, $process_data, DAY_IN_SECONDS * 2);
             }
         }
 
@@ -1133,8 +1136,8 @@ class AltTextPro_Bulk_Processor
             $process_data['last_updated'] = current_time('mysql');
             unset($process_data['retry_after_seconds'], $process_data['retry_message']);
 
-            // Update transient with extended expiry
-            set_transient('alt_text_pro_bulk_' . $process_id, $process_data, DAY_IN_SECONDS * 2);
+            // Update durable state and refresh the transient with extended expiry.
+            $this->save_bulk_process_data($process_id, $process_data, DAY_IN_SECONDS * 2);
         }
     }
 
@@ -1150,12 +1153,14 @@ class AltTextPro_Bulk_Processor
                 $process_data['completed_at'] = $process_data['completed_at'] ?? current_time('mysql');
                 $process_data['needs_next_batch'] = false;
                 $process_data['next_batch_offset'] = null;
-                set_transient('alt_text_pro_bulk_' . $process_id, $process_data, DAY_IN_SECONDS);
+                $this->save_bulk_process_data($process_id, $process_data, DAY_IN_SECONDS);
+                $this->delete_bulk_process_state($process_id);
                 return;
             }
 
             // Check if email was already sent to prevent duplicates
             if (isset($process_data['email_sent']) && $process_data['email_sent'] === true) {
+                $this->delete_bulk_process_state($process_id);
                 return;
             }
 
@@ -1168,10 +1173,11 @@ class AltTextPro_Bulk_Processor
             $process_data['completed_at'] = current_time('mysql');
             $process_data['email_sent'] = true; // Mark email as sent to prevent duplicates
 
-            set_transient('alt_text_pro_bulk_' . $process_id, $process_data, DAY_IN_SECONDS);
+            $this->save_bulk_process_data($process_id, $process_data, DAY_IN_SECONDS);
 
             // Send completion notification (only once)
             $this->send_completion_notification($process_data);
+            $this->delete_bulk_process_state($process_id);
         }
     }
 
@@ -1188,6 +1194,7 @@ class AltTextPro_Bulk_Processor
 
         $current_status = $process_data['status'] ?? 'running';
         if (in_array($current_status, array('completed', 'stopped_no_credits'), true)) {
+            $this->delete_bulk_process_state($process_id);
             return true;
         }
 
@@ -1200,7 +1207,10 @@ class AltTextPro_Bulk_Processor
         $process_data['needs_next_batch'] = false;
         $process_data['next_batch_offset'] = null;
 
-        set_transient('alt_text_pro_bulk_' . $process_id, $process_data, DAY_IN_SECONDS);
+        $this->save_bulk_process_data($process_id, $process_data, DAY_IN_SECONDS);
+        if ($process_data['status'] === 'cancelled') {
+            $this->delete_bulk_process_state($process_id);
+        }
         return true;
     }
 
@@ -1210,6 +1220,44 @@ class AltTextPro_Bulk_Processor
     private function get_active_request_key($process_id)
     {
         return 'alt_text_pro_bulk_active_' . $process_id;
+    }
+
+    /**
+     * Get the durable options-table key for a bulk process.
+     *
+     * The transient remains the fast path, but it may be evicted by an
+     * external object cache before its expiration time. Keeping the option
+     * name hashed avoids exposing the process token in the options table.
+     */
+    private function get_bulk_process_option_name($process_id)
+    {
+        return 'alt_text_pro_bulk_state_' . hash('sha256', $process_id);
+    }
+
+    /**
+     * Persist active process state in the database and refresh its transient.
+     */
+    private function save_bulk_process_data($process_id, $process_data, $transient_expiration)
+    {
+        update_option(
+            $this->get_bulk_process_option_name($process_id),
+            $process_data,
+            false
+        );
+
+        set_transient(
+            'alt_text_pro_bulk_' . $process_id,
+            $process_data,
+            $transient_expiration
+        );
+    }
+
+    /**
+     * Remove the durable copy once the short-lived result is terminal.
+     */
+    private function delete_bulk_process_state($process_id)
+    {
+        delete_option($this->get_bulk_process_option_name($process_id));
     }
 
     /**
@@ -1340,6 +1388,16 @@ class AltTextPro_Bulk_Processor
             $process_data = wp_cache_get($transient_key, 'transient', true, $found);
         } else {
             $process_data = get_transient($transient_key);
+        }
+
+        // Transients can be evicted by an external object cache at any time.
+        // Recover active jobs from the options table and repopulate the fast
+        // cache so the next request follows the normal path again.
+        if ($process_data === false) {
+            $process_data = get_option($this->get_bulk_process_option_name($process_id), false);
+            if (is_array($process_data)) {
+                set_transient($transient_key, $process_data, DAY_IN_SECONDS * 2);
+            }
         }
 
         if (

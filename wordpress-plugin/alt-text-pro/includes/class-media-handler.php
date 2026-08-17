@@ -20,6 +20,7 @@ class AltTextPro_Media_Handler
         add_action('add_attachment', array($this, 'handle_new_attachment'));
         add_filter('wp_handle_upload_prefilter', array($this, 'prefilter_upload'));
         add_action('wp_ajax_alt_text_pro_regenerate', array($this, 'ajax_regenerate_alt_text'));
+        add_action('wp_ajax_alt_text_pro_get_context_suggestions', array($this, 'ajax_get_context_suggestions'));
         add_action('alt_text_pro_generate_background', array($this, 'generate_alt_text_background'));
     }
 
@@ -88,15 +89,14 @@ class AltTextPro_Media_Handler
         }
 
         $result = $api_client->generate_alt_text($attachment_id, $context, $blog_context);
+        $alt_text = sanitize_text_field((string) ($result['alt_text'] ?? ''));
 
-        if ($result['success'] && !empty($result['alt_text'])) {
+        if ($result['success'] && $alt_text !== '') {
             // Update attachment alt text
-            update_post_meta($attachment_id, '_wp_attachment_image_alt', $result['alt_text']);
+            update_post_meta($attachment_id, '_wp_attachment_image_alt', $alt_text);
 
             // Log the generation (only if alt_text exists)
-            if (!empty($result['alt_text'])) {
-                $this->log_generation($attachment_id, $result['alt_text'], $result['credits_used'] ?? 1);
-            }
+            $this->log_generation($attachment_id, $alt_text, $result['credits_used'] ?? 1);
 
             // Add admin notice for successful generation
             set_transient('alt_text_pro_success_' . get_current_user_id(), array(
@@ -104,7 +104,7 @@ class AltTextPro_Media_Handler
                     // translators: %1$s: Image title, %2$s: Generated alt-text
                     esc_html__('Alt-text generated for "%1$s": %2$s', 'alt-text-pro'),
                     esc_html(get_the_title($attachment_id)),
-                    esc_html($result['alt_text'])
+                    esc_html($alt_text)
                 ),
                 'credits_remaining' => $result['credits_remaining'] ?? 0
             ), 300);
@@ -177,10 +177,11 @@ class AltTextPro_Media_Handler
         $blog_context = isset($settings['blog_context']) ? $settings['blog_context'] : '';
 
         $result = $api_client->generate_alt_text($attachment_id, $context, $blog_context);
+        $alt_text = sanitize_text_field((string) ($result['alt_text'] ?? ''));
 
-        if ($result['success']) {
+        if ($result['success'] && $alt_text !== '') {
             // Update attachment alt text
-            update_post_meta($attachment_id, '_wp_attachment_image_alt', $result['alt_text']);
+            update_post_meta($attachment_id, '_wp_attachment_image_alt', $alt_text);
 
             // Save context if provided
             if (!empty($context)) {
@@ -188,10 +189,10 @@ class AltTextPro_Media_Handler
             }
 
             // Log the generation
-            $this->log_generation($attachment_id, $result['alt_text'], $result['credits_used']);
+            $this->log_generation($attachment_id, $alt_text, $result['credits_used']);
 
             wp_send_json_success(array(
-                'alt_text' => $result['alt_text'],
+                'alt_text' => $alt_text,
                 'credits_remaining' => $result['credits_remaining'],
                 'credits_used' => $result['credits_used'],
                 'attachment_id' => $attachment_id
@@ -199,6 +200,29 @@ class AltTextPro_Media_Handler
         } else {
             wp_send_json_error($result['message']);
         }
+    }
+
+    /**
+     * Return context suggestions for the media-field autocomplete.
+     */
+    public function ajax_get_context_suggestions()
+    {
+        check_ajax_referer('alt_text_pro_nonce', 'nonce');
+
+        if (!current_user_can('upload_files')) {
+            wp_send_json_error(esc_html__('You do not have permission to perform this action.', 'alt-text-pro'));
+        }
+
+        $attachment_id = isset($_POST['attachment_id']) ? absint($_POST['attachment_id']) : 0;
+        if (
+            !$attachment_id ||
+            !wp_attachment_is_image($attachment_id) ||
+            !current_user_can('edit_post', $attachment_id)
+        ) {
+            wp_send_json_error(esc_html__('You do not have permission to read this image context.', 'alt-text-pro'));
+        }
+
+        wp_send_json_success($this->get_context_suggestions($attachment_id));
     }
 
     /**
@@ -244,7 +268,7 @@ class AltTextPro_Media_Handler
         }
 
         // Get image filename as context
-        $filename = basename(get_attached_file($attachment_id));
+        $filename = basename((string) get_attached_file($attachment_id));
         $filename_without_ext = pathinfo($filename, PATHINFO_FILENAME);
         $suggestions[] = sprintf(
             // translators: %s: Filename without extension

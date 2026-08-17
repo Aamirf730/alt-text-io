@@ -19,6 +19,8 @@ describe('M5 API-key storage wiring', () => {
     expect(endpointSource).not.toContain('Math.random');
     expect(endpointSource).toContain('generateApiKey()');
     expect(secretsSource).toContain('randomBytes(32)');
+    expect(endpointSource).toContain(".rpc('issue_api_key'");
+    expect(endpointSource).toContain("Buffer.from(event.body, 'base64')");
   });
 
   it('validates through the hash and keeps legacy migration explicit', () => {
@@ -30,6 +32,8 @@ describe('M5 API-key storage wiring', () => {
 
   it('uses one API-key validator and does not log generated customer content', () => {
     expect(authValidateSource).toContain('const validatedUser = await validateApiKey(token)');
+    expect(authValidateSource).toContain('const AUTH_USER_REQUEST_TIMEOUT_MS = 5000');
+    expect(authValidateSource).toContain('signal: AbortSignal.timeout(AUTH_USER_REQUEST_TIMEOUT_MS)');
     expect(authValidateSource).not.toContain(".rpc('validate_api_key'");
     expect(generationSource).not.toContain('Raw AI response:');
     expect(generationSource).not.toContain("User:', user.email");

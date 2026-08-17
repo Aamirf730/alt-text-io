@@ -451,7 +451,7 @@ export default function LandingPage() {
                     </span>
                   </h1>
 
-                  <p className="mt-6 max-w-2xl text-lg font-normal leading-relaxed text-slate-500 sm:text-xl lg:text-[1.7rem] min-[1800px]:mt-10 min-[1800px]:max-w-[900px] min-[1800px]:text-[2.15rem]" style={{ lineHeight: 1.2 }}>
+                  <p className="mt-6 max-w-2xl text-lg font-normal leading-[1.2] text-slate-500 sm:text-xl lg:text-[1.7rem] min-[1800px]:mt-10 min-[1800px]:max-w-[900px] min-[1800px]:text-[2.15rem]">
                     Generate useful, context-aware alt text drafts across your WordPress media library.
                   </p>
 
@@ -591,29 +591,13 @@ export default function LandingPage() {
               <img
                 src="/dots1.png"
                 alt=""
-                className="hidden lg:block absolute pointer-events-none opacity-20 invert"
-                style={{
-                  top: '12%',
-                  left: '33%',
-                  width: '20%',
-                  height: 'auto',
-                  zIndex: 1,
-                  objectFit: 'contain'
-                }}
+                className="landing-dots landing-dots-one hidden lg:block absolute pointer-events-none opacity-20 invert"
               />
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/dots2.png"
                 alt=""
-                className="hidden lg:block absolute pointer-events-none opacity-20 invert"
-                style={{
-                  top: '47%',
-                  left: '22%',
-                  width: '35%',
-                  height: 'auto',
-                  zIndex: 1,
-                  objectFit: 'contain'
-                }}
+                className="landing-dots landing-dots-two hidden lg:block absolute pointer-events-none opacity-20 invert"
               />
               {/* ===== END LOCKED SECTION ===== */}
 
@@ -641,7 +625,7 @@ export default function LandingPage() {
                   <div className="lg:order-2 relative z-10 max-w-sm flex items-center h-full">
                     <div>
                       {/* Large background number */}
-                        <div className="absolute -top-10 -left-12 font-extrabold text-[#FEE11C]/20 select-none pointer-events-none z-0 font-outfit" style={{ fontSize: '10rem', lineHeight: '1' }}>
+                        <div className="absolute -top-10 -left-12 text-[10rem] leading-none font-extrabold text-[#FEE11C]/20 select-none pointer-events-none z-0 font-outfit">
                         01
                       </div>
                       <h3 className="text-2xl font-bold text-notebook-slate mb-4 relative z-10 flex items-center gap-3 font-outfit uppercase tracking-wider">
@@ -659,7 +643,7 @@ export default function LandingPage() {
                   <div className="lg:order-1 relative flex justify-center lg:justify-end items-center h-full">
                     <div className="max-w-sm relative pr-8">
                       {/* Large background number */}
-                      <div className="absolute -top-10 -left-12 font-extrabold text-[#FEE11C]/20 select-none pointer-events-none z-0 font-outfit" style={{ fontSize: '10rem', lineHeight: '1' }}>
+                      <div className="absolute -top-10 -left-12 text-[10rem] leading-none font-extrabold text-[#FEE11C]/20 select-none pointer-events-none z-0 font-outfit">
                         02
                       </div>
                       <h3 className="text-2xl font-bold text-notebook-slate mb-4 relative z-10 flex items-center gap-3 font-outfit uppercase tracking-wider">
@@ -689,13 +673,13 @@ export default function LandingPage() {
                         <div className="w-2 h-2 rounded-full bg-notebook-blue animate-ping"></div>
                       </div>
                       <div className="absolute top-0 left-1/2 w-0.5 h-1/2 bg-gradient-to-b from-transparent to-notebook-orange/30 -translate-x-1/2 flex items-center justify-end pb-14 flex-col">
-                        <div className="w-2 h-2 rounded-full bg-notebook-orange animate-ping" style={{ animationDelay: '0.5s' }}></div>
+                        <div className="w-2 h-2 rounded-full bg-notebook-orange animate-ping landing-pulse-delay-500"></div>
                       </div>
                       <div className="absolute top-1/2 right-0 w-1/2 h-0.5 bg-gradient-to-l from-transparent to-notebook-blue/30 -translate-y-1/2 flex items-center justify-start pl-14">
-                        <div className="w-2 h-2 rounded-full bg-notebook-blue animate-ping" style={{ animationDelay: '1s' }}></div>
+                        <div className="w-2 h-2 rounded-full bg-notebook-blue animate-ping landing-pulse-delay-1000"></div>
                       </div>
                       <div className="absolute bottom-0 left-1/2 w-0.5 h-1/2 bg-gradient-to-t from-transparent to-notebook-orange/30 -translate-x-1/2 flex items-center justify-start pt-14 flex-col">
-                        <div className="w-2 h-2 rounded-full bg-notebook-orange animate-ping" style={{ animationDelay: '1.5s' }}></div>
+                        <div className="w-2 h-2 rounded-full bg-notebook-orange animate-ping landing-pulse-delay-1500"></div>
                       </div>
 
                       {/* Decorative nodes */}
@@ -749,7 +733,7 @@ export default function LandingPage() {
                   <div className="lg:order-2 relative max-w-sm flex items-center h-full">
                     <div className="relative">
                       {/* Large background number */}
-                      <div className="absolute -top-10 -left-12 font-extrabold text-[#FEE11C]/20 select-none pointer-events-none z-0 font-outfit" style={{ fontSize: '10rem', lineHeight: '1' }}>
+                      <div className="absolute -top-10 -left-12 text-[10rem] leading-none font-extrabold text-[#FEE11C]/20 select-none pointer-events-none z-0 font-outfit">
                         03
                       </div>
                       <h3 className="text-2xl font-bold text-notebook-slate mb-4 relative z-10 flex items-center gap-3 font-outfit uppercase tracking-wider">

@@ -229,8 +229,11 @@ class AltTextPro_Admin
 
         // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery
         $total_generated = $wpdb->get_var("SELECT COUNT(*) FROM $logs_table");
-        // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery
-        $this_month_generated = $wpdb->get_var("SELECT COUNT(*) FROM $logs_table WHERE MONTH(created_at) = MONTH(CURDATE()) AND YEAR(created_at) = YEAR(CURDATE())");
+        $site_month_prefix = current_time('Y-m') . '-%';
+        $this_month_generated = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$logs_table} WHERE created_at LIKE %s",
+            $site_month_prefix
+        ));
         // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery
         $total_credits_used = $wpdb->get_var("SELECT SUM(credits_used) FROM $logs_table");
         // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
@@ -387,6 +390,9 @@ class AltTextPro_Admin
         $total_logs = $wpdb->get_var("SELECT COUNT(*) FROM $logs_table");
         $total_pages = ceil($total_logs / $per_page);
 
+        $site_date_prefix = current_time('Y-m-d') . '%';
+        $site_month_prefix = current_time('Y-m') . '-%';
+
         // Get summary stats
         $stats = array(
             // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery
@@ -395,10 +401,14 @@ class AltTextPro_Admin
             'total_credits_used' => $wpdb->get_var("SELECT SUM(credits_used) FROM $logs_table"),
             // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery
             'avg_processing_time' => $wpdb->get_var("SELECT AVG(processing_time) FROM $logs_table WHERE processing_time IS NOT NULL"),
-            // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery
-            'today_generated' => $wpdb->get_var("SELECT COUNT(*) FROM $logs_table WHERE DATE(created_at) = CURDATE()"),
-            // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery
-            'this_month_generated' => $wpdb->get_var("SELECT COUNT(*) FROM $logs_table WHERE MONTH(created_at) = MONTH(CURDATE()) AND YEAR(created_at) = YEAR(CURDATE())")
+            'today_generated' => $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$logs_table} WHERE created_at LIKE %s",
+                $site_date_prefix
+            )),
+            'this_month_generated' => $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$logs_table} WHERE created_at LIKE %s",
+                $site_month_prefix
+            ))
         );
 
         include ALT_TEXT_PRO_PLUGIN_PATH . 'templates/logs.php';

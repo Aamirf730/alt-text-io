@@ -1,11 +1,172 @@
 # Progress
 
+## 2026-08-17: Implemented Supabase audit findings 32 through 39 locally
+
+- Status: findings 32–39 are implemented in the Desktop `main` worktree. No production migration, commit, deployment, or live data mutation was performed.
+- Added `supabase/migrations/20260817120000_harden_credit_and_profile_integrity.sql`: legacy `use_credit` now uses the reservation engine (including tier4/agency caps); promotional grants have a service-role-only idempotency ledger; subscription revocation is locked and retry-safe; paid-pack revocation uses profile-then-ledger lock ordering; expired reservations have a bounded `pg_cron` reaper; accounting checks and the `profiles.subscription_id` index are added; and profile email uniqueness is removed so each auth identity can receive its own profile while `user_id` remains authoritative.
+- Updated migration-chain and webhook regression coverage, plus the promotional-grant release documentation.
+- Verification: migration-chain tests 25/25, Polar webhook tests 28/28, credit-reservation tests 6/6, JavaScript syntax checks, and `git diff --check` passed.
+- Read-only production preflight found 0 invalid usage rows, 0 negative payments, 0 duplicate lowercased profile emails, 2 annual and 32 null profile billing cycles, the expected existing `profiles_email_key`, and no `profiles_subscription_id_idx`. The migration will add/remove those items when explicitly applied.
+- A real fresh `supabase db reset`/Postgres replay has not run because no local Docker/Postgres instance is available; the migration remains uncommitted and unapplied.
+
+## 2026-08-17: Completed plugin audit findings P3.24 through P3.31 locally
+
+- Status: P3.24–P3.31 are fixed in the Desktop `main` worktree. No production database, WordPress site, WordPress.org publication, commit, or deployment was performed.
+- Post-level generation now honors `context_enabled`; the active context-suggestion UI has a nonce- and capability-protected AJAX handler; and the unused dynamic refresh action was removed.
+- Dashboard and logs statistics now use WordPress site-time date prefixes instead of database-server `CURDATE()`/`MONTH()` values. API-generated alt text is sanitized on the remaining plugin write paths, and attachment filename extraction safely handles `get_attached_file()` returning `false`.
+- Uninstall now removes durable bulk-state options and the API-key storage-error option. Plugin translations are loaded explicitly, obsolete admin bindings/methods were removed, and the API-key callback no longer renders the removed toggle control.
+- Plugin metadata and local distribution artifacts are at version 1.7.24. Added `wordpress-plugin/tests/p3-hygiene.php` for these regressions.
+- Verification passes: PHP lint for all changed plugin PHP files, P3 hygiene checks, API-key persistence, Gutenberg synchronization, attachment-permission, and security regression harnesses; JavaScript syntax; plugin ZIP build; and `git diff --check`. Changes remain uncommitted and undeployed.
+
+## 2026-08-17: Completed audit findings P3.15 through P3.23 locally
+
+- Status: P3.15–P3.23 are implemented in the Desktop `main` worktree. No production database, Netlify configuration, commit, or deployment was touched.
+- Polar webhooks now queue missing-order-ID refunds instead of creating `polar_ord_undefined`, fail loudly when customer-ID persistence fails, reconcile unknown one-time products without granting credits, use bounded product-ID/metadata/name mapping, and expose an explicit 503 guard when `POLAR_WEBHOOK_SECRET` is absent.
+- Dashboard subscription checkout now offers monthly and annual product IDs/prices. Free-credit usage displays include the persistent bonus balance. Connect analytics no longer treats every authenticated revisit as a signup and uses the authenticated email captured in a ref rather than a stale closure.
+- CSP is now nonce-based in `frontend-next/proxy.ts` with no `unsafe-inline` script/style allowances. Inline style attributes were removed, JSON-LD scripts receive the request nonce, and the secure email-confirmation page trusts only the session established by `/auth/confirm`.
+- Verification passes: frontend 99 tests, Next production build, TypeScript, Netlify Functions 127 tests, auxiliary Netlify tests 47 tests, migration-chain 17 tests, JavaScript syntax checks, and `git diff --check`. The build logs the expected local warning that `POLAR_WEBHOOK_SECRET` is not configured; no production secret was inspected or changed.
+
+## 2026-08-17: Closed the remaining P3-7 auth-validation timeout gap
+
+- Status: the legacy Supabase `/auth/v1/user` request in `auth-validate.js` now aborts after five seconds with `AbortSignal.timeout(...)`. No production configuration, database, deployment, or commit was touched.
+- Verification: the API-key storage/auth-validation test passed (4 tests), JavaScript syntax validation passed, and `git diff --check` passed.
+
+## 2026-08-17: Implemented Netlify P3 audit fixes 1 through 14 locally
+
+- Status: P3.1–P3.14 are implemented in the Desktop `main` worktree. No production database, Netlify site, commit, or deployment was touched.
+- Security fixes include exact CORS preview origins, constant-time lifecycle-secret checks without query-string secrets, parameter-safe lifecycle event queries, serialized API-key issuance/rotation, paginated account deletion, case-insensitive Bearer parsing, safe module loading without Supabase environment variables, bounded auth/database health requests, query-string secret redaction, a brand-domain sender fallback, and removal of unused legacy utilities.
+- Consistency fixes centralize subscription-plan fallback credits and record low-credit lifecycle events for both plugin and dashboard generation paths. Lifecycle email messages now include signed unsubscribe links backed by `profiles.marketing_unsubscribed_at`; scheduled and admin test sends honor the opt-out.
+- Added migrations `20260817100000_atomic_api_key_issuance.sql` and `20260817110000_add_lifecycle_unsubscribe.sql`. They are not applied to production.
+- Verification passes: Netlify Functions 25 test files / 174 tests, frontend 16 test files / 89 tests, migration-chain 17 tests, TypeScript, JavaScript syntax checks, and `git diff --check`. A local `supabase migration list --local` check could not connect because no local Postgres/Docker instance is running; no production migration was attempted.
+
+## 2026-08-17: Completed audit findings 4.5 through 4.12
+
+- Status: all eight findings are fixed and locally verified in the Desktop `main` worktree; no production mutation, commit, or deployment has been performed.
+- Server-side work protects the daily funnel schedule, scrubs deletion-provider errors, paginates all affected PostgREST reads, makes lifecycle-send deduplication complete, requires the dedicated API-key encryption secret, and bounds Gemini generation while returning database re-check failures as 500 rather than 402. Admin data now fails closed instead of returning a misleading partial result when a paginated query fails.
+- Plugin work removes the duplicate connection click handler and renders connection/bulk activity values as text. Plugin metadata and the rebuilt distribution artifact are at 1.7.23.
+- Verification: Netlify Functions 18 files/158 tests passed; frontend 16 files/89 tests passed; migration-chain 15 tests passed; TypeScript, JavaScript syntax, and `git diff --check` passed. Using the local PHP 7.4.33 binary at `/opt/homebrew/opt/php@7.4/bin/php`, all four plugin regression harnesses also passed, including the security, Gutenberg, API-key persistence, and attachment-permission checks.
+
+## 2026-08-17: Completed historical client-write integrity review
+
+- Status: 4.4 closed as a historical review; the client write boundary is already fixed in production by `20260811110000_harden_client_data_boundaries.sql`. No production data was changed.
+- Read-only production checks covered profiles updated during the exposed window, payments, usage logs, credit-pack grants, campaign claims, campaign audit rows, and persistent credit ledgers. The window contained 1 Polar payment, 1,360 unit-credit usage rows, no credit-pack grants, and two campaign claims totaling 2,000 credits with matching `credit.add` audit entries.
+- No non-Polar/negative payments, negative active grants, purchased balances above the grant ledger, aggregate balances below persistent ledgers, or unexplained historical campaign claims were found. The known annual profile missing a provider subscription ID remains a separate provider-linking issue.
+- Evidence is recorded in `audit-evidence/2026-08-17/HISTORICAL_CLIENT_WRITE_REVIEW.md`. This review cannot prove that no write occurred because the old schema had no row-level audit trail, but it found no actionable integrity anomaly requiring repair.
+
+## 2026-08-17: Closed direct authenticated API-key table access
+
+- Status: 4.3 fixed locally in the Desktop `main` worktree; no production migration, commit, or deployment was performed.
+- The API-key storage migration now revokes table-level privileges from `public`, `anon`, and `authenticated`, so its column-level revokes cannot be bypassed by the bootstrap table grant.
+- Added repair migration `20260816202022_secure_api_key_table_access.sql` for databases where the original storage migration is already applied. Service-role access remains available for the Netlify key endpoint; RLS policies remain as defense in depth but are no longer reachable through client table privileges.
+- Migration-chain coverage verifies both the original and repair table-level revokes.
+
+## 2026-08-17: Made subscription renewal fulfillment atomic
+
+- Status: 4.2 fixed and verified locally in the Desktop `main` worktree; the migration is not applied to production, and no commit or deployment was performed.
+- Added `20260816200907_renew_subscription_credits_atomically.sql`, exposing the renewal operation only to `service_role`. The RPC locks the profile row, re-checks the subscription binding and period boundary inside the transaction, preserves current bonus/purchased ledgers, and skips duplicate or stale periods.
+- `onSubscriptionUpdated` now delegates renewal credit and metadata updates to the RPC instead of performing a JavaScript read-compute-write. Concurrent credit debits therefore serialize safely with renewal, and webhook retries cannot reset an already-processed period.
+- Verification: migration-chain tests passed (14), Polar webhook tests passed (25), TypeScript passed, and `git diff --check` passed.
+
+## 2026-08-17: Corrected Small Credit Pack fulfillment amount
+
+- Status: 4.1 fixed and verified locally in the Desktop `main` worktree; no production deployment or commit was performed.
+- One-time Polar product names now resolve through the shared plan matcher before broad credit-name substring matching, preventing `Small Credit Pack` from falling through to the 1,200-credit large-pack match.
+- Added webhook regression coverage confirming the Small Credit Pack grants exactly 500 credits while explicit `credits` metadata remains authoritative.
+
+## 2026-08-17: Protected public health checks from Redis probe abuse
+
+- Status: P1-3.6 fixed and verified locally in the Desktop `main` worktree; no production configuration change, deployment, or commit was performed.
+- `/health` now applies a 30-request-per-minute distributed rate limit per resolved client IP before serving GET health requests. Requests are rejected with the existing `429` response once the client quota is exhausted; if the limiter backend is unavailable, the endpoint reports a degraded health state instead of exposing internal limiter details.
+- Public basic health checks now use a sanitized backend status snapshot and do not call the Redis `PING` health probe. Redis probing remains available only to secret-protected detailed checks.
+- Public responses no longer expose initialization error text or memory-fallback override flags.
+- Regression coverage verifies the per-IP cap, the no-probe public path, sanitized output, and Redis status reporting without a ping. Netlify Functions verification passed: 22 test files / 190 tests; JavaScript syntax checks and `git diff --check` passed.
+
+## 2026-08-17: Restored customer-offer private schema access locally
+
+- Status: P1-3.5 fixed locally in the Desktop `main` worktree; no production migration, deployment, or commit was performed.
+- The customer-offer isolation migration now grants `USAGE ON SCHEMA private` to `authenticated`, allowing its security-invoker public wrapper to resolve the identity-bound private function.
+- Added repair migration `20260816183608_grant_customer_offer_schema_usage.sql` for environments where the isolation migration is already marked applied. It restores schema usage and the private function execute grant without exposing the schema to anonymous callers.
+- Migration-chain coverage now checks both the original grant and the repair migration.
+
+## 2026-08-17: Made Tier 4 catalogue migration replayable locally
+
+- Status: P1-3.4 fixed locally in the Desktop `main` worktree; no production migration, deployment, or commit was performed.
+- `20260809211033_activate_tier4_catalogue.sql` now creates `public.subscription_plans.is_active` with an idempotent `add column if not exists` before updating the Tier 4 row. This repairs fresh replay while remaining safe for production schemas that already have the manually-added column.
+- Migration-chain coverage now verifies both the DDL and its ordering before the `is_active` update.
+
+## 2026-08-16: Made subscription activation idempotent locally
+
+- Status: P1-3.3 fixed and verified in the Desktop `main` worktree; no production migration, deployment, or commit was performed.
+- Added migration `20260816174327_make_subscription_activation_idempotent.sql`. The activation RPC locks the profile row and skips a replay when the same subscription ID and `next_billing_date` period are already recorded, returning `already_processed: true` and preserving the current balance/usage.
+- A changed period continues through the existing atomic reset path. The row lock also serializes concurrent duplicate deliveries so only the first activation can reset credits.
+- Verification: migration-chain tests (12), Polar webhook tests (24), JavaScript/TypeScript checks, and `git diff --check` are the release gates; production was not changed.
+
+## 2026-08-16: Fixed forwarded-IP spoofing in rate limits and request records
+
+- Status: P1-3.2 fixed locally in the Desktop `main` worktree; no production deployment or mutation was performed.
+- `getClientIp` now uses the rightmost non-empty `X-Forwarded-For` entry, matching the edge-appended client address instead of trusting the caller-controlled leftmost value.
+- Audit-log request metadata now reuses the shared resolver, keeping forensic IP records consistent with rate-limit keys. `track-event` already uses the shared resolver.
+- Regression coverage now asserts rightmost forwarded-IP selection, including whitespace/empty entries. Focused and full Netlify Functions tests, JavaScript syntax checks, and `git diff --check` are the verification gates.
+
+## 2026-08-16: Closed lifecycle scheduler authorization bypass locally
+
+- Status: P1-3.1 fixed and verified in the main worktree; no production deployment was performed.
+- `lifecycle-automation.js` no longer treats missing HTTP markers as proof of a trusted scheduler. Every run now requires `LIFECYCLE_AUTOMATION_SECRET`.
+- The scheduled wrapper injects the secret only into scheduler-shaped events; HTTP-shaped calls retain their original headers and are blocked unless the caller supplies the secret.
+- Added shared-handler and wrapper-level regression coverage for unauthenticated schedule-shaped requests, authenticated scheduled events, and HTTP requests that must not receive the scheduler credential.
+
+## 2026-08-16: Confirmed encryption compatibility debt and removal gate
+
+- Status: P3-4 reviewed; no CBC removal is appropriate before plugin version 2.6.0.
+- `enc2:` AES-256-GCM remains the only new storage format. The `enc:` AES-256-CBC reader is intentionally retained for older installations and upgrades successful reads in place.
+- Added regression coverage proving a valid legacy CBC record remains readable and is rewritten as authenticated `enc2:` storage.
+- Removal gate for 2.6.0: verify that all supported customer databases have migrated or have a documented recovery path, then remove the CBC decryptor and migration-on-read branch in a separate release.
+
+## 2026-08-16: Added durable recovery for bulk processing state
+
+- Status: P3-3 fixed and verified in the main worktree; no plugin publish, commit, or deployment was performed.
+- Active bulk-process state is now written to a non-autoloaded WordPress options-table record as well as the transient cache. If an external object cache evicts the transient, the next request restores the state from the database and repopulates the cache.
+- Terminal completed and cancelled jobs remove their durable state record so finished runs do not accumulate indefinitely.
+- Plugin version advanced from 1.7.21 to 1.7.22 with synchronized metadata and changelog entries.
+- Verification: WordPress security, API-key persistence, Gutenberg synchronization, and attachment-permission regressions passed; PHP 7.4 lint passed for the changed plugin files; `git diff --check` passed.
+
+## 2026-08-16: Disabled legacy credit deduction fallback locally
+
+- Status: P3-2 fixed and verified in the main worktree; no production deployment was performed.
+- `netlify-functions/utils/api-key-validator.js` no longer calls `public.use_credit`. The exported `updateUserCredits` name remains only as a compatibility shim, marked deprecated and failing closed with `requiresReservation: true`.
+- Generation continues through the reservation lifecycle: reserve before AI, finalize on success, and release on failure.
+- Verification: credit-reservation tests cover the fail-closed shim and the absence of the legacy RPC path; focused reservation/API-key checks and JavaScript syntax checks passed.
+
+## 2026-08-16: Removed obsolete bulk-processing AJAX stub locally
+
+- Status: P3-1 fixed in the main worktree; no commit, plugin publish, or deployment was performed.
+- Removed the unused `wp_ajax_alt_text_pro_bulk_process` registration and its error-only `ajax_bulk_process()` method from the plugin.
+- Confirmed the active batch processor remains registered through `alt_text_pro_bulk_start`, `alt_text_pro_bulk_status`, `alt_text_pro_bulk_process_batch`, `alt_text_pro_bulk_skip_failed_image`, and `alt_text_pro_bulk_cancel`.
+- Version: plugin metadata and synchronized frontend version advanced from 1.7.20 to 1.7.21.
+
+## 2026-08-16: Post-generation permission omissions now visible locally
+
+- Status: P2-4 implementation and verification complete in the main worktree; no plugin publish, commit, or deployment was performed.
+- Authorization preserved: post generation still processes only attachments for which the current user has `edit_post` permission.
+- Reporting fixed: rejected image IDs are now returned as `skipped_attachment_ids`, counted separately as `permission_skipped`, and included in a structured `insufficient_attachment_permissions` warning. The total now includes both processable and permission-filtered images.
+- UI fixed: the posts list warns before generation when images are excluded, and the AJAX result cannot render a permission-only outcome as a successful completion.
+- Version: plugin metadata and the synchronized frontend version advanced from 1.7.19 to 1.7.20.
+- Verification: permission-reporting, security, Gutenberg sync, and encrypted API-key PHP regressions passed; PHP lint, JavaScript syntax, and `git diff --check` passed.
+
+## 2026-08-16: Rate-limit backend health visibility hardened locally
+
+- Status: implementation and focused verification complete locally in the main worktree; no production configuration change or deployment was performed.
+- Health endpoint: `netlify-functions/health.js` now includes a `rate_limiter` check on basic, database, AI, and full responses. It actively pings Redis with a timeout, reports `redis`, `memory`, or `unavailable`, and returns degraded/503 when the required backend cannot serve requests.
+- Production policy: `RATE_LIMIT_ALLOW_MEMORY_FALLBACK=true` is now ignored in hosted/production contexts. If present there, rate-limited requests still fail closed and health reports `memory_fallback_override_forbidden` so the configuration can be removed.
+- Documentation: updated `netlify-functions/README.md` to describe the hosted fail-closed policy and public rate-limit health reporting.
+- Verification: focused rate-limiter and health tests passed (23 tests); JavaScript syntax checks and `git diff --check` passed.
+
 ## 2026-08-16: P1 billing activation atomicity and distributed rate-limit hardening release in progress
 
 - Status: released to production from Git-backed Netlify deploy `6a818ce5cf1f6c0008a4552c` at commit `aa4db95` on `main`.
 - Subscription activation fix: added migration `supabase/migrations/20260816092527_activate_subscription_atomically.sql` with service-role RPC `public.activate_subscription_profile(...)`, which locks the profile row and applies the subscription plan metadata, monthly allowance, next billing date, renewal timestamp, and reset aggregate credits in one atomic database operation.
 - Webhook change: `frontend-next/src/app/api/webhooks/polar/route.ts` now routes `subscription.active` through the new RPC instead of performing one credit update followed by a separate profile update. One-time pack fulfillment still uses the existing idempotent credit-pack RPC.
-- Rate-limit hardening: `netlify-functions/utils/rate-limiter.js` now allows in-memory fallback only for local/dev contexts or an explicit `RATE_LIMIT_ALLOW_MEMORY_FALLBACK=true` override. Netlify/production contexts fail closed with a temporary `503` response if Upstash is missing or Redis initialization/request handling fails. `netlify-functions/utils/cors.js` now renders that backend-unavailable state as `503 Rate limiter unavailable` instead of a misleading `429`.
+- Rate-limit hardening: `netlify-functions/utils/rate-limiter.js` allows in-memory fallback only for local/dev contexts or an explicit `RATE_LIMIT_ALLOW_MEMORY_FALLBACK=true` override in non-hosted contexts. Netlify/production contexts fail closed with a temporary `503` response if Upstash is missing or Redis initialization/request handling fails. `netlify-functions/utils/cors.js` now renders that backend-unavailable state as `503 Rate limiter unavailable` instead of a misleading `429`.
 - Caller alignment: `admin-marketing-funnel.js`, `admin-lifecycle-status.js`, `admin-lifecycle-test-send.js`, and `track-event.js` now use the shared rate-limit response helper so unavailable distributed enforcement returns the same fail-closed `503` shape everywhere.
 - Regression coverage: `frontend-next/src/app/api/webhooks/polar/route.test.ts` now asserts `subscription.active` calls the atomic activation RPC; `supabase/migrations/migration-chain.test.js` now expects the atomic activation migration as the latest migration and verifies the RPC's lock/update/grant shape; `netlify-functions/utils/rate-limiter.test.js` now covers production fail-closed behavior for both missing Upstash configuration and Redis initialization failure; `netlify-functions/utils/cors.test.js` now covers the `503` response path.
 - Verification: `node --test supabase/migrations/migration-chain.test.js` passed (11 tests); `frontend-next/src/app/api/webhooks/polar/route.test.ts` passed (24 tests) from the `frontend-next` project root; `netlify-functions/utils/rate-limiter.test.js` passed (10 tests); `netlify-functions/utils/cors.test.js` passed (17 tests); `find netlify-functions -name '*.js' -not -path '*/node_modules/*' -print0 | xargs -0 -n 1 node --check` passed; `./frontend-next/node_modules/.bin/tsc --noEmit -p frontend-next/tsconfig.json` passed; `git diff --check` passed.

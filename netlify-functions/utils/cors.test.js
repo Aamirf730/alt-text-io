@@ -34,15 +34,22 @@ describe('CORS utilities', () => {
             expect(result).toBeNull();
         });
 
-        it('accepts the configured Netlify site and its deploy previews', () => {
+        it('accepts the configured Netlify site and explicitly listed deploy previews', () => {
+            const originalPreviewOrigins = process.env.ALLOWED_PREVIEW_ORIGINS;
+            process.env.ALLOWED_PREVIEW_ORIGINS = 'https://deploy-preview-42--alt-text-ai.netlify.app';
+
             expect(getValidatedOrigin({ origin: 'https://alt-text-ai.netlify.app' }))
                 .toBe('https://alt-text-ai.netlify.app');
             expect(getValidatedOrigin({ origin: 'https://deploy-preview-42--alt-text-ai.netlify.app' }))
                 .toBe('https://deploy-preview-42--alt-text-ai.netlify.app');
+
+            if (originalPreviewOrigins === undefined) delete process.env.ALLOWED_PREVIEW_ORIGINS;
+            else process.env.ALLOWED_PREVIEW_ORIGINS = originalPreviewOrigins;
         });
 
-        it('rejects Netlify hostnames that merely contain the configured site name', () => {
+        it('rejects unlisted Netlify hostnames even when they contain the configured site name', () => {
             expect(getValidatedOrigin({ origin: 'https://evil-alt-text-ai.netlify.app' })).toBeNull();
+            expect(getValidatedOrigin({ origin: 'https://evil--alt-text-ai.netlify.app' })).toBeNull();
             expect(getValidatedOrigin({ origin: 'https://alt-text-ai.attacker.netlify.app' })).toBeNull();
         });
     });
@@ -83,9 +90,14 @@ describe('CORS utilities', () => {
     });
 
     describe('getClientIp', () => {
-        it('extracts IP from x-forwarded-for', () => {
+        it('uses the rightmost address from x-forwarded-for', () => {
             const event = { headers: { 'x-forwarded-for': '1.2.3.4, 5.6.7.8' } };
-            expect(getClientIp(event)).toBe('1.2.3.4');
+            expect(getClientIp(event)).toBe('5.6.7.8');
+        });
+
+        it('ignores empty forwarded entries when selecting the rightmost address', () => {
+            const event = { headers: { 'x-forwarded-for': '1.2.3.4, , 5.6.7.8 ' } };
+            expect(getClientIp(event)).toBe('5.6.7.8');
         });
 
         it('falls back to client-ip header', () => {

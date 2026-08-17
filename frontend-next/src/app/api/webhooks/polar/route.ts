@@ -2,7 +2,11 @@ import { Webhooks } from "@polar-sh/nextjs";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { createHash } from "node:crypto";
 import { extractPolarBillingSnapshot } from "@/lib/polar-billing";
-import { isPolarSubscriptionProduct, resolvePolarPlanId } from "@/lib/polar-plan-mapping";
+import {
+    isPolarSubscriptionProduct,
+    resolvePolarBillingCycle,
+    resolvePolarPlanId,
+} from "@/lib/polar-plan-mapping";
 import { safeServerError } from "@/lib/safe-server-log";
 
 // Lazy initialization for Supabase client
@@ -268,6 +272,22 @@ function getProviderObjectId(payload: any): string {
         .digest("hex");
 }
 
+function normalizeProviderId(value: unknown): string | null {
+    if (typeof value !== "string" && typeof value !== "number") return null;
+    const normalized = String(value).trim();
+    return normalized && normalized.length <= 200 ? normalized : null;
+}
+
+function getOrderIdFromOrder(order: any): string | null {
+    return normalizeProviderId(order?.id || order?.orderId || order?.order_id);
+}
+
+function getOrderIdFromRefund(refund: any): string | null {
+    // A refund's `id` identifies the refund, not the order. Never use it as a
+    // payment key when Polar omits the order relationship.
+    return normalizeProviderId(refund?.orderId || refund?.order_id);
+}
+
 async function recordPaymentReconciliation({
     eventName,
     payload,
@@ -358,6 +378,22 @@ async function findOrQueueBillingProfile({
     return null;
 }
 
+async function queueMissingOrderIdReconciliation(
+    eventName: string,
+    payload: any,
+): Promise<void> {
+    await recordPaymentReconciliation({
+        eventName,
+        payload,
+        reason: "missing_order_id",
+        userId: getProviderUserId(payload),
+        customerEmail: payload?.customer?.email,
+        customerId: payload?.customerId || payload?.customer?.id,
+        subscriptionId: payload?.subscriptionId,
+        paymentId: null,
+    });
+}
+
 function matchesSubscription(profile: BillingProfile, subscriptionId?: string | null): boolean {
     return !subscriptionId || !profile.subscription_id || profile.subscription_id === subscriptionId;
 }
@@ -438,7 +474,13 @@ async function processRefund(
 ): Promise<void> {
     logWebhookReceived(webhookName, refund);
 
-    const paymentId = `polar_ord_${refund.orderId}`;
+    const orderId = getOrderIdFromRefund(refund);
+    if (!orderId) {
+        await queueMissingOrderIdReconciliation(eventName, refund);
+        return;
+    }
+
+    const paymentId = `polar_ord_${orderId}`;
     const profile = await findOrQueueBillingProfile({
         eventName,
         payload: refund,
@@ -481,7 +523,8 @@ async function processRefund(
 // Helper to get credits from product name or metadata
 function getCreditsForProduct(
     productName: string,
-    metadata?: Record<string, string | number | boolean | null | undefined>
+    metadata?: Record<string, string | number | boolean | null | undefined>,
+    productId?: string | null,
 ): number {
     // First check metadata for explicit credits
     if (metadata?.credits) {
@@ -490,49 +533,16 @@ function getCreditsForProduct(
         return Number.isFinite(asNum) ? asNum : 0;
     }
 
-    // Try to match by product name pattern
-    const normalizedName = productName.toLowerCase().replace(/\s+/g, "_");
+    // Resolve the product through the explicit Polar ID/metadata/name mapping.
+    // This keeps "Small Credit Pack" on the 500-credit path instead of letting
+    // a broad substring match classify it as the 1,200-credit pack.
+    const resolvedPlanId = resolvePolarPlanId(productName, metadata, productId);
+    if (resolvedPlanId === "small_pack") return CREDITS_MAP.small_pack;
+    if (resolvedPlanId === "credit_pack") return CREDITS_MAP.credit_pack;
 
-    for (const [key, credits] of Object.entries(CREDITS_MAP)) {
-        if (normalizedName.includes(key)) {
-            return credits;
-        }
-    }
-
-    // Fallback based on common naming patterns
-    // Current naming: Agency must be checked before Pro because the product
-    // brand itself contains the word "Pro".
-    if (normalizedName.includes("agency")) {
-        return normalizedName.includes("annual") ? 42000 : 3500;
-    }
-    if (normalizedName.includes("lite")) {
-        return normalizedName.includes("annual") ? 1800 : 150;
-    }
-    if (normalizedName.includes("standard")) {
-        return normalizedName.includes("annual") ? 12000 : 1000;
-    }
-    if (normalizedName.includes("pro")) {
-        return normalizedName.includes("annual") ? 24000 : 2000;
-    }
-    // Legacy tierN naming
-    if (normalizedName.includes("tier1") || normalizedName.includes("tier_1")) {
-        return normalizedName.includes("annual") ? 1800 : 150;
-    }
-    if (normalizedName.includes("tier2") || normalizedName.includes("tier_2")) {
-        return normalizedName.includes("annual") ? 12000 : 1000;
-    }
-    if (normalizedName.includes("tier3") || normalizedName.includes("tier_3")) {
-        return normalizedName.includes("annual") ? 24000 : 2000;
-    }
-    if (normalizedName.includes("tier4") || normalizedName.includes("tier_4")) {
-        return normalizedName.includes("annual") ? 42000 : 3500;
-    }
-    if (normalizedName.includes("small")) {
-        return 500;
-    }
-    if (normalizedName.includes("credit") || normalizedName.includes("pack")) {
-        return 1200;
-    }
+    const billingCycle = resolvePolarBillingCycle(productName, metadata, productId);
+    const planCredits = CREDITS_MAP[`${resolvedPlanId}_${billingCycle}`];
+    if (planCredits) return planCredits;
 
     console.warn("Unknown Polar product; defaulting to 0 credits");
     return 0;
@@ -655,6 +665,57 @@ async function activateSubscriptionProfile({
     }
 }
 
+type SubscriptionRenewalResult = {
+    success: boolean;
+    renewed?: boolean;
+    already_processed?: boolean;
+    reason?: string;
+    error?: string;
+};
+
+async function renewSubscriptionCredits({
+    userId,
+    subscriptionId,
+    planId,
+    currentPeriodStart,
+    polarProductId,
+    billingCycle,
+    monthlyCreditAllowance,
+    nextBillingDate,
+}: {
+    userId: string;
+    subscriptionId: string;
+    planId: string;
+    currentPeriodStart: string | null;
+    polarProductId: string | null;
+    billingCycle: "monthly" | "annual";
+    monthlyCreditAllowance: number;
+    nextBillingDate: string | null;
+}): Promise<SubscriptionRenewalResult> {
+    const { data, error } = await getSupabase().rpc("renew_subscription_credits", {
+        p_user_id: userId,
+        p_subscription_id: subscriptionId,
+        p_subscription_plan: planId,
+        p_current_period_start: currentPeriodStart,
+        p_polar_product_id: polarProductId,
+        p_billing_cycle: billingCycle,
+        p_monthly_credit_allowance: monthlyCreditAllowance,
+        p_next_billing_date: nextBillingDate,
+    });
+
+    if (error) {
+        console.error("Error renewing subscription credits:", safeServerError(error));
+        throw error;
+    }
+
+    const result = data as SubscriptionRenewalResult | null;
+    if (!result?.success) {
+        throw new Error(result?.error || "Subscription renewal failed");
+    }
+
+    return result;
+}
+
 const polarWebhookHandlers = {
 
     // Handle successful order payment and subscription revenue bookkeeping.
@@ -674,10 +735,16 @@ const polarWebhookHandlers = {
                 ...(order.metadata || {}),
             } as Record<string, string | number | boolean>;
 
-            const isSubscription = isPolarSubscriptionProduct(productName, mergedMetadata);
             const billingSnapshot = extractPolarBillingSnapshot(order);
+            const productId = billingSnapshot.productId || normalizeProviderId(order.product?.id);
+            const isSubscription = isPolarSubscriptionProduct(productName, mergedMetadata, productId);
             const subscriptionId = order.subscriptionId || (order as { subscription_id?: string | null }).subscription_id || null;
-            const paymentId = `polar_ord_${order.id}`;
+            const orderId = getOrderIdFromOrder(order);
+            if (!orderId) {
+                await queueMissingOrderIdReconciliation("order.paid", order);
+                return;
+            }
+            const paymentId = `polar_ord_${orderId}`;
             const profile = await findOrQueueBillingProfile({
                 eventName: "order.paid",
                 payload: order,
@@ -698,7 +765,7 @@ const polarWebhookHandlers = {
 
             const paymentAmount = billingSnapshot.paymentAmount;
             const currency = billingSnapshot.currency;
-            const planId = resolvePolarPlanId(productName, mergedMetadata);
+            const planId = resolvePolarPlanId(productName, mergedMetadata, productId);
             const payment = {
                 user_id: userId,
                 payment_id: paymentId,
@@ -724,7 +791,7 @@ const polarWebhookHandlers = {
                 plan_id: planId,
                 amount: paymentAmount,
                 currency,
-                order_id: order.id,
+                order_id: orderId,
                 discount_id: billingSnapshot.discountId,
                 discount_code: billingSnapshot.discountCode,
                 discount_name: billingSnapshot.discountName,
@@ -754,14 +821,24 @@ const polarWebhookHandlers = {
                 // insert but before fulfillment.
                 await recordPayment(payment);
 
-                const credits = getCreditsForProduct(productName, mergedMetadata);
+                const credits = getCreditsForProduct(productName, mergedMetadata, productId);
 
-                if (credits > 0) {
-                    await updateUserCredits(userId, credits, false, paymentId);
-                    console.log("One-time credit purchase fulfilled");
-                } else {
-                    console.warn("No credits found for Polar product");
+                if (credits <= 0) {
+                    await recordPaymentReconciliation({
+                        eventName: "order.paid",
+                        payload: order,
+                        reason: "unknown_one_time_product",
+                        userId,
+                        customerEmail: resolvedEmail,
+                        customerId: order.customer?.id,
+                        subscriptionId,
+                        paymentId,
+                    });
+                    return;
                 }
+
+                await updateUserCredits(userId, credits, false, paymentId);
+                console.log("One-time credit purchase fulfilled");
 
                 await recordMarketingEvent(
                     "purchase_completed",
@@ -774,13 +851,10 @@ const polarWebhookHandlers = {
 
             // Save customer ID if available
             if (order.customer?.id) {
-                await getSupabase()
-                    .from("profiles")
-                    .update({
-                        polar_customer_id: order.customer.id,
-                        updated_at: new Date().toISOString()
-                    })
-                    .eq("id", userId);
+                await updateProfile(userId, {
+                    polar_customer_id: order.customer.id,
+                    updated_at: new Date().toISOString(),
+                });
             }
 
             // Check if this is a subscription purchase
@@ -825,18 +899,17 @@ const polarWebhookHandlers = {
                 return;
             }
 
-            // Determine planId
-            const isAnnual = productName.toLowerCase().includes("annual");
             const mergedMetadata = {
                 ...(subscription.product?.metadata || {}),
                 ...(subscription.metadata || {}),
             } as Record<string, string | number | boolean>;
-            const planId = resolvePolarPlanId(productName, mergedMetadata);
+            const productId = getPolarProductId(subscription);
+            const isAnnual = resolvePolarBillingCycle(productName, mergedMetadata, productId) === "annual";
+            const planId = resolvePolarPlanId(productName, mergedMetadata, productId);
 
-            const rawCredits = getCreditsForProduct(productName, mergedMetadata);
+            const rawCredits = getCreditsForProduct(productName, mergedMetadata, productId);
 
             const billingCycle = isAnnual ? "annual" : "monthly";
-            const productId = getPolarProductId(subscription);
             const monthlyAllowance = resolveMonthlyAllowance({
                 profile: profile!,
                 planId,
@@ -999,15 +1072,15 @@ const polarWebhookHandlers = {
                 ...(subscription.product?.metadata || {}),
                 ...(subscription.metadata || {}),
             } as Record<string, string | number | boolean>;
-            const planId = resolvePolarPlanId(productName, mergedMetadata);
-            const isAnnual = productName.toLowerCase().includes("annual");
             const productId = getPolarProductId(subscription);
+            const planId = resolvePolarPlanId(productName, mergedMetadata, productId);
+            const isAnnual = resolvePolarBillingCycle(productName, mergedMetadata, productId) === "annual";
             const monthlyAllowance = resolveMonthlyAllowance({
                 profile,
                 planId,
                 productId,
                 subscriptionId: subscription.id,
-                productCredits: getCreditsForProduct(productName, mergedMetadata),
+                productCredits: getCreditsForProduct(productName, mergedMetadata, productId),
                 isAnnual,
             });
 
@@ -1043,7 +1116,13 @@ const polarWebhookHandlers = {
             const order = payload.data;
             logWebhookReceived("Order refunded", order);
 
-            const paymentId = `polar_ord_${order.id}`;
+            const orderId = getOrderIdFromOrder(order);
+            if (!orderId) {
+                await queueMissingOrderIdReconciliation("order.refunded", order);
+                return;
+            }
+
+            const paymentId = `polar_ord_${orderId}`;
             const refundedAmount = Number(order.refundedAmount || 0);
             const totalAmount = Number(order.totalAmount || 0);
             const isFullRefund = order.status === "refunded"
@@ -1053,8 +1132,9 @@ const polarWebhookHandlers = {
                 ...(order.product?.metadata || {}),
                 ...(order.metadata || {}),
             } as Record<string, string | number | boolean>;
+            const productId = normalizeProviderId(order.product?.id);
             const isSubscription = Boolean(order.subscriptionId)
-                || isPolarSubscriptionProduct(productName, mergedMetadata);
+                || isPolarSubscriptionProduct(productName, mergedMetadata, productId);
 
             await markPaymentStatus(
                 paymentId,
@@ -1083,7 +1163,7 @@ const polarWebhookHandlers = {
             if (profile) {
                 await recordMarketingEvent("order_refunded", profile.id, profile.email, {
                     provider: "polar",
-                    order_id: order.id,
+                    order_id: orderId,
                     subscription_id: order.subscriptionId,
                     product_name: productName,
                     refunded_amount: refundedAmount,
@@ -1146,75 +1226,51 @@ const polarWebhookHandlers = {
                 const userId = user.id;
                 const productName = subscription.product?.name || "";
 
-                    const isAnnual = productName.toLowerCase().includes("annual");
-                    const mergedMetadata = {
-                        ...(subscription.product?.metadata || {}),
-                        ...(subscription.metadata || {}),
-                    } as Record<string, string | number | boolean>;
+                const mergedMetadata = {
+                    ...(subscription.product?.metadata || {}),
+                    ...(subscription.metadata || {}),
+                } as Record<string, string | number | boolean>;
 
-                    const rawCredits = getCreditsForProduct(productName, mergedMetadata);
+                const productId = getPolarProductId(subscription);
+                const rawCredits = getCreditsForProduct(productName, mergedMetadata, productId);
+                const planId = resolvePolarPlanId(productName, mergedMetadata, productId);
+                const isAnnual = resolvePolarBillingCycle(productName, mergedMetadata, productId) === "annual";
+                const billingCycle = isAnnual ? "annual" : "monthly";
+                const monthlyAllowance = resolveMonthlyAllowance({
+                    profile: user,
+                    planId,
+                    productId,
+                    subscriptionId: subscription.id,
+                    productCredits: rawCredits,
+                    isAnnual,
+                });
 
-                    // Determine planId
-                    const planId = resolvePolarPlanId(productName, mergedMetadata);
-
-                    const billingCycle = isAnnual ? "annual" : "monthly";
-                    const productId = getPolarProductId(subscription);
-                    const monthlyAllowance = resolveMonthlyAllowance({
-                        profile: user,
-                        planId,
-                        productId,
+                if (monthlyAllowance > 0) {
+                    const renewalResult = await renewSubscriptionCredits({
+                        userId,
                         subscriptionId: subscription.id,
-                        productCredits: rawCredits,
-                        isAnnual,
+                        planId,
+                        currentPeriodStart: toIsoDate(subscription.currentPeriodStart),
+                        polarProductId: productId,
+                        billingCycle,
+                        monthlyCreditAllowance: monthlyAllowance,
+                        nextBillingDate: getSubscriptionEnd(subscription),
                     });
-                    const creditsToGrant = monthlyAllowance;
 
-                    // Check if this is a renewal by comparing subscription_id OR if subscription_id is null (legacy)
-                    const isMatchingSubscription = user.subscription_id === subscription.id || user.subscription_id === null;
-
-                    // Detect renewal: check if current_period_start is after the last renewal
-                    const currentPeriodStart = new Date(subscription.currentPeriodStart);
-                    const lastRenewed = user.credits_last_renewed_at ? new Date(user.credits_last_renewed_at) : null;
-                    const isRenewal = !lastRenewed || currentPeriodStart > lastRenewed;
-
-                    if (creditsToGrant > 0 && isMatchingSubscription && isRenewal) {
-                        // Subscription credits are a per-cycle allowance, not a
-                        // rollover balance. Preserve only the ledgers that are
-                        // explicitly persistent across cycles.
-                        const persistentCredits =
-                            (user.bonus_credits_remaining || 0)
-                            + (user.purchased_credits_remaining || 0);
-                        const newCredits = creditsToGrant + persistentCredits;
-
-                        const { error: updateError } = await getSupabase()
-                            .from("profiles")
-                            .update({
-                                credits_remaining: newCredits,
-                                total_processed: 0,
-                                subscription_status: "active",
-                                subscription_id: subscription.id,
-                                subscription_plan: planId,
-                                polar_product_id: productId,
-                                next_billing_date: subscription.currentPeriodEnd,
-                                billing_cycle: billingCycle,
-                                monthly_credit_allowance: monthlyAllowance,
-                                credits_last_renewed_at: new Date().toISOString(),
-                                updated_at: new Date().toISOString(),
-                            })
-                            .eq("id", userId);
-
-                        if (updateError) {
-                            throw updateError;
-                        }
-
+                    if (renewalResult.renewed) {
                         console.log("Subscription allowance renewed");
+                    } else {
+                        console.log(
+                            `Skipping credit update: reason=${renewalResult.reason || "already_processed"}`
+                        );
+                    }
 
-                        // Revenue is recorded by onOrderPaid from Polar's
-                        // canonical order ID. This lifecycle event only
-                        // updates access and credits; inserting a timestamped
-                        // payment ID here would double-count renewals.
+                    // Revenue is recorded by onOrderPaid from Polar's
+                    // canonical order ID. This lifecycle event only updates
+                    // access and credits; inserting a payment row here would
+                    // double-count renewals.
                 } else {
-                    console.log(`Skipping credit update: isMatchingSubscription=${isMatchingSubscription}, isRenewal=${isRenewal}, credits=${creditsToGrant}`);
+                    console.log("Skipping credit update: no monthly allowance resolved");
                 }
             }
         } catch (error) {
@@ -1224,7 +1280,21 @@ const polarWebhookHandlers = {
     },
 } satisfies Omit<Parameters<typeof Webhooks>[0], "webhookSecret">;
 
-export const POST = Webhooks({
-    webhookSecret: process.env.POLAR_WEBHOOK_SECRET!,
-    ...polarWebhookHandlers,
-});
+const polarWebhookSecret = process.env.POLAR_WEBHOOK_SECRET;
+
+if (!polarWebhookSecret) {
+    console.error("POLAR_WEBHOOK_SECRET is not configured; Polar webhooks are disabled");
+}
+
+export const POST = polarWebhookSecret
+    ? Webhooks({
+        webhookSecret: polarWebhookSecret,
+        ...polarWebhookHandlers,
+    })
+    : async () => new Response(
+        JSON.stringify({ success: false, error: "Webhook service unavailable" }),
+        {
+            status: 503,
+            headers: { "content-type": "application/json" },
+        },
+    );

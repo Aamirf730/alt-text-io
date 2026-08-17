@@ -4,7 +4,7 @@ Tags: alt text, accessibility, image seo, ai, media library
 Requires at least: 5.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.7.19
+Stable tag: 1.7.24
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -158,6 +158,24 @@ Yes, you can cancel your subscription at any time from your Alt Text Pro dashboa
 6. Responsive admin interface for managing alt text from different screen sizes.
 
 == Changelog ==
+= 1.7.24 =
+* Fix: honor the context-enabled setting during post-level generation and restore the authenticated context-suggestions request.
+* Fix: sanitize generated alt text, align dashboard statistics with the WordPress site timezone, and safely handle missing attachment paths.
+* Maintenance: remove dead admin bindings, load the translation file, and remove durable bulk/API-key state during uninstall.
+
+= 1.7.23 =
+* Security: remove the duplicate settings-page connection handler so one click sends one validation request.
+* Security: render bulk activity filenames and errors as text instead of interpolating them into HTML.
+
+= 1.7.22 =
+* Reliability: persist active bulk-process state in the options table so transient eviction can recover a running job.
+
+= 1.7.21 =
+* Maintenance: remove the obsolete bulk-processing AJAX stub and hook; the batch processor remains active through its current actions.
+
+= 1.7.20 =
+* Fix: report image attachments excluded by per-media permissions with skipped IDs and a visible warning instead of presenting incomplete post generation as success.
+
 = 1.7.19 =
 * Fix: Post-level alt-text regeneration now updates both Gutenberg block attributes and rendered image markup, preventing block validation errors and editor reverts.
 

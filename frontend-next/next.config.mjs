@@ -3,36 +3,10 @@
 import { fileURLToPath } from 'node:url';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Content Security Policy
-// ─────────────────────────────────────────────────────────────────────────────
-// Allows only trusted domains. Update when adding new third-party services.
-
-const isDev = process.env.NODE_ENV === 'development';
-
-const ContentSecurityPolicy = `
-  default-src 'self';
-  script-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/client ${isDev ? "'unsafe-eval' http://localhost:*" : ''};
-  style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style ${isDev ? 'http://localhost:*' : ''};
-  font-src 'self' data: ${isDev ? 'http://localhost:*' : ''};
-  img-src 'self' https://www.alt-text.pro https://alt-text.pro https://*.supabase.co data: blob: ${isDev ? 'http://localhost:*' : ''};
-  connect-src 'self' https://*.supabase.co wss://*.supabase.co https://accounts.google.com/gsi/ https://api.polar.sh https://*.netlify.app https://www.alt-text.pro ${isDev ? 'http://localhost:* ws://localhost:*' : ''};
-  frame-src https://accounts.google.com/gsi/;
-  object-src 'none';
-  base-uri 'self';
-  form-action 'self';
-  frame-ancestors 'none';
-  ${isDev ? '' : 'upgrade-insecure-requests;'}
-`;
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Security Headers
 // ─────────────────────────────────────────────────────────────────────────────
 
 const securityHeaders = [
-  {
-    key: 'Content-Security-Policy',
-    value: ContentSecurityPolicy.replace(/\s{2,}/g, ' ').trim(),
-  },
   {
     key: 'X-Frame-Options',
     value: 'DENY',

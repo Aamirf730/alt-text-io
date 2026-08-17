@@ -10,6 +10,10 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key';
 const fetchMock = vi.hoisted(() => vi.fn());
 vi.stubGlobal('fetch', fetchMock);
 
+if (typeof globalThis.WebSocket === 'undefined') {
+  vi.stubGlobal('WebSocket', class WebSocket {});
+}
+
 const {
   reserveUserCredit,
   finalizeUserCreditReservation,
@@ -77,12 +81,17 @@ describe('credit reservation RPC adapters', () => {
       requiresDatabaseFix: true,
     });
   });
+
 });
 
 describe('M3 reservation migration and generation order', () => {
   const migration = fs.readFileSync(migrationPath, 'utf8');
   const generationSource = fs.readFileSync(
     path.join(repoRoot, 'netlify-functions/generate-alt-text.js'),
+    'utf8'
+  );
+  const validatorSource = fs.readFileSync(
+    path.join(repoRoot, 'netlify-functions/utils/api-key-validator.js'),
     'utf8'
   );
 
@@ -103,7 +112,7 @@ describe('M3 reservation migration and generation order', () => {
 
   it('reserves before Gemini and no longer uses the post-generation deduction path', () => {
     const reserveIndex = generationSource.indexOf('reserveUserCredit(user.id, 1)');
-    const generateIndex = generationSource.indexOf('generateAltTextWithGemini(image_base64, context)');
+    const generateIndex = generationSource.indexOf('generateAltTextWithGemini(image_base64, context,');
     const finalizeIndex = generationSource.indexOf('finalizeUserCreditReservation(');
 
     expect(reserveIndex).toBeGreaterThan(-1);
@@ -111,5 +120,12 @@ describe('M3 reservation migration and generation order', () => {
     expect(finalizeIndex).toBeGreaterThan(generateIndex);
     expect(generationSource).not.toContain('updateUserCredits(user.id, 1, altText');
     expect(generationSource).toContain('releaseReservedCredit');
+  });
+
+  it('does not retain the unsafe use_credit fallback in the API-key utility', () => {
+    expect(validatorSource).not.toContain('function updateUserCredits');
+    expect(validatorSource).not.toContain('function hasSufficientCredits');
+    expect(validatorSource).not.toContain('function deductCredits');
+    expect(validatorSource).not.toContain(".rpc('use_credit'");
   });
 });

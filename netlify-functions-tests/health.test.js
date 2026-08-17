@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 describe('health check endpoint', () => {
     let handler;
+    let privateApi;
 
     beforeEach(async () => {
         vi.resetModules();
@@ -12,6 +13,12 @@ describe('health check endpoint', () => {
         process.env.HEALTH_CHECK_SECRET = 'test-health-secret';
         delete process.env.AI_API_KEY;
         delete process.env.GEMINI_API_KEY;
+        delete process.env.UPSTASH_REDIS_REST_URL;
+        delete process.env.UPSTASH_REDIS_REST_TOKEN;
+        delete process.env.RATE_LIMIT_ALLOW_MEMORY_FALLBACK;
+        delete process.env.NETLIFY;
+        delete process.env.CONTEXT;
+        process.env.NODE_ENV = 'test';
 
         vi.doMock('../netlify-functions/utils/error-reporter', () => ({
             reportInfo: vi.fn(),
@@ -31,6 +38,7 @@ describe('health check endpoint', () => {
 
         const mod = await import('../netlify-functions/health.js');
         handler = mod.handler;
+        privateApi = mod._private;
     });
 
     it('returns 200 for basic health check with correct structure', async () => {
@@ -49,6 +57,72 @@ describe('health check endpoint', () => {
         expect(body.checks.basic.timestamp).toBeDefined();
         expect(body.checks.basic).not.toHaveProperty('node');
         expect(body.checks.basic).not.toHaveProperty('uptime');
+        expect(body.checks.rate_limiter).toMatchObject({
+            status: 'healthy',
+            backend: 'memory',
+        });
+    });
+
+    it('rate-limits public health checks per client IP', async () => {
+        const event = {
+            httpMethod: 'GET',
+            headers: { 'x-forwarded-for': '198.51.100.24' },
+            queryStringParameters: {},
+        };
+
+        for (let request = 0; request < privateApi.HEALTH_RATE_LIMIT; request += 1) {
+            const result = await handler(event);
+            expect(result.statusCode).toBe(200);
+        }
+
+        const blocked = await handler(event);
+        expect(blocked.statusCode).toBe(429);
+        expect(JSON.parse(blocked.body).error).toBe('Too many requests');
+    });
+
+    it('does not probe the rate-limit backend for public basic checks', async () => {
+        const checkRateLimitFn = vi.fn(async () => ({
+            allowed: true,
+            backend: 'memory',
+        }));
+        const checkRateLimiterFn = vi.fn(async () => {
+            throw new Error('public basic checks must not probe Redis');
+        });
+        const checkRateLimiterStatusFn = vi.fn(() => ({
+            status: 'healthy',
+            backend: 'redis',
+            probe: 'skipped',
+        }));
+        const localHandler = privateApi.createHandler({
+            checkRateLimitFn,
+            checkRateLimiterFn,
+            checkRateLimiterStatusFn,
+        });
+
+        const result = await localHandler({
+            httpMethod: 'GET',
+            headers: {},
+            queryStringParameters: {},
+        });
+
+        expect(result.statusCode).toBe(200);
+        expect(checkRateLimitFn).toHaveBeenCalledWith(
+            'health:unknown',
+            privateApi.HEALTH_RATE_LIMIT,
+            privateApi.HEALTH_RATE_WINDOW_MS,
+        );
+        expect(checkRateLimiterFn).not.toHaveBeenCalled();
+        expect(checkRateLimiterStatusFn).toHaveBeenCalledOnce();
+
+        const body = JSON.parse(result.body);
+        expect(body.checks.rate_limiter).toEqual({
+            status: 'healthy',
+            backend: 'redis',
+            probe: 'skipped',
+        });
+        expect(body.checks.rate_limiter).not.toHaveProperty('initError');
+        expect(body.checks.rate_limiter).not.toHaveProperty('fallbackOverrideRequested');
+        expect(body.checks.rate_limiter).not.toHaveProperty('fallbackOverrideIgnored');
     });
 
     it('rejects non-GET methods with 405', async () => {
@@ -68,6 +142,7 @@ describe('health check endpoint', () => {
 
         const body = JSON.parse(result.body);
         expect(body.checks.basic).toBeDefined();
+        expect(body.checks.rate_limiter).toBeDefined();
         expect(body.checks.database).toBeDefined();
         // DB check will either be healthy (mock works) or unhealthy (mock doesn't intercept)
         // Either way, it should have a valid structure
@@ -89,6 +164,29 @@ describe('health check endpoint', () => {
         expect(result.statusCode).toBe(503);
     });
 
+    it('reports an unavailable rate-limit backend in hosted environments', async () => {
+        process.env.NODE_ENV = 'production';
+        process.env.NETLIFY = 'true';
+        process.env.CONTEXT = 'production';
+        process.env.RATE_LIMIT_ALLOW_MEMORY_FALLBACK = 'true';
+
+        const result = await handler({
+            httpMethod: 'GET',
+            queryStringParameters: {},
+        });
+
+        const body = JSON.parse(result.body);
+        expect(result.statusCode).toBe(503);
+        expect(body.status).toBe('degraded');
+        expect(body.checks.rate_limiter).toMatchObject({
+            status: 'unhealthy',
+            backend: 'unavailable',
+        });
+        expect(body.checks.rate_limiter).not.toHaveProperty('error');
+        expect(body.checks.rate_limiter).not.toHaveProperty('fallbackOverrideRequested');
+        expect(body.checks.rate_limiter).not.toHaveProperty('fallbackOverrideIgnored');
+    });
+
     it('returns all checks when ?check=all', async () => {
         const result = await handler({
             httpMethod: 'GET',
@@ -102,6 +200,7 @@ describe('health check endpoint', () => {
         expect(body.checks.ai).toBeDefined();
         // All three checks should have a status field
         expect(['healthy', 'unhealthy']).toContain(body.checks.basic.status);
+        expect(['redis', 'memory', 'unavailable']).toContain(body.checks.rate_limiter.backend);
         expect(['healthy', 'unhealthy']).toContain(body.checks.database.status);
         expect(['healthy', 'unhealthy']).toContain(body.checks.ai.status);
     });

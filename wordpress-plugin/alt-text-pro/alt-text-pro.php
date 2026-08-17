@@ -3,7 +3,7 @@
  * Plugin Name: Alt Text Pro
  * Plugin URI: https://www.alt-text.pro
  * Description: Draft AI alt text for WordPress images, review it, and fill missing Media Library alt attributes in small batches.
- * Version:           1.7.19
+ * Version:           1.7.24
  * Author: Alt Text Pro
  * Author URI: https://www.alt-text.pro/about
  * License: GPL v2 or later
@@ -20,7 +20,12 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('ALT_TEXT_PRO_VERSION', '1.7.19');
+define('ALT_TEXT_PRO_VERSION', '1.7.24');
+// Version 1.7.24 - Maintenance: fix context generation, timezone-aware stats, safe writes, cleanup, and dead admin bindings.
+// Version 1.7.23 - Security: remove duplicate connection requests and escape dynamic bulk activity output.
+// Version 1.7.22 - Reliability: persist active bulk-process state in the options table for transient recovery.
+// Version 1.7.21 - Maintenance: remove the obsolete bulk-processing AJAX stub and hook.
+// Version 1.7.20 - Fix: report post images excluded by per-media permissions instead of presenting incomplete generation as success.
 // Version 1.7.19 - Fix: keep Gutenberg block metadata aligned with rendered image markup during post-level alt-text regeneration.
 // Version 1.7.18 - Security: enforce per-media authorization and bind bulk jobs to their owners.
 // Version 1.7.17 - Security: authenticate connect callbacks and fail closed when API-key encryption is unavailable.
@@ -111,7 +116,7 @@ class AltTextPro
     public function init()
     {
         // Load plugin text domain - handled automatically by WordPress 4.6+
-        // load_plugin_textdomain('alt-text-pro', false, dirname(ALT_TEXT_PRO_PLUGIN_BASENAME) . '/languages');
+        load_plugin_textdomain('alt-text-pro', false, dirname(ALT_TEXT_PRO_PLUGIN_BASENAME) . '/languages');
 
         // Initialize components
         $this->load_dependencies();
@@ -153,7 +158,6 @@ class AltTextPro
 
         // AJAX hooks
         add_action('wp_ajax_alt_text_pro_generate', array($this, 'ajax_generate_alt_text'));
-        add_action('wp_ajax_alt_text_pro_bulk_process', array($this, 'ajax_bulk_process'));
         add_action('wp_ajax_alt_text_pro_get_usage', array($this, 'ajax_get_usage'));
         add_action('wp_ajax_alt_text_pro_validate_key', array($this, 'ajax_validate_key'));
         add_action('wp_ajax_alt_text_pro_generate_post', array($this, 'ajax_generate_post_alt_text'));
@@ -341,6 +345,7 @@ class AltTextPro
                 'postAllDone' => __('All images already have alt-text!', 'alt-text-pro'),
                 // translators: %d: Number of images updated with generated alt text.
                 'postSuccess' => __('Done! %d image(s) updated.', 'alt-text-pro'),
+                'postPermissionWarning' => __('%d image(s) skipped because you do not have permission to edit them.', 'alt-text-pro'),
                 'postError' => __('Error generating alt-text.', 'alt-text-pro'),
                 'postAddAltText' => __('Add Alt Text', 'alt-text-pro')
             )
@@ -364,49 +369,6 @@ class AltTextPro
     private function add_settings_inline_script()
     {
         $inline_script = "jQuery(document).ready(function($) {
-            // Test API connection
-            $('#test-connection').on('click', function() {
-                var \$button = $(this);
-                var \$result = $('#connection-test-result');
-                var apiKey = $('#api_key').val();
-                
-                if (!apiKey) {
-                    \$result.html('<div class=\"notice notice-error inline\"><p>' + altTextAI.strings.invalidKey + '</p></div>');
-                    return;
-                }
-                
-                \$button.prop('disabled', true).text('Testing...');
-                \$result.html('<div class=\"notice notice-info inline\"><p>' + altTextAI.strings.generating + '</p></div>');
-                
-                $.ajax({
-                    url: altTextAI.ajaxUrl,
-                    type: 'POST',
-                    data: {
-                        action: 'alt_text_pro_test_connection',
-                        api_key: apiKey,
-                        nonce: altTextAI.nonce
-                    },
-                    success: function(response) {
-                        if (response.success) {
-                            var userInfo = response.data.user_info;
-                            var message = '<strong>' + response.data.message + '</strong>';
-                            if (userInfo) {
-                                message += ' (' + userInfo.plan + ', ' + userInfo.credits_remaining + ' credits)';
-                            }
-                            \$result.html('<div class=\"notice notice-success inline\"><p>' + message + '</p></div>');
-                        } else {
-                            \$result.html('<div class=\"notice notice-error inline\"><p>' + response.data + '</p></div>');
-                        }
-                    },
-                    error: function() {
-                        \$result.html('<div class=\"notice notice-error inline\"><p>' + altTextAI.strings.connectionTestFailed + '</p></div>');
-                    },
-                    complete: function() {
-                        \$button.prop('disabled', false).text(altTextAI.strings.test);
-                    }
-                });
-            });
-
             // Export/Import logic
             $('#export-settings').on('click', function() {
                 var settings = {
@@ -531,20 +493,6 @@ class AltTextPro
     }
 
     /**
-     * AJAX handler for bulk processing
-     */
-    public function ajax_bulk_process()
-    {
-        check_ajax_referer('alt_text_pro_nonce', 'nonce');
-
-        if (!current_user_can('upload_files')) {
-            wp_die(esc_html__('You do not have permission to perform this action.', 'alt-text-pro'));
-        }
-
-        wp_send_json_error(esc_html__('This bulk processing endpoint is no longer used. Please refresh the page and try again.', 'alt-text-pro'));
-    }
-
-    /**
      * AJAX handler for getting usage stats
      */
     public function ajax_get_usage()
@@ -661,8 +609,10 @@ class AltTextPro
             return;
         }
 
-        $attachments = $this->get_post_image_attachments($post_id);
-        $total = count($attachments);
+        $permission_skipped_ids = array();
+        $attachments = $this->get_post_image_attachments($post_id, $permission_skipped_ids);
+        $permission_warning = $this->get_attachment_permission_warning($permission_skipped_ids);
+        $total = count($attachments) + count($permission_skipped_ids);
 
         if ($total === 0) {
             echo '<span class="atp-post-status atp-no-images" style="color:#9CA3AF;font-size:12px;">— ' . esc_html__('No images', 'alt-text-pro') . '</span>';
@@ -679,7 +629,12 @@ class AltTextPro
         }
 
         if ($missing === 0) {
-            echo '<span class="atp-post-status atp-all-done" style="color:#10B981;font-size:12px;">✓ ' . esc_html__('All done', 'alt-text-pro') . '</span>';
+            if ($permission_warning) {
+                echo '<span class="atp-post-status atp-post-warning" style="color:#B45309;font-size:12px;">⚠ ' . esc_html($permission_warning['message']) . '</span>';
+            }
+            else {
+                echo '<span class="atp-post-status atp-all-done" style="color:#10B981;font-size:12px;">✓ ' . esc_html__('All done', 'alt-text-pro') . '</span>';
+            }
             return;
         }
 
@@ -698,15 +653,23 @@ class AltTextPro
             intval($missing),
             intval($total)
         );
+
+        if ($permission_warning) {
+            echo '<span class="atp-post-status atp-post-warning" style="display:block;color:#B45309;font-size:11px;margin-top:4px;">⚠ ' . esc_html($permission_warning['message']) . '</span>';
+        }
     }
 
     /**
      * Get all image attachment IDs used in a post (content images + featured image)
      */
-    private function get_post_image_attachments($post_id)
+    private function get_post_image_attachments($post_id, &$permission_skipped_ids = null)
     {
         $attachment_ids = array();
         $post = get_post($post_id);
+
+        if (is_array($permission_skipped_ids)) {
+            $permission_skipped_ids = array();
+        }
 
         if (!$post) {
             return $attachment_ids;
@@ -739,12 +702,41 @@ class AltTextPro
         $attachment_ids = array_unique($attachment_ids);
         $valid_ids = array();
         foreach ($attachment_ids as $att_id) {
-            if (wp_attachment_is_image($att_id) && current_user_can('edit_post', $att_id)) {
-                $valid_ids[] = $att_id;
+            if (!wp_attachment_is_image($att_id)) {
+                continue;
+            }
+
+            if (current_user_can('edit_post', $att_id)) {
+                $valid_ids[] = intval($att_id);
+            }
+            elseif (is_array($permission_skipped_ids)) {
+                $permission_skipped_ids[] = intval($att_id);
             }
         }
 
         return $valid_ids;
+    }
+
+    /**
+     * Build a structured warning for image attachments excluded by the
+     * per-media edit permission check.
+     */
+    private function get_attachment_permission_warning(array $attachment_ids)
+    {
+        $attachment_ids = array_values(array_unique(array_map('intval', $attachment_ids)));
+
+        if (empty($attachment_ids)) {
+            return null;
+        }
+
+        return array(
+            'code' => 'insufficient_attachment_permissions',
+            'message' => sprintf(
+                __('%d image(s) skipped because you do not have permission to edit them.', 'alt-text-pro'),
+                count($attachment_ids)
+            ),
+            'attachment_ids' => $attachment_ids,
+        );
     }
 
     /**
@@ -954,20 +946,27 @@ class AltTextPro
             wp_send_json_error(__('You do not have permission to edit this post.', 'alt-text-pro'));
         }
 
-        $attachments = $this->get_post_image_attachments($post_id);
+        $permission_skipped_ids = array();
+        $attachments = $this->get_post_image_attachments($post_id, $permission_skipped_ids);
+        $permission_warning = $this->get_attachment_permission_warning($permission_skipped_ids);
+        $total_attachments = count($attachments) + count($permission_skipped_ids);
 
-        if (empty($attachments)) {
+        if ($total_attachments === 0) {
             wp_send_json_error(__('No images found in this post.', 'alt-text-pro'));
         }
 
         $api_client = new AltTextPro_API_Client();
         $settings = get_option('alt_text_pro_settings', array());
         $results = array(
-            'total' => count($attachments),
+            'total' => $total_attachments,
+            'processable' => count($attachments),
             'processed' => 0,
             'skipped' => 0,
+            'permission_skipped' => count($permission_skipped_ids),
+            'skipped_attachment_ids' => $permission_skipped_ids,
             'errors' => 0,
-            'details' => array()
+            'details' => array(),
+            'warnings' => $permission_warning ? array($permission_warning) : array(),
         );
 
         foreach ($attachments as $attachment_id) {
@@ -998,7 +997,7 @@ class AltTextPro
 
             // Generate alt-text via API
             $context = '';
-            if (!empty($settings['use_context'])) {
+            if (!empty($settings['context_enabled'])) {
                 $post = get_post($post_id);
                 if ($post) {
                     $context = $post->post_title;
@@ -1096,6 +1095,30 @@ class AltTextPro
                     $btn.find(".atp-btn-text").text(altTextAI.strings.postGenerating);
                     $btn.find(".dashicons").removeClass("dashicons-images-alt2").addClass("dashicons-update atp-spin");
 
+                    function appendPostWarnings($container, data) {
+                        var warnings = Array.isArray(data.warnings) ? data.warnings : [];
+
+                        if (!warnings.length && data.permission_skipped > 0 && altTextAI.strings.postPermissionWarning) {
+                            warnings = [{
+                                "message": altTextAI.strings.postPermissionWarning.replace("%d", data.permission_skipped)
+                            }];
+                        }
+
+                        $.each(warnings, function(index, warning) {
+                            if (!warning || !warning.message) return;
+
+                            $("<div>", {
+                                "class": "atp-post-status atp-post-warning",
+                                "css": {
+                                    "color": "#B45309",
+                                    "font-size": "11px",
+                                    "margin-top": "6px"
+                                },
+                                "text": "⚠ " + warning.message
+                            }).appendTo($container);
+                        });
+                    }
+
                     $.ajax({
                         url: altTextAI.ajaxUrl,
                         type: "POST",
@@ -1108,11 +1131,16 @@ class AltTextPro
                             if (response.success) {
                                 var data = response.data;
                                 var processed = data.processed || 0;
+                                var permissionSkipped = data.permission_skipped || 0;
 
                                 if (processed > 0) {
                                     // Show success
                                     var msg = altTextAI.strings.postSuccess.replace("%d", processed);
                                     $cell.html("<span class=\"atp-post-status atp-all-done\" style=\"color:#10B981;font-size:12px;\">✓ " + msg + "</span>");
+                                } else if (permissionSkipped > 0 && (data.errors || 0) === 0) {
+                                    // Do not present a permission-only result as a successful completion.
+                                    $cell.empty();
+                                    appendPostWarnings($cell, data);
                                 } else if (data.skipped === data.total) {
                                     $cell.html("<span class=\"atp-post-status atp-all-done\" style=\"color:#10B981;font-size:12px;\">✓ " + altTextAI.strings.postAllDone + "</span>");
                                 } else {
@@ -1130,6 +1158,10 @@ class AltTextPro
                                             "css": { "color": "#B45309", "font-size": "12px", "margin-top": "6px" }
                                         }).text(data.content_update_error)
                                     );
+                                }
+
+                                if (processed > 0 || (data.errors || 0) > 0) {
+                                    appendPostWarnings($cell, data);
                                 }
                             } else {
                                 // Error

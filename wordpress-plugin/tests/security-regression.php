@@ -37,7 +37,7 @@ function wp_generate_password($length)
     return substr($value, 0, $length);
 }
 
-function set_transient($key, $value)
+function set_transient($key, $value, $expiration = 0)
 {
     global $alt_text_pro_test_transients;
     $alt_text_pro_test_transients[$key] = $value;
@@ -92,6 +92,15 @@ function get_option($name, $default = false)
 {
     global $alt_text_pro_test_options;
     return $alt_text_pro_test_options[$name] ?? $default;
+}
+
+function update_option($name, $value, $autoload = null)
+{
+    global $alt_text_pro_test_options;
+    $changed = !array_key_exists($name, $alt_text_pro_test_options)
+        || $alt_text_pro_test_options[$name] !== $value;
+    $alt_text_pro_test_options[$name] = $value;
+    return $changed;
 }
 
 function delete_option($name)
@@ -197,6 +206,21 @@ alt_text_pro_security_assert(
     'The creating user must be able to read their bulk job.'
 );
 
+$durable_state_option = alt_text_pro_invoke_private(
+    $processor,
+    'get_bulk_process_option_name',
+    array($process_id)
+);
+alt_text_pro_security_assert(
+    array_key_exists($durable_state_option, $alt_text_pro_test_options),
+    'Active bulk state must be persisted in the options table.'
+);
+$alt_text_pro_test_transients = array();
+alt_text_pro_security_assert(
+    alt_text_pro_invoke_private($processor, 'get_bulk_process_data', array($process_id))['user_id'] === 41,
+    'Bulk state must recover from the options table after transient eviction.'
+);
+
 $alt_text_pro_test_user_id = 99;
 alt_text_pro_security_assert(
     alt_text_pro_invoke_private($processor, 'get_bulk_process_data', array($process_id)) === false,
@@ -240,6 +264,7 @@ alt_text_pro_security_assert(
 $plugin_source = file_get_contents(dirname(__DIR__) . '/alt-text-pro/alt-text-pro.php');
 $media_source = file_get_contents(dirname(__DIR__) . '/alt-text-pro/includes/class-media-handler.php');
 $bulk_source = file_get_contents(dirname(__DIR__) . '/alt-text-pro/includes/class-bulk-processor.php');
+$admin_source = file_get_contents(dirname(__DIR__) . '/alt-text-pro/assets/js/admin.js');
 $logs_template = file_get_contents(dirname(__DIR__) . '/alt-text-pro/templates/logs.php');
 
 alt_text_pro_security_assert(
@@ -271,6 +296,14 @@ alt_text_pro_security_assert(
     'Bulk locks must use an atomic insert that cannot replace another owner token.'
 );
 alt_text_pro_security_assert(
+    strpos($bulk_source, 'private function save_bulk_process_data') !== false,
+    'Bulk state writes must update the durable options-table copy.'
+);
+alt_text_pro_security_assert(
+    strpos($bulk_source, 'get_option($this->get_bulk_process_option_name($process_id), false)') !== false,
+    'Bulk state reads must recover from the durable options-table copy.'
+);
+alt_text_pro_security_assert(
     strpos($media_source, 'wp_schedule_single_event') === false,
     'Automatic upload generation must not schedule a duplicate billable fallback.'
 );
@@ -281,6 +314,17 @@ alt_text_pro_security_assert(
 alt_text_pro_security_assert(
     strpos($logs_template, 'regenerate-alt-text') === false,
     'The logs page must not expose a billable regeneration control that cannot apply its draft.'
+);
+alt_text_pro_security_assert(
+    substr_count($admin_source, "$(document).on('click', '#test-connection'") === 1
+        && strpos($plugin_source, "$('#test-connection').on('click'") === false,
+    'The settings connection button must have exactly one active click handler.'
+);
+alt_text_pro_security_assert(
+    strpos($admin_source, "'<span class=\"log-filename\" title=\"' + result.filename") === false
+        && strpos($admin_source, ".addClass('log-filename').attr('title', filename).text(filename)") !== false
+        && strpos($admin_source, ".addClass('log-error').text(result.error)") !== false,
+    'Bulk activity filenames and errors must be inserted as text, not HTML.'
 );
 
 fwrite(STDOUT, "WordPress security regression tests passed.\n");

@@ -13,13 +13,29 @@ describe('lifecycle automation authorization', () => {
     }
   });
 
-  it('allows non-HTTP scheduled invocations with a valid next_run body', () => {
+  it('blocks schedule-shaped invocations without the automation secret', () => {
     delete process.env.LIFECYCLE_AUTOMATION_SECRET;
 
     const auth = _private.isAuthorizedRun({
       body: JSON.stringify({ next_run: '2026-06-25T14:00:00.000Z' }),
       headers: {},
       queryStringParameters: {},
+    });
+
+    expect(auth).toMatchObject({
+      allowed: false,
+      mode: 'blocked',
+    });
+  });
+
+  it('allows an internally attested scheduled invocation with the automation secret', () => {
+    process.env.LIFECYCLE_AUTOMATION_SECRET = 'test-secret';
+
+    const auth = _private.isAuthorizedRun({
+      body: JSON.stringify({ next_run: '2026-06-25T14:00:00.000Z' }),
+      headers: { 'X-Lifecycle-Automation-Secret': 'test-secret' },
+      queryStringParameters: {},
+      __scheduledInvocation: true,
     });
 
     expect(auth).toMatchObject({
@@ -59,6 +75,23 @@ describe('lifecycle automation authorization', () => {
     expect(auth).toMatchObject({
       allowed: true,
       mode: 'manual',
+    });
+  });
+
+  it('does not accept the lifecycle secret from a query string', () => {
+    process.env.LIFECYCLE_AUTOMATION_SECRET = 'test-secret';
+
+    const auth = _private.isAuthorizedRun({
+      httpMethod: 'POST',
+      path: '/.netlify/functions/lifecycle-automation',
+      body: '{}',
+      headers: {},
+      queryStringParameters: { secret: 'test-secret' },
+    });
+
+    expect(auth).toMatchObject({
+      allowed: false,
+      mode: 'blocked',
     });
   });
 

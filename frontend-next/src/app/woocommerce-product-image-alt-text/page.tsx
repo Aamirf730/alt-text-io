@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import JsonLd from "@/components/JsonLd";
 
 const pageUrl = "https://www.alt-text.pro/woocommerce-product-image-alt-text";
 
@@ -116,10 +117,7 @@ export default function WooCommerceProductImageAltTextPage() {
   return (
     <div className="min-h-screen bg-notebook-paper text-notebook-slate">
       <Navbar />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
-      />
+      <JsonLd data={structuredData} />
 
       <main>
         <section className="relative overflow-hidden border-b border-notebook-blue/5">

@@ -1,4 +1,5 @@
 const SITE_URL = 'https://www.alt-text.pro';
+const { getLifecycleUnsubscribeUrl } = require('./lifecycle-unsubscribe');
 
 const LIFECYCLE_RULES = [
   {
@@ -53,7 +54,7 @@ const LIFECYCLE_RULES = [
     key: 'credits_low_no_purchase',
     trigger: 'credits_low',
     allowVerifiedIdentity: true,
-    trustedSources: ['wordpress_plugin_usage'],
+    trustedSources: ['wordpress_plugin_usage', 'dashboard_usage'],
     missingAfterTrigger: ['purchase_completed'],
     delayHours: 0,
     subject: 'Your Alt Text Pro credits are running low',
@@ -293,6 +294,11 @@ function filterCandidatesByAuthUsers(candidates, authUsers) {
 }
 
 function renderLifecycleEmail(candidate) {
+  const unsubscribeUrl = getLifecycleUnsubscribeUrl(candidate);
+  const unsubscribeHtml = unsubscribeUrl
+    ? `<p style="margin-top:20px;font-size:12px;color:#64748b;">Prefer not to receive these emails? <a href="${unsubscribeUrl}" style="color:#475569;">Unsubscribe</a>.</p>`
+    : '';
+
   const html = `
     <div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;color:#000000;">
       <div style="padding:24px 0;border-bottom:1px solid #e5e7eb;">
@@ -303,6 +309,7 @@ function renderLifecycleEmail(candidate) {
         <p style="font-size:16px;line-height:1.6;color:#475569;">${candidate.preview}</p>
         <a href="${candidate.cta_url}" style="display:inline-block;margin-top:16px;background:#FEE11C;color:#000000;text-decoration:none;padding:12px 18px;border-radius:8px;font-weight:700;">${candidate.cta_text}</a>
         <p style="margin-top:24px;font-size:14px;color:#64748b;">Need help? Reply to this email and we will help you finish the setup.</p>
+        ${unsubscribeHtml}
       </div>
       <div style="padding-top:16px;border-top:1px solid #e5e7eb;color:#94a3b8;font-size:12px;">
         You are receiving this because you started using Alt Text Pro.
@@ -319,6 +326,7 @@ function renderLifecycleEmail(candidate) {
     `${candidate.cta_text}: ${candidate.cta_url}`,
     '',
     'Need help? Reply to this email and we will help you finish the setup.',
+    ...(unsubscribeUrl ? ['', `Unsubscribe: ${unsubscribeUrl}`] : []),
   ].join('\n');
 
   return { html, text };

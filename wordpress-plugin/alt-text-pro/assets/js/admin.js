@@ -22,7 +22,6 @@
         init: function () {
             this.normalizeBulkHeaderStats();
             this.bindEvents();
-            this.initTooltips();
             this.initMediaFields();
             this.initOnboarding();
             this.updateSelectionCount();
@@ -59,28 +58,6 @@
 
         // Settings page event bindings
         bindSettingsEvents: function () {
-            // API key visibility toggle
-            $(document).on('click', '#toggle-api-key', function (e) {
-                e.preventDefault();
-                e.stopPropagation();
-
-                var $input = $('#api_key');
-                var $button = $(this);
-                var $icon = $button.find('.dashicons');
-
-                if ($input.attr('type') === 'password') {
-                    $input.attr('type', 'text');
-                    $icon.removeClass('dashicons-visibility').addClass('dashicons-hidden');
-                    $button.attr('aria-label', 'Hide API key');
-                } else {
-                    $input.attr('type', 'password');
-                    $icon.removeClass('dashicons-hidden').addClass('dashicons-visibility');
-                    $button.attr('aria-label', 'Show API key');
-                }
-
-                return false;
-            });
-
             // Test API connection
             $(document).on('click', '#test-connection', this.testAPIConnection);
 
@@ -174,15 +151,6 @@
 
         // General UI event bindings
         bindUIEvents: function () {
-            // Collapsible sections
-            $(document).on('click', '.section-toggle', this.toggleSection);
-
-            // Copy to clipboard functionality
-            $(document).on('click', '.copy-to-clipboard', this.copyToClipboard);
-
-            // Refresh buttons
-            $(document).on('click', '.refresh-data', this.refreshData);
-
             // Modal dialogs
             $(document).on('click', '.open-modal', this.openModal);
             $(document).on('click', '.close-modal, .modal-overlay', this.closeModal);
@@ -306,16 +274,23 @@
                     nonce: altTextAI.nonce
                 },
                 success: function (response) {
+                    var $notice = $('<div>').addClass('notice');
+                    var $message = $('<p>');
+
                     if (response.success) {
-                        var message = '<strong>' + response.data.message + '</strong>';
-                        if (response.data.user_info) {
+                        $notice.addClass('notice-success');
+                        $('<strong>').text(response.data && response.data.message ? response.data.message : '').appendTo($message);
+                        if (response.data && response.data.user_info) {
                             var userInfo = response.data.user_info;
-                            message += '<br><small>Plan: ' + userInfo.plan + ' | Credits: ' + userInfo.credits_remaining + '</small>';
+                            $('<br>').appendTo($message);
+                            $('<small>').text('Plan: ' + (userInfo.plan || '') + ' | Credits: ' + (userInfo.credits_remaining !== undefined && userInfo.credits_remaining !== null ? userInfo.credits_remaining : '')).appendTo($message);
                         }
-                        $result.html('<div class="notice notice-success"><p>' + message + '</p></div>');
                     } else {
-                        $result.html('<div class="notice notice-error"><p>' + response.data + '</p></div>');
+                        $notice.addClass('notice-error');
+                        $message.text(typeof response.data === 'string' ? response.data : 'Connection test failed');
                     }
+
+                    $result.empty().append($notice.append($message));
                 },
                 error: function () {
                     $result.html('<div class="notice notice-error"><p>Connection test failed</p></div>');
@@ -456,37 +431,6 @@
             });
         },
 
-        // Initialize tooltips
-        initTooltips: function () {
-            $('[data-tooltip]').each(function () {
-                var $element = $(this);
-                var tooltipText = $element.data('tooltip');
-
-                $element.on('mouseenter', function () {
-                    var $tooltip = $('<div class="alt-text-pro-tooltip">')
-                        .text(tooltipText)
-                        .appendTo('body');
-
-                    var offset = $element.offset();
-                    $tooltip.css({
-                        top: offset.top - $tooltip.outerHeight() - 10,
-                        left: offset.left + ($element.outerWidth() / 2) - ($tooltip.outerWidth() / 2)
-                    }).fadeIn();
-
-                    $element.data('tooltip-element', $tooltip);
-                });
-
-                $element.on('mouseleave', function () {
-                    var $tooltip = $element.data('tooltip-element');
-                    if ($tooltip) {
-                        $tooltip.fadeOut(function () {
-                            $(this).remove();
-                        });
-                    }
-                });
-            });
-        },
-
         // Initialize media field interactions
         initMediaFields: function () {
             // Ensure all result containers are hidden on page load
@@ -549,86 +493,6 @@
                             }
                         });
                     }
-                }
-            });
-        },
-
-        // Toggle collapsible sections
-        toggleSection: function (e) {
-            e.preventDefault();
-
-            var $toggle = $(this);
-            var $section = $toggle.closest('.collapsible-section');
-            var $content = $section.find('.section-content');
-
-            $content.slideToggle();
-            $toggle.find('.dashicons').toggleClass('dashicons-arrow-down dashicons-arrow-up');
-            $section.toggleClass('collapsed');
-        },
-
-        // Copy text to clipboard
-        copyToClipboard: function (e) {
-            e.preventDefault();
-
-            var $button = $(this);
-            var textToCopy = $button.data('copy-text') || $button.closest('.copy-container').find('.copy-target').text();
-
-            if (navigator.clipboard) {
-                navigator.clipboard.writeText(textToCopy).then(function () {
-                    AltTextProAdmin.showCopySuccess($button);
-                });
-            } else {
-                // Fallback for older browsers
-                var textArea = document.createElement('textarea');
-                textArea.value = textToCopy;
-                document.body.appendChild(textArea);
-                textArea.select();
-                document.execCommand('copy');
-                document.body.removeChild(textArea);
-                AltTextProAdmin.showCopySuccess($button);
-            }
-        },
-
-        // Show copy success feedback
-        showCopySuccess: function ($button) {
-            var originalHtml = $button.html();
-            $button.html('<span class="dashicons dashicons-yes"></span> Copied!');
-
-            setTimeout(function () {
-                $button.html(originalHtml);
-            }, 2000);
-        },
-
-        // Refresh data
-        refreshData: function (e) {
-            e.preventDefault();
-
-            var $button = $(this);
-            var dataType = $button.data('refresh-type') || 'usage';
-
-            var originalHtml = $button.html();
-            $button.html('<span class="dashicons dashicons-update rotating"></span> Refreshing...').prop('disabled', true);
-
-            $.ajax({
-                url: altTextAI.ajaxUrl,
-                type: 'POST',
-                data: {
-                    action: 'alt_text_pro_refresh_' + dataType,
-                    nonce: altTextAI.nonce
-                },
-                success: function (response) {
-                    if (response.success) {
-                        // Reload the page to show updated data
-                        location.reload();
-                    } else {
-                        AltTextProAdmin.showNotification(response.data || 'Failed to refresh data', 'error');
-                    }
-                },
-                error: function () {
-                    AltTextProAdmin.showNotification('Failed to refresh data', 'error');
-                },
-                complete: function () {
-                    $button.html(originalHtml).prop('disabled', false);
                 }
             });
         },
@@ -1100,7 +964,9 @@
                             plan_credits_used_at_start: response.data.plan_credits_used
                         });
 
-                        $('#progress-log').append('<div>Initialized process #' + self.processId + ' (up to ' + processableTotal + ' images can run with available plan credits)</div>');
+                        $('#progress-log').append(
+                            $('<div>').text('Initialized process #' + String(self.processId || '') + ' (up to ' + processableTotal + ' images can run with available plan credits)')
+                        );
 
                         if (total === 0) {
                             self.finishProcess({ success: true, processed: 0, successful: 0, errors: 0 });
@@ -1555,17 +1421,16 @@
                     statusText = 'Stopped before generation';
                 }
 
-                var html = '<div class="log-item ' + statusClass + '">' +
-                    '<span class="dashicons ' + icon + '"></span>' +
-                    '<span class="log-filename" title="' + result.filename + '">' + result.filename + '</span>';
+                var filename = result.filename || '';
+                var $item = $('<div>').addClass('log-item ' + statusClass);
+                $('<span>').addClass('dashicons ' + icon).appendTo($item);
+                $('<span>').addClass('log-filename').attr('title', filename).text(filename).appendTo($item);
 
                 if ((result.status === 'error' || result.status === 'retrying') && result.error) {
-                    html += '<span class="log-error">' + result.error + '</span>';
+                    $('<span>').addClass('log-error').text(result.error).appendTo($item);
                 }
 
-                html += '</div>';
-
-                $log.append(html);
+                $log.append($item);
             });
 
             // Auto-scroll to bottom
@@ -1646,7 +1511,9 @@
         },
 
         showError: function (msg) {
-            $('#progress-log').append('<div style="color: var(--danger-color);">Error: ' + msg + '</div>');
+            $('#progress-log').append(
+                $('<div>').css('color', 'var(--danger-color)').text('Error: ' + String(msg || ''))
+            );
         },
 
         updateProcessLimitNote: function (data) {

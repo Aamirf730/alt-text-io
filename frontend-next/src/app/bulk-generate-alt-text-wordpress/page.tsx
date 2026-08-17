@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import JsonLd from "@/components/JsonLd";
 
 const pageUrl = "https://www.alt-text.pro/bulk-generate-alt-text-wordpress";
 
@@ -114,10 +115,7 @@ export default function BulkGenerateAltTextWordPressPage() {
   return (
     <div className="min-h-screen bg-notebook-paper text-notebook-slate">
       <Navbar />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
-      />
+      <JsonLd data={structuredData} />
 
       <main>
         <section className="relative overflow-hidden border-b border-notebook-blue/5">

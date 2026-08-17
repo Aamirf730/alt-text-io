@@ -13,6 +13,9 @@ const {
 const { recordPluginConnectCompleted } = require('./utils/plugin-connect-event');
 const { extractPluginVersion } = require('./utils/plugin-version');
 const { getMonthlyCreditState, validateApiKey } = require('./utils/api-key-validator');
+const { DEFAULT_SUBSCRIPTION_PLAN, getPlanCredits } = require('./utils/subscription-plans');
+
+const AUTH_USER_REQUEST_TIMEOUT_MS = 5000;
 
 // Initialize Supabase clients
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -24,7 +27,9 @@ if (!supabaseAnonKey) {
 }
 
 // Client with service role key for database operations
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+const supabase = supabaseUrl && supabaseServiceKey
+  ? createClient(supabaseUrl, supabaseServiceKey)
+  : null;
 
 exports.handler = async (event, context) => {
   // Get secure CORS headers (origin-validated)
@@ -33,6 +38,14 @@ exports.handler = async (event, context) => {
   // Handle preflight OPTIONS request
   const preflightResponse = handlePreflight(event);
   if (preflightResponse) return preflightResponse;
+
+  if (!supabase || !supabaseUrl || !supabaseAnonKey) {
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ success: false, error: 'Server configuration error' }),
+    };
+  }
 
   // Rate limiting for auth endpoints
   const clientIp = getClientIp(event);
@@ -59,7 +72,7 @@ exports.handler = async (event, context) => {
       };
     }
 
-    const token = authHeader.replace('Bearer ', '').trim();
+    const token = authHeader.replace(/^Bearer\s+/i, '').trim();
     const pluginVersion = extractPluginVersion(event);
 
     // Validate token format (basic check)
@@ -119,7 +132,8 @@ exports.handler = async (event, context) => {
             'Authorization': `Bearer ${token}`,
             'apikey': supabaseAnonKey,
             'Content-Type': 'application/json'
-          }
+          },
+          signal: AbortSignal.timeout(AUTH_USER_REQUEST_TIMEOUT_MS)
         });
 
         if (response.ok) {
@@ -207,19 +221,19 @@ exports.handler = async (event, context) => {
             plan: planDetails ? planDetails.name : 'Free Plan',
             credits_remaining: displayCreditsRemaining,
             monthly_credits_remaining: displayCreditsRemaining,
-            subscription_plan: profile.subscription_plan || 'free',
+            subscription_plan: profile.subscription_plan || DEFAULT_SUBSCRIPTION_PLAN,
             subscription_status: profile.subscription_status || 'active',
-            total_credits: planDetails ? planDetails.credits : 100
+            total_credits: planDetails?.credits ?? getPlanCredits(profile.subscription_plan)
           },
           // Also include flat structure for backward compatibility
           user_id: authUser.id,
           email: authUser.email,
           credits_remaining: displayCreditsRemaining,
           monthly_credits_remaining: displayCreditsRemaining,
-          subscription_plan: profile.subscription_plan || 'free',
+          subscription_plan: profile.subscription_plan || DEFAULT_SUBSCRIPTION_PLAN,
           subscription_status: profile.subscription_status || 'active',
           plan_name: planDetails ? planDetails.name : 'Free Plan',
-          total_credits: planDetails ? planDetails.credits : 100
+          total_credits: planDetails?.credits ?? getPlanCredits(profile.subscription_plan)
         }
       }),
     };
