@@ -18,7 +18,7 @@ test('tracked migrations have one ordered, canonical history', () => {
   assert.ok(files.length > 1);
   assert.equal(new Set(versions).size, versions.length);
   assert.equal(files[0], '20260625140000_bootstrap_schema.sql');
-  assert.equal(files.at(-1), '20260817120000_harden_credit_and_profile_integrity.sql');
+  assert.equal(files.at(-1), '20260817060012_harden_credit_and_profile_integrity.sql');
 });
 
 test('bootstrap defines every foundational table and reporting view', () => {
@@ -162,7 +162,7 @@ test('customer offer exposes only an invoker wrapper around private privileged l
 
 test('customer offer schema usage repair restores authenticated traversal and execution', () => {
   const repair = fs.readFileSync(
-    path.join(migrationsDirectory, '20260816183608_grant_customer_offer_schema_usage.sql'),
+    path.join(migrationsDirectory, '20260817055946_grant_customer_offer_schema_usage.sql'),
     'utf8',
   ).toLowerCase();
 
@@ -192,7 +192,7 @@ test('subscription activation applies credits and billing metadata atomically', 
 
 test('subscription activation skips an identical active period on webhook replay', () => {
   const idempotency = fs.readFileSync(
-    path.join(migrationsDirectory, '20260816174327_make_subscription_activation_idempotent.sql'),
+    path.join(migrationsDirectory, '20260817055942_make_subscription_activation_idempotent.sql'),
     'utf8',
   ).toLowerCase();
 
@@ -205,7 +205,7 @@ test('subscription activation skips an identical active period on webhook replay
 
 test('subscription renewal locks the profile and skips stale or duplicate periods', () => {
   const renewal = fs.readFileSync(
-    path.join(migrationsDirectory, '20260816200907_renew_subscription_credits_atomically.sql'),
+    path.join(migrationsDirectory, '20260817055952_renew_subscription_credits_atomically.sql'),
     'utf8',
   ).toLowerCase();
 
@@ -231,7 +231,7 @@ test('API-key storage revokes table-level client access', () => {
     'utf8',
   ).toLowerCase();
   const repair = fs.readFileSync(
-    path.join(migrationsDirectory, '20260816202022_secure_api_key_table_access.sql'),
+    path.join(migrationsDirectory, '20260817055957_secure_api_key_table_access.sql'),
     'utf8',
   ).toLowerCase();
 
@@ -244,7 +244,7 @@ test('API-key storage revokes table-level client access', () => {
 
 test('API-key issuance is serialized per profile', () => {
   const issuance = fs.readFileSync(
-    path.join(migrationsDirectory, '20260817100000_atomic_api_key_issuance.sql'),
+    path.join(migrationsDirectory, '20260817060001_atomic_api_key_issuance.sql'),
     'utf8',
   ).toLowerCase();
 
@@ -259,7 +259,7 @@ test('API-key issuance is serialized per profile', () => {
 
 test('lifecycle unsubscribe state is durable', () => {
   const unsubscribe = fs.readFileSync(
-    path.join(migrationsDirectory, '20260817110000_add_lifecycle_unsubscribe.sql'),
+    path.join(migrationsDirectory, '20260817060006_add_lifecycle_unsubscribe.sql'),
     'utf8',
   ).toLowerCase();
 
@@ -270,7 +270,7 @@ test('lifecycle unsubscribe state is durable', () => {
 
 test('legacy use_credit uses the reservation engine for every plan family', () => {
   const integrity = fs.readFileSync(
-    path.join(migrationsDirectory, '20260817120000_harden_credit_and_profile_integrity.sql'),
+    path.join(migrationsDirectory, '20260817060012_harden_credit_and_profile_integrity.sql'),
     'utf8',
   ).toLowerCase();
 
@@ -282,7 +282,7 @@ test('legacy use_credit uses the reservation engine for every plan family', () =
 
 test('promotional grants require an explicit idempotency key', () => {
   const integrity = fs.readFileSync(
-    path.join(migrationsDirectory, '20260817120000_harden_credit_and_profile_integrity.sql'),
+    path.join(migrationsDirectory, '20260817060012_harden_credit_and_profile_integrity.sql'),
     'utf8',
   ).toLowerCase();
 
@@ -297,7 +297,7 @@ test('promotional grants require an explicit idempotency key', () => {
 
 test('subscription revocation locks once and does not re-anchor a free retry', () => {
   const integrity = fs.readFileSync(
-    path.join(migrationsDirectory, '20260817120000_harden_credit_and_profile_integrity.sql'),
+    path.join(migrationsDirectory, '20260817060012_harden_credit_and_profile_integrity.sql'),
     'utf8',
   ).toLowerCase();
 
@@ -310,7 +310,7 @@ test('subscription revocation locks once and does not re-anchor a free retry', (
 
 test('paid-pack revocation follows profile then ledger lock ordering', () => {
   const integrity = fs.readFileSync(
-    path.join(migrationsDirectory, '20260817120000_harden_credit_and_profile_integrity.sql'),
+    path.join(migrationsDirectory, '20260817060012_harden_credit_and_profile_integrity.sql'),
     'utf8',
   ).toLowerCase();
 
@@ -323,7 +323,7 @@ test('paid-pack revocation follows profile then ledger lock ordering', () => {
 
 test('expired reservations have a bounded cron-backed cleanup path', () => {
   const integrity = fs.readFileSync(
-    path.join(migrationsDirectory, '20260817120000_harden_credit_and_profile_integrity.sql'),
+    path.join(migrationsDirectory, '20260817060012_harden_credit_and_profile_integrity.sql'),
     'utf8',
   ).toLowerCase();
 
@@ -338,7 +338,7 @@ test('expired reservations have a bounded cron-backed cleanup path', () => {
 
 test('accounting constraints reject invalid values and billing-cycle typos', () => {
   const integrity = fs.readFileSync(
-    path.join(migrationsDirectory, '20260817120000_harden_credit_and_profile_integrity.sql'),
+    path.join(migrationsDirectory, '20260817060012_harden_credit_and_profile_integrity.sql'),
     'utf8',
   ).toLowerCase();
 
@@ -355,7 +355,7 @@ test('accounting constraints reject invalid values and billing-cycle typos', () 
 
 test('subscription webhook lookup has a profile subscription index', () => {
   const integrity = fs.readFileSync(
-    path.join(migrationsDirectory, '20260817120000_harden_credit_and_profile_integrity.sql'),
+    path.join(migrationsDirectory, '20260817060012_harden_credit_and_profile_integrity.sql'),
     'utf8',
   ).toLowerCase();
 
@@ -366,7 +366,7 @@ test('subscription webhook lookup has a profile subscription index', () => {
 
 test('profile email uniqueness no longer blocks duplicate auth identities', () => {
   const integrity = fs.readFileSync(
-    path.join(migrationsDirectory, '20260817120000_harden_credit_and_profile_integrity.sql'),
+    path.join(migrationsDirectory, '20260817060012_harden_credit_and_profile_integrity.sql'),
     'utf8',
   ).toLowerCase();
 

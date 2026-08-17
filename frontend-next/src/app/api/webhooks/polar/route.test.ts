@@ -519,7 +519,7 @@ describe("Polar subscription lifecycle handlers", () => {
     it("defines one audited promotional grant path for both credit ledgers", () => {
         const migrationPath = path.resolve(
             process.cwd(),
-            "../supabase/migrations/20260817120000_harden_credit_and_profile_integrity.sql",
+            "../supabase/migrations/20260817060012_harden_credit_and_profile_integrity.sql",
         );
         const migration = fs.readFileSync(migrationPath, "utf8");
 
