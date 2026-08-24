@@ -1,5 +1,12 @@
 # Progress
 
+## 2026-08-25: Backed up current Alt Text Pro workspace
+
+- Status: complete. The current local workspace was archived to `/Volumes/One Touch/Project Vault/Archives/Alt-text/Alt-text-Pro_v1.7.25.zip` after the tracked 1.7.25 popup-flow changes were committed and pushed to private GitHub `Aamirf730/alt-text-io` `main` at commit `2cd6b50ac8809f8c8de2fe5e4dc915670926bc24`.
+- Archive verification: 159,231 entries, 1,706,819,913 bytes, ZIP integrity test passed, SHA-256 `a883ecf386f1fadb1987d7cac2d6ea59aef37fd18054d8121fef360f76e1f27e`.
+- Scope: local project remains present; no older SSD archive was overwritten or deleted. Untracked audit/report artifacts remain local and were included only in the complete SSD workspace archive, not pushed to GitHub.
+- Known consistency issue: the WordPress plugin header/readme report `1.7.25`, while `frontend-next/src/lib/plugin-version.ts` still reports `1.7.24`; this backup preserves the current workspace without changing that code.
+
 ## 2026-08-22: Published WordPress plugin 1.7.25 and verified listing cache behavior
 
 - Status: plugin 1.7.25 is live on WordPress.org. SVN trunk commit `3660021` and tag commit `3660023` were accepted; the follow-up screenshot-byte refresh was committed as assets revision `3660024`.
