@@ -1,5 +1,11 @@
 # Progress
 
+## 2026-08-25: Corrected frontend plugin version marker
+
+- Status: complete. Ran `scripts/sync-plugin-version.mjs` so `frontend-next/src/lib/plugin-version.ts` now reports `1.7.25`, matching the WordPress plugin header, version constant, and readme stable tag.
+- Verification: frontend Vitest suite passed (20 files, 102 tests), TypeScript `--noEmit` passed, and `git diff --check` passed.
+- No production deployment or WordPress.org mutation was performed.
+
 ## 2026-08-25: Backed up current Alt Text Pro workspace
 
 - Status: complete. The current local workspace was archived to `/Volumes/One Touch/Project Vault/Archives/Alt-text/Alt-text-Pro_v1.7.25.zip` after the tracked 1.7.25 popup-flow changes were committed and pushed to private GitHub `Aamirf730/alt-text-io` `main` at commit `2cd6b50ac8809f8c8de2fe5e4dc915670926bc24`.
