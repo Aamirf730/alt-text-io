@@ -687,13 +687,25 @@
                 'dashicons-clock'
             );
 
-            // Open popup
+            // Open a fresh popup for every attempt. Reusing a fixed window name
+            // can return a stale popup whose opener was lost by a previous
+            // OAuth/browser navigation, so the connect page cannot message this
+            // WordPress window back.
+            if (AltTextProAdmin.connectPopup && !AltTextProAdmin.connectPopup.closed) {
+                try {
+                    AltTextProAdmin.connectPopup.close();
+                } catch (error) {
+                    console.warn('Alt Text Pro: could not close the previous connect popup', error);
+                }
+            }
+
             var w = 500, h = 700;
             var left = (screen.width / 2) - (w / 2);
             var top = (screen.height / 2) - (h / 2);
+            var popupName = 'alt_text_pro_connect_' + state.slice(-12);
             var popup = window.open(
                 url,
-                'alt_text_pro_connect',
+                popupName,
                 'width=' + w + ',height=' + h + ',left=' + left + ',top=' + top + ',scrollbars=yes,resizable=yes'
             );
             AltTextProAdmin.connectPopup = popup;

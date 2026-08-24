@@ -3,7 +3,7 @@
  * Plugin Name: Alt Text Pro
  * Plugin URI: https://www.alt-text.pro
  * Description: Draft AI alt text for WordPress images, review it, and fill missing Media Library alt attributes in small batches.
- * Version:           1.7.24
+ * Version:           1.7.25
  * Author: Alt Text Pro
  * Author URI: https://www.alt-text.pro/about
  * License: GPL v2 or later
@@ -20,7 +20,8 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('ALT_TEXT_PRO_VERSION', '1.7.24');
+define('ALT_TEXT_PRO_VERSION', '1.7.25');
+// Version 1.7.25 - Fix: open each automatic connection attempt in a fresh popup so the opener handshake cannot reuse stale browser state.
 // Version 1.7.24 - Maintenance: fix context generation, timezone-aware stats, safe writes, cleanup, and dead admin bindings.
 // Version 1.7.23 - Security: remove duplicate connection requests and escape dynamic bulk activity output.
 // Version 1.7.22 - Reliability: persist active bulk-process state in the options table for transient recovery.

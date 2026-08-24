@@ -4,7 +4,7 @@ Tags: alt text, accessibility, image seo, ai, media library
 Requires at least: 5.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.7.24
+Stable tag: 1.7.25
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -158,6 +158,9 @@ Yes, you can cancel your subscription at any time from your Alt Text Pro dashboa
 6. Responsive admin interface for managing alt text from different screen sizes.
 
 == Changelog ==
+= 1.7.25 =
+* Fix automatic account connection by opening each attempt in a fresh popup and avoiding stale opener state.
+
 = 1.7.24 =
 * Fix: honor the context-enabled setting during post-level generation and restore the authenticated context-suggestions request.
 * Fix: sanitize generated alt text, align dashboard statistics with the WordPress site timezone, and safely handle missing attachment paths.
