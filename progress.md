@@ -8,6 +8,8 @@
 - WordPress.org: Subversion installed with Homebrew. Trunk and the new icons/banners committed as r3763534 by `aamirfaiz` (the plugin's committer; `wpgeared` has no access). The `1.7.26` tag is not created yet, so the listing still showed 1.7.25.
 - Search (2026-10-24): 39th for "alt text pro", outside the top 100 for "alt text", "ai alt text", "alt text generator", "image alt text"; 10 installs, 0 ratings.
 - Released 1.7.27: pushed `7c69ea6` (both alt-text.pro ZIP URLs serve 1.7.27); WordPress.org trunk r3763547 and tag `1.7.27` r3763548 committed by the owner as `aamirfaiz`; the tag matches the release ZIP, and the public API, listing title, download and CDN icons/banners show the new version. The `1.7.26` tag was skipped.
+- Lifecycle: first real run (11:30 PM IST) completed in 644 ms, 0 candidates, 0 sent, 0 failed (expected: only new verified events qualify).
+- WordPress.org screenshots: six new captures from a Playground site running 1.7.27 with the website's photos and matching descriptions (1.5x, same captions); committed to `assets/` as r3763636 by the owner. SVN and the ps.w.org files match the repo copies; the listing still referenced r3660024 right after the commit (WordPress.org refreshes it later).
 - Plugin 1.7.27 contents: with listing name "Alt Text Pro – AI Alt Text Generator", new short description, tags (alt text, ai alt text, image alt text, accessibility, image seo), rewritten intro, and a review request on plugin pages after 50 descriptions (Maybe later = 30 days, Don't ask again, admins only, cleaned on uninstall). `tests/release-1-7-27-review-prompt.php`; all plugin harnesses pass on PHP 7.4/8.5; checked on a Playground site.
 
 ## 2026-10-24: Yellow + white redesign (not deployed)
