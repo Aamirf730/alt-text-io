@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const root = process.cwd();
 const sources = [
-  "src/app/page.tsx",
+  "src/app/LandingPageClient.tsx",
   "src/app/connect/page.tsx",
   "src/app/customer-offer/page.tsx",
 ].map((file) => fs.readFileSync(path.resolve(root, file), "utf8"));

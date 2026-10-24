@@ -44,7 +44,7 @@ describe("dashboard operations console", () => {
     expect(dashboardSource).toContain("pending.kind === 'subscription' && isSubscribed");
     expect(dashboardSource).toContain("data.code === SUBSCRIPTION_EXISTS_CODE");
 
-    const homeSource = fs.readFileSync(path.resolve(process.cwd(), "src/app/page.tsx"), "utf8");
+    const homeSource = fs.readFileSync(path.resolve(process.cwd(), "src/app/LandingPageClient.tsx"), "utf8");
     expect(homeSource).toContain("savePendingCheckout(planId, billingCycle)");
   });
 });

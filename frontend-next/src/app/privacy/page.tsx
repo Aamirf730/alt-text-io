@@ -1,7 +1,22 @@
 import React from 'react';
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+
+export const metadata: Metadata = {
+    title: "Privacy Policy | Alt Text Pro",
+    description:
+        "What Alt Text Pro collects when you use the website, plugin and API, how images are processed, who processes data for us, and your rights.",
+    openGraph: {
+        title: "Privacy Policy | Alt Text Pro",
+        description:
+            "What Alt Text Pro collects when you use the website, plugin and API, how images are processed, who processes data for us, and your rights.",
+        url: "https://www.alt-text.pro/privacy",
+        siteName: "Alt Text Pro",
+        type: "website",
+    },
+};
 
 export default function PrivacyPage() {
     return (

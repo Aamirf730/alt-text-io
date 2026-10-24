@@ -1,8 +1,23 @@
 import React from 'react';
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { CREDIT_PACKS, SUBSCRIPTION_PLANS } from '@/lib/pricing-catalog';
+
+export const metadata: Metadata = {
+    title: "Terms and Conditions | Alt Text Pro",
+    description:
+        "The terms for using Alt Text Pro, the WordPress plugin and service: accounts, credits, subscriptions, refunds, acceptable use and liability.",
+    openGraph: {
+        title: "Terms and Conditions | Alt Text Pro",
+        description:
+            "The terms for using Alt Text Pro, the WordPress plugin and service: accounts, credits, subscriptions, refunds, acceptable use and liability.",
+        url: "https://www.alt-text.pro/terms",
+        siteName: "Alt Text Pro",
+        type: "website",
+    },
+};
 
 export default function TermsPage() {
     return (

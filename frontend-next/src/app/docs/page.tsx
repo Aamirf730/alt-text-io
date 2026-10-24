@@ -528,7 +528,7 @@ export default function DocsPage() {
                                     <h3 className="text-2xl font-bold mt-8 mb-4 text-ink">Getting Help</h3>
                                     <p className="text-ink mb-4">If you're still experiencing issues, we're here to help:</p>
                                     <ul className="list-disc list-inside space-y-2 text-ink mb-4">
-                                        <li>Email us at <a href="mailto:support@alt-text.pro" className="font-medium text-ink underline decoration-line-strong decoration-2 underline-offset-4 hover:decoration-ink">support@alt-text.pro</a></li>
+                                        <li>Email us at <a href="mailto:help@alt-text.pro" className="font-medium text-ink underline decoration-line-strong decoration-2 underline-offset-4 hover:decoration-ink">help@alt-text.pro</a></li>
                                         <li>Use the <Link href="/contact" className="font-medium text-ink underline decoration-line-strong decoration-2 underline-offset-4 hover:decoration-ink">contact form</Link> on our website</li>
                                         <li>Check your dashboard for usage logs and error details</li>
                                     </ul>
