@@ -327,4 +327,63 @@ alt_text_pro_security_assert(
     'Bulk activity filenames and errors must be inserted as text, not HTML.'
 );
 
+// One bulk run per site: a second user cannot start a parallel run while the
+// first one is live, and finishing the first run releases the site lock.
+$alt_text_pro_test_user_id = 41;
+$first_run = alt_text_pro_invoke_private(
+    $processor,
+    'create_bulk_process_record',
+    array(array(101, 103), 1, false, 10, 2, 10, 0)
+);
+alt_text_pro_security_assert(
+    alt_text_pro_invoke_private($processor, 'claim_active_run', array($first_run)) === true,
+    'The first bulk run must claim the site-wide run lock.'
+);
+
+$alt_text_pro_test_user_id = 99;
+alt_text_pro_security_assert(
+    is_array(alt_text_pro_invoke_private($processor, 'get_live_active_run')),
+    'Another user must see the first user\'s live run as blocking.'
+);
+alt_text_pro_security_assert(
+    alt_text_pro_invoke_private($processor, 'get_bulk_process_data', array($first_run)) === false,
+    'The site-wide lock must not expose another user\'s bulk job.'
+);
+$second_run = alt_text_pro_invoke_private(
+    $processor,
+    'create_bulk_process_record',
+    array(array(101), 1, false, 10, 1, 10, 0)
+);
+alt_text_pro_security_assert(
+    alt_text_pro_invoke_private($processor, 'claim_active_run', array($second_run)) === false,
+    'A second concurrent bulk run must not claim the site-wide run lock.'
+);
+
+$alt_text_pro_test_user_id = 41;
+alt_text_pro_invoke_private($processor, 'delete_bulk_process_state', array($first_run));
+$alt_text_pro_test_user_id = 99;
+alt_text_pro_security_assert(
+    alt_text_pro_invoke_private($processor, 'claim_active_run', array($second_run)) === true,
+    'Finishing a run must release the site-wide run lock for the next run.'
+);
+
+$alt_text_pro_test_options[$durable_state_option ?? 'unused'] = $alt_text_pro_test_options[$durable_state_option ?? 'unused'] ?? null;
+$stale_run_option = alt_text_pro_invoke_private($processor, 'get_bulk_process_option_name', array($second_run));
+$stale_run = $alt_text_pro_test_options[$stale_run_option];
+$stale_run['last_updated'] = '2026-08-12 09:30:00';
+$alt_text_pro_test_options[$stale_run_option] = $stale_run;
+$alt_text_pro_test_transients['alt_text_pro_bulk_' . $second_run] = $stale_run;
+$alt_text_pro_test_user_id = 41;
+alt_text_pro_security_assert(
+    alt_text_pro_invoke_private($processor, 'get_live_active_run') === null,
+    'A run with no progress for 30 minutes must stop blocking new runs.'
+);
+
+$bulk_source = file_get_contents(dirname(__DIR__) . '/alt-text-pro/includes/class-bulk-processor.php');
+alt_text_pro_security_assert(
+    strpos($bulk_source, 'LIMIT %d",\n                \'image/%\',\n                1000') === false
+        && substr_count($bulk_source, 'self::MAX_BULK_QUEUE') >= 3,
+    'Bulk queues must use the shared queue cap instead of the old 1,000-image limit.'
+);
+
 fwrite(STDOUT, "WordPress security regression tests passed.\n");

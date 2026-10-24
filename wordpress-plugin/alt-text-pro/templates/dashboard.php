@@ -79,31 +79,64 @@ $alt_text_pro_current_page = isset($_GET['page']) ? sanitize_text_field(wp_unsla
     <?php
 else: ?>
 
+        <?php if ($usage_stats === null): ?>
+            <!-- Account could not be loaded: never show made-up plan or credit numbers. -->
+            <div class="alt-text-pro-card" style="border-left: 4px solid var(--warning-color);">
+                <div class="card-content">
+                    <h3 style="margin: 0 0 8px 0;"><?php esc_html_e('We could not load your Alt Text Pro account', 'alt-text-pro'); ?></h3>
+                    <p style="margin: 0 0 16px 0; color: var(--text-secondary);">
+                        <?php
+                        echo esc_html(
+                            !empty($usage_error)
+                                ? $usage_error
+                                : __('The service did not respond. Your API key may have been rotated or revoked, or the service may be busy.', 'alt-text-pro')
+                        );
+                        ?>
+                    </p>
+                    <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                        <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-pro')); ?>" class="button-secondary-custom">
+                            <?php esc_html_e('Try again', 'alt-text-pro'); ?>
+                        </a>
+                        <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-pro-settings')); ?>" class="button-primary-custom">
+                            <?php esc_html_e('Reconnect account', 'alt-text-pro'); ?>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        <?php endif; ?>
+
         <!-- Status & Credits -->
         <div class="stats-grid">
+            <?php if ($usage_stats !== null): ?>
             <?php
-    // Calculate account credit display from API usage data.
-    $alt_text_pro_raw_credits_remaining = isset($usage_stats['credits_remaining']) ? intval($usage_stats['credits_remaining']) : 0;
-    $alt_text_pro_total_credits = isset($usage_stats['total_credits']) ? intval($usage_stats['total_credits']) : 100;
-    $alt_text_pro_account_credits_used = isset($usage_stats['credits_used']) ? intval($usage_stats['credits_used']) : max(0, $alt_text_pro_total_credits - $alt_text_pro_raw_credits_remaining);
-    $alt_text_pro_billing_cycle = isset($usage_stats['billing_cycle']) ? sanitize_text_field($usage_stats['billing_cycle']) : '';
-    $alt_text_pro_monthly_allowance = isset($usage_stats['monthly_credit_allowance']) ? intval($usage_stats['monthly_credit_allowance']) : 0;
+    // Calculate account credit display from API usage data. Every number
+    // comes from the service; nothing is assumed when a field is missing.
     $alt_text_pro_monthly_credit_limit = isset($usage_stats['monthly_credit_limit']) ? intval($usage_stats['monthly_credit_limit']) : 0;
-    $alt_text_pro_monthly_credits_used = isset($usage_stats['monthly_credits_used']) ? intval($usage_stats['monthly_credits_used']) : $alt_text_pro_account_credits_used;
-    $alt_text_pro_allowance_label = $alt_text_pro_monthly_credit_limit > 0
+    $alt_text_pro_monthly_allowance = isset($usage_stats['monthly_credit_allowance']) ? intval($usage_stats['monthly_credit_allowance']) : 0;
+    $alt_text_pro_plan_allowance = $alt_text_pro_monthly_credit_limit > 0
         ? $alt_text_pro_monthly_credit_limit
-        : ($alt_text_pro_monthly_allowance > 0 ? $alt_text_pro_monthly_allowance : $alt_text_pro_total_credits);
-    $alt_text_pro_credits_remaining = isset($usage_stats['monthly_credits_remaining'])
+        : ($alt_text_pro_monthly_allowance > 0 ? $alt_text_pro_monthly_allowance : (isset($usage_stats['total_credits']) ? intval($usage_stats['total_credits']) : 0));
+    $alt_text_pro_monthly_credits_used = isset($usage_stats['monthly_credits_used'])
+        ? intval($usage_stats['monthly_credits_used'])
+        : (isset($usage_stats['credits_used']) ? intval($usage_stats['credits_used']) : 0);
+    // Spendable now: plan credits left this cycle plus bonus and pack credits.
+    $alt_text_pro_credits_available = isset($usage_stats['monthly_credits_remaining'])
         ? intval($usage_stats['monthly_credits_remaining'])
-        : max(0, min($alt_text_pro_raw_credits_remaining, $alt_text_pro_allowance_label - $alt_text_pro_monthly_credits_used));
-    $alt_text_pro_usage_percentage = $alt_text_pro_allowance_label > 0 ? ($alt_text_pro_monthly_credits_used / $alt_text_pro_allowance_label) * 100 : 0;
+        : (isset($usage_stats['credits_remaining']) ? intval($usage_stats['credits_remaining']) : 0);
+    $alt_text_pro_plan_credits_left = isset($usage_stats['plan_credits_remaining']) && $usage_stats['plan_credits_remaining'] !== null
+        ? intval($usage_stats['plan_credits_remaining'])
+        : max(0, $alt_text_pro_plan_allowance - $alt_text_pro_monthly_credits_used);
+    $alt_text_pro_extra_credits = intval($usage_stats['bonus_credits_remaining'] ?? 0) + intval($usage_stats['purchased_credits_remaining'] ?? 0);
+    $alt_text_pro_billing_cycle = isset($usage_stats['billing_cycle']) ? sanitize_text_field($usage_stats['billing_cycle']) : '';
+    $alt_text_pro_usage_percentage = $alt_text_pro_plan_allowance > 0 ? ($alt_text_pro_monthly_credits_used / $alt_text_pro_plan_allowance) * 100 : 0;
     $alt_text_pro_usage_percentage = min(100, max(0, $alt_text_pro_usage_percentage));
 
-    $alt_text_pro_plan_id = $usage_stats['subscription_plan'] ?? 'free';
+    $alt_text_pro_plan_id = sanitize_key($usage_stats['subscription_plan'] ?? 'free');
+    // Fallback names for an older service response without plan_name.
     $alt_text_pro_plan_names = array(
         'free' => __('Free', 'alt-text-pro'),
-        'tier1' => __('Lite', 'alt-text-pro'),
-        'tier2' => __('Standard', 'alt-text-pro'),
+        'tier1' => __('Starter', 'alt-text-pro'),
+        'tier2' => __('Growth', 'alt-text-pro'),
         'tier3' => __('Pro', 'alt-text-pro'),
         'tier4' => __('Agency', 'alt-text-pro'),
         'lite' => __('Lite', 'alt-text-pro'),
@@ -111,16 +144,21 @@ else: ?>
         'pro' => __('Pro', 'alt-text-pro'),
         'agency' => __('Agency', 'alt-text-pro'),
         'small_pack' => __('Credit Pack', 'alt-text-pro'),
+        'credit_pack' => __('Credit Pack', 'alt-text-pro'),
+        'bulk_pack' => __('Credit Pack', 'alt-text-pro'),
         'pay_as_go' => __('Credit Pack', 'alt-text-pro'),
     );
-    $alt_text_pro_plan_name = $alt_text_pro_plan_names[$alt_text_pro_plan_id] ?? ucwords(str_replace('_', ' ', $alt_text_pro_plan_id));
-    if ($alt_text_pro_billing_cycle === 'annual' && !in_array($alt_text_pro_plan_id, array('free', 'small_pack', 'pay_as_go'), true)) {
+    $alt_text_pro_plan_name = !empty($usage_stats['plan_name'])
+        ? sanitize_text_field($usage_stats['plan_name'])
+        : ($alt_text_pro_plan_names[$alt_text_pro_plan_id] ?? ucwords(str_replace('_', ' ', $alt_text_pro_plan_id)));
+    $alt_text_pro_one_time_plans = array('free', 'small_pack', 'credit_pack', 'bulk_pack', 'pay_as_go');
+    if ($alt_text_pro_billing_cycle === 'annual' && !in_array($alt_text_pro_plan_id, $alt_text_pro_one_time_plans, true)) {
         $alt_text_pro_plan_name = sprintf(
             // translators: %s: Plan name
             __('%s Annual', 'alt-text-pro'),
             $alt_text_pro_plan_name
         );
-    } elseif ($alt_text_pro_billing_cycle === 'monthly' && !in_array($alt_text_pro_plan_id, array('free', 'small_pack', 'pay_as_go'), true)) {
+    } elseif ($alt_text_pro_billing_cycle === 'monthly' && !in_array($alt_text_pro_plan_id, $alt_text_pro_one_time_plans, true)) {
         $alt_text_pro_plan_name = sprintf(
             // translators: %s: Plan name
             __('%s Monthly', 'alt-text-pro'),
@@ -135,20 +173,8 @@ else: ?>
                     <div class="stat-icon"><span class="dashicons dashicons-chart-pie"></span></div>
                 </div>
                 <div class="stat-value">
-                    <?php echo esc_html(number_format($alt_text_pro_credits_remaining)); ?>
-                    <?php if ($alt_text_pro_allowance_label > 0): ?>
-                        <span class="stat-value-meta">
-                            <?php
-                            echo esc_html(
-                                sprintf(
-                                    '/%s %s',
-                                    number_format_i18n($alt_text_pro_allowance_label),
-                                    __('remaining', 'alt-text-pro')
-                                )
-                            );
-                            ?>
-                        </span>
-                    <?php endif; ?>
+                    <?php echo esc_html(number_format_i18n($alt_text_pro_credits_available)); ?>
+                    <span class="stat-value-meta"><?php esc_html_e('available', 'alt-text-pro'); ?></span>
                 </div>
 
                 <div class="usage-progress-container">
@@ -157,27 +183,35 @@ else: ?>
                         </div>
                     </div>
                     <div class="progress-label">
-                        <span><?php echo esc_html(number_format($alt_text_pro_monthly_credits_used)); ?>
-                            <?php esc_html_e('used this month', 'alt-text-pro'); ?></span>
                         <span>
-                            <?php if ($alt_text_pro_billing_cycle === 'annual' && $alt_text_pro_allowance_label > 0): ?>
+                            <?php
+                            echo esc_html(
+                                sprintf(
+                                    /* translators: 1: plan credits left this month, 2: monthly plan allowance */
+                                    __('%1$s of %2$s plan credits left this month', 'alt-text-pro'),
+                                    number_format_i18n($alt_text_pro_plan_credits_left),
+                                    number_format_i18n($alt_text_pro_plan_allowance)
+                                )
+                            );
+                            ?>
+                        </span>
+                        <?php if ($alt_text_pro_extra_credits > 0): ?>
+                            <span>
                                 <?php
                                 echo esc_html(
                                     sprintf(
-                                        /* translators: %s: Monthly credit allowance */
-                                        __('%s monthly allowance', 'alt-text-pro'),
-                                        number_format_i18n($alt_text_pro_allowance_label)
+                                        /* translators: %s: bonus and credit pack credits */
+                                        __('+ %s bonus or pack credits', 'alt-text-pro'),
+                                        number_format_i18n($alt_text_pro_extra_credits)
                                     )
                                 );
                                 ?>
-                            <?php else: ?>
-                                <?php echo esc_html(number_format($alt_text_pro_total_credits)); ?>
-                                <?php esc_html_e('plan credits', 'alt-text-pro'); ?>
-                            <?php endif; ?>
-                        </span>
+                            </span>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
+            <?php endif; ?>
 
             <div class="stat-card">
                 <div class="stat-header">
@@ -188,6 +222,7 @@ else: ?>
                 <div class="stat-desc"><?php esc_html_e('Lifetime total on this site', 'alt-text-pro'); ?></div>
             </div>
 
+            <?php if ($usage_stats !== null): ?>
             <div class="stat-card">
                 <div class="stat-header">
                     <span class="stat-title"><?php esc_html_e('Plan', 'alt-text-pro'); ?></span>
@@ -203,6 +238,7 @@ else: ?>
                     </a>
                 </div>
             </div>
+            <?php endif; ?>
         </div>
 
         <!-- Quick Actions -->

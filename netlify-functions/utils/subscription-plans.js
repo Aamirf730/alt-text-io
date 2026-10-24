@@ -21,8 +21,39 @@ function getPlanCredits(planId, fallback = SUBSCRIPTION_PLAN_CREDITS[DEFAULT_SUB
   return SUBSCRIPTION_PLAN_CREDITS[normalizedPlan] ?? fallback;
 }
 
+// Display names. Subscribers who kept a pre-2026-10 allowance (pinned on the
+// profile) keep their original plan name. Mirrors getPlanDisplayName() in
+// frontend-next/src/lib/pricing-catalog.ts.
+const CURRENT_PLAN_NAMES = Object.freeze({ tier1: 'Starter', tier2: 'Growth', tier4: 'Agency' });
+const LEGACY_PLAN_NAMES = Object.freeze({
+  tier1: 'Lite',
+  tier2: 'Standard',
+  tier3: 'Pro',
+  tier4: 'Agency',
+  lite: 'Lite',
+  standard: 'Standard',
+  pro: 'Pro',
+  agency: 'Agency',
+});
+const ONE_TIME_PLANS = new Set(['small_pack', 'credit_pack', 'bulk_pack', 'pay_as_go']);
+
+function getPlanDisplayName(planId, monthlyCreditAllowance = null) {
+  const normalized = String(planId || DEFAULT_SUBSCRIPTION_PLAN).trim().toLowerCase();
+  if (normalized === 'free') return 'Free';
+  if (ONE_TIME_PLANS.has(normalized)) return 'Credit Pack';
+
+  const allowance = Number(monthlyCreditAllowance || 0);
+  const currentName = CURRENT_PLAN_NAMES[normalized];
+  if (currentName && (!allowance || allowance === SUBSCRIPTION_PLAN_CREDITS[normalized])) {
+    return currentName;
+  }
+
+  return LEGACY_PLAN_NAMES[normalized] || normalized.replace(/_/g, ' ');
+}
+
 module.exports = {
   DEFAULT_SUBSCRIPTION_PLAN,
   SUBSCRIPTION_PLAN_CREDITS,
   getPlanCredits,
+  getPlanDisplayName,
 };

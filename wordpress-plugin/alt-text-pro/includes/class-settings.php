@@ -139,6 +139,22 @@ class AltTextPro_Settings
     /**
      * Sanitize settings
      */
+    /**
+     * True only when the service explicitly rejects the key (HTTP 401). A
+     * timeout or outage does not block saving a well-formed key.
+     */
+    private function is_rejected_by_service($api_key)
+    {
+        if (!class_exists('AltTextPro_API_Client')) {
+            return false;
+        }
+
+        $client = new AltTextPro_API_Client();
+        $result = $client->validate_api_key($api_key);
+
+        return empty($result['success']) && intval($result['status_code'] ?? 0) === 401;
+    }
+
     public function sanitize_settings($input)
     {
         if (!is_array($input)) {
@@ -181,6 +197,17 @@ class AltTextPro_Settings
                     );
                     $sanitized['api_key'] = $existing_settings['api_key'];
                 }
+            }
+            elseif (!empty($api_key) && AltTextPro_API_Client::validate_api_key_format($api_key) && $this->is_rejected_by_service($api_key)) {
+                // The service says this key is not valid (for example a typo or a
+                // rotated key). Keep the working key instead of replacing it.
+                add_settings_error(
+                    'alt_text_pro_settings',
+                    'api_key_rejected',
+                    esc_html__('Alt Text Pro did not accept this API key, so your existing key was kept. Copy the key again from your Alt Text Pro dashboard.', 'alt-text-pro'),
+                    'error'
+                );
+                $sanitized['api_key'] = $existing_settings['api_key'] ?? '';
             }
             elseif (!empty($api_key) && AltTextPro_API_Client::validate_api_key_format($api_key)) {
                 // Valid new API key — encrypt and save

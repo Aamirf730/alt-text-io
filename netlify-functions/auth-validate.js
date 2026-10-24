@@ -13,7 +13,7 @@ const {
 const { recordPluginConnectCompleted } = require('./utils/plugin-connect-event');
 const { extractPluginVersion } = require('./utils/plugin-version');
 const { getMonthlyCreditState, validateApiKey } = require('./utils/api-key-validator');
-const { DEFAULT_SUBSCRIPTION_PLAN, getPlanCredits } = require('./utils/subscription-plans');
+const { DEFAULT_SUBSCRIPTION_PLAN, getPlanCredits, getPlanDisplayName } = require('./utils/subscription-plans');
 
 const AUTH_USER_REQUEST_TIMEOUT_MS = 5000;
 
@@ -218,7 +218,7 @@ exports.handler = async (event, context) => {
           user: {
             id: authUser.id,
             email: authUser.email,
-            plan: planDetails ? planDetails.name : 'Free Plan',
+            plan: getPlanDisplayName(profile.subscription_plan, profile.monthly_credit_allowance),
             credits_remaining: displayCreditsRemaining,
             monthly_credits_remaining: displayCreditsRemaining,
             subscription_plan: profile.subscription_plan || DEFAULT_SUBSCRIPTION_PLAN,
@@ -232,7 +232,7 @@ exports.handler = async (event, context) => {
           monthly_credits_remaining: displayCreditsRemaining,
           subscription_plan: profile.subscription_plan || DEFAULT_SUBSCRIPTION_PLAN,
           subscription_status: profile.subscription_status || 'active',
-          plan_name: planDetails ? planDetails.name : 'Free Plan',
+          plan_name: getPlanDisplayName(profile.subscription_plan, profile.monthly_credit_allowance),
           total_credits: planDetails?.credits ?? getPlanCredits(profile.subscription_plan)
         }
       }),

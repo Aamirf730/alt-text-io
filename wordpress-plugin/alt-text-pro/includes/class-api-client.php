@@ -12,6 +12,20 @@ if (!defined('ABSPATH')) {
 class AltTextPro_API_Client
 {
 
+    // Largest original file the plugin will read at all (memory safety).
+    private const MAX_SOURCE_IMAGE_BYTES = 25 * 1024 * 1024;
+
+    // Largest image sent as-is. Base64 adds a third, keeping the JSON body
+    // well under the service's ~6 MB request limit.
+    private const MAX_DIRECT_UPLOAD_BYTES = 3 * 1024 * 1024;
+
+    // Longest edge after downscaling; plenty of detail for alt text.
+    private const MAX_UPLOAD_DIMENSION = 2048;
+
+    // Formats the AI service reads directly.
+    private const DIRECT_UPLOAD_MIME_TYPES = array('image/jpeg', 'image/png', 'image/webp', 'image/gif');
+
+
     private $api_base;
     private $api_key;
 
@@ -46,13 +60,12 @@ class AltTextPro_API_Client
         $image_data = $this->get_image_base64($attachment_id);
         if (!$image_data) {
             $file_path = get_attached_file($attachment_id);
-            $file_size = $file_path ? filesize($file_path) : 0;
-            $max_size = 15 * 1024 * 1024; // 15MB
+            $file_size = ($file_path && file_exists($file_path)) ? (int) filesize($file_path) : 0;
 
-            if ($file_size > $max_size) {
+            if ($file_size > self::MAX_DIRECT_UPLOAD_BYTES) {
                 return array(
                     'success' => false,
-                    'message' => esc_html__('Image too large to process.', 'alt-text-pro'),
+                    'message' => esc_html__('Image too large to process, and it could not be resized on this server.', 'alt-text-pro'),
                     'status_code' => 413,
                     'image_too_large' => true,
                     'retryable' => false
@@ -126,7 +139,8 @@ class AltTextPro_API_Client
             'retryable' => $response['retryable'] ?? false,
             'retry_after_seconds' => $response['retry_after_seconds'] ?? null,
             'code' => $response['code'] ?? null,
-            'image_too_large' => $response['image_too_large'] ?? false
+            'image_too_large' => $response['image_too_large'] ?? false,
+            'no_credits' => $response['no_credits'] ?? false
         );
     }
 
@@ -142,7 +156,9 @@ class AltTextPro_API_Client
             );
         }
 
-        return $this->make_request('get-usage', 'GET');
+        // Account state renders admin pages; do not let a slow service hold
+        // them for the full generation timeout.
+        return $this->make_request('get-usage', 'GET', array(), 15);
     }
 
     /**
@@ -184,28 +200,27 @@ class AltTextPro_API_Client
         }
 
         // Check if it's an image
-        $mime_type = get_post_mime_type($attachment_id);
-        if (strpos((string) $mime_type, 'image/') !== 0) {
+        $mime_type = (string) get_post_mime_type($attachment_id);
+        if (strpos($mime_type, 'image/') !== 0) {
             return false;
         }
 
-        // Check file size (AI service limit is ~20MB, but base64 increases size by ~33%)
-        // So we limit to ~15MB raw file size to be safe
-        $file_size = filesize($file_path);
-        $max_size = 15 * 1024 * 1024; // 15MB in bytes
-
-        if ($file_size > $max_size) {
+        $file_size = (int) filesize($file_path);
+        if ($file_size <= 0 || $file_size > self::MAX_SOURCE_IMAGE_BYTES) {
             return false;
         }
 
-        // Get image data
-        $image_data = file_get_contents($file_path);
-        if ($image_data === false) {
-            return false;
+        // Send the original only when it is small and in a format the AI
+        // service reads. Everything else is downscaled and re-encoded so the
+        // request stays under the service's ~6 MB body limit (base64 adds a
+        // third) and formats such as HEIC, BMP or TIFF still work.
+        if ($file_size <= self::MAX_DIRECT_UPLOAD_BYTES && in_array($mime_type, self::DIRECT_UPLOAD_MIME_TYPES, true)) {
+            $image_data = file_get_contents($file_path);
+        } else {
+            $image_data = $this->get_resized_image_data($file_path, $mime_type);
         }
 
-        // Validate image data is not empty
-        if (empty($image_data)) {
+        if (!is_string($image_data) || $image_data === '' || strlen($image_data) > self::MAX_DIRECT_UPLOAD_BYTES) {
             return false;
         }
 
@@ -220,9 +235,71 @@ class AltTextPro_API_Client
     }
 
     /**
+     * Downscale an image with the WordPress image editor and return the
+     * encoded bytes, or false when no editor can read the file.
+     */
+    private function get_resized_image_data($file_path, $source_mime_type)
+    {
+        if (!function_exists('wp_get_image_editor')) {
+            return false;
+        }
+
+        $editor = wp_get_image_editor($file_path);
+        if (is_wp_error($editor)) {
+            return false;
+        }
+
+        $size = $editor->get_size();
+        if (
+            is_array($size)
+            && (intval($size['width'] ?? 0) > self::MAX_UPLOAD_DIMENSION || intval($size['height'] ?? 0) > self::MAX_UPLOAD_DIMENSION)
+        ) {
+            $resized = $editor->resize(self::MAX_UPLOAD_DIMENSION, self::MAX_UPLOAD_DIMENSION, false);
+            if (is_wp_error($resized)) {
+                return false;
+            }
+        }
+
+        $editor->set_quality(82);
+
+        // Keep transparency where it matters; JPEG for everything else.
+        $target_mime_type = 'image/jpeg';
+        if (in_array($source_mime_type, array('image/png', 'image/gif', 'image/webp', 'image/avif'), true)) {
+            $target_mime_type = wp_image_editor_supports(array('mime_type' => 'image/webp')) ? 'image/webp' : 'image/png';
+        }
+
+        $extension = $target_mime_type === 'image/webp' ? 'webp' : ($target_mime_type === 'image/png' ? 'png' : 'jpg');
+
+        // Uploads through the REST API (block editor) do not load wp-admin.
+        if (!function_exists('wp_tempnam')) {
+            require_once ABSPATH . 'wp-admin/includes/file.php';
+        }
+        $temp_base = wp_tempnam('alt-text-pro-upload');
+        if (!$temp_base) {
+            return false;
+        }
+        $temp_path = $temp_base . '.' . $extension;
+
+        $saved = $editor->save($temp_path, $target_mime_type);
+        $image_data = false;
+
+        if (!is_wp_error($saved) && !empty($saved['path']) && file_exists($saved['path'])) {
+            $image_data = file_get_contents($saved['path']);
+            wp_delete_file($saved['path']);
+        }
+
+        wp_delete_file($temp_base);
+        if (file_exists($temp_path)) {
+            wp_delete_file($temp_path);
+        }
+
+        return $image_data;
+    }
+
+    /**
      * Make API request
      */
-    private function make_request($endpoint, $method = 'GET', $data = array())
+    private function make_request($endpoint, $method = 'GET', $data = array(), $timeout = 60)
     {
         // Ensure proper URL construction (remove trailing slash from base, ensure single slash)
         $api_base = rtrim($this->api_base, '/');
@@ -238,7 +315,7 @@ class AltTextPro_API_Client
         $args = array(
             'method' => $method,
             'headers' => $headers,
-            'timeout' => 60,
+            'timeout' => max(5, intval($timeout)),
             'sslverify' => true
         );
 

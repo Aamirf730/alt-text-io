@@ -49,4 +49,18 @@ describe("WordPress connect result screens", () => {
         expect(pageSource).not.toContain("#6366f1");
         expect(pageSource).not.toContain("#8b5cf6");
     });
+
+    it("lets the WordPress popup keep window.opener", () => {
+        const config = fs.readFileSync(path.resolve(process.cwd(), "next.config.mjs"), "utf8");
+        const globalRule = config.indexOf("source: '/(.*)'");
+        const connectRule = config.indexOf("source: '/connect'");
+
+        // Next.js applies the later matching rule, so /connect must follow the
+        // global security headers and replace their opener policy.
+        expect(globalRule).toBeGreaterThan(-1);
+        expect(connectRule).toBeGreaterThan(globalRule);
+        expect(config.slice(connectRule)).toMatch(
+            /key: 'Cross-Origin-Opener-Policy', value: 'unsafe-none'/,
+        );
+    });
 });

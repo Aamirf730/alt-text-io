@@ -45,8 +45,25 @@ alt_text_pro_p3_contains($main, "load_plugin_textdomain('alt-text-pro'", 'The pl
 alt_text_pro_p3_absent($main, "// load_plugin_textdomain('alt-text-pro'", 'The plugin text-domain call must not remain commented out.');
 alt_text_pro_p3_contains($main, '$settings[\'context_enabled\']', 'Post generation must use the context_enabled setting.');
 alt_text_pro_p3_absent($main, '$settings[\'use_context\']', 'The obsolete use_context setting must not be read.');
-alt_text_pro_p3_contains($main, '* Version:           1.7.24', 'The plugin version must advance for this release.');
-alt_text_pro_p3_contains($readme, 'Stable tag: 1.7.24', 'The readme stable tag must match the plugin version.');
+// Header, version constant, readme stable tag and changelog must agree.
+preg_match('/^\s*\*\s*Version:\s*(\S+)/m', $main, $alt_text_pro_header_version);
+preg_match("/define\('ALT_TEXT_PRO_VERSION', '([^']+)'\);/", $main, $alt_text_pro_constant_version);
+preg_match('/^Stable tag:\s*(\S+)/m', $readme, $alt_text_pro_stable_tag);
+$alt_text_pro_version = $alt_text_pro_header_version[1] ?? '';
+if ($alt_text_pro_version === '' || preg_match('/^\d+\.\d+\.\d+$/', $alt_text_pro_version) !== 1) {
+    fwrite(STDERR, "FAIL: The plugin header must declare a semantic version.\n");
+    exit(1);
+}
+if (($alt_text_pro_constant_version[1] ?? '') !== $alt_text_pro_version) {
+    fwrite(STDERR, "FAIL: ALT_TEXT_PRO_VERSION must match the plugin header version.\n");
+    exit(1);
+}
+if (($alt_text_pro_stable_tag[1] ?? '') !== $alt_text_pro_version) {
+    fwrite(STDERR, "FAIL: The readme stable tag must match the plugin version.\n");
+    exit(1);
+}
+alt_text_pro_p3_contains($readme, '= ' . $alt_text_pro_version . ' =', 'The readme changelog must have an entry for the current version.');
+alt_text_pro_p3_contains($readme, '== External services ==', 'The readme must disclose the external service for WordPress.org review.');
 
 alt_text_pro_p3_contains($media, "wp_ajax_alt_text_pro_get_context_suggestions", 'Context suggestions must have a registered AJAX handler.');
 alt_text_pro_p3_contains($media, "check_ajax_referer('alt_text_pro_nonce', 'nonce')", 'Context suggestions must verify the AJAX nonce.');

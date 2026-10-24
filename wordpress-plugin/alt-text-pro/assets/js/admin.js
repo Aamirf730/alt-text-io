@@ -980,6 +980,12 @@
                             $('<div>').text('Initialized process #' + String(self.processId || '') + ' (up to ' + processableTotal + ' images can run with available plan credits)')
                         );
 
+                        if (response.data.queue_capped) {
+                            $('#progress-log').append(
+                                $('<div>').text('This run includes the newest ' + String(response.data.queue_cap || queueTotal) + ' images. Start another run when it finishes to continue with older images.')
+                            );
+                        }
+
                         if (total === 0) {
                             self.finishProcess({ success: true, processed: 0, successful: 0, errors: 0 });
                             return;

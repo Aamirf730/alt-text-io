@@ -14,6 +14,18 @@ class AltTextPro_Bulk_Processor
 
     private const MAX_RETRY_ATTEMPTS = 3;
 
+    // Largest queue one run takes on. Above the biggest credit pack, and small
+    // enough that the saved run state stays a reasonable option row.
+    private const MAX_BULK_QUEUE = 20000;
+
+    // One bulk run per site. Two concurrent runs over the same library would
+    // both reach images still in flight in the other run and pay twice.
+    private const ACTIVE_RUN_OPTION = 'alt_text_pro_active_bulk_run';
+
+    // A run with no progress for this long (for example a closed tab) no
+    // longer blocks a new one.
+    private const ACTIVE_RUN_STALE_SECONDS = 900;
+
     /**
      * Constructor
      */
@@ -44,6 +56,16 @@ class AltTextPro_Bulk_Processor
         $process_type = isset($_POST['process_type']) ? sanitize_text_field(wp_unslash($_POST['process_type'])) : 'missing'; // 'missing', 'all', or 'selected'
         $selected_images = isset($_POST['selected_images']) ? array_map('intval', (array) $_POST['selected_images']) : array();
 
+        if ($this->get_live_active_run()) {
+            wp_send_json_error(esc_html__('Another bulk run is already in progress on this site. Wait for it to finish or cancel it before starting a new one.', 'alt-text-pro'));
+        }
+
+        // "All" without overwrite is the same set as "missing"; use the
+        // filtered query instead of re-checking every image's metadata in PHP.
+        if ($process_type === 'all' && empty($overwrite_existing)) {
+            $process_type = 'missing';
+        }
+
         // Get images to process based on process type
         if ($process_type === 'selected' && !empty($selected_images)) {
             // Process only selected images. For selected images, we always include them regardless of alt-text
@@ -57,43 +79,11 @@ class AltTextPro_Bulk_Processor
             $images_to_process = $this->get_images_without_alt_text(false); // false = only images without alt-text
         }
 
-        // Filter out duplicates and apply overwrite logic
-        // Note: When process_type is 'all', we include all images and let overwrite_existing control whether to regenerate
-        // When process_type is 'missing', we only process images without alt-text (overwrite_existing is ignored for filtering)
-        if (!empty($images_to_process)) {
-            $filtered_images = array();
-            $seen_ids = array(); // Track seen image IDs to prevent duplicates
-
-            foreach ($images_to_process as $image_id) {
-                // Skip duplicates
-                if (in_array($image_id, $seen_ids)) {
-                    continue;
-                }
-                $seen_ids[] = $image_id;
-
-                // Apply filtering based on process type and overwrite setting
-                if ($process_type === 'missing') {
-                    // For "missing" type: only process images without alt-text (ignore overwrite checkbox for filtering)
-                    $existing_alt = get_post_meta($image_id, '_wp_attachment_image_alt', true);
-                    if (!empty($existing_alt) && trim($existing_alt) !== '') {
-                        continue; // Skip images that already have alt-text
-                    }
-                } elseif ($process_type === 'all') {
-                    // For "all" type: include all images, but if overwrite is false, skip those with alt-text
-                    if (empty($overwrite_existing)) {
-                        $existing_alt = get_post_meta($image_id, '_wp_attachment_image_alt', true);
-                        if (!empty($existing_alt) && trim($existing_alt) !== '') {
-                            continue; // Skip images with existing alt-text if overwrite is disabled
-                        }
-                    }
-                    // If overwrite is enabled, include all images (they will be regenerated)
-                }
-                // For "selected" type: include all selected images, filtering handled by get_selected_images()
-
-                $filtered_images[] = $image_id;
-            }
-            $images_to_process = $filtered_images;
-        }
+        // The queries already return unique, editable IDs: "missing" filters
+        // out existing alt text in SQL, "all" (with overwrite) takes every
+        // image, and "selected" is filtered by get_selected_images().
+        $images_to_process = array_values(array_unique(array_map('intval', (array) $images_to_process)));
+        $queue_capped = count($images_to_process) >= self::MAX_BULK_QUEUE;
 
         if (empty($images_to_process)) {
             $msg = esc_html__('No images found to process.', 'alt-text-pro');
@@ -144,6 +134,13 @@ class AltTextPro_Bulk_Processor
         // Create bulk process record
         $process_id = $this->create_bulk_process_record($images_to_process, $batch_size, $overwrite_existing, $credits_remaining, $processable_images, $plan_allowance, $monthly_credits_used);
 
+        if (!$this->claim_active_run($process_id)) {
+            // Another request started a run between the check above and now.
+            $this->delete_bulk_process_state($process_id);
+            delete_transient('alt_text_pro_bulk_' . $process_id);
+            wp_send_json_error(esc_html__('Another bulk run is already in progress on this site. Wait for it to finish or cancel it before starting a new one.', 'alt-text-pro'));
+        }
+
         wp_send_json_success(array(
             'process_id' => $process_id,
             'total_images' => $total_images,
@@ -154,6 +151,8 @@ class AltTextPro_Bulk_Processor
             'plan_credits_used' => $monthly_credits_used,
             'plan_credits_remaining' => $credit_limit_for_run,
             'batch_size' => $batch_size,
+            'queue_capped' => $queue_capped,
+            'queue_cap' => self::MAX_BULK_QUEUE,
             'estimated_time' => $this->estimate_processing_time($processable_images)
         ));
     }
@@ -875,6 +874,7 @@ class AltTextPro_Bulk_Processor
     private function get_images_without_alt_text($include_existing = false)
     {
         global $wpdb;
+        $editable_clause = self::get_editable_media_sql_clause('p');
 
         if ($include_existing) {
             // Include all images regardless of alt text
@@ -884,10 +884,11 @@ class AltTextPro_Bulk_Processor
                  FROM {$wpdb->posts} p 
                  WHERE p.post_type = 'attachment' 
                  AND p.post_mime_type LIKE %s
+                 {$editable_clause}
                  ORDER BY p.post_date DESC
                  LIMIT %d",
                 'image/%',
-                1000
+                self::MAX_BULK_QUEUE
             );
         } else {
             // Only get images without alt text (using a more reliable query)
@@ -906,15 +907,18 @@ class AltTextPro_Bulk_Processor
                  WHERE p.post_type = 'attachment' 
                  AND p.post_mime_type LIKE %s
                  AND pm.post_id IS NULL
+                 {$editable_clause}
                  ORDER BY p.post_date DESC
                  LIMIT %d",
                 'image/%',
-                1000
+                self::MAX_BULK_QUEUE
             );
         }
 
+        // The query is already limited to editable image attachments, so no
+        // per-image capability check (and no loading of every post) is needed.
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
-        return $this->filter_editable_images($wpdb->get_col($query));
+        return array_map('intval', (array) $wpdb->get_col($query));
     }
 
     /**
@@ -975,6 +979,34 @@ class AltTextPro_Bulk_Processor
 
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
         return $this->filter_editable_images($wpdb->get_col($query));
+    }
+
+    /**
+     * True when the current user may edit every attachment. Library-wide
+     * queries can then be scoped in SQL instead of loading every post to run
+     * a per-image capability check; other users are limited to their own
+     * uploads, which is what they may edit.
+     */
+    public static function user_can_edit_all_media()
+    {
+        return current_user_can('edit_others_posts')
+            && current_user_can('edit_published_posts')
+            && current_user_can('edit_private_posts');
+    }
+
+    /**
+     * SQL fragment that limits attachment queries to media the current user
+     * may edit. Empty for users who can edit all media.
+     */
+    public static function get_editable_media_sql_clause($table_alias = 'p')
+    {
+        global $wpdb;
+
+        if (self::user_can_edit_all_media()) {
+            return '';
+        }
+
+        return $wpdb->prepare(" AND {$table_alias}.post_author = %d", get_current_user_id());
     }
 
     /**
@@ -1258,6 +1290,74 @@ class AltTextPro_Bulk_Processor
     private function delete_bulk_process_state($process_id)
     {
         delete_option($this->get_bulk_process_option_name($process_id));
+        $this->release_active_run($process_id);
+    }
+
+    /**
+     * Return the marker of a bulk run that is still making progress, or null.
+     */
+    private function get_live_active_run()
+    {
+        $this->clear_lock_option_cache(self::ACTIVE_RUN_OPTION);
+        $marker = get_option(self::ACTIVE_RUN_OPTION, null);
+
+        if (!is_array($marker) || empty($marker['process_id'])) {
+            return null;
+        }
+
+        $process_data = $this->get_bulk_process_data($marker['process_id'], true, true);
+        $status = is_array($process_data) ? ($process_data['status'] ?? '') : '';
+
+        if (!in_array($status, array('running', 'cancelling'), true)) {
+            $this->atomic_delete_lock_option(self::ACTIVE_RUN_OPTION, $marker);
+            return null;
+        }
+
+        $last_activity = $process_data['last_updated'] ?? ($process_data['started_at'] ?? '');
+        $idle_seconds = strtotime(current_time('mysql')) - strtotime((string) $last_activity);
+
+        if (!$last_activity || $idle_seconds > self::ACTIVE_RUN_STALE_SECONDS) {
+            $this->atomic_delete_lock_option(self::ACTIVE_RUN_OPTION, $marker);
+            return null;
+        }
+
+        return $marker;
+    }
+
+    /**
+     * Atomically record this run as the site's active bulk run.
+     */
+    private function claim_active_run($process_id)
+    {
+        $marker = array(
+            'process_id' => $process_id,
+            'user_id' => get_current_user_id(),
+            'claimed_at' => time(),
+        );
+
+        if ($this->atomic_insert_lock_option(self::ACTIVE_RUN_OPTION, $marker)) {
+            return true;
+        }
+
+        // A finished or abandoned run may still hold the marker.
+        if ($this->get_live_active_run() === null) {
+            return $this->atomic_insert_lock_option(self::ACTIVE_RUN_OPTION, $marker);
+        }
+
+        return false;
+    }
+
+    /**
+     * Release the site-wide marker if it still belongs to this run.
+     */
+    private function release_active_run($process_id)
+    {
+        $this->clear_lock_option_cache(self::ACTIVE_RUN_OPTION);
+        $marker = get_option(self::ACTIVE_RUN_OPTION, null);
+
+        if (is_array($marker) && ($marker['process_id'] ?? '') === $process_id) {
+            $this->atomic_delete_lock_option(self::ACTIVE_RUN_OPTION, $marker);
+        }
     }
 
     /**
@@ -1372,7 +1472,7 @@ class AltTextPro_Bulk_Processor
      * forced object-cache read bypasses any request-local copy while preserving
      * the Redis-backed transient for the next AJAX batch.
      */
-    private function get_bulk_process_data($process_id, $force_refresh = false)
+    private function get_bulk_process_data($process_id, $force_refresh = false, $any_owner = false)
     {
         if (
             !is_string($process_id) ||
@@ -1400,10 +1500,13 @@ class AltTextPro_Bulk_Processor
             }
         }
 
+        // Jobs belong to the user who started them. $any_owner is only used by
+        // the site-wide run lock, which reads the status and last-update time
+        // and never returns another user's job to the browser.
         if (
             !$process_data ||
             !is_array($process_data) ||
-            intval($process_data['user_id'] ?? 0) !== get_current_user_id()
+            (!$any_owner && intval($process_data['user_id'] ?? 0) !== get_current_user_id())
         ) {
             return false;
         }

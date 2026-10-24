@@ -139,4 +139,38 @@ alt_text_pro_test_assert(
     'Non-target images must not be modified.'
 );
 
+// Core image blocks read alt from the markup; the plugin must not add an
+// "alt" attribute to the block comment, which would re-save every post.
+$core_image_content = '<!-- wp:image {"id":321,"sizeSlug":"large"} -->'
+    . '<figure class="wp-block-image size-large"><img src="d.jpg" alt="" class="wp-image-321" /></figure>'
+    . '<!-- /wp:image -->';
+$updated_core_image = $sync_post_method->invoke(
+    $plugin,
+    $core_image_content,
+    array(321 => 'A red bicycle')
+);
+alt_text_pro_test_assert(
+    strpos($updated_core_image, '{"id":321,"sizeSlug":"large"}') !== false
+        && strpos($updated_core_image, '"alt":') === false,
+    'A block comment without an alt attribute must not gain one.'
+);
+alt_text_pro_test_assert(
+    strpos($updated_core_image, 'alt="A red bicycle"') !== false,
+    'The rendered image markup must still receive the new alt text.'
+);
+
+$already_synced = '<!-- wp:image {"id":321} -->'
+    . '<figure class="wp-block-image"><img src="d.jpg" alt="A red bicycle" class="wp-image-321" /></figure>'
+    . '<!-- /wp:image -->';
+alt_text_pro_test_assert(
+    $sync_post_method->invoke($plugin, $already_synced, array(321 => 'A red bicycle')) === $already_synced,
+    'Content that already matches must be returned unchanged so the post is not re-saved.'
+);
+
+$plugin_source = file_get_contents(dirname(__DIR__) . '/alt-text-pro/alt-text-pro.php');
+alt_text_pro_test_assert(
+    strpos($plugin_source, "wp_update_post(wp_slash(array(") !== false,
+    'Post content must be slashed before wp_update_post() so backslashes survive.'
+);
+
 fwrite(STDOUT, "PASS: Gutenberg post-content alt synchronization regression\n");

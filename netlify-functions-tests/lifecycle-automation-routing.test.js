@@ -27,23 +27,59 @@ describe('lifecycle automation Netlify routing', () => {
     expect(wrapperSource).toContain("const { handler } = require('./lifecycle-automation');");
   });
 
-  it('does not inject the scheduler secret into HTTP-shaped requests', () => {
+  it("attests Netlify's POST schedule event, which carries HTTP markers", () => {
     process.env.LIFECYCLE_AUTOMATION_SECRET = 'test-secret';
 
+    // Production evidence: every scheduled run returned in ~4 ms with no
+    // output because this exact event shape was refused at the secret check.
     const delegated = scheduledLifecycleAutomation._private.buildDelegatedEvent({
       httpMethod: 'POST',
       path: '/.netlify/functions/lifecycle-automation-scheduled',
-      headers: {},
+      headers: { 'content-type': 'application/json' },
       queryStringParameters: {},
       body: JSON.stringify({ next_run: '2026-06-25T14:00:00.000Z' }),
     });
 
-    expect(delegated.httpMethod).toBe('POST');
-    expect(delegated.headers).toEqual({});
+    expect(delegated.headers).toEqual({ 'x-lifecycle-automation-secret': 'test-secret' });
+    expect(lifecycleAutomation._private.isAuthorizedRun(delegated)).toMatchObject({
+      allowed: true,
+      mode: 'scheduled',
+    });
+  });
+
+  it.each([
+    ['an empty body', '{}'],
+    ['a non-date next_run', JSON.stringify({ next_run: 'soon' })],
+    ['malformed JSON', '{next_run'],
+    ['a dry-run query without a schedule body', undefined],
+  ])('does not inject the secret for %s', (_label, body) => {
+    process.env.LIFECYCLE_AUTOMATION_SECRET = 'test-secret';
+    const event = {
+      httpMethod: 'POST',
+      path: '/.netlify/functions/lifecycle-automation-scheduled',
+      headers: {},
+      queryStringParameters: { dry_run: 'false' },
+      body,
+    };
+
+    const delegated = scheduledLifecycleAutomation._private.buildDelegatedEvent(event);
+
+    expect(delegated).toBe(event);
     expect(lifecycleAutomation._private.isAuthorizedRun(delegated)).toMatchObject({
       allowed: false,
       mode: 'blocked',
     });
+  });
+
+  it('still requires the secret on the URL-reachable shared handler', () => {
+    process.env.LIFECYCLE_AUTOMATION_SECRET = 'test-secret';
+
+    expect(lifecycleAutomation._private.isAuthorizedRun({
+      httpMethod: 'POST',
+      path: '/.netlify/functions/lifecycle-automation',
+      headers: {},
+      body: JSON.stringify({ next_run: '2026-06-25T14:00:00.000Z' }),
+    })).toMatchObject({ allowed: false, mode: 'blocked' });
   });
 
   it('attests a scheduler-shaped event with the configured secret', () => {

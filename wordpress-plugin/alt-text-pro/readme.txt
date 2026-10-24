@@ -4,7 +4,7 @@ Tags: alt text, accessibility, image seo, ai, media library
 Requires at least: 5.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.7.25
+Stable tag: 1.7.26
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -158,6 +158,17 @@ Yes, you can cancel your subscription at any time from your Alt Text Pro dashboa
 6. Responsive admin interface for managing alt text from different screen sizes.
 
 == Changelog ==
+= 1.7.26 =
+* Fix: generating alt text for a post no longer strips backslashes from the post content (block data and code samples stay intact), and posts are only re-saved when an image's alt text actually changes.
+* Fix: post-level generation stops when credits run out instead of calling the service for every remaining image.
+* Fix: only one bulk run can be active on a site at a time, so two tabs or two admins can no longer pay twice for the same image. An abandoned run stops blocking after 15 minutes.
+* Fix: bulk runs are no longer limited to the newest 1,000 images; one run now covers up to 20,000 images, and the Bulk page counts the whole library quickly.
+* Fix: large photos are downscaled before upload, and formats such as HEIC, BMP and TIFF are converted when the server's image editor supports them, so they no longer fail as "too large".
+* Fix: the dashboard shows an error with "Try again" and "Reconnect account" when your account cannot be loaded, instead of placeholder credits, and loads with one request.
+* Fix: the dashboard shows plan names and credits that match your Alt Text Pro account, including bonus and credit-pack credits.
+* Fix: the settings page keeps your working API key when Alt Text Pro rejects a newly pasted one.
+* Docs: list the external service the plugin uses and what it sends.
+
 = 1.7.25 =
 * Fix automatic account connection by opening each attempt in a fresh popup and avoiding stale opener state.
 
@@ -711,6 +722,9 @@ Yes, you can cancel your subscription at any time from your Alt Text Pro dashboa
 
 == Upgrade Notice ==
 
+= 1.7.26 =
+Fixes post content being altered when generating alt text for a post, lifts the 1,000-image bulk limit, and downscales large images. Recommended for all users.
+
 = 1.4.60 =
 Bug fix: Fixed settings page initialization for new installations. Recommended update for all users.
 
@@ -721,6 +735,19 @@ Need help with alt text generation? We're here for you!
 * **Documentation**: Visit our [knowledge base](https://www.alt-text.pro/docs)
 * **Support**: Contact us through the [support form](https://www.alt-text.pro/contact)
 * **Feature Requests**: We love hearing your ideas!
+
+== External services ==
+
+This plugin needs an Alt Text Pro account and connects to the Alt Text Pro service at `https://www.alt-text.pro` to work.
+
+* **Generating alt text** (single image, post, bulk, or automatic on upload): the image (downscaled when large), the optional context you enable (post title, related text, and your blog context setting), your API key, and the plugin version are sent to `https://www.alt-text.pro/.netlify/functions/generate-alt-text`. Alt Text Pro sends the image and context to its AI provider (Google Gemini) to produce the description.
+* **Showing your credits and plan, and validating a key**: your API key and the plugin version are sent to `https://www.alt-text.pro/.netlify/functions/get-usage` and `https://www.alt-text.pro/.netlify/functions/auth-validate` when you open the plugin's pages, start a bulk run, or save a key.
+* **Connecting your account**: "Connect Account" opens `https://www.alt-text.pro/connect` with this site's settings page address so the API key can be returned to WordPress after you sign in.
+
+WordPress also sends its standard user agent, which includes your site address, with these requests. Nothing is sent until you connect an account.
+
+Terms of Service: https://www.alt-text.pro/terms
+Privacy Policy: https://www.alt-text.pro/privacy
 
 == Privacy Policy ==
 

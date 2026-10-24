@@ -201,7 +201,7 @@ class AltTextPro_Admin
     {
         $api_client = new AltTextPro_API_Client();
         $usage_stats = null;
-        $connection_status = null;
+        $usage_error = '';
 
         // Get usage stats if API key is configured and valid
         $settings_handler = new AltTextPro_Settings();
@@ -213,14 +213,15 @@ class AltTextPro_Admin
             $settings['api_key'] = '';
         }
 
+        // One usage request: it confirms the connection and returns the account
+        // state. The template shows an error instead of guessing numbers.
         if ($has_valid_key) {
             $usage_response = $api_client->get_usage_stats();
-            if ($usage_response['success']) {
+            if (!empty($usage_response['success']) && is_array($usage_response['data'] ?? null)) {
                 $usage_stats = $usage_response['data'];
+            } else {
+                $usage_error = isset($usage_response['message']) ? sanitize_text_field($usage_response['message']) : '';
             }
-
-            $connection_response = $api_client->test_connection();
-            $connection_status = $connection_response;
         }
 
         // Get local statistics
@@ -278,50 +279,41 @@ class AltTextPro_Admin
         $monthly_credits_remaining = null;
         $monthly_credit_limit = null;
 
-        // Get the same bounded, editable media set enforced by the processor.
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery
-        $editable_missing_images = $wpdb->get_results(
-            "SELECT p.ID, p.post_title, p.post_date 
-             FROM {$wpdb->posts} p 
-             WHERE p.post_type = 'attachment' 
-             AND p.post_mime_type LIKE 'image/%'
-             AND p.ID NOT IN (
-                 SELECT DISTINCT pm.post_id 
-                 FROM {$wpdb->postmeta} pm 
-                 WHERE pm.meta_key = '_wp_attachment_image_alt' 
-                 AND pm.meta_value IS NOT NULL 
+        // Count the same editable media set the processor uses. Scoping in SQL
+        // keeps this page fast on large libraries; a single run takes the
+        // newest images up to the processor's queue cap.
+        $editable_clause = AltTextPro_Bulk_Processor::get_editable_media_sql_clause('p');
+        $missing_alt_sql = "FROM {$wpdb->posts} p
+             LEFT JOIN {$wpdb->postmeta} pm ON (
+                 p.ID = pm.post_id
+                 AND pm.meta_key = '_wp_attachment_image_alt'
+                 AND pm.meta_value IS NOT NULL
                  AND pm.meta_value != ''
                  AND TRIM(pm.meta_value) != ''
              )
+             WHERE p.post_type = 'attachment'
+             AND p.post_mime_type LIKE 'image/%'
+             AND pm.post_id IS NULL
+             {$editable_clause}";
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared -- the only variable fragment is prepared above
+        $total_without_alt = (int) $wpdb->get_var("SELECT COUNT(*) {$missing_alt_sql}");
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+        $images_without_alt = $wpdb->get_results(
+            "SELECT p.ID, p.post_title, p.post_date {$missing_alt_sql}
              ORDER BY p.post_date DESC
-             LIMIT 1000"
+             LIMIT 100"
         );
 
-        $editable_missing_images = array_values(array_filter(
-            $editable_missing_images,
-            static function ($image) {
-                return wp_attachment_is_image($image->ID) && current_user_can('edit_post', $image->ID);
-            }
-        ));
-        $total_without_alt = count($editable_missing_images);
-        $images_without_alt = array_slice($editable_missing_images, 0, 100);
-
-        // Count all editable images within the processor's 1,000-image queue cap.
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery
-        $all_image_ids = $wpdb->get_col(
-            "SELECT ID
-             FROM {$wpdb->posts} 
-             WHERE post_type = 'attachment' 
-             AND post_mime_type LIKE 'image/%'
-             ORDER BY post_date DESC
-             LIMIT 1000"
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+        $total_images = (int) $wpdb->get_var(
+            "SELECT COUNT(*)
+             FROM {$wpdb->posts} p
+             WHERE p.post_type = 'attachment'
+             AND p.post_mime_type LIKE 'image/%'
+             {$editable_clause}"
         );
-        $total_images = count(array_filter(
-            $all_image_ids,
-            static function ($image_id) {
-                return wp_attachment_is_image($image_id) && current_user_can('edit_post', $image_id);
-            }
-        ));
 
         $settings_handler = new AltTextPro_Settings();
         $settings = $settings_handler->get_settings();

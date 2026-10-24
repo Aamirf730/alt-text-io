@@ -85,10 +85,19 @@ Each step touching production needs its own go-ahead.
 
 ## Production checks before launch
 
-1. **Scheduled jobs (lifecycle emails, daily funnel report).** In Netlify: Logs → Functions → `lifecycle-automation-scheduled` and `daily-funnel-report-scheduled`. Look at the latest invocations (lifecycle runs every 2 hours at minute 0 UTC, the report daily at 03:00 UTC).
-   - If each run logs a 403 or "requires a valid secret", the wrapper is receiving an HTTP-shaped event and never adds the secret, so no run has worked.
-   - Cross-check in Supabase (read-only): `select max(created_at) from marketing_automation_sends;` — a date long in the past while eligible users exist means the scheduler is not sending.
-2. **Password reset template.** In Supabase: Authentication → Email Templates → Reset Password. The link should be `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/reset-password` (the same pattern the confirmation template uses). If it uses `{{ .ConfirmationURL }}`, the reset link only works in the browser that requested it, because the site uses the PKCE flow. `supabase/templates/recovery.html` has the ready-made template to paste in. Also confirm Authentication → URL Configuration lists `https://www.alt-text.pro/auth/confirm` under Redirect URLs.
+1. **Scheduled jobs (lifecycle emails, daily funnel report): checked 2026-10-24, broken in production, fixed locally.** Netlify logs showed every run in the last day finishing in about 4 ms with no output, while the database, email and secret variables are all set. That is the secret check refusing Netlify's POST schedule event. The scheduled wrappers now add the secret for any well-formed schedule body (`next_run`); Netlify's edge refuses outside requests to scheduled functions (the public URL returns an empty 403), and the URL-reachable shared handlers still require the secret.
+   - **Before deploying:** this is the first time lifecycle emails will actually send (up to 25 per run, every 2 hours, to users from the last 30 days). Set `LIFECYCLE_AUTOMATION_DRY_RUN=true` in Netlify for the first deploy if you want to watch one dry run in the function log first.
+   - **After deploying:** a run should take hundreds of milliseconds and log a result; `select max(created_at) from marketing_automation_sends;` should move forward.
+2. **Password reset template: fixed in production on 2026-10-24** (subject and body replaced with `supabase/templates/recovery.html`, verified after reload). Previously: The live template is Supabase's default (`{{ .ConfirmationURL }}`, unbranded). Replace its body with `supabase/templates/recovery.html` and its subject with "Reset your Alt Text Pro password". Redirect URLs already include `https://www.alt-text.pro/**`, and the Site URL is `https://www.alt-text.pro`. Where to change it: in Supabase, Authentication → Email Templates → Reset Password. The link should be `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/reset-password` (the same pattern the confirmation template uses). If it uses `{{ .ConfirmationURL }}`, the reset link only works in the browser that requested it, because the site uses the PKCE flow. `supabase/templates/recovery.html` has the ready-made template to paste in. Also confirm Authentication → URL Configuration lists `https://www.alt-text.pro/auth/confirm` under Redirect URLs.
+
+## Production state on 2026-10-24 (read-only checks)
+
+- Profiles: 34 Free active, 2 Free cancelled, 2 `tier2` active (both already have a pinned allowance; one has no Polar subscription ID). No legacy `tier1`, `tier3` or `tier4` subscribers, so the pricing migration's pinning step affects no rows today.
+- Applied migrations end at `20260817060012`; the two 2026-10 migrations are not applied.
+- `pay_as_go` is already inactive; `tier3` is still active and is retired by the pricing migration.
+- Lifecycle email sends: 8 in total, the latest on 2026-08-14, which matches the scheduler having been refused since then.
+- Marketing events in the last 30 days: 169, all `page_viewed`. No sign-up, checkout or purchase events were recorded in that period.
+- Largest usage history for one account: 6,840 rows. No unsubscribed profiles.
 
 ## Rollback
 

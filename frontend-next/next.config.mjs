@@ -60,6 +60,15 @@ const nextConfig = {
         source: '/(.*)',
         headers: securityHeaders,
       },
+      {
+        // The WordPress plugin opens /connect as a popup from the customer's
+        // own site. With same-origin-allow-popups, a page opened by another
+        // origin is put in a new browsing context group, which severs
+        // window.opener, so the API key could never be posted back to
+        // wp-admin. The later rule overrides the header for this route only.
+        source: '/connect',
+        headers: [{ key: 'Cross-Origin-Opener-Policy', value: 'unsafe-none' }],
+      },
     ];
   },
 };

@@ -3,7 +3,7 @@
  * Plugin Name: Alt Text Pro
  * Plugin URI: https://www.alt-text.pro
  * Description: Draft AI alt text for WordPress images, review it, and fill missing Media Library alt attributes in small batches.
- * Version:           1.7.25
+ * Version:           1.7.26
  * Author: Alt Text Pro
  * Author URI: https://www.alt-text.pro/about
  * License: GPL v2 or later
@@ -20,8 +20,8 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('ALT_TEXT_PRO_VERSION', '1.7.25');
-// Version 1.7.25 - Fix: open each automatic connection attempt in a fresh popup so the opener handshake cannot reuse stale browser state.
+define('ALT_TEXT_PRO_VERSION', '1.7.26');
+// Version 1.7.26 - Fix: keep post content intact when syncing alt text, one bulk run per site without the 1,000-image cap, downscale large images, and show real account state on the dashboard.
 // Version 1.7.24 - Maintenance: fix context generation, timezone-aware stats, safe writes, cleanup, and dead admin bindings.
 // Version 1.7.23 - Security: remove duplicate connection requests and escape dynamic bulk activity output.
 // Version 1.7.22 - Reliability: persist active bulk-process state in the options table for transient recovery.
@@ -791,7 +791,10 @@ class AltTextPro
                 $attachment_id = intval($block['attrs']['id']);
                 $new_alt = $content_updates[$attachment_id];
 
-                if (!isset($block['attrs']['alt']) || $block['attrs']['alt'] !== $new_alt) {
+                // Core image blocks read alt from the <img> markup. Only update a
+                // comment attribute that already exists (older or third-party
+                // blocks); adding one would re-save every post for no change.
+                if (isset($block['attrs']['alt']) && $block['attrs']['alt'] !== $new_alt) {
                     $block['attrs']['alt'] = $new_alt;
                     $did_update_blocks = true;
                 }
@@ -804,7 +807,7 @@ class AltTextPro
                 $attachment_id = intval($block['attrs']['mediaId']);
                 $new_alt = $content_updates[$attachment_id];
 
-                if (!isset($block['attrs']['mediaAlt']) || $block['attrs']['mediaAlt'] !== $new_alt) {
+                if (isset($block['attrs']['mediaAlt']) && $block['attrs']['mediaAlt'] !== $new_alt) {
                     $block['attrs']['mediaAlt'] = $new_alt;
                     $did_update_blocks = true;
                 }
@@ -820,7 +823,7 @@ class AltTextPro
                         $attachment_id = intval($image_attrs['id']);
                         $new_alt = $content_updates[$attachment_id];
 
-                        if (!isset($image_attrs['alt']) || $image_attrs['alt'] !== $new_alt) {
+                        if (isset($image_attrs['alt']) && $image_attrs['alt'] !== $new_alt) {
                             $block['attrs']['images'][$image_index]['alt'] = $new_alt;
                             $did_update_blocks = true;
                         }
@@ -889,6 +892,19 @@ class AltTextPro
 
                 if (!$attachment_id || !isset($content_updates[$attachment_id])) {
                     return $image_tag;
+                }
+
+                // Leave a tag whose alt already matches untouched; rewriting it
+                // would reorder attributes and re-save the post for no change.
+                if (preg_match('/\salt\s*=\s*(?:"([^"]*)"|\'([^\']*)\')/i', $image_tag, $alt_match)) {
+                    $current_alt = html_entity_decode(
+                        isset($alt_match[2]) && $alt_match[2] !== '' ? $alt_match[2] : $alt_match[1],
+                        ENT_QUOTES | ENT_HTML5,
+                        'UTF-8'
+                    );
+                    if ($current_alt === (string) $content_updates[$attachment_id]) {
+                        return $image_tag;
+                    }
                 }
 
                 $updated_tag = preg_replace(
@@ -1028,6 +1044,14 @@ class AltTextPro
                     'status' => 'error',
                     'message' => isset($result['message']) ? $result['message'] : __('Failed to generate alt-text', 'alt-text-pro')
                 );
+
+                // Out of credits: stop instead of calling the API for every
+                // remaining image. Images already done are still synced below.
+                if (!empty($result['no_credits']) || (isset($result['status_code']) && intval($result['status_code']) === 402)) {
+                    $results['no_credits'] = true;
+                    $results['warnings'][] = __('You ran out of credits. Buy a credit pack or upgrade your plan at alt-text.pro, then run this again.', 'alt-text-pro');
+                    break;
+                }
             }
         }
 
@@ -1056,10 +1080,13 @@ class AltTextPro
                 $update_result = true;
                 if ($content !== $post->post_content) {
                     // Save the updated content back to the post only when it actually changed.
-                    $update_result = wp_update_post(array(
+                    // wp_update_post() expects slashed data and unslashes it once;
+                    // without wp_slash() every backslash in the post (block JSON
+                    // escapes such as \u003c, code samples) would be stripped.
+                    $update_result = wp_update_post(wp_slash(array(
                         'ID' => $post_id,
                         'post_content' => $content,
-                    ), true);
+                    )), true);
                 }
 
                 if (is_wp_error($update_result)) {

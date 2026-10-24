@@ -17,7 +17,7 @@ const {
 } = require('./utils/plugin-connect-event');
 const { extractPluginVersion } = require('./utils/plugin-version');
 const { fetchAllRows } = require('./utils/paginated-query');
-const { getPlanCredits } = require('./utils/subscription-plans');
+const { getPlanCredits, getPlanDisplayName } = require('./utils/subscription-plans');
 
 // Initialize Supabase client
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -247,9 +247,14 @@ exports.handler = async (event, context) => {
           monthly_credit_limit: monthlyCreditState.monthly_credit_limit,
           monthly_credits_remaining: monthlyCreditState.monthly_credits_remaining,
           monthly_credits_used: monthlyCreditState.monthly_credits_used,
+          // Plan allowance left this cycle, separate from bonus and pack credits.
+          plan_credits_remaining: monthlyCreditState.is_monthly_limited
+            ? Math.max(0, monthlyCreditState.monthly_credit_limit - Number(monthlyCreditState.monthly_credits_used || 0))
+            : null,
           is_monthly_limited: monthlyCreditState.is_monthly_limited,
           total_generated: totalGenerated,
           subscription_plan: profile.subscription_plan || 'free',
+          plan_name: getPlanDisplayName(profile.subscription_plan, profile.monthly_credit_allowance),
           subscription_status: profile.subscription_status || 'active',
           billing_cycle: profile.billing_cycle || null,
           monthly_credit_allowance: profile.monthly_credit_allowance || null,

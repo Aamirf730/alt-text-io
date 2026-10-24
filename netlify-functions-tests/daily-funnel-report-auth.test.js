@@ -35,7 +35,7 @@ describe('daily funnel report authorization', () => {
     })).toMatchObject({ allowed: true, mode: 'manual' });
   });
 
-  it('does not inject the scheduler secret into an HTTP-shaped wrapper request', () => {
+  it('does not inject the scheduler secret without a schedule body', () => {
     process.env.DAILY_FUNNEL_REPORT_SECRET = 'report-secret';
 
     const delegated = scheduledDailyFunnelReport._private.buildDelegatedEvent({
@@ -52,11 +52,14 @@ describe('daily funnel report authorization', () => {
     });
   });
 
-  it('attests a scheduler-shaped wrapper event with the configured secret', () => {
+  it("attests Netlify's POST schedule event with the configured secret", () => {
     process.env.DAILY_FUNNEL_REPORT_SECRET = 'report-secret';
 
     const delegated = scheduledDailyFunnelReport._private.buildDelegatedEvent({
-      body: '{}',
+      httpMethod: 'POST',
+      path: '/.netlify/functions/daily-funnel-report-scheduled',
+      headers: {},
+      body: JSON.stringify({ next_run: '2026-10-25T03:00:00.000Z' }),
     });
 
     expect(delegated).toMatchObject({
