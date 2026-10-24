@@ -204,6 +204,14 @@
     background: var(--atp-yellow-tint);
 }
 
+.atp-ui .alt-text-pro-notices-container > .alt-text-pro-review-prompt p.alt-text-pro-review-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+}
+
 .atp-ui .notice-dismiss::before {
     color: var(--atp-ink-muted);
 }

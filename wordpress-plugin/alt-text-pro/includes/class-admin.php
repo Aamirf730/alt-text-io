@@ -23,10 +23,21 @@ class AltTextPro_Admin
         // Removed attachment_fields_to_edit filter - using meta box instead to avoid duplication
         add_action('add_meta_boxes', array($this, 'add_media_meta_boxes'));
         add_action('admin_post_alt_text_pro_export_logs', array($this, 'export_logs_csv'));
+        add_action('admin_post_alt_text_pro_review_prompt', array($this, 'handle_review_prompt'));
     }
 
     // Most rows one CSV export writes.
     private const EXPORT_LOGS_LIMIT = 50000;
+
+    // Generated descriptions on this site before the review request appears.
+    public const REVIEW_PROMPT_THRESHOLD = 50;
+
+    // Per-user state: 'done', or a Unix time to ask again after.
+    public const REVIEW_PROMPT_META = 'alt_text_pro_review_prompt';
+
+    public const REVIEW_PROMPT_SNOOZE = 30 * DAY_IN_SECONDS;
+
+    public const REVIEW_URL = 'https://wordpress.org/support/plugin/alt-text-pro/reviews/#new-post';
 
     /**
      * Logs page "Export": download the generation history as CSV, filtered
@@ -291,7 +302,97 @@ class AltTextPro_Admin
 
         if (get_option('alt_text_pro_api_key_storage_error', false)) {
             $this->render_api_key_storage_notice();
+            return;
         }
+
+        $this->maybe_render_review_prompt();
+    }
+
+    /**
+     * Ask for a WordPress.org review once the plugin has been useful on this
+     * site. Shown only on plugin pages, never more than once per snooze.
+     */
+    private function maybe_render_review_prompt()
+    {
+        $state = get_user_meta(get_current_user_id(), self::REVIEW_PROMPT_META, true);
+        if ($state === 'done' || (is_numeric($state) && (int) $state > time())) {
+            return;
+        }
+
+        $generated = self::count_generated_descriptions();
+        if ($generated < self::REVIEW_PROMPT_THRESHOLD) {
+            return;
+        }
+
+        $action_url = function ($choice) {
+            return wp_nonce_url(
+                admin_url('admin-post.php?action=alt_text_pro_review_prompt&choice=' . $choice),
+                'alt_text_pro_review_prompt'
+            );
+        };
+
+        echo '<div class="notice notice-info alt-text-pro-review-prompt"><p>';
+        echo '<strong>' . esc_html(sprintf(
+            // translators: %s: number of alt text descriptions generated on this site.
+            _n('Alt Text Pro has written %s alt text description on this site.', 'Alt Text Pro has written %s alt text descriptions on this site.', $generated, 'alt-text-pro'),
+            number_format_i18n($generated)
+        )) . '</strong> ';
+        echo esc_html__('If it is saving you time, a short review on WordPress.org helps other site owners find it.', 'alt-text-pro');
+        echo '</p><p class="alt-text-pro-review-actions">';
+        echo '<a class="button-primary-custom atp-btn-sm" href="' . esc_url($action_url('review')) . '" target="_blank" rel="noopener noreferrer">' . esc_html__('Leave a review', 'alt-text-pro') . '</a>';
+        echo '<a class="button-secondary-custom atp-btn-sm" href="' . esc_url($action_url('later')) . '">' . esc_html__('Maybe later', 'alt-text-pro') . '</a>';
+        echo '<a class="atp-btn atp-btn-ghost atp-btn-sm" href="' . esc_url($action_url('dismiss')) . '">' . esc_html__("Don't ask again", 'alt-text-pro') . '</a>';
+        echo '</p></div>';
+    }
+
+    /**
+     * Number of saved generations on this site, cached for a few hours.
+     */
+    public static function count_generated_descriptions()
+    {
+        $cached = get_transient('alt_text_pro_generated_count');
+        if ($cached !== false) {
+            return (int) $cached;
+        }
+
+        global $wpdb;
+        $logs_table = $wpdb->prefix . 'alt_text_pro_logs';
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name comes from $wpdb
+        $count = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$logs_table}");
+        set_transient('alt_text_pro_generated_count', $count, 6 * HOUR_IN_SECONDS);
+
+        return $count;
+    }
+
+    /**
+     * Record the answer to the review request and continue.
+     */
+    public function handle_review_prompt()
+    {
+        if (!current_user_can('manage_options')) {
+            wp_die(esc_html__('You do not have permission to perform this action.', 'alt-text-pro'), '', array('response' => 403));
+        }
+
+        check_admin_referer('alt_text_pro_review_prompt');
+
+        $choice = isset($_GET['choice']) ? sanitize_key(wp_unslash($_GET['choice'])) : '';
+        $user_id = get_current_user_id();
+
+        if ($choice === 'later') {
+            update_user_meta($user_id, self::REVIEW_PROMPT_META, time() + self::REVIEW_PROMPT_SNOOZE);
+        } elseif ($choice === 'review' || $choice === 'dismiss') {
+            update_user_meta($user_id, self::REVIEW_PROMPT_META, 'done');
+        }
+
+        if ($choice === 'review') {
+            // phpcs:ignore WordPress.Security.SafeRedirect.wp_redirect_wp_redirect -- fixed WordPress.org URL
+            wp_redirect(self::REVIEW_URL);
+            exit;
+        }
+
+        $back = wp_get_referer();
+        wp_safe_redirect($back ? $back : admin_url('admin.php?page=alt-text-pro'));
+        exit;
     }
 
     /**

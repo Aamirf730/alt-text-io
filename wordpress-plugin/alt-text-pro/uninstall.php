@@ -22,6 +22,7 @@ function alt_text_pro_uninstall_site()
     delete_option('alt_text_pro_api_key_storage_error');
     delete_option('alt_text_pro_active_bulk_run');
     delete_transient('alt_text_pro_activation_redirect');
+    delete_transient('alt_text_pro_generated_count');
 
     wp_clear_scheduled_hook('alt_text_pro_cleanup');
     wp_clear_scheduled_hook('alt_text_pro_bulk_process_batch');
@@ -62,3 +63,6 @@ if (is_multisite()) {
 } else {
     alt_text_pro_uninstall_site();
 }
+
+// Review-request answers are stored per user, once for the whole network.
+delete_metadata('user', 0, 'alt_text_pro_review_prompt', '', true);

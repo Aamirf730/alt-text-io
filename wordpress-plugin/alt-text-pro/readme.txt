@@ -1,30 +1,32 @@
-=== Alt Text Pro ===
+=== Alt Text Pro – AI Alt Text Generator ===
 Contributors: aamirfaiz
-Tags: alt text, accessibility, image seo, ai, media library
+Tags: alt text, ai alt text, image alt text, accessibility, image seo
 Requires at least: 5.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.7.26
+Stable tag: 1.7.27
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Draft AI alt text for WordPress images, review it, and fill missing Media Library alt attributes in small batches.
+Alt Text Pro writes AI alt text for your WordPress images. Review each draft, generate on upload, or bulk fix missing alt text in your media library.
 
 == Description ==
-Alt Text Pro helps WordPress site owners write useful image alt text faster. It uses AI vision models to describe images, then saves the result into the WordPress media library so your content is easier to understand for visitors, screen readers, and search engines.
+Alt Text Pro is an AI alt text generator for WordPress. It looks at each image, writes a short, specific description, and saves it as the image's alt text in your media library. You review the draft, add details the AI cannot know (such as a product name), and decide what appears on your site.
 
-Use it when you are launching a new site, cleaning up an old media library, managing WooCommerce product images, or fixing missing alt text across blog posts and pages.
+Use it to fix missing alt text across an older media library, describe WooCommerce product and gallery images, or write alt text for new images as you upload them.
 
 ### What Alt Text Pro does
 
-* Generates AI alt text for individual images from the WordPress admin
-* Bulk-generates alt text for existing media-library images
-* Adds alt text to images used inside posts and pages
-* Lets you review and edit generated alt text before relying on it
-* Shows credit usage and generation history inside WordPress
-* Connects to your Alt Text Pro account with a guided setup flow
-* Helps improve accessibility basics for content and product images
-* Supports image SEO workflows by filling missing alt attributes
+* Generates alt text for one image in the media editor, so you can review it before saving
+* Optionally writes alt text automatically when you upload new images
+* Bulk fixes missing alt text across your media library, up to your newest 20,000 images per run
+* Adds alt text from the Posts and Pages list, including empty alt attributes inside the post content, without replacing alt text you already wrote
+* Uses optional page and site context for more relevant descriptions
+* Works with WooCommerce product and gallery images, because they live in the media library
+* Shows credit usage and generation history, with CSV export
+* Connects to your Alt Text Pro account in one click and stores your API key encrypted
+
+AI descriptions are a strong starting point, not a final answer. Check the images that matter most and edit where the page needs more context.
 
 ### Bulk processing experience
 
@@ -158,6 +160,10 @@ Yes, you can cancel your subscription at any time from your Alt Text Pro dashboa
 6. Responsive admin interface for managing alt text from different screen sizes.
 
 == Changelog ==
+= 1.7.27 =
+* Readme: clearer plugin name, short description, tags and feature list.
+* New: after 50 alt text descriptions on a site, plugin pages ask once for a WordPress.org review. Choose "Maybe later" (asks again in 30 days) or "Don't ask again". Shown only to administrators, only on Alt Text Pro pages.
+
 = 1.7.26 =
 * Design: yellow and white interface with consistent buttons and aligned icons.
 * Fix: the settings page shows its own results again ("Settings saved.", invalid or rejected API key, encryption problems); plugin pages hid them.
@@ -738,6 +744,9 @@ Yes, you can cancel your subscription at any time from your Alt Text Pro dashboa
 
 == Upgrade Notice ==
 
+= 1.7.27 =
+Clearer plugin description and an optional, dismissible review request. No changes to how alt text is generated.
+
 = 1.7.26 =
 Fixes post content being altered when generating alt text for a post, lifts the 1,000-image bulk limit, and downscales large images. Recommended for all users.
 
@@ -777,7 +786,7 @@ For full details, see our [Privacy Policy](https://www.alt-text.pro/privacy).
 
 == About Alt Text Pro ==
 
-Alt Text Pro helps WordPress site owners draft alt text for Media Library images, review the result, and save it into WordPress. It supports individual generation, small bulk batches, usage tracking, and optional page context.
+Alt Text Pro helps WordPress site owners draft alt text for Media Library images, review the result, and save it into WordPress. It supports single-image generation, bulk runs for missing alt text, usage tracking, and optional page context.
 
 AI output can be incomplete or incorrect, so review important descriptions before publishing.
 
