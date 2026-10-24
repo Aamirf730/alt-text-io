@@ -79,8 +79,7 @@ exports.handler = async (event) => {
     if (response) return response;
 
     const days = parsePositiveInt(event.queryStringParameters?.days, 30, 1, 180);
-    const limit = parsePositiveInt(event.queryStringParameters?.limit, 500, 1, 1000);
-    const report = await fetchLifecycleStatusReport(supabase, { days, limit });
+    const report = await fetchLifecycleStatusReport(supabase, { days });
 
     return {
       statusCode: 200,

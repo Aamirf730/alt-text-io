@@ -9,6 +9,11 @@ const ELIGIBLE_PLANS = new Set([
     "standard",
     "pro",
     "agency",
+    // Older accounts whose plan was recorded as a one-time pack.
+    "pay_as_go",
+    "small_pack",
+    "credit_pack",
+    "bulk_pack",
 ]);
 const ELIGIBLE_SUBSCRIPTION_STATUSES = new Set(["active", "cancelled", "canceled"]);
 

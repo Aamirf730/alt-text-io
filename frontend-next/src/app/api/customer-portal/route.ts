@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getPolarServer } from "@/lib/polar-environment";
 import { Polar } from "@polar-sh/sdk";
 import { createClient } from "@supabase/supabase-js";
 import { safeServerError } from "@/lib/safe-server-log";
@@ -45,7 +46,7 @@ export async function GET(req: NextRequest) {
         const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || req.nextUrl.origin;
         const polar = new Polar({
             accessToken,
-            server: process.env.POLAR_ENVIRONMENT === "sandbox" ? "sandbox" : "production",
+            server: getPolarServer(),
         });
 
         const { customerPortalUrl } = await polar.customerSessions.create({

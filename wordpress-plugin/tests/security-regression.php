@@ -130,6 +130,13 @@ function wp_cache_delete()
     return true;
 }
 
+function delete_transient($key)
+{
+    global $alt_text_pro_test_transients;
+    unset($alt_text_pro_test_transients[$key]);
+    return true;
+}
+
 class AltTextPro_Test_WPDB
 {
     public $options = 'wp_options';
@@ -137,6 +144,44 @@ class AltTextPro_Test_WPDB
     public function prepare($query, ...$args)
     {
         return array('query' => $query, 'args' => $args);
+    }
+
+    public function esc_like($text)
+    {
+        return addcslashes($text, '_%\\');
+    }
+
+    public function get_col($prepared)
+    {
+        global $alt_text_pro_test_options;
+
+        if (strpos($prepared['query'], 'SELECT option_name') !== 0) {
+            return array();
+        }
+
+        $prefix = stripslashes(rtrim($prepared['args'][0], '%'));
+        $names = array();
+        foreach (array_keys($alt_text_pro_test_options) as $name) {
+            if (strpos($name, $prefix) === 0) {
+                $names[] = $name;
+            }
+        }
+
+        return array_slice($names, 0, $prepared['args'][1]);
+    }
+
+    public function get_var($prepared)
+    {
+        global $alt_text_pro_test_options;
+
+        if (strpos($prepared['query'], 'SELECT option_value') !== 0) {
+            return null;
+        }
+
+        $name = $prepared['args'][0];
+        return array_key_exists($name, $alt_text_pro_test_options)
+            ? maybe_serialize($alt_text_pro_test_options[$name])
+            : null;
     }
 
     public function query($prepared)
@@ -384,6 +429,79 @@ alt_text_pro_security_assert(
     strpos($bulk_source, 'LIMIT %d",\n                \'image/%\',\n                1000') === false
         && substr_count($bulk_source, 'self::MAX_BULK_QUEUE') >= 3,
     'Bulk queues must use the shared queue cap instead of the old 1,000-image limit.'
+);
+
+// Daily cleanup of saved bulk state: removes finished runs and runs idle for
+// more than three days, but never the run that holds the site-wide lock.
+$alt_text_pro_cleanup_set_state = function ($run_id, array $changes) use ($processor) {
+    global $alt_text_pro_test_options, $alt_text_pro_test_transients;
+    $option = alt_text_pro_invoke_private($processor, 'get_bulk_process_option_name', array($run_id));
+    $state = array_merge($alt_text_pro_test_options[$option], $changes);
+    $alt_text_pro_test_options[$option] = $state;
+    $alt_text_pro_test_transients['alt_text_pro_bulk_' . $run_id] = $state;
+    return $option;
+};
+
+$alt_text_pro_test_user_id = 41;
+delete_option('alt_text_pro_active_bulk_run');
+$live_idle_run = alt_text_pro_invoke_private($processor, 'create_bulk_process_record', array(array(101), 1, false, 10, 1, 10, 0));
+alt_text_pro_security_assert(
+    alt_text_pro_invoke_private($processor, 'claim_active_run', array($live_idle_run)) === true,
+    'The cleanup fixture run must hold the site-wide lock.'
+);
+$live_idle_option = $alt_text_pro_cleanup_set_state($live_idle_run, array('last_updated' => '2026-08-08 10:00:00'));
+
+$recent_run = alt_text_pro_invoke_private($processor, 'create_bulk_process_record', array(array(101), 1, false, 10, 1, 10, 0));
+$recent_option = $alt_text_pro_cleanup_set_state($recent_run, array('last_updated' => '2026-08-12 09:00:00'));
+
+$recent_idle_run = alt_text_pro_invoke_private($processor, 'create_bulk_process_record', array(array(101), 1, false, 10, 1, 10, 0));
+$recent_idle_option = $alt_text_pro_cleanup_set_state($recent_idle_run, array('last_updated' => '2026-08-10 10:00:00'));
+
+$abandoned_run = alt_text_pro_invoke_private($processor, 'create_bulk_process_record', array(array(101), 1, false, 10, 1, 10, 0));
+$abandoned_option = $alt_text_pro_cleanup_set_state($abandoned_run, array('last_updated' => '2026-08-08 09:00:00'));
+$alt_text_pro_test_options['alt_text_pro_bulk_lock_' . substr($abandoned_option, strlen('alt_text_pro_bulk_state_'))] = array('token' => 'x', 'expires_at' => 1);
+
+$finished_run = alt_text_pro_invoke_private($processor, 'create_bulk_process_record', array(array(101), 1, false, 10, 1, 10, 0));
+$finished_option = $alt_text_pro_cleanup_set_state($finished_run, array('status' => 'completed', 'completed_at' => '2026-08-12 09:59:00'));
+
+$corrupt_option = 'alt_text_pro_bulk_state_' . hash('sha256', 'corrupt');
+$alt_text_pro_test_options[$corrupt_option] = 'not a run';
+
+$deleted_count = AltTextPro_Bulk_Processor::cleanup_stale_bulk_states();
+
+alt_text_pro_security_assert(
+    array_key_exists($live_idle_option, $alt_text_pro_test_options),
+    'Cleanup must never delete the run that holds the site-wide lock, even when it looks idle.'
+);
+alt_text_pro_security_assert(
+    array_key_exists($recent_option, $alt_text_pro_test_options)
+        && array_key_exists($recent_idle_option, $alt_text_pro_test_options),
+    'Cleanup must keep runs that made progress within the last three days.'
+);
+alt_text_pro_security_assert(
+    !array_key_exists($abandoned_option, $alt_text_pro_test_options)
+        && !array_key_exists('alt_text_pro_bulk_' . $abandoned_run, $alt_text_pro_test_transients)
+        && !array_key_exists('alt_text_pro_bulk_lock_' . substr($abandoned_option, strlen('alt_text_pro_bulk_state_')), $alt_text_pro_test_options),
+    'Cleanup must delete a run idle for more than three days with its transient and lock.'
+);
+alt_text_pro_security_assert(
+    !array_key_exists($finished_option, $alt_text_pro_test_options)
+        && !array_key_exists($corrupt_option, $alt_text_pro_test_options),
+    'Cleanup must delete finished runs and unreadable state.'
+);
+alt_text_pro_security_assert(
+    $deleted_count >= 3 && is_array(get_option('alt_text_pro_active_bulk_run', null)),
+    'Cleanup must report deletions and leave the site-wide lock in place.'
+);
+
+$plugin_source = file_get_contents(dirname(__DIR__) . '/alt-text-pro/alt-text-pro.php');
+$uninstall_source = file_get_contents(dirname(__DIR__) . '/alt-text-pro/uninstall.php');
+alt_text_pro_security_assert(
+    strpos($plugin_source, "wp_schedule_event(time() + HOUR_IN_SECONDS, 'daily', 'alt_text_pro_cleanup')") !== false
+        && strpos($plugin_source, "add_action('alt_text_pro_cleanup', array('AltTextPro_Bulk_Processor', 'cleanup_stale_bulk_states'))") !== false
+        && strpos($plugin_source, "wp_clear_scheduled_hook('alt_text_pro_cleanup')") !== false
+        && strpos($uninstall_source, "wp_clear_scheduled_hook('alt_text_pro_cleanup')") !== false,
+    'The daily cleanup must be scheduled on activation, handled, and cleared on deactivation and uninstall.'
 );
 
 fwrite(STDOUT, "WordPress security regression tests passed.\n");

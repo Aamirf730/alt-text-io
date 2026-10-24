@@ -124,8 +124,16 @@ function buildLifecycleStatusReport({
 
     const totalUsageCount = Number(usage.total_usage_count || 0);
     const totalCreditsUsed = Number(usage.total_credits_used || 0);
-    const creditsRemaining = Number(profile.credits_remaining || 0);
-    const hasPurchase = Boolean(purchaseEvent) || profile.subscription_plan !== 'free';
+    // Same spendable balance reserve_credit uses: plan credits, bonus and
+    // credit packs. Packs are open to Free accounts, so a Free user with a
+    // pack has credits and has purchased.
+    const purchasedCredits = Number(profile.purchased_credits_remaining || 0);
+    const creditsRemaining = Math.max(
+      Number(profile.credits_remaining || 0),
+      Number(profile.bonus_credits_remaining || 0),
+      purchasedCredits
+    );
+    const hasPurchase = Boolean(purchaseEvent) || profile.subscription_plan !== 'free' || purchasedCredits > 0;
     const hasFirstGeneration = totalUsageCount > 0 || Boolean(firstImageEvent);
     const isLowCredits = creditsRemaining <= LOW_CREDIT_THRESHOLD;
 
@@ -211,21 +219,21 @@ function buildLifecycleStatusReport({
   };
 }
 
-async function fetchLifecycleStatusReport(supabase, { days = 30, limit = 500 } = {}) {
+async function fetchLifecycleStatusReport(supabase, { days = 30 } = {}) {
   const parsedDays = parsePositiveInt(days, 30, 1, 180);
-  const parsedLimit = parsePositiveInt(limit, 500, 1, 1000);
   const startAt = new Date(Date.now() - parsedDays * 24 * 60 * 60 * 1000).toISOString();
 
-  const profilesResult = await supabase
-    .from('profiles')
-    .select('id,email,subscription_plan,subscription_status,credits_remaining,total_processed,created_at')
-    .order('created_at', { ascending: false })
-    .order('id', { ascending: false })
-    .range(0, parsedLimit - 1);
-
-  if (profilesResult.error) {
-    throw new Error(`Failed to fetch profiles: ${profilesResult.error.message}`);
-  }
+  // Every profile, not just the newest 500, so the table, search and the
+  // summary counts cover the whole user base.
+  const profiles = await fetchAllRows(
+    (from, to) => supabase
+      .from('profiles')
+      .select('id,email,subscription_plan,subscription_status,credits_remaining,bonus_credits_remaining,purchased_credits_remaining,total_processed,created_at')
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .range(from, to),
+    { label: 'lifecycle profiles' }
+  );
 
   const [events, usageStats, apiKeys, automationSends] = await Promise.all([
     fetchAllRows(
@@ -276,7 +284,7 @@ async function fetchLifecycleStatusReport(supabase, { days = 30, limit = 500 } =
   ]);
 
   return buildLifecycleStatusReport({
-    profiles: profilesResult.data || [],
+    profiles,
     events,
     usageStats,
     apiKeys,

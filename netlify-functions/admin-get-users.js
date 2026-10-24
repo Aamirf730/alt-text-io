@@ -48,6 +48,39 @@ function buildLatestPluginEventMaps(events = []) {
   return { byUserId, byEmail };
 }
 
+const REVENUE_STATUSES = new Set(['completed', 'partially_refunded', 'refunded']);
+const PAID_SUBSCRIPTION_PLANS = new Set(['tier1', 'tier2', 'tier3', 'tier4', 'lite', 'standard', 'pro', 'agency']);
+const LIVE_SUBSCRIPTION_STATUSES = new Set(['active', 'cancelled', 'canceled']);
+
+function toAmount(value) {
+  const amount = Number.parseFloat(value);
+  return Number.isFinite(amount) ? amount : 0;
+}
+
+/**
+ * Revenue a payment row contributes, net of tax and refunds. amount is the
+ * gross Polar order total (tax included). Older fully refunded rows have no
+ * stored refund amount, so their status alone makes them zero.
+ */
+function getNetPaymentRevenue(payment) {
+  const status = String(payment?.status || '');
+  if (!REVENUE_STATUSES.has(status)) return 0;
+
+  const hasRefundAmount = payment?.refunded_amount !== null && payment?.refunded_amount !== undefined;
+  if (status === 'refunded' && !hasRefundAmount) return 0;
+
+  const net = toAmount(payment.amount)
+    - toAmount(payment.tax_amount)
+    - (toAmount(payment.refunded_amount) - toAmount(payment.refunded_tax_amount));
+
+  return Math.max(0, Math.round(net * 100) / 100);
+}
+
+function isPayingSubscriber(profile) {
+  return PAID_SUBSCRIPTION_PLANS.has(String(profile?.subscription_plan || '').toLowerCase())
+    && LIVE_SUBSCRIPTION_STATUSES.has(String(profile?.subscription_status || '').toLowerCase());
+}
+
 exports.handler = async (event, context) => {
   // Get secure CORS headers (origin-validated)
   const headers = getCorsHeaders(event.headers, ['GET', 'OPTIONS']);
@@ -245,9 +278,10 @@ exports.handler = async (event, context) => {
     const enrichedProfiles = profiles.map(profile => {
       // Get payments for this user
       const userPayments = payments?.filter(p => p.user_id === profile.id) || [];
-      const totalPaid = userPayments
-        .filter(p => p.status === 'completed')
-        .reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+      // Net of tax and refunds (partial refunds included).
+      const totalPaid = Math.round(
+        userPayments.reduce((sum, p) => sum + getNetPaymentRevenue(p), 0) * 100
+      ) / 100;
 
       // Get usage stats for this user
       const userUsage = usageStats?.find(u => u.user_id === profile.id) || {};
@@ -290,8 +324,9 @@ exports.handler = async (event, context) => {
         users: enrichedProfiles,
         total_users: enrichedProfiles.length,
         stats: {
-          total_revenue: enrichedProfiles.reduce((sum, p) => sum + (p.total_paid || 0), 0),
-          active_users: enrichedProfiles.filter(p => p.subscription_status === 'active').length,
+          total_revenue: Math.round(enrichedProfiles.reduce((sum, p) => sum + (p.total_paid || 0), 0) * 100) / 100,
+          // Every Free profile is "active", so count running paid subscriptions.
+          active_users: enrichedProfiles.filter(isPayingSubscriber).length,
           total_credits_used: enrichedProfiles.reduce((sum, p) => sum + (p.total_credits_used || 0), 0),
           total_credits_remaining: enrichedProfiles.reduce((sum, p) => sum + (p.credits_remaining || 0), 0),
         }
@@ -317,4 +352,9 @@ exports.handler = async (event, context) => {
       }),
     };
   }
+};
+
+exports._private = {
+  getNetPaymentRevenue,
+  isPayingSubscriber,
 };

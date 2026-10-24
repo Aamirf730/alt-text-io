@@ -76,6 +76,14 @@
             // Auto-connect button (opens popup)
             $(document).on('click', '#auto-connect-btn', this.handleAutoConnect);
 
+            // Disconnect account: confirm before removing the saved key.
+            $(document).on('submit', '#alt-text-pro-disconnect-form', function (e) {
+                var message = $('#alt-text-pro-disconnect').data('confirm');
+                if (message && !window.confirm(message)) {
+                    e.preventDefault();
+                }
+            });
+
             // Listen for postMessage from the connect popup
             window.addEventListener('message', function (event) {
                 var expectedOrigin = '';
@@ -643,6 +651,30 @@
             });
         },
 
+        // The connect page posts the key back to the origin of this URL, so it
+        // must be the address the browser is actually on (www/non-www, proxy
+        // or custom admin host), not the site URL WordPress has stored.
+        getConnectCallbackUrl: function () {
+            var fallbackUrl = (altTextAI.onboarding && altTextAI.onboarding.settingsUrl)
+                ? altTextAI.onboarding.settingsUrl
+                : window.location.href;
+
+            try {
+                var current = new URL(window.location.href);
+                if (current.protocol !== 'http:' && current.protocol !== 'https:') {
+                    return fallbackUrl;
+                }
+
+                // Every plugin page lives in wp-admin; point at the settings
+                // page next to the current admin script.
+                var callback = new URL(current.pathname.replace(/[^\/]*$/, 'admin.php'), current.origin);
+                callback.search = '?page=alt-text-pro-settings';
+                return callback.toString();
+            } catch (urlError) {
+                return fallbackUrl;
+            }
+        },
+
         // Auto-connect: open popup to alt-text.pro/connect
         handleAutoConnect: function (e) {
             if (e) e.preventDefault();
@@ -650,9 +682,7 @@
             var connectUrl = (altTextAI.onboarding && altTextAI.onboarding.connectUrl)
                 ? altTextAI.onboarding.connectUrl
                 : 'https://www.alt-text.pro/connect';
-            var settingsUrl = (altTextAI.onboarding && altTextAI.onboarding.settingsUrl)
-                ? altTextAI.onboarding.settingsUrl
-                : window.location.href;
+            var settingsUrl = AltTextProAdmin.getConnectCallbackUrl();
 
             // Generate a cryptographically random state for CSRF protection.
             if (!window.crypto || typeof window.crypto.getRandomValues !== 'function') {
@@ -1494,7 +1524,7 @@
                 $('#process-summary-container').show();
                 $('#process-summary-text').text('Credits Used Up');
                 $('#process-summary-details').text(data.stopped_reason || ('Processed ' + processed + ' images before available credits ran out.'));
-                this.updateLiveTask(null, 'The run stopped because there are no credits remaining.', 'Stopped');
+                this.updateLiveTask(null, (altTextAI.strings && altTextAI.strings.noCreditsStopped) || 'The run stopped because there are no credits remaining. Buy a credit pack or upgrade your plan at alt-text.pro.', 'Stopped');
                 $('#progress-log').append('<div style="color: var(--danger-color); font-weight: bold;">Bulk optimization stopped because the account ran out of credits.</div>');
             } else {
                 $('#progress-status').text('Error').removeClass('warning success').addClass('error');

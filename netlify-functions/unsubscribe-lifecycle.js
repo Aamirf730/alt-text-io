@@ -33,11 +33,17 @@ exports.handler = async (event) => {
     return htmlResponse(400, 'Invalid unsubscribe link', 'This link is invalid or has expired.');
   }
 
-  const { error } = await supabase
+  // The signed token already proves the user ID. Matching the email as well
+  // silently skipped profiles whose stored email differs in case or changed.
+  const { data, error } = await supabase
     .from('profiles')
     .update({ marketing_unsubscribed_at: new Date().toISOString() })
     .eq('id', identity.userId)
-    .eq('email', identity.email);
+    .select('id');
+
+  if (!error && (!Array.isArray(data) || data.length === 0)) {
+    return htmlResponse(404, 'Account not found', 'We could not find this account. Please contact support to update your email preferences.');
+  }
 
   if (error) {
     console.error('Failed to record lifecycle unsubscribe:', error.message);

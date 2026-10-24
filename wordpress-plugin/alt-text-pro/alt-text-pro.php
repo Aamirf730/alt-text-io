@@ -90,6 +90,13 @@ class AltTextPro
 
     private static $instance = null;
 
+    // Bump when create_tables() changes so existing sites run dbDelta again.
+    private const DB_VERSION = '1.7.26';
+
+    // Post-level generation calls the service at most this many times per
+    // admin-ajax request so posts with many images do not time out.
+    private const POST_GENERATIONS_PER_REQUEST = 3;
+
     /**
      * Get singleton instance
      */
@@ -109,6 +116,11 @@ class AltTextPro
         add_action('init', array($this, 'init'));
         register_activation_hook(__FILE__, array($this, 'activate'));
         register_deactivation_hook(__FILE__, array($this, 'deactivate'));
+
+        // Multisite: set up sites created while the plugin is network active,
+        // and drop the logs table when a site is deleted.
+        add_action('wp_initialize_site', array($this, 'initialize_new_site'), 200);
+        add_filter('wpmu_drop_tables', array($this, 'drop_site_tables'));
     }
 
     /**
@@ -166,6 +178,13 @@ class AltTextPro
         // Enqueue scripts
         add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_scripts'));
 
+        // Daily cleanup of abandoned bulk-run state (scheduled on activation).
+        add_action('alt_text_pro_cleanup', array('AltTextPro_Bulk_Processor', 'cleanup_stale_bulk_states'));
+
+        // Create missing tables and cron events on sites that never ran the
+        // activation hook (plugin updates, multisite sites added later).
+        add_action('admin_init', array($this, 'maybe_upgrade'));
+
         // Redirect to dashboard after activation
         add_action('admin_init', array($this, 'activation_redirect'));
     }
@@ -175,6 +194,18 @@ class AltTextPro
      */
     public function activation_redirect()
     {
+        // Only a normal admin page load by someone who can open the dashboard
+        // may use (and consume) the one-time redirect flag.
+        if (
+            wp_doing_ajax()
+            || wp_doing_cron()
+            || (defined('REST_REQUEST') && REST_REQUEST)
+            || (defined('WP_CLI') && WP_CLI)
+            || !current_user_can('manage_options')
+        ) {
+            return;
+        }
+
         // Check if we should redirect
         if (!get_transient('alt_text_pro_activation_redirect')) {
             return;
@@ -196,11 +227,42 @@ class AltTextPro
 
     /**
      * Plugin activation
+     *
+     * @param bool $network_wide True when network-activated on multisite.
      */
-    public function activate()
+    public function activate($network_wide = false)
+    {
+        if (is_multisite() && $network_wide) {
+            // Set up every existing site. Sites this loop does not reach are
+            // set up by maybe_upgrade() on their first admin page load.
+            $site_ids = get_sites(array(
+                'fields' => 'ids',
+                'number' => 0,
+            ));
+
+            foreach ($site_ids as $site_id) {
+                switch_to_blog($site_id);
+                $this->activate_site();
+                restore_current_blog();
+            }
+
+            return;
+        }
+
+        $this->activate_site();
+
+        // Set redirect flag so we redirect to the dashboard on first load
+        set_transient('alt_text_pro_activation_redirect', true, 30);
+    }
+
+    /**
+     * Create tables, default options and scheduled events for the current site.
+     */
+    private function activate_site()
     {
         // Create database tables if needed
         $this->create_tables();
+        update_option('alt_text_pro_db_version', self::DB_VERSION, true);
 
         // Set default options
         if (!get_option('alt_text_pro_settings')) {
@@ -213,20 +275,101 @@ class AltTextPro
             ));
         }
 
-        // Set redirect flag so we redirect to the dashboard on first load
-        set_transient('alt_text_pro_activation_redirect', true, 30);
-
         // Clear any scheduled events for bulk processing
         wp_clear_scheduled_hook('alt_text_pro_bulk_process_batch');
         wp_clear_scheduled_hook('alt_text_pro_generate_background');
+
+        if (!wp_next_scheduled('alt_text_pro_cleanup')) {
+            wp_schedule_event(time() + HOUR_IN_SECONDS, 'daily', 'alt_text_pro_cleanup');
+        }
+    }
+
+    /**
+     * Set up a site created while the plugin is network active.
+     *
+     * @param WP_Site $site The new site.
+     */
+    public function initialize_new_site($site)
+    {
+        if (!is_object($site) || empty($site->blog_id)) {
+            return;
+        }
+
+        if (!function_exists('is_plugin_active_for_network')) {
+            require_once ABSPATH . 'wp-admin/includes/plugin.php';
+        }
+
+        if (!is_plugin_active_for_network(ALT_TEXT_PRO_PLUGIN_BASENAME)) {
+            return;
+        }
+
+        switch_to_blog((int) $site->blog_id);
+        $this->activate_site();
+        restore_current_blog();
+    }
+
+    /**
+     * Drop the site's logs table when WordPress deletes a site.
+     *
+     * @param string[] $tables Tables WordPress is about to drop.
+     * @return string[]
+     */
+    public function drop_site_tables($tables)
+    {
+        global $wpdb;
+
+        $tables = is_array($tables) ? $tables : array();
+        $tables[] = $wpdb->prefix . 'alt_text_pro_logs';
+
+        return $tables;
+    }
+
+    /**
+     * Cheap per-request check: create the logs table and the cleanup event
+     * when this site has not been set up for the current schema.
+     */
+    public function maybe_upgrade()
+    {
+        if (get_option('alt_text_pro_db_version') !== self::DB_VERSION) {
+            $this->create_tables();
+            update_option('alt_text_pro_db_version', self::DB_VERSION, true);
+        }
+
+        if (!wp_next_scheduled('alt_text_pro_cleanup')) {
+            wp_schedule_event(time() + HOUR_IN_SECONDS, 'daily', 'alt_text_pro_cleanup');
+        }
     }
 
     /**
      * Plugin deactivation
+     *
+     * @param bool $network_wide True when network-deactivated on multisite.
      */
-    public function deactivate()
+    public function deactivate($network_wide = false)
     {
-        // Clear scheduled events
+        if (is_multisite() && $network_wide) {
+            $site_ids = get_sites(array(
+                'fields' => 'ids',
+                'number' => 0,
+            ));
+
+            foreach ($site_ids as $site_id) {
+                switch_to_blog($site_id);
+                $this->clear_scheduled_events();
+                restore_current_blog();
+            }
+
+            return;
+        }
+
+        $this->clear_scheduled_events();
+    }
+
+    /**
+     * Clear the plugin's scheduled events on the current site.
+     */
+    private function clear_scheduled_events()
+    {
         wp_clear_scheduled_hook('alt_text_pro_cleanup');
         wp_clear_scheduled_hook('alt_text_pro_bulk_process_batch');
         wp_clear_scheduled_hook('alt_text_pro_generate_background');
@@ -324,7 +467,8 @@ class AltTextPro
                 'generating' => __('Generating alt-text...', 'alt-text-pro'),
                 'success' => __('Alt-text generated successfully!', 'alt-text-pro'),
                 'error' => __('Failed to generate alt-text. Please try again.', 'alt-text-pro'),
-                'noCredits' => __('No credits remaining. Please upgrade your plan.', 'alt-text-pro'),
+                'noCredits' => __('No credits remaining. Buy a credit pack or upgrade your plan at alt-text.pro.', 'alt-text-pro'),
+                'noCreditsStopped' => __('The run stopped because there are no credits remaining. Buy a credit pack or upgrade your plan at alt-text.pro.', 'alt-text-pro'),
                 'invalidKey' => __('Invalid API key. Please check your settings.', 'alt-text-pro'),
                 'processing' => __('Processing images...', 'alt-text-pro'),
                 'completed' => __('Bulk processing completed!', 'alt-text-pro'),
@@ -342,6 +486,11 @@ class AltTextPro
                 'onboardingInvalidFormat' => __('Invalid API key format. Keys should start with "alt_" or "altai_".', 'alt-text-pro'),
                 'onboardingSaved' => __('API key saved successfully!', 'alt-text-pro'),
                 'postGenerating' => __('Generating...', 'alt-text-pro'),
+                // translators: 1: images finished so far, 2: images in this run.
+                'postProgress' => __('Generating %1$d/%2$d...', 'alt-text-pro'),
+                // translators: %d: number of images that could not be processed.
+                'postErrors' => __('%d error(s)', 'alt-text-pro'),
+                'postNoCredits' => __('No credits remaining. Buy a credit pack or upgrade your plan at alt-text.pro.', 'alt-text-pro'),
                 'postNoImages' => __('No images found in this post.', 'alt-text-pro'),
                 'postAllDone' => __('All images already have alt-text!', 'alt-text-pro'),
                 // translators: %d: Number of images updated with generated alt text.
@@ -427,11 +576,20 @@ class AltTextPro
     private function add_logs_inline_script()
     {
         $inline_script = "jQuery(document).ready(function($) {
+            var \$export = $('#export-logs');
+            var exportBase = \$export.attr('href') || '';
+
             $('#search-logs').on('input', function() {
-                var term = $(this).val().toLowerCase();
+                var raw = $(this).val();
+                var term = raw.toLowerCase();
                 $('.log-row').each(function() {
-                    $(this).toggle($(this).data('alt-text').includes(term));
+                    $(this).toggle(String($(this).data('alt-text')).includes(term));
                 });
+
+                // Export the same entries the search shows.
+                if (exportBase) {
+                    \$export.attr('href', raw ? exportBase + '&s=' + encodeURIComponent(raw) : exportBase);
+                }
             });
 
             $('.copy-alt-text').click(function() {
@@ -741,15 +899,16 @@ class AltTextPro
     }
 
     /**
-     * Keep block metadata and rendered image HTML aligned after regenerating alt text.
+     * Fill empty image alt attributes in post content from the Media Library.
+     *
+     * Only an alt that is missing or empty in the post is filled. An alt the
+     * author wrote in the post (block attributes or <img> markup) is kept.
      */
     private function sync_post_content_image_alt_text($post_content, array $content_updates)
     {
         if (empty($post_content) || empty($content_updates)) {
             return $post_content;
         }
-
-        $content = $post_content;
 
         if (
             function_exists('parse_blocks')
@@ -765,81 +924,106 @@ class AltTextPro
                     $blocks[$index] = $this->sync_image_block_alt_text($block, $content_updates, $did_update_blocks);
                 }
 
-                if ($did_update_blocks) {
-                    $serialized = '';
-                    foreach ($blocks as $block) {
-                        $serialized .= serialize_block($block);
-                    }
-                    $content = $serialized;
+                // parse_blocks() keeps the HTML between blocks as freeform
+                // blocks, so every image was already visited above.
+                if (!$did_update_blocks) {
+                    return $post_content;
                 }
+
+                $serialized = '';
+                foreach ($blocks as $block) {
+                    $serialized .= serialize_block($block);
+                }
+
+                return $serialized;
             }
         }
 
-        return $this->sync_html_image_alt_text($content, $content_updates);
+        return $this->sync_html_image_alt_text($post_content, $content_updates);
     }
 
     /**
-     * Recursively update Gutenberg block metadata and inline HTML for attachment alt text.
+     * True when a block attribute alt value counts as empty.
+     */
+    private function is_empty_alt_value($value)
+    {
+        return is_scalar($value) && trim((string) $value) === '';
+    }
+
+    /**
+     * Recursively fill empty Gutenberg alt attributes and image markup.
      */
     private function sync_image_block_alt_text(array $block, array $content_updates, &$did_update_blocks)
     {
+        // Updates that apply to this block's markup and inner blocks. An image
+        // whose block attributes carry an author-written alt is removed so its
+        // markup is left alone as well.
+        $block_updates = $content_updates;
+
         if (!empty($block['attrs']) && is_array($block['attrs'])) {
-            if (
-                isset($block['attrs']['id'])
-                && isset($content_updates[intval($block['attrs']['id'])])
-            ) {
-                $attachment_id = intval($block['attrs']['id']);
-                $new_alt = $content_updates[$attachment_id];
-
-                // Core image blocks read alt from the <img> markup. Only update a
-                // comment attribute that already exists (older or third-party
-                // blocks); adding one would re-save every post for no change.
-                if (isset($block['attrs']['alt']) && $block['attrs']['alt'] !== $new_alt) {
-                    $block['attrs']['alt'] = $new_alt;
-                    $did_update_blocks = true;
+            foreach (array('id' => 'alt', 'mediaId' => 'mediaAlt') as $id_key => $alt_key) {
+                if (!isset($block['attrs'][$id_key]) || !is_scalar($block['attrs'][$id_key])) {
+                    continue;
                 }
-            }
 
-            if (
-                isset($block['attrs']['mediaId'])
-                && isset($content_updates[intval($block['attrs']['mediaId'])])
-            ) {
-                $attachment_id = intval($block['attrs']['mediaId']);
-                $new_alt = $content_updates[$attachment_id];
+                $attachment_id = intval($block['attrs'][$id_key]);
+                if (!isset($content_updates[$attachment_id])) {
+                    continue;
+                }
 
-                if (isset($block['attrs']['mediaAlt']) && $block['attrs']['mediaAlt'] !== $new_alt) {
-                    $block['attrs']['mediaAlt'] = $new_alt;
+                // Core image blocks read alt from the <img> markup. Only fill a
+                // comment attribute that already exists; adding one would
+                // re-save every post for no change.
+                if (!array_key_exists($alt_key, $block['attrs'])) {
+                    continue;
+                }
+
+                if ($this->is_empty_alt_value($block['attrs'][$alt_key])) {
+                    $block['attrs'][$alt_key] = (string) $content_updates[$attachment_id];
                     $did_update_blocks = true;
+                } else {
+                    unset($block_updates[$attachment_id]);
                 }
             }
 
             if (!empty($block['attrs']['images']) && is_array($block['attrs']['images'])) {
                 foreach ($block['attrs']['images'] as $image_index => $image_attrs) {
                     if (
-                        is_array($image_attrs)
-                        && isset($image_attrs['id'])
-                        && isset($content_updates[intval($image_attrs['id'])])
+                        !is_array($image_attrs)
+                        || !isset($image_attrs['id'])
+                        || !is_scalar($image_attrs['id'])
+                        || !array_key_exists('alt', $image_attrs)
                     ) {
-                        $attachment_id = intval($image_attrs['id']);
-                        $new_alt = $content_updates[$attachment_id];
+                        continue;
+                    }
 
-                        if (isset($image_attrs['alt']) && $image_attrs['alt'] !== $new_alt) {
-                            $block['attrs']['images'][$image_index]['alt'] = $new_alt;
-                            $did_update_blocks = true;
-                        }
+                    $attachment_id = intval($image_attrs['id']);
+                    if (!isset($content_updates[$attachment_id])) {
+                        continue;
+                    }
+
+                    if ($this->is_empty_alt_value($image_attrs['alt'])) {
+                        $block['attrs']['images'][$image_index]['alt'] = (string) $content_updates[$attachment_id];
+                        $did_update_blocks = true;
+                    } else {
+                        unset($block_updates[$attachment_id]);
                     }
                 }
             }
         }
 
+        if (empty($block_updates)) {
+            return $block;
+        }
+
         if (!empty($block['innerBlocks']) && is_array($block['innerBlocks'])) {
             foreach ($block['innerBlocks'] as $index => $inner_block) {
-                $block['innerBlocks'][$index] = $this->sync_image_block_alt_text($inner_block, $content_updates, $did_update_blocks);
+                $block['innerBlocks'][$index] = $this->sync_image_block_alt_text($inner_block, $block_updates, $did_update_blocks);
             }
         }
 
         if (!empty($block['innerHTML']) && is_string($block['innerHTML'])) {
-            $updated_inner_html = $this->sync_html_image_alt_text($block['innerHTML'], $content_updates);
+            $updated_inner_html = $this->sync_html_image_alt_text($block['innerHTML'], $block_updates);
             if ($updated_inner_html !== $block['innerHTML']) {
                 $block['innerHTML'] = $updated_inner_html;
                 $did_update_blocks = true;
@@ -848,11 +1032,11 @@ class AltTextPro
 
         if (!empty($block['innerContent']) && is_array($block['innerContent'])) {
             foreach ($block['innerContent'] as $index => $inner_content) {
-                if (!is_string($inner_content) || strpos($inner_content, '<img') === false) {
+                if (!is_string($inner_content) || stripos($inner_content, '<img') === false) {
                     continue;
                 }
 
-                $updated_inner_content = $this->sync_html_image_alt_text($inner_content, $content_updates);
+                $updated_inner_content = $this->sync_html_image_alt_text($inner_content, $block_updates);
                 if ($updated_inner_content !== $inner_content) {
                     $block['innerContent'][$index] = $updated_inner_content;
                     $did_update_blocks = true;
@@ -864,7 +1048,53 @@ class AltTextPro
     }
 
     /**
-     * Update image alt attributes in raw HTML for classic content and block markup.
+     * Find the alt attribute of an <img> tag.
+     *
+     * Attributes are read left to right so text inside another attribute's
+     * quoted value (for example title="the alt text") is never mistaken for
+     * an alt attribute.
+     *
+     * @return array|null array('offset' => int, 'length' => int, 'value' => string) or null.
+     */
+    private function find_img_alt_attribute($image_tag)
+    {
+        if (!preg_match_all(
+            '/\s+([^\s=\/>"\']+)(?:\s*=\s*("[^"]*"|\'[^\']*\'|[^\s"\'>]+))?/',
+            $image_tag,
+            $attributes,
+            PREG_SET_ORDER | PREG_OFFSET_CAPTURE,
+            4
+        )) {
+            return null;
+        }
+
+        foreach ($attributes as $attribute) {
+            if (strtolower($attribute[1][0]) !== 'alt') {
+                continue;
+            }
+
+            $value = '';
+            if (isset($attribute[2]) && $attribute[2][1] !== -1) {
+                $value = $attribute[2][0];
+                $first = substr($value, 0, 1);
+                if (($first === '"' || $first === "'") && strlen($value) >= 2) {
+                    $value = substr($value, 1, -1);
+                }
+            }
+
+            return array(
+                'offset' => $attribute[0][1],
+                'length' => strlen($attribute[0][0]),
+                'value' => html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8'),
+            );
+        }
+
+        return null;
+    }
+
+    /**
+     * Fill missing or empty image alt attributes in raw HTML (classic content
+     * and block markup). Non-empty alt text is never replaced.
      */
     private function sync_html_image_alt_text($html, array $content_updates)
     {
@@ -872,7 +1102,7 @@ class AltTextPro
             return $html;
         }
 
-        return preg_replace_callback(
+        $updated = preg_replace_callback(
             '/<img\b[^>]*>/i',
             function ($matches) use ($content_updates) {
                 $image_tag = $matches[0];
@@ -894,56 +1124,96 @@ class AltTextPro
                     return $image_tag;
                 }
 
-                // Leave a tag whose alt already matches untouched; rewriting it
-                // would reorder attributes and re-save the post for no change.
-                if (preg_match('/\salt\s*=\s*(?:"([^"]*)"|\'([^\']*)\')/i', $image_tag, $alt_match)) {
-                    $current_alt = html_entity_decode(
-                        isset($alt_match[2]) && $alt_match[2] !== '' ? $alt_match[2] : $alt_match[1],
-                        ENT_QUOTES | ENT_HTML5,
-                        'UTF-8'
-                    );
-                    if ($current_alt === (string) $content_updates[$attachment_id]) {
+                $new_alt = (string) $content_updates[$attachment_id];
+                if (trim($new_alt) === '') {
+                    return $image_tag;
+                }
+
+                $alt_attribute = ' alt="' . esc_attr($new_alt) . '"';
+                $current = $this->find_img_alt_attribute($image_tag);
+
+                if ($current !== null) {
+                    // The author's alt text in the post always wins.
+                    if (trim($current['value']) !== '') {
                         return $image_tag;
                     }
+
+                    // Replace the empty alt in place, keeping attribute order.
+                    return substr($image_tag, 0, $current['offset'])
+                        . $alt_attribute
+                        . substr($image_tag, $current['offset'] + $current['length']);
                 }
 
-                $updated_tag = preg_replace(
-                    '/\s+alt\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>]+)/i',
-                    '',
-                    $image_tag,
-                    1
-                );
-
-                if (!is_string($updated_tag)) {
+                if (!preg_match('/\s*(\/?>)$/', $image_tag, $closing, PREG_OFFSET_CAPTURE)) {
                     return $image_tag;
                 }
 
-                $updated_tag = preg_replace('/\s*(\/?>)$/', ' $1', $updated_tag, 1);
-                if (!is_string($updated_tag)) {
-                    return $image_tag;
-                }
-
-                $escaped_alt = esc_attr($content_updates[$attachment_id]);
-                $closing_offset = strrpos($updated_tag, '/>');
-
-                if ($closing_offset === false) {
-                    $closing_offset = strrpos($updated_tag, '>');
-                }
-
-                if ($closing_offset === false) {
-                    return $image_tag;
-                }
-
-                return substr($updated_tag, 0, $closing_offset)
-                    . ' alt="' . $escaped_alt . '"'
-                    . substr($updated_tag, $closing_offset);
+                return substr($image_tag, 0, $closing[0][1])
+                    . $alt_attribute
+                    . ($closing[1][0] === '/>' ? ' />' : '>');
             },
             $html
         );
+
+        return is_string($updated) ? $updated : $html;
     }
 
     /**
-     * AJAX handler for generating alt-text for all images in a specific post
+     * Fill empty in-post alt attributes for the given images from their Media
+     * Library alt text, and save the post only when its content changed.
+     *
+     * @param int   $post_id     Post to update.
+     * @param int[] $attachments Image attachments the current user may edit.
+     * @param array $results     Response data; receives content_synced or content_update_error.
+     */
+    private function sync_post_images_from_library($post_id, array $attachments, array &$results)
+    {
+        $content_updates = array();
+        foreach ($attachments as $attachment_id) {
+            $library_alt = (string) get_post_meta($attachment_id, '_wp_attachment_image_alt', true);
+            if (trim($library_alt) !== '') {
+                $content_updates[intval($attachment_id)] = $library_alt;
+            }
+        }
+
+        $results['content_synced'] = true;
+
+        if (empty($content_updates)) {
+            return;
+        }
+
+        $post = get_post($post_id);
+        if (!$post || empty($post->post_content)) {
+            return;
+        }
+
+        $content = $this->sync_post_content_image_alt_text($post->post_content, $content_updates);
+        if ($content === $post->post_content) {
+            return;
+        }
+
+        // Save the updated content back to the post only when it actually changed.
+        // wp_update_post() expects slashed data and unslashes it once;
+        // without wp_slash() every backslash in the post (block JSON
+        // escapes such as <, code samples) would be stripped.
+        $update_result = wp_update_post(wp_slash(array(
+            'ID' => $post_id,
+            'post_content' => $content,
+        )), true);
+
+        if (is_wp_error($update_result) || !$update_result) {
+            $results['content_synced'] = false;
+            $results['content_update_error'] = __('Alt text was saved to the Media Library, but the post content could not be updated automatically.', 'alt-text-pro');
+        }
+    }
+
+    /**
+     * AJAX handler for generating alt-text for the images in a specific post.
+     *
+     * Each request generates at most POST_GENERATIONS_PER_REQUEST images and
+     * reports how many are left; the posts list calls it until "done". The
+     * post content is synced on the final request, or on a "sync_only"
+     * request the browser sends when a run is interrupted.
      */
     public function ajax_generate_post_alt_text()
     {
@@ -963,6 +1233,16 @@ class AltTextPro
             wp_send_json_error(__('You do not have permission to edit this post.', 'alt-text-pro'));
         }
 
+        $sync_only = !empty($_POST['sync_only']);
+        $defer_sync = !empty($_POST['defer_sync']);
+
+        // Images that already failed earlier in this run are not retried, so
+        // one broken image cannot keep the browser loop going.
+        $failed_ids = array();
+        if (isset($_POST['failed_ids']) && is_array($_POST['failed_ids'])) {
+            $failed_ids = array_slice(array_values(array_filter(array_map('absint', wp_unslash($_POST['failed_ids'])))), 0, 1000);
+        }
+
         $permission_skipped_ids = array();
         $attachments = $this->get_post_image_attachments($post_id, $permission_skipped_ids);
         $permission_warning = $this->get_attachment_permission_warning($permission_skipped_ids);
@@ -972,7 +1252,6 @@ class AltTextPro
             wp_send_json_error(__('No images found in this post.', 'alt-text-pro'));
         }
 
-        $api_client = new AltTextPro_API_Client();
         $settings = get_option('alt_text_pro_settings', array());
         $results = array(
             'total' => $total_attachments,
@@ -982,62 +1261,79 @@ class AltTextPro
             'permission_skipped' => count($permission_skipped_ids),
             'skipped_attachment_ids' => $permission_skipped_ids,
             'errors' => 0,
+            'remaining' => 0,
+            'done' => false,
+            'content_synced' => false,
             'details' => array(),
             'warnings' => $permission_warning ? array($permission_warning) : array(),
         );
 
-        foreach ($attachments as $attachment_id) {
-            // Check if already has alt-text
-            $existing_alt = get_post_meta($attachment_id, '_wp_attachment_image_alt', true);
-
-            if (!empty($existing_alt)) {
-                $results['skipped']++;
-                $results['details'][] = array(
-                    'id' => $attachment_id,
-                    'status' => 'skipped',
-                    'message' => __('Already has alt-text', 'alt-text-pro')
-                );
-                continue;
-            }
-
-            // Get image URL
-            $image_url = wp_get_attachment_url($attachment_id);
-            if (!$image_url) {
-                $results['errors']++;
-                $results['details'][] = array(
-                    'id' => $attachment_id,
-                    'status' => 'error',
-                    'message' => __('Could not get image URL', 'alt-text-pro')
-                );
-                continue;
-            }
-
-            // Generate alt-text via API
+        if (!$sync_only) {
+            $api_client = null;
+            $generations = 0;
             $context = '';
             if (!empty($settings['context_enabled'])) {
-                $post = get_post($post_id);
-                if ($post) {
-                    $context = $post->post_title;
+                $context = (string) get_the_title($post_id);
+                $context = trim(wp_strip_all_tags(html_entity_decode($context, ENT_QUOTES | ENT_HTML5, 'UTF-8')));
+            }
+
+            foreach ($attachments as $attachment_id) {
+                // Check if already has alt-text
+                $existing_alt = get_post_meta($attachment_id, '_wp_attachment_image_alt', true);
+
+                if (!empty($existing_alt)) {
+                    $results['skipped']++;
+                    $results['details'][] = array(
+                        'id' => $attachment_id,
+                        'status' => 'skipped',
+                        'message' => __('Already has alt-text', 'alt-text-pro')
+                    );
+                    continue;
                 }
-            }
 
-            $result = $api_client->generate_alt_text($attachment_id, $context);
+                if (in_array(intval($attachment_id), $failed_ids, true)) {
+                    continue;
+                }
 
-            if ($result['success'] && !empty($result['alt_text'])) {
-                // Save alt-text
-                update_post_meta($attachment_id, '_wp_attachment_image_alt', sanitize_text_field($result['alt_text']));
+                // Leave the rest for the next request (or for a later run once
+                // credits are available again).
+                if ($generations >= self::POST_GENERATIONS_PER_REQUEST || !empty($results['no_credits'])) {
+                    $results['remaining']++;
+                    continue;
+                }
 
-                // Log generation
-                $this->log_generation($attachment_id, $result['alt_text']);
+                $generations++;
 
-                $results['processed']++;
-                $results['details'][] = array(
-                    'id' => $attachment_id,
-                    'status' => 'success',
-                    'alt_text' => $result['alt_text']
-                );
-            }
-            else {
+                if (!wp_get_attachment_url($attachment_id)) {
+                    $results['errors']++;
+                    $results['details'][] = array(
+                        'id' => $attachment_id,
+                        'status' => 'error',
+                        'message' => __('Could not get image URL', 'alt-text-pro')
+                    );
+                    continue;
+                }
+
+                if ($api_client === null) {
+                    $api_client = new AltTextPro_API_Client();
+                }
+
+                $result = $api_client->generate_alt_text($attachment_id, $context);
+                $alt_text = sanitize_text_field((string) ($result['alt_text'] ?? ''));
+
+                if (!empty($result['success']) && $alt_text !== '') {
+                    update_post_meta($attachment_id, '_wp_attachment_image_alt', $alt_text);
+                    $this->log_generation($attachment_id, $alt_text, $result['credits_used'] ?? 1);
+
+                    $results['processed']++;
+                    $results['details'][] = array(
+                        'id' => $attachment_id,
+                        'status' => 'success',
+                        'alt_text' => $alt_text
+                    );
+                    continue;
+                }
+
                 $results['errors']++;
                 $results['details'][] = array(
                     'id' => $attachment_id,
@@ -1049,50 +1345,21 @@ class AltTextPro
                 // remaining image. Images already done are still synced below.
                 if (!empty($result['no_credits']) || (isset($result['status_code']) && intval($result['status_code']) === 402)) {
                     $results['no_credits'] = true;
-                    $results['warnings'][] = __('You ran out of credits. Buy a credit pack or upgrade your plan at alt-text.pro, then run this again.', 'alt-text-pro');
-                    break;
+                    $results['warnings'][] = array(
+                        'code' => 'no_credits',
+                        'message' => __('You ran out of credits. Buy a credit pack or upgrade your plan at alt-text.pro, then run this again.', 'alt-text-pro'),
+                    );
                 }
             }
         }
 
-        // Keep both Gutenberg block attributes and rendered HTML in sync.
-        // Include BOTH newly generated AND skipped (already had metadata) images,
-        // because skipped images may have alt text in metadata but NOT in the post content yet.
-        $content_updates = array();
-        foreach ($results['details'] as $detail) {
-            if ($detail['status'] === 'success' && !empty($detail['alt_text'])) {
-                $content_updates[$detail['id']] = $detail['alt_text'];
-            }
-            elseif ($detail['status'] === 'skipped') {
-                // Image already has alt text in metadata — ensure it's also in the HTML
-                $existing = get_post_meta($detail['id'], '_wp_attachment_image_alt', true);
-                if (!empty($existing)) {
-                    $content_updates[$detail['id']] = $existing;
-                }
-            }
-        }
+        $results['done'] = $sync_only || !empty($results['no_credits']) || $results['remaining'] === 0;
 
-        if (!empty($content_updates)) {
-            $post = get_post($post_id);
-            if ($post && !empty($post->post_content)) {
-                $content = $this->sync_post_content_image_alt_text($post->post_content, $content_updates);
-
-                $update_result = true;
-                if ($content !== $post->post_content) {
-                    // Save the updated content back to the post only when it actually changed.
-                    // wp_update_post() expects slashed data and unslashes it once;
-                    // without wp_slash() every backslash in the post (block JSON
-                    // escapes such as \u003c, code samples) would be stripped.
-                    $update_result = wp_update_post(wp_slash(array(
-                        'ID' => $post_id,
-                        'post_content' => $content,
-                    )), true);
-                }
-
-                if (is_wp_error($update_result)) {
-                    $results['content_update_error'] = __('Alt text was saved to the Media Library, but the post content could not be updated automatically.', 'alt-text-pro');
-                }
-            }
+        // Keep the post in step with the Media Library: on the final request,
+        // on an explicit sync request, or on every request when the caller
+        // does not batch.
+        if ($results['done'] || !$defer_sync) {
+            $this->sync_post_images_from_library($post_id, $attachments, $results);
         }
 
         wp_send_json_success($results);
@@ -1107,13 +1374,42 @@ class AltTextPro
             (function($) {
                 "use strict";
 
+                function appendPostWarnings($container, data) {
+                    var warnings = Array.isArray(data.warnings) ? data.warnings : [];
+
+                    if (!warnings.length && data.permission_skipped > 0 && altTextAI.strings.postPermissionWarning) {
+                        warnings = [{
+                            "message": altTextAI.strings.postPermissionWarning.replace("%d", data.permission_skipped)
+                        }];
+                    }
+
+                    $.each(warnings, function(index, warning) {
+                        var message = typeof warning === "string" ? warning : (warning && warning.message);
+                        if (!message) return;
+
+                        $("<div>", {
+                            "class": "atp-post-status atp-post-warning",
+                            "css": {
+                                "color": "#B45309",
+                                "font-size": "11px",
+                                "margin-top": "6px"
+                            },
+                            "text": "⚠ " + message
+                        }).appendTo($container);
+                    });
+                }
+
                 $(document).on("click", ".atp-post-generate-btn", function(e) {
                     e.preventDefault();
                     var $btn = $(this);
                     var postId = $btn.data("post-id");
                     var nonce = $btn.data("nonce");
-                    var $badge = $btn.siblings(".atp-post-badge");
                     var $cell = $btn.closest("td");
+                    var processed = 0;
+                    var errors = 0;
+                    var failedIds = [];
+                    var requests = 0;
+                    var runTotal = null;
 
                     // Prevent double-click
                     if ($btn.prop("disabled")) return;
@@ -1123,89 +1419,146 @@ class AltTextPro
                     $btn.find(".atp-btn-text").text(altTextAI.strings.postGenerating);
                     $btn.find(".dashicons").removeClass("dashicons-images-alt2").addClass("dashicons-update atp-spin");
 
-                    function appendPostWarnings($container, data) {
-                        var warnings = Array.isArray(data.warnings) ? data.warnings : [];
+                    function resetButton() {
+                        $btn.prop("disabled", false);
+                        $btn.find(".dashicons").removeClass("dashicons-update atp-spin").addClass("dashicons-images-alt2");
+                        $btn.find(".atp-btn-text").text(altTextAI.strings.postAddAltText);
+                    }
 
-                        if (!warnings.length && data.permission_skipped > 0 && altTextAI.strings.postPermissionWarning) {
-                            warnings = [{
-                                "message": altTextAI.strings.postPermissionWarning.replace("%d", data.permission_skipped)
-                            }];
+                    function showProgress() {
+                        if (!altTextAI.strings.postProgress || !runTotal) return;
+                        $btn.find(".atp-btn-text").text(
+                            altTextAI.strings.postProgress
+                                .replace("%1$d", Math.min(processed + errors, runTotal))
+                                .replace("%2$d", runTotal)
+                        );
+                    }
+
+                    function showContentUpdateError(data) {
+                        if (!data || !data.content_update_error) return;
+                        $cell.append(
+                            $("<div>", {
+                                "class": "atp-post-status",
+                                "css": { "color": "#B45309", "font-size": "12px", "margin-top": "6px" }
+                            }).text(data.content_update_error)
+                        );
+                    }
+
+                    // A request failed part-way through: make sure the images
+                    // generated so far still reach the post, then report.
+                    function fail(message) {
+                        function report(syncData) {
+                            resetButton();
+                            showContentUpdateError(syncData);
+                            alert(message || altTextAI.strings.postError);
                         }
 
-                        $.each(warnings, function(index, warning) {
-                            if (!warning || !warning.message) return;
+                        if (processed === 0) {
+                            report(null);
+                            return;
+                        }
 
-                            $("<div>", {
-                                "class": "atp-post-status atp-post-warning",
-                                "css": {
-                                    "color": "#B45309",
-                                    "font-size": "11px",
-                                    "margin-top": "6px"
-                                },
-                                "text": "⚠ " + warning.message
-                            }).appendTo($container);
+                        $.ajax({
+                            url: altTextAI.ajaxUrl,
+                            type: "POST",
+                            data: {
+                                action: "alt_text_pro_generate_post",
+                                nonce: nonce,
+                                post_id: postId,
+                                sync_only: 1
+                            }
+                        }).done(function(response) {
+                            report(response && response.success ? response.data : null);
+                        }).fail(function() {
+                            report(null);
                         });
                     }
 
-                    $.ajax({
-                        url: altTextAI.ajaxUrl,
-                        type: "POST",
-                        data: {
-                            action: "alt_text_pro_generate_post",
-                            nonce: nonce,
-                            post_id: postId
-                        },
-                        success: function(response) {
-                            if (response.success) {
-                                var data = response.data;
-                                var processed = data.processed || 0;
-                                var permissionSkipped = data.permission_skipped || 0;
+                    function finish(data) {
+                        var permissionSkipped = data.permission_skipped || 0;
 
-                                if (processed > 0) {
-                                    // Show success
-                                    var msg = altTextAI.strings.postSuccess.replace("%d", processed);
-                                    $cell.html("<span class=\"atp-post-status atp-all-done\" style=\"color:#10B981;font-size:12px;\">✓ " + msg + "</span>");
-                                } else if (permissionSkipped > 0 && (data.errors || 0) === 0) {
-                                    // Do not present a permission-only result as a successful completion.
-                                    $cell.empty();
-                                    appendPostWarnings($cell, data);
-                                } else if (data.skipped === data.total) {
-                                    $cell.html("<span class=\"atp-post-status atp-all-done\" style=\"color:#10B981;font-size:12px;\">✓ " + altTextAI.strings.postAllDone + "</span>");
-                                } else {
-                                    // Partial — some errors
-                                    $btn.prop("disabled", false);
-                                    $btn.find(".dashicons").removeClass("dashicons-update atp-spin").addClass("dashicons-warning");
-                                    $btn.find(".atp-btn-text").text(data.errors + " error(s)");
-                                    $btn.css("color", "#EF4444");
-                                }
-
-                                if (data.content_update_error) {
-                                    $cell.append(
-                                        $("<div>", {
-                                            "class": "atp-post-status",
-                                            "css": { "color": "#B45309", "font-size": "12px", "margin-top": "6px" }
-                                        }).text(data.content_update_error)
-                                    );
-                                }
-
-                                if (processed > 0 || (data.errors || 0) > 0) {
-                                    appendPostWarnings($cell, data);
-                                }
-                            } else {
-                                // Error
-                                $btn.prop("disabled", false);
-                                $btn.find(".dashicons").removeClass("dashicons-update atp-spin").addClass("dashicons-images-alt2");
-                                $btn.find(".atp-btn-text").text(altTextAI.strings.postAddAltText);
-                                alert(response.data || altTextAI.strings.postError);
+                        if (processed > 0) {
+                            var msg = altTextAI.strings.postSuccess.replace("%d", processed);
+                            $cell.html("<span class=\"atp-post-status atp-all-done\" style=\"color:#10B981;font-size:12px;\"></span>");
+                            $cell.find(".atp-all-done").text("✓ " + msg);
+                            if (errors > 0 && altTextAI.strings.postErrors) {
+                                appendPostWarnings($cell, { "warnings": [altTextAI.strings.postErrors.replace("%d", errors)] });
                             }
-                        },
-                        error: function() {
+                        } else if (!data.no_credits && errors === 0 && permissionSkipped > 0) {
+                            // Do not present a permission-only result as a successful completion.
+                            $cell.empty();
+                        } else if (!data.no_credits && errors === 0) {
+                            $cell.html("<span class=\"atp-post-status atp-all-done\" style=\"color:#10B981;font-size:12px;\"></span>");
+                            $cell.find(".atp-all-done").text("✓ " + altTextAI.strings.postAllDone);
+                        } else if (data.no_credits) {
+                            resetButton();
+                        } else {
+                            // Every attempted image failed.
                             $btn.prop("disabled", false);
-                            $btn.find(".dashicons").removeClass("dashicons-update atp-spin").addClass("dashicons-images-alt2");
-                            $btn.find(".atp-btn-text").text(altTextAI.strings.postAddAltText);
-                            alert(altTextAI.strings.postError);
+                            $btn.find(".dashicons").removeClass("dashicons-update atp-spin").addClass("dashicons-warning");
+                            $btn.find(".atp-btn-text").text(altTextAI.strings.postErrors ? altTextAI.strings.postErrors.replace("%d", errors) : (errors + " error(s)"));
+                            $btn.css("color", "#EF4444");
                         }
-                    });
+
+                        showContentUpdateError(data);
+                        appendPostWarnings($cell, data);
+                    }
+
+                    function step() {
+                        requests++;
+                        $.ajax({
+                            url: altTextAI.ajaxUrl,
+                            type: "POST",
+                            data: {
+                                action: "alt_text_pro_generate_post",
+                                nonce: nonce,
+                                post_id: postId,
+                                defer_sync: 1,
+                                failed_ids: failedIds
+                            },
+                            success: function(response) {
+                                if (!response || !response.success) {
+                                    fail(response && typeof response.data === "string" ? response.data : altTextAI.strings.postError);
+                                    return;
+                                }
+
+                                var data = response.data || {};
+                                var stepProcessed = data.processed || 0;
+                                var stepErrors = data.errors || 0;
+                                processed += stepProcessed;
+                                errors += stepErrors;
+
+                                $.each(data.details || [], function(index, detail) {
+                                    if (detail && detail.status === "error" && failedIds.indexOf(detail.id) === -1) {
+                                        failedIds.push(detail.id);
+                                    }
+                                });
+
+                                if (runTotal === null) {
+                                    runTotal = processed + errors + (data.remaining || 0);
+                                }
+
+                                if (data.done) {
+                                    finish(data);
+                                    return;
+                                }
+
+                                // Guard against a loop that makes no progress.
+                                if (stepProcessed + stepErrors === 0 || requests >= 500) {
+                                    fail(altTextAI.strings.postError);
+                                    return;
+                                }
+
+                                showProgress();
+                                step();
+                            },
+                            error: function() {
+                                fail(altTextAI.strings.postError);
+                            }
+                        });
+                    }
+
+                    step();
                 });
             })(jQuery);
         ');

@@ -123,6 +123,8 @@ function ConnectPageContent() {
     const [user, setUser] = useState<any>(null);
     const authenticatedEmailRef = useRef<string | null>(null);
     const [error, setError] = useState("");
+    // Shown after sign-up, or when sign-in fails because the email is unconfirmed.
+    const [canResendConfirmation, setCanResendConfirmation] = useState(false);
     const [statusMessage, setStatusMessage] = useState("Connecting your account...");
     const [hasCallbackTarget, setHasCallbackTarget] = useState(Boolean(queryCallbackUrl));
     const [callbackTarget, setCallbackTarget] = useState<CallbackTarget | null>(null);
@@ -537,6 +539,58 @@ function ConnectPageContent() {
         }
     };
 
+    const handleForgotPassword = async () => {
+        const normalizedEmail = email.trim();
+        if (!normalizedEmail) {
+            setError("Enter your email address first.");
+            return;
+        }
+
+        setIsLoading(true);
+        setError("");
+        try {
+            const { error: resetError } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+                redirectTo: `${window.location.origin}/reset-password`,
+            });
+            if (resetError) {
+                setError(resetError.message);
+                return;
+            }
+            toast.success("If an account exists for that email, a reset link is on its way. Come back here after you set a new password.");
+        } catch {
+            setError("Could not send the password reset email. Please try again.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleResendConfirmation = async () => {
+        const normalizedEmail = email.trim();
+        if (!normalizedEmail) {
+            setError("Enter your email address first.");
+            return;
+        }
+
+        setIsLoading(true);
+        setError("");
+        try {
+            const { error: resendError } = await supabase.auth.resend({
+                type: "signup",
+                email: normalizedEmail,
+                options: { emailRedirectTo: signupRedirectUrl || window.location.href },
+            });
+            if (resendError) {
+                setError(resendError.message);
+                return;
+            }
+            toast.success("We sent a new confirmation email. Confirm it, then come back here.");
+        } catch {
+            setError("Could not resend the confirmation email. Please try again.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     // Handle email/password authentication
     const handleEmailAuth = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -569,9 +623,11 @@ function ConnectPageContent() {
 
             if (result.error) {
                 setError(result.error.message);
+                setCanResendConfirmation(isLogin && /email not confirmed/i.test(result.error.message));
             } else if (result.data.user) {
                 if (!isLogin && !result.data.session) {
                     rememberPendingSignup(result.data.user.email || "");
+                    setCanResendConfirmation(true);
 
                     // Sign up — needs email confirmation
                     setError("");
@@ -871,6 +927,21 @@ function ConnectPageContent() {
                             </button>
                         </div>
                     </div>
+
+                    {(isLogin || canResendConfirmation) && (
+                        <div className="connect-link-row">
+                            {isLogin && (
+                                <button type="button" className="connect-link-btn" onClick={() => void handleForgotPassword()} disabled={isLoading}>
+                                    Forgot password?
+                                </button>
+                            )}
+                            {canResendConfirmation && (
+                                <button type="button" className="connect-link-btn" onClick={() => void handleResendConfirmation()} disabled={isLoading}>
+                                    Resend confirmation email
+                                </button>
+                            )}
+                        </div>
+                    )}
 
                     <button
                         type="submit"

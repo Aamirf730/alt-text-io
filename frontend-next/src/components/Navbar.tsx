@@ -69,7 +69,8 @@ const Navbar = ({ onSignInClick, onSignUpClick }: NavbarProps) => {
         if (onSignInClick) {
             onSignInClick();
         } else {
-            router.push("/");
+            // The homepage opens its sign-in dialog for this parameter.
+            router.push("/?auth=signin");
         }
         setIsMobileMenuOpen(false);
     };
@@ -79,7 +80,7 @@ const Navbar = ({ onSignInClick, onSignUpClick }: NavbarProps) => {
         if (onSignUpClick) {
             onSignUpClick();
         } else {
-            router.push("/");
+            router.push("/?auth=signup");
         }
         setIsMobileMenuOpen(false);
     };

@@ -249,6 +249,10 @@ class AltTextPro_Media_Handler
 
     /**
      * Get attachment context suggestions
+     *
+     * Returns plain text: the suggestions are sent to the AI service as
+     * context and inserted into the media field with jQuery .text(), so they
+     * must not carry HTML entities.
      */
     public function get_context_suggestions($attachment_id)
     {
@@ -258,25 +262,41 @@ class AltTextPro_Media_Handler
         $posts_using_image = $this->get_posts_using_image($attachment_id);
 
         foreach ($posts_using_image as $post) {
-            if (!empty($post->post_title)) {
+            $title = $this->to_plain_text($post->post_title ?? '');
+            if ($title !== '') {
                 $suggestions[] = sprintf(
                     // translators: %s: Post title
-                    esc_html__('Used in: %1$s', 'alt-text-pro'),
-                    esc_html($post->post_title)
+                    __('Used in: %1$s', 'alt-text-pro'),
+                    $title
                 );
             }
         }
 
         // Get image filename as context
         $filename = basename((string) get_attached_file($attachment_id));
-        $filename_without_ext = pathinfo($filename, PATHINFO_FILENAME);
-        $suggestions[] = sprintf(
-            // translators: %s: Filename without extension
-            esc_html__('Filename: %1$s', 'alt-text-pro'),
-            esc_html($filename_without_ext)
-        );
+        $filename_without_ext = $this->to_plain_text(pathinfo($filename, PATHINFO_FILENAME));
+        if ($filename_without_ext !== '') {
+            $suggestions[] = sprintf(
+                // translators: %s: Filename without extension
+                __('Filename: %1$s', 'alt-text-pro'),
+                $filename_without_ext
+            );
+        }
 
-        return array_unique($suggestions);
+        // Re-index: a JSON array, not an object with gaps, for the browser.
+        return array_values(array_unique($suggestions));
+    }
+
+    /**
+     * Convert stored text (which may hold tags or entities such as &amp;)
+     * to plain text.
+     */
+    private function to_plain_text($text)
+    {
+        $text = wp_strip_all_tags((string) $text);
+        $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+        return trim(preg_replace('/\s+/u', ' ', $text));
     }
 
     /**
@@ -286,16 +306,36 @@ class AltTextPro_Media_Handler
     {
         global $wpdb;
 
-        // Find posts that reference this image in content
+        $attachment_id = absint($attachment_id);
+        if (!$attachment_id) {
+            return array();
+        }
+
+        // Match the class "wp-image-{id}" exactly: "wp-image-12" must not
+        // find posts that only use wp-image-120. The class is followed by a
+        // quote or a space; LIKE keeps this portable across MySQL, MariaDB
+        // and SQLite.
+        $class = $wpdb->esc_like('wp-image-' . $attachment_id);
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery
         $posts = $wpdb->get_results($wpdb->prepare(
-            "SELECT ID, post_title, post_type 
-             FROM {$wpdb->posts} 
-             WHERE post_content LIKE %s 
+            "SELECT ID, post_title, post_type, post_content
+             FROM {$wpdb->posts}
+             WHERE (post_content LIKE %s OR post_content LIKE %s OR post_content LIKE %s)
              AND post_status = 'publish'
              LIMIT 5",
-            '%wp-image-' . $attachment_id . '%'
+            '%' . $class . '"%',
+            '%' . $class . "'%",
+            '%' . $class . ' %'
         ));
+
+        // Belt and braces for unusual markup: keep only exact ID matches.
+        $pattern = '/\bwp-image-' . $attachment_id . '(?![0-9])/';
+        $posts = array_values(array_filter((array) $posts, function ($post) use ($pattern) {
+            return isset($post->post_content) && preg_match($pattern, (string) $post->post_content) === 1;
+        }));
+        foreach ($posts as $post) {
+            unset($post->post_content);
+        }
 
         // Also check for featured images
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery
@@ -310,7 +350,7 @@ class AltTextPro_Media_Handler
             $attachment_id
         ));
 
-        return array_merge($posts, $featured_posts);
+        return array_merge($posts, (array) $featured_posts);
     }
 
     /**
@@ -340,7 +380,7 @@ class AltTextPro_Media_Handler
         return array(
             'width' => $metadata['width'] ?? 0,
             'height' => $metadata['height'] ?? 0,
-            'file_size' => file_exists($file_path) ? filesize($file_path) : 0,
+            'file_size' => ($file_path && file_exists($file_path)) ? (int) filesize($file_path) : 0,
             'mime_type' => get_post_mime_type($attachment_id)
         );
     }

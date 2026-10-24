@@ -23,6 +23,17 @@ class AltTextPro_Settings
     private $encryption_aad = 'alt-text-pro-api-key-v2';
     private $storage_error_option = 'alt_text_pro_api_key_storage_error';
 
+    // Longest blog context sent with every request, in characters.
+    private const BLOG_CONTEXT_MAX_LENGTH = 500;
+
+    /**
+     * Set only while the plugin itself removes the API key (disconnect or
+     * reset). An empty key from the settings form otherwise means "keep".
+     *
+     * @var bool
+     */
+    private static $allow_api_key_removal = false;
+
     /**
      * Persist one fail-closed storage warning without writing on every read.
      */
@@ -51,6 +62,7 @@ class AltTextPro_Settings
         add_action('admin_init', array($this, 'register_settings'));
         add_action('wp_ajax_alt_text_pro_test_connection', array($this, 'ajax_test_connection'));
         add_action('wp_ajax_alt_text_pro_reset_settings', array($this, 'ajax_reset_settings'));
+        add_action('admin_post_alt_text_pro_disconnect', array($this, 'handle_disconnect'));
     }
 
     /**
@@ -235,6 +247,10 @@ class AltTextPro_Settings
                 // Preserve existing key
                 $sanitized['api_key'] = $existing_settings['api_key'];
             }
+            elseif (self::$allow_api_key_removal) {
+                // Disconnect or reset: remove the stored key.
+                $sanitized['api_key'] = '';
+            }
             else {
                 // Empty key - preserve existing key (user didn't change it)
                 $sanitized['api_key'] = $existing_settings['api_key'] ?? '';
@@ -267,12 +283,79 @@ class AltTextPro_Settings
             $sanitized['batch_size'] = min(10, max(1, intval($input['batch_size'])));
         }
 
-        // Sanitize blog context (textarea, max 500 chars)
+        // Sanitize blog context (textarea, max 500 characters). Sanitize first
+        // and cut by characters: cutting bytes can split a multibyte
+        // character, and the sanitizer then drops the whole invalid string.
         if (isset($input['blog_context'])) {
-            $sanitized['blog_context'] = sanitize_textarea_field(substr($input['blog_context'], 0, 500));
+            $sanitized['blog_context'] = self::truncate_text(
+                sanitize_textarea_field((string) $input['blog_context']),
+                self::BLOG_CONTEXT_MAX_LENGTH
+            );
         }
 
         return $sanitized;
+    }
+
+    /**
+     * Cut text to a number of characters without splitting a multibyte
+     * character.
+     */
+    public static function truncate_text($text, $max_length)
+    {
+        $text = (string) $text;
+        $max_length = max(0, intval($max_length));
+
+        if (function_exists('mb_substr')) {
+            return mb_substr($text, 0, $max_length, 'UTF-8');
+        }
+
+        if (preg_match('/^.{0,' . $max_length . '}/su', $text, $match)) {
+            return $match[0];
+        }
+
+        return substr($text, 0, $max_length);
+    }
+
+    /**
+     * Remove the stored API key without touching other settings.
+     */
+    public function clear_api_key()
+    {
+        $settings = get_option('alt_text_pro_settings', $this->get_default_settings());
+        if (!is_array($settings)) {
+            $settings = $this->get_default_settings();
+        }
+        $settings['api_key'] = '';
+
+        self::$allow_api_key_removal = true;
+        update_option('alt_text_pro_settings', $settings);
+        self::$allow_api_key_removal = false;
+
+        $this->clear_api_key_storage_error();
+
+        $stored = get_option('alt_text_pro_settings', array());
+        return is_array($stored) && empty($stored['api_key']);
+    }
+
+    /**
+     * Settings page "Disconnect account": remove the stored API key.
+     */
+    public function handle_disconnect()
+    {
+        if (!current_user_can('manage_options')) {
+            wp_die(esc_html__('You do not have permission to perform this action.', 'alt-text-pro'), '', array('response' => 403));
+        }
+
+        check_admin_referer('alt_text_pro_disconnect', 'alt_text_pro_disconnect_nonce');
+
+        $disconnected = $this->clear_api_key();
+
+        wp_safe_redirect(add_query_arg(
+            'alt_text_pro_disconnected',
+            $disconnected ? '1' : '0',
+            admin_url('admin.php?page=alt-text-pro-settings')
+        ));
+        exit;
     }
 
     /**
@@ -447,8 +530,12 @@ class AltTextPro_Settings
             wp_die(esc_html__('You do not have permission to perform this action.', 'alt-text-pro'));
         }
 
-        // Reset to default settings
+        // Reset to default settings, including removing the API key, which
+        // sanitize_settings() otherwise keeps when the submitted key is empty.
+        self::$allow_api_key_removal = true;
         update_option('alt_text_pro_settings', $this->get_default_settings());
+        self::$allow_api_key_removal = false;
+        $this->clear_api_key_storage_error();
 
         wp_send_json_success(esc_html__('Settings have been reset to defaults.', 'alt-text-pro'));
     }

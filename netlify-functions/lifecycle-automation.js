@@ -109,26 +109,43 @@ function createTransporter() {
   });
 }
 
+// PostgREST filters travel in the URL, so long ID lists are split.
+const IN_FILTER_CHUNK_SIZE = 150;
+
+function chunk(values, size = IN_FILTER_CHUNK_SIZE) {
+  const chunks = [];
+  for (let index = 0; index < values.length; index += size) {
+    chunks.push(values.slice(index, index + size));
+  }
+  return chunks;
+}
+
 async function getExistingSendSet(candidates) {
   if (candidates.length === 0) return new Set();
 
   const automationKeys = [...new Set(candidates.map(candidate => candidate.automation_key))];
   const actorKeys = [...new Set(candidates.map(candidate => candidate.actor_key))];
+  const existing = new Set();
 
-  const data = await fetchAllRows(
-    (from, to) => supabase
-      .from('marketing_automation_sends')
-      .select('automation_key,actor_key,id')
-      .in('automation_key', automationKeys)
-      .in('actor_key', actorKeys)
-      .order('automation_key', { ascending: true })
-      .order('actor_key', { ascending: true })
-      .order('id', { ascending: true })
-      .range(from, to),
-    { label: 'automation sends' }
-  );
+  for (const actorKeyChunk of chunk(actorKeys)) {
+    const data = await fetchAllRows(
+      (from, to) => supabase
+        .from('marketing_automation_sends')
+        .select('automation_key,actor_key,id')
+        .in('automation_key', automationKeys)
+        .in('actor_key', actorKeyChunk)
+        .order('automation_key', { ascending: true })
+        .order('actor_key', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, to),
+      { label: 'automation sends' }
+    );
+    for (const row of data) {
+      existing.add(`${row.automation_key}:${row.actor_key}`);
+    }
+  }
 
-  return new Set(data.map(row => `${row.automation_key}:${row.actor_key}`));
+  return existing;
 }
 
 async function filterUnsubscribedCandidates(candidates) {
@@ -137,17 +154,23 @@ async function filterUnsubscribedCandidates(candidates) {
   const userIds = [...new Set(candidates.map(candidate => candidate.user_id).filter(Boolean))];
   if (!userIds.length) return candidates;
 
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('id')
-    .in('id', userIds)
-    .not('marketing_unsubscribed_at', 'is', null);
+  const unsubscribedIds = new Set();
+  for (const userIdChunk of chunk(userIds)) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id')
+      .in('id', userIdChunk)
+      .not('marketing_unsubscribed_at', 'is', null);
 
-  if (error) {
-    throw new Error(`Failed to check lifecycle email preferences: ${error.message}`);
+    if (error) {
+      throw new Error(`Failed to check lifecycle email preferences: ${error.message}`);
+    }
+
+    for (const profile of data || []) {
+      unsubscribedIds.add(String(profile.id));
+    }
   }
 
-  const unsubscribedIds = new Set((data || []).map(profile => String(profile.id)));
   return candidates.filter(candidate => !unsubscribedIds.has(String(candidate.user_id)));
 }
 

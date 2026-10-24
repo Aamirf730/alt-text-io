@@ -22,6 +22,111 @@ class AltTextPro_Admin
         add_action('alt_text_pro_render_notices', array($this, 'plugin_notices'));
         // Removed attachment_fields_to_edit filter - using meta box instead to avoid duplication
         add_action('add_meta_boxes', array($this, 'add_media_meta_boxes'));
+        add_action('admin_post_alt_text_pro_export_logs', array($this, 'export_logs_csv'));
+    }
+
+    // Most rows one CSV export writes.
+    private const EXPORT_LOGS_LIMIT = 50000;
+
+    /**
+     * Logs page "Export": download the generation history as CSV, filtered
+     * by the search box the same way as the table.
+     */
+    public function export_logs_csv()
+    {
+        if (!current_user_can('manage_options')) {
+            wp_die(esc_html__('You do not have permission to perform this action.', 'alt-text-pro'), '', array('response' => 403));
+        }
+
+        check_admin_referer('alt_text_pro_export_logs');
+
+        global $wpdb;
+        $logs_table = $wpdb->prefix . 'alt_text_pro_logs';
+        $search = isset($_GET['s']) ? sanitize_text_field(wp_unslash($_GET['s'])) : '';
+
+        $where = '';
+        $args = array();
+        if ($search !== '') {
+            $where = 'WHERE l.alt_text LIKE %s';
+            $args[] = '%' . $wpdb->esc_like($search) . '%';
+        }
+        $args[] = self::EXPORT_LOGS_LIMIT;
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared -- table names come from $wpdb; values are prepared
+        $rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT l.id, l.attachment_id, p.post_title, l.alt_text, l.credits_used, l.created_at
+             FROM {$logs_table} l
+             LEFT JOIN {$wpdb->posts} p ON l.attachment_id = p.ID
+             {$where}
+             ORDER BY l.created_at DESC, l.id DESC
+             LIMIT %d",
+            $args
+        ), ARRAY_A);
+
+        $filename = 'alt-text-pro-logs-' . current_time('Y-m-d') . '.csv';
+
+        nocache_headers();
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('X-Content-Type-Options: nosniff');
+
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
+        $output = fopen('php://output', 'w');
+        // UTF-8 byte order mark so spreadsheet apps read accents correctly.
+        fwrite($output, "\xEF\xBB\xBF"); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
+        foreach (self::get_logs_csv_rows((array) $rows) as $csv_row) {
+            fputcsv($output, $csv_row, ',', '"', '');
+        }
+        fclose($output); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+        exit;
+    }
+
+    /**
+     * Build CSV rows (header first) for log records.
+     *
+     * Cells that a spreadsheet would run as a formula are prefixed with a
+     * quote so exported alt text cannot execute anything.
+     *
+     * @param array[] $rows Log rows with id, attachment_id, post_title, alt_text, credits_used, created_at.
+     * @return array[]
+     */
+    public static function get_logs_csv_rows(array $rows)
+    {
+        $csv_rows = array(array(
+            __('Log ID', 'alt-text-pro'),
+            __('Attachment ID', 'alt-text-pro'),
+            __('Image', 'alt-text-pro'),
+            __('Alt Text', 'alt-text-pro'),
+            __('Credits', 'alt-text-pro'),
+            __('Date', 'alt-text-pro'),
+        ));
+
+        foreach ($rows as $row) {
+            $row = (array) $row;
+            $csv_rows[] = array(
+                (string) intval($row['id'] ?? 0),
+                (string) intval($row['attachment_id'] ?? 0),
+                self::csv_safe_cell($row['post_title'] ?? ''),
+                self::csv_safe_cell($row['alt_text'] ?? ''),
+                (string) intval($row['credits_used'] ?? 0),
+                self::csv_safe_cell($row['created_at'] ?? ''),
+            );
+        }
+
+        return $csv_rows;
+    }
+
+    /**
+     * Neutralise spreadsheet formulas in a text cell.
+     */
+    private static function csv_safe_cell($value)
+    {
+        $value = (string) $value;
+        if ($value !== '' && strpos("=+-@\t\r", $value[0]) !== false) {
+            $value = "'" . $value;
+        }
+
+        return $value;
     }
 
     /**

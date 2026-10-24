@@ -23,6 +23,7 @@ describe("extractPolarBillingSnapshot", () => {
       })
     ).toEqual({
       paymentAmount: 30,
+      taxAmount: 0,
       discountAmount: 5,
       currency: "USD",
       productId: "prod_standard_monthly",
@@ -50,6 +51,7 @@ describe("extractPolarBillingSnapshot", () => {
       })
     ).toEqual({
       paymentAmount: 86,
+      taxAmount: 0,
       discountAmount: 14,
       currency: "EUR",
       productId: "prod_pro_annual",
@@ -68,6 +70,7 @@ describe("extractPolarBillingSnapshot", () => {
       })
     ).toEqual({
       paymentAmount: 5,
+      taxAmount: 0,
       discountAmount: 0,
       currency: "USD",
       productId: null,
@@ -76,5 +79,11 @@ describe("extractPolarBillingSnapshot", () => {
       discountCode: null,
       discountName: null,
     });
+  });
+
+  it("records the tax included in the order total", () => {
+    expect(
+      extractPolarBillingSnapshot({ totalAmount: 1452, taxAmount: 252, currency: "eur" }),
+    ).toMatchObject({ paymentAmount: 14.52, taxAmount: 2.52, currency: "EUR" });
   });
 });

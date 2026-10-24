@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { getAccessToken, supabase } from '@/lib/supabase';
 import { getApiBase } from '@/lib/utils';
@@ -67,7 +67,13 @@ export default function AdminDashboard() {
         }
     }, [router]);
 
+    // Only the newest request may update a report, so switching the day range
+    // quickly cannot let an older, slower response overwrite the current one.
+    const funnelRequestRef = useRef(0);
+    const lifecycleRequestRef = useRef(0);
+
     const loadFunnel = useCallback(async (token: string, days: string) => {
+        const requestId = ++funnelRequestRef.current;
         try {
             setIsLoadingFunnel(true);
             const apiBase = getApiBase();
@@ -91,6 +97,7 @@ export default function AdminDashboard() {
             }
 
             const result = await response.json();
+            if (requestId !== funnelRequestRef.current) return;
             if (result.success && result.data) {
                 setFunnelReport(result.data);
             } else {
@@ -100,11 +107,12 @@ export default function AdminDashboard() {
             console.error("Error loading funnel report:", error);
             toast.error("Failed to load funnel report.");
         } finally {
-            setIsLoadingFunnel(false);
+            if (requestId === funnelRequestRef.current) setIsLoadingFunnel(false);
         }
     }, [router]);
 
     const loadLifecycle = useCallback(async (token: string, days: string) => {
+        const requestId = ++lifecycleRequestRef.current;
         try {
             setIsLoadingLifecycle(true);
             const apiBase = getApiBase();
@@ -128,6 +136,7 @@ export default function AdminDashboard() {
             }
 
             const result = await response.json();
+            if (requestId !== lifecycleRequestRef.current) return;
             if (result.success && result.data) {
                 setLifecycleReport(result.data);
             } else {
@@ -137,7 +146,7 @@ export default function AdminDashboard() {
             console.error("Error loading lifecycle report:", error);
             toast.error("Failed to load lifecycle report.");
         } finally {
-            setIsLoadingLifecycle(false);
+            if (requestId === lifecycleRequestRef.current) setIsLoadingLifecycle(false);
         }
     }, [router]);
 
@@ -290,7 +299,10 @@ export default function AdminDashboard() {
         const matchesSearch =
             user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             user.id?.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesPlan = filterPlan === "all" || user.subscription_plan === filterPlan;
+        // Older accounts may store the plan under its pre-tier name.
+        const planAliases: Record<string, string> = { lite: "tier1", standard: "tier2", pro: "tier3", agency: "tier4" };
+        const normalizedPlan = planAliases[user.subscription_plan] || user.subscription_plan;
+        const matchesPlan = filterPlan === "all" || normalizedPlan === filterPlan;
         const matchesStatus = filterStatus === "all" || user.subscription_status === filterStatus;
         return matchesSearch && matchesPlan && matchesStatus;
     });
@@ -409,7 +421,7 @@ export default function AdminDashboard() {
                         </Card>
                         <Card>
                             <CardHeader className="pb-3">
-                                <CardTitle className="text-sm font-medium text-gray-600">Total Revenue</CardTitle>
+                                <CardTitle className="text-sm font-medium text-gray-600">Revenue (net of tax and refunds)</CardTitle>
                             </CardHeader>
                             <CardContent>
                                 <div className="text-3xl font-bold text-green-600">{formatCurrency(stats.total_revenue)}</div>
@@ -417,7 +429,7 @@ export default function AdminDashboard() {
                         </Card>
                         <Card>
                             <CardHeader className="pb-3">
-                                <CardTitle className="text-sm font-medium text-gray-600">Active Users</CardTitle>
+                                <CardTitle className="text-sm font-medium text-gray-600">Paying Subscribers</CardTitle>
                             </CardHeader>
                             <CardContent>
                                 <div className="text-3xl font-bold text-[#000000]">{stats.active_users}</div>

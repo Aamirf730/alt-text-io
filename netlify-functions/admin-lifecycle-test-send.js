@@ -243,7 +243,7 @@ async function buildSingleUserCandidate(email, automationKey) {
   // instead of failing on duplicates.
   const { data: profileRows, error: profileError } = await supabase
     .from('profiles')
-    .select('id,email,subscription_plan,credits_remaining,marketing_unsubscribed_at,created_at')
+    .select('id,email,subscription_plan,credits_remaining,bonus_credits_remaining,purchased_credits_remaining,marketing_unsubscribed_at,created_at')
     .eq('email', email)
     .order('created_at', { ascending: false })
     .limit(1);
@@ -379,9 +379,15 @@ async function buildSingleUserCandidate(email, automationKey) {
       };
     }
 
-    const creditsRemaining = Number(profile.credits_remaining || 0);
+    // Spendable balance includes bonus and credit-pack credits.
+    const creditsRemaining = Math.max(
+      Number(profile.credits_remaining || 0),
+      Number(profile.bonus_credits_remaining || 0),
+      Number(profile.purchased_credits_remaining || 0)
+    );
     const isLowCredits = creditsRemaining <= LOW_CREDIT_THRESHOLD;
-    const hasPaidPlan = String(profile.subscription_plan || 'free') !== 'free';
+    const hasPaidPlan = String(profile.subscription_plan || 'free') !== 'free'
+      || Number(profile.purchased_credits_remaining || 0) > 0;
     const fallbackOccurredAt = usage?.last_usage_at || profile.created_at;
 
     if (!isLowCredits || hasPaidPlan || !fallbackOccurredAt || totalUsageCount <= 0) return null;

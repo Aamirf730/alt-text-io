@@ -104,6 +104,66 @@ function esc_html__($text)
     return $text;
 }
 
+function sanitize_textarea_field($value)
+{
+    // Like WordPress: invalid UTF-8 makes the whole value empty.
+    $value = (string) $value;
+    return preg_match('//u', $value) === 1 ? trim(strip_tags($value)) : '';
+}
+
+class AltTextPro_Test_Exit extends Exception
+{
+}
+
+$alt_text_pro_test_can_manage = true;
+$alt_text_pro_test_redirect = '';
+
+function current_user_can($capability)
+{
+    global $alt_text_pro_test_can_manage;
+    return $alt_text_pro_test_can_manage;
+}
+
+function check_ajax_referer()
+{
+    return true;
+}
+
+function check_admin_referer($action, $name)
+{
+    if ($action !== 'alt_text_pro_disconnect' || $name !== 'alt_text_pro_disconnect_nonce') {
+        throw new AltTextPro_Test_Exit('bad nonce');
+    }
+    return true;
+}
+
+function wp_send_json_success($data = null)
+{
+    throw new AltTextPro_Test_Exit('json_success');
+}
+
+function wp_die($message = '')
+{
+    throw new AltTextPro_Test_Exit('die');
+}
+
+function admin_url($path = '')
+{
+    return 'https://example.test/wp-admin/' . $path;
+}
+
+function add_query_arg($key, $value, $url)
+{
+    return $url . '&' . $key . '=' . $value;
+}
+
+function wp_safe_redirect($url)
+{
+    global $alt_text_pro_test_redirect;
+    $alt_text_pro_test_redirect = $url;
+    throw new AltTextPro_Test_Exit('redirect');
+}
+
 function __($text)
 {
     return $text;
@@ -309,5 +369,83 @@ alt_text_pro_test_assert(
     strpos($settings_template, '$has_key') === false,
     'The settings template must use its initialized API-key state variable.'
 );
+
+// An empty key field in the settings form keeps the saved key.
+$_SERVER['REQUEST_METHOD'] = 'POST';
+$alt_text_pro_test_options['alt_text_pro_settings'] = array('api_key' => $encrypted_key, 'blog_context' => 'Travel');
+update_option('alt_text_pro_settings', array('api_key' => ''));
+alt_text_pro_test_assert(
+    get_option('alt_text_pro_settings')['api_key'] === $encrypted_key,
+    'An empty API key field must keep the saved key.'
+);
+
+// Reset must really remove the key (sanitize_settings used to restore it).
+try {
+    $settings_handler->ajax_reset_settings();
+} catch (AltTextPro_Test_Exit $exit) {
+}
+alt_text_pro_test_assert(
+    get_option('alt_text_pro_settings')['api_key'] === '',
+    'Resetting settings must remove the saved API key.'
+);
+alt_text_pro_test_assert(
+    get_option('alt_text_pro_settings')['blog_context'] === '',
+    'Resetting settings must restore defaults.'
+);
+
+// The flag that allows removal must not leak into later saves.
+$alt_text_pro_test_options['alt_text_pro_settings'] = array('api_key' => $encrypted_key);
+update_option('alt_text_pro_settings', array('api_key' => ''));
+alt_text_pro_test_assert(
+    get_option('alt_text_pro_settings')['api_key'] === $encrypted_key,
+    'After a reset, an empty key field must again keep the saved key.'
+);
+
+// Disconnect: nonce + manage_options, removes only the key.
+$alt_text_pro_test_options['alt_text_pro_settings'] = array('api_key' => $encrypted_key, 'blog_context' => 'Travel');
+$alt_text_pro_test_can_manage = false;
+try {
+    $settings_handler->handle_disconnect();
+} catch (AltTextPro_Test_Exit $exit) {
+}
+alt_text_pro_test_assert(
+    get_option('alt_text_pro_settings')['api_key'] === $encrypted_key,
+    'A user without manage_options must not be able to disconnect.'
+);
+$alt_text_pro_test_can_manage = true;
+try {
+    $settings_handler->handle_disconnect();
+} catch (AltTextPro_Test_Exit $exit) {
+}
+alt_text_pro_test_assert(
+    get_option('alt_text_pro_settings')['api_key'] === ''
+        && get_option('alt_text_pro_settings')['blog_context'] === 'Travel'
+        && strpos($alt_text_pro_test_redirect, 'page=alt-text-pro-settings&alt_text_pro_disconnected=1') !== false,
+    'Disconnect must remove the API key, keep other settings and redirect to the settings page.'
+);
+alt_text_pro_test_assert(
+    strpos($settings_template, 'id="alt-text-pro-disconnect-form"') !== false
+        && strpos($settings_template, 'value="alt_text_pro_disconnect"') !== false
+        && strpos($settings_template, "wp_nonce_field('alt_text_pro_disconnect', 'alt_text_pro_disconnect_nonce', false)") !== false,
+    'The settings page must render a nonce-protected disconnect form.'
+);
+
+// Long non-English blog context is shortened by characters, not erased.
+$cyrillic = str_repeat('Ж', 600);
+update_option('alt_text_pro_settings', array('blog_context' => $cyrillic));
+$stored_context = get_option('alt_text_pro_settings')['blog_context'];
+alt_text_pro_test_assert(
+    $stored_context === str_repeat('Ж', 500),
+    'A long multibyte blog context must be cut to 500 characters, not erased.'
+);
+alt_text_pro_test_assert(
+    AltTextPro_Settings::truncate_text('日本語テキスト', 3) === '日本語',
+    'truncate_text() must count characters.'
+);
+alt_text_pro_test_assert(
+    strpos($settings_template, 'name="alt_text_pro_settings[blog_context]" rows="3" maxlength="500"') !== false,
+    'The blog context textarea must be limited to 500 characters.'
+);
+unset($_SERVER['REQUEST_METHOD']);
 
 fwrite(STDOUT, "PASS: encrypted API-key persistence regression\n");

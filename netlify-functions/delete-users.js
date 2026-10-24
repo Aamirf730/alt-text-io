@@ -53,6 +53,74 @@ async function fetchAllAuthUsers(authAdmin, { perPage = 1000, maxPages = 100 } =
   return users;
 }
 
+const LIVE_SUBSCRIPTION_STATUSES = new Set(['active', 'cancelled', 'canceled']);
+
+function getPolarApiBase() {
+  return process.env.POLAR_ENVIRONMENT === 'sandbox'
+    ? 'https://sandbox-api.polar.sh'
+    : 'https://api.polar.sh';
+}
+
+/**
+ * Revoke the profile's running Polar subscription. Returns ok when there is
+ * nothing to cancel or Polar reports it is already gone.
+ */
+async function revokePolarSubscription(profile, { fetchImpl = fetch } = {}) {
+  const subscriptionId = String(profile?.subscription_id || '').trim();
+  const status = String(profile?.subscription_status || '').toLowerCase();
+
+  if (!subscriptionId || !LIVE_SUBSCRIPTION_STATUSES.has(status)) {
+    return { ok: true, revoked: false };
+  }
+
+  const accessToken = process.env.POLAR_ACCESS_TOKEN;
+  if (!accessToken) {
+    return { ok: false, revoked: false, error: new Error('POLAR_ACCESS_TOKEN is not configured') };
+  }
+
+  try {
+    const response = await fetchImpl(
+      `${getPolarApiBase()}/v1/subscriptions/${encodeURIComponent(subscriptionId)}`,
+      {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+        signal: AbortSignal.timeout(10000),
+      }
+    );
+
+    if (response.ok) return { ok: true, revoked: true };
+    if (response.status === 404) return { ok: true, revoked: false };
+
+    const body = await response.json().catch(() => ({}));
+    if (response.status === 403 && /AlreadyCanceled/i.test(String(body?.error || body?.type || ''))) {
+      return { ok: true, revoked: false };
+    }
+
+    return { ok: false, revoked: false, error: new Error(`Polar returned ${response.status}`) };
+  } catch (error) {
+    return { ok: false, revoked: false, error };
+  }
+}
+
+async function recordDeletionAudit(actor, deletedUserId, details) {
+  const { error } = await supabase
+    .from('audit_logs')
+    .insert({
+      actor_id: actor.id,
+      actor_email: actor.email || null,
+      action: 'admin.user_deleted',
+      resource_type: 'user',
+      resource_id: deletedUserId,
+      details,
+      severity: 'warning',
+    });
+
+  if (error) {
+    // The deletion already happened; report the missing audit row loudly.
+    console.error('Admin user deletion succeeded but the audit log insert failed');
+  }
+}
+
 exports.handler = async (event, context) => {
   // Get secure CORS headers (origin-validated)
   const headers = getCorsHeaders(event.headers, ['POST', 'OPTIONS']);
@@ -160,40 +228,41 @@ exports.handler = async (event, context) => {
         }
 
         const userId = authUser.id;
-        // Delete related data first (profiles, payments, usage_logs)
-        // Note: These should cascade delete, but we'll delete them explicitly to be safe
 
-        // Delete usage logs
-        const { error: usageError } = await supabase
-          .from('usage_logs')
-          .delete()
-          .eq('user_id', userId);
-
-        if (usageError) {
-          throw new Error(`Failed to delete usage logs: ${usageError.message}`);
+        // Never delete an admin account (including the caller) from here.
+        if (userId === user.id || SUPERUSER_EMAILS.includes(normalizedEmail)) {
+          results.push({
+            email,
+            status: 'protected',
+            message: 'Admin accounts cannot be deleted from the admin portal'
+          });
+          continue;
         }
 
-        // Delete payments
-        const { error: paymentsError } = await supabase
-          .from('payments')
-          .delete()
-          .eq('user_id', userId);
-
-        if (paymentsError) {
-          throw new Error(`Failed to delete payments: ${paymentsError.message}`);
-        }
-
-        // Delete profile
-        const { error: profileError } = await supabase
+        const { data: profile, error: profileReadError } = await supabase
           .from('profiles')
-          .delete()
-          .eq('id', userId);
+          .select('subscription_id, subscription_plan, subscription_status')
+          .eq('id', userId)
+          .maybeSingle();
 
-        if (profileError) {
-          throw new Error(`Failed to delete profile: ${profileError.message}`);
+        if (profileReadError) {
+          throw new Error(`Failed to read profile: ${profileReadError.message}`);
         }
 
-        // Finally, delete the auth user
+        // Stop billing before the account disappears; otherwise Polar keeps
+        // charging a customer whose account no longer exists.
+        const subscriptionRevoke = await revokePolarSubscription(profile);
+        if (!subscriptionRevoke.ok) {
+          errors.push({
+            email,
+            error: 'The Polar subscription could not be cancelled, so the account was not deleted. Cancel it in Polar, then try again.',
+            ...getDevelopmentErrorDetails(subscriptionRevoke.error),
+          });
+          continue;
+        }
+
+        // Profiles, payments, usage logs, reservations and ledgers all cascade
+        // from the auth user, so this one call removes everything atomically.
         const { error: deleteError } = await supabase.auth.admin.deleteUser(userId);
 
         if (deleteError) {
@@ -203,13 +272,22 @@ exports.handler = async (event, context) => {
             error: 'Failed to delete user',
             ...getDevelopmentErrorDetails(deleteError),
           });
-        } else {
-          results.push({
-            email,
-            status: 'deleted',
-            message: 'User and all associated data deleted successfully'
-          });
+          continue;
         }
+
+        await recordDeletionAudit(user, userId, {
+          had_subscription: Boolean(profile?.subscription_id),
+          subscription_revoked: subscriptionRevoke.revoked,
+          subscription_plan: profile?.subscription_plan || null,
+        });
+
+        results.push({
+          email,
+          status: 'deleted',
+          message: subscriptionRevoke.revoked
+            ? 'Subscription cancelled; user and all associated data deleted'
+            : 'User and all associated data deleted successfully'
+        });
 
       } catch (error) {
         console.error('Unexpected admin account-deletion error');
@@ -249,4 +327,5 @@ exports.handler = async (event, context) => {
 exports._private = {
   getDevelopmentErrorDetails,
   fetchAllAuthUsers,
+  revokePolarSubscription,
 };

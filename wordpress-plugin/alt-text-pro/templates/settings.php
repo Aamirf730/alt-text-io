@@ -16,12 +16,23 @@ $alt_text_pro_has_key = !empty($alt_text_pro_usable_settings['api_key'])
 $alt_text_pro_api_key_placeholder = $alt_text_pro_has_key
     ? esc_attr__('Saved key hidden. Enter a new key to replace it.', 'alt-text-pro')
     : 'alt_...';
+// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only flag set by the nonce-checked disconnect redirect
+$alt_text_pro_disconnected = isset($_GET['alt_text_pro_disconnected']) ? sanitize_key(wp_unslash($_GET['alt_text_pro_disconnected'])) : '';
 ?>
 
 <div class="wrap alt-text-pro-settings">
     <!-- Notices Container -->
     <div class="alt-text-pro-notices-container">
         <?php do_action('alt_text_pro_render_notices'); ?>
+        <?php if ($alt_text_pro_disconnected === '1'): ?>
+        <div class="notice notice-success"><p>
+            <?php esc_html_e('Your Alt Text Pro account was disconnected from this site. The API key was removed.', 'alt-text-pro'); ?>
+        </p></div>
+        <?php elseif ($alt_text_pro_disconnected === '0'): ?>
+        <div class="notice notice-error"><p>
+            <?php esc_html_e('The API key could not be removed. Please try again.', 'alt-text-pro'); ?>
+        </p></div>
+        <?php endif; ?>
     </div>
 
     <!-- Header & Navigation -->
@@ -105,6 +116,17 @@ echo wp_kses_post(
                         <?php esc_html_e('An API key is already saved. Leave this blank to keep it, or paste a new key to replace it.', 'alt-text-pro'); ?>
                     </p>
                     <?php endif; ?>
+                    <?php if ($alt_text_pro_has_key || !empty($settings['api_key'])): ?>
+                    <p style="margin-top: 10px;">
+                        <!-- Submits the separate disconnect form below; forms cannot be nested. -->
+                        <button type="submit" class="button-secondary-custom" id="alt-text-pro-disconnect"
+                            form="alt-text-pro-disconnect-form"
+                            data-confirm="<?php esc_attr_e('Disconnect your Alt Text Pro account from this site? The saved API key will be removed. Alt text already generated stays on your images.', 'alt-text-pro'); ?>">
+                            <span class="dashicons dashicons-dismiss"></span>
+                            <?php esc_html_e('Disconnect account', 'alt-text-pro'); ?>
+                        </button>
+                    </p>
+                    <?php endif; ?>
                     <?php if (!$alt_text_pro_has_key): ?>
                     <p style="margin-top: 10px;">
                         <button type="button" class="button-secondary-custom open-modal"
@@ -182,7 +204,7 @@ endif; ?>
                         style="display: block; margin-bottom: 8px; font-weight: 600;">
                         <?php esc_html_e('Blog Context', 'alt-text-pro'); ?>
                     </label>
-                    <textarea id="blog_context" name="alt_text_pro_settings[blog_context]" rows="3"
+                    <textarea id="blog_context" name="alt_text_pro_settings[blog_context]" rows="3" maxlength="500"
                         style="width: 100%; max-width: 600px;"
                         placeholder="<?php esc_attr_e('e.g., travel blog about New Zealand, food blog focusing on Italian cuisine', 'alt-text-pro'); ?>"><?php echo esc_textarea($settings['blog_context'] ?? ''); ?></textarea>
                     <p class="description" style="margin-top: 8px; color: var(--text-secondary); font-size: 13px;">
@@ -235,6 +257,11 @@ endif; ?>
                 <input type="file" id="import-file" accept=".json" style="display: none;">
             </div>
         </div>
+    </form>
+
+    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" id="alt-text-pro-disconnect-form" style="display: none;">
+        <input type="hidden" name="action" value="alt_text_pro_disconnect" />
+        <?php wp_nonce_field('alt_text_pro_disconnect', 'alt_text_pro_disconnect_nonce', false); ?>
     </form>
 </div>
 

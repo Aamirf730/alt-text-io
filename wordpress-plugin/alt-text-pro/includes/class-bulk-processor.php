@@ -26,6 +26,13 @@ class AltTextPro_Bulk_Processor
     // longer blocks a new one.
     private const ACTIVE_RUN_STALE_SECONDS = 900;
 
+    // The daily cleanup removes saved state for runs that ended, or that have
+    // made no progress for this long (3 days).
+    private const STATE_RETENTION_SECONDS = 259200;
+
+    // Upper bound of saved runs one cleanup pass inspects.
+    private const CLEANUP_BATCH = 200;
+
     /**
      * Constructor
      */
@@ -114,7 +121,7 @@ class AltTextPro_Bulk_Processor
         $subscription_plans = array('free', 'tier1', 'tier2', 'tier3', 'tier4', 'lite', 'standard', 'pro', 'agency');
 
         if ($credits_remaining <= 0) {
-            wp_send_json_error(esc_html__('No credits remaining. Please upgrade your plan before starting bulk processing.', 'alt-text-pro'));
+            wp_send_json_error(esc_html__('No credits remaining. Buy a credit pack or upgrade your plan at alt-text.pro before starting bulk processing.', 'alt-text-pro'));
         }
 
         $total_images = count($images_to_process);
@@ -128,7 +135,7 @@ class AltTextPro_Bulk_Processor
         $processable_images = min($total_images, $credit_limit_for_run);
 
         if ($processable_images <= 0) {
-            wp_send_json_error(esc_html__('No plan credits remaining for this billing cycle. Please upgrade, top up, or wait for your next credit refill before starting bulk processing.', 'alt-text-pro'));
+            wp_send_json_error(esc_html__('No plan credits remaining for this billing cycle. Buy a credit pack or upgrade your plan at alt-text.pro, or wait for your next credit refill before starting bulk processing.', 'alt-text-pro'));
         }
 
         // Create bulk process record
@@ -693,7 +700,7 @@ class AltTextPro_Bulk_Processor
             // Check if credits ran out (402 error)
             if (isset($result['no_credits']) && $result['no_credits'] === true) {
                 // Credits exhausted - stop processing immediately
-                $error_message = $result['message'] ?? esc_html__('No credits remaining. Processing stopped.', 'alt-text-pro');
+                $error_message = $result['message'] ?? esc_html__('No credits remaining. Buy a credit pack or upgrade your plan at alt-text.pro.', 'alt-text-pro');
                 $errors[] = array(
                     'image_id' => $image_id,
                     'error' => $error_message
@@ -710,7 +717,7 @@ class AltTextPro_Bulk_Processor
                 $process_data['status'] = 'stopped_no_credits';
                 $process_data['stopped_reason'] = sprintf(
                     // translators: %1$d: Number of processed images, %2$d: Number of successfully processed images
-                    esc_html__('Credits exhausted after processing %1$d images. %2$d images successfully processed. Please upgrade your plan or wait for next month\'s credit refill.', 'alt-text-pro'),
+                    esc_html__('Credits exhausted after processing %1$d images. %2$d images successfully processed. Buy a credit pack or upgrade your plan at alt-text.pro, or wait for your next credit refill.', 'alt-text-pro'),
                     $processed,
                     $successful
                 );
@@ -1142,7 +1149,7 @@ class AltTextPro_Bulk_Processor
 
         // Add stopped_reason if process was stopped due to credits
         if (isset($process_data['status']) && $process_data['status'] === 'stopped_no_credits') {
-            $status_data['stopped_reason'] = $process_data['stopped_reason'] ?? esc_html__('Credits exhausted. Please upgrade your plan or wait for next month\'s credit refill.', 'alt-text-pro');
+            $status_data['stopped_reason'] = $process_data['stopped_reason'] ?? esc_html__('Credits exhausted. Buy a credit pack or upgrade your plan at alt-text.pro, or wait for your next credit refill.', 'alt-text-pro');
         }
 
         return $status_data;
@@ -1291,6 +1298,96 @@ class AltTextPro_Bulk_Processor
     {
         delete_option($this->get_bulk_process_option_name($process_id));
         $this->release_active_run($process_id);
+    }
+
+    /**
+     * Daily WP-Cron task: delete saved state of bulk runs that are finished
+     * or have been idle for more than three days.
+     *
+     * The run named by the site-wide active-run marker is never deleted, and
+     * a run that made progress within the retention window is kept.
+     *
+     * @return int Number of saved runs deleted.
+     */
+    public static function cleanup_stale_bulk_states()
+    {
+        global $wpdb;
+
+        $state_prefix = 'alt_text_pro_bulk_state_';
+
+        wp_cache_delete(self::ACTIVE_RUN_OPTION, 'options');
+        wp_cache_delete('notoptions', 'options');
+        $marker = get_option(self::ACTIVE_RUN_OPTION, null);
+        $live_option = '';
+        if (is_array($marker) && !empty($marker['process_id']) && is_string($marker['process_id'])) {
+            $live_option = $state_prefix . hash('sha256', $marker['process_id']);
+        }
+
+        // Names only: a saved run holds its whole queue, so values are read
+        // one at a time below.
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $option_names = $wpdb->get_col($wpdb->prepare(
+            "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s ORDER BY option_id ASC LIMIT %d",
+            $wpdb->esc_like($state_prefix) . '%',
+            self::CLEANUP_BATCH
+        ));
+
+        if (empty($option_names)) {
+            return 0;
+        }
+
+        $now = strtotime(current_time('mysql'));
+        $terminal_statuses = array('completed', 'cancelled', 'stopped_no_credits');
+        $deleted = 0;
+
+        foreach ((array) $option_names as $option_name) {
+            if (!is_string($option_name) || strpos($option_name, $state_prefix) !== 0 || $option_name === $live_option) {
+                continue;
+            }
+
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $raw_value = $wpdb->get_var($wpdb->prepare(
+                "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s",
+                $option_name
+            ));
+            if ($raw_value === null) {
+                continue;
+            }
+
+            $process_data = maybe_unserialize($raw_value);
+            unset($raw_value);
+
+            $is_stale = true;
+            if (is_array($process_data)) {
+                $status = (string) ($process_data['status'] ?? '');
+                $last_activity = '';
+                foreach (array('last_updated', 'cancelled_at', 'completed_at', 'started_at') as $time_key) {
+                    if (!empty($process_data[$time_key]) && is_string($process_data[$time_key])) {
+                        $last_activity = $process_data[$time_key];
+                        break;
+                    }
+                }
+                $last_timestamp = $last_activity !== '' ? strtotime($last_activity) : false;
+                $is_idle = !$last_timestamp || ($now - $last_timestamp) > self::STATE_RETENTION_SECONDS;
+
+                $is_stale = in_array($status, $terminal_statuses, true) || $is_idle;
+            }
+
+            if (!$is_stale) {
+                continue;
+            }
+
+            delete_option($option_name);
+            // The run's process lock uses the same hash as its state.
+            delete_option('alt_text_pro_bulk_lock_' . substr($option_name, strlen($state_prefix)));
+            if (is_array($process_data) && !empty($process_data['id']) && is_string($process_data['id'])) {
+                delete_transient('alt_text_pro_bulk_' . $process_data['id']);
+                delete_transient('alt_text_pro_bulk_active_' . $process_data['id']);
+            }
+            $deleted++;
+        }
+
+        return $deleted;
     }
 
     /**
@@ -1530,7 +1627,7 @@ class AltTextPro_Bulk_Processor
                 $subject = esc_html__('Alt Text Pro: Bulk Processing Stopped - No Credits', 'alt-text-pro');
                 $message = sprintf(
                     // translators: %1$d: Total images, %2$d: Processed images, %3$d: Successfully processed images, %4$d: Error count, %5$s: Stopped reason
-                    esc_html__("Your bulk alt-text generation process has stopped due to insufficient credits.\n\nResults:\n- Total images: %1\$d\n- Processed: %2\$d\n- Successfully processed: %3\$d\n- Errors: %4\$d\n\nReason: %5\$s\n\nPlease upgrade your plan to continue processing remaining images.\n\nYou can view detailed results in your WordPress admin dashboard.", 'alt-text-pro'),
+                    esc_html__("Your bulk alt-text generation process has stopped due to insufficient credits.\n\nResults:\n- Total images: %1\$d\n- Processed: %2\$d\n- Successfully processed: %3\$d\n- Errors: %4\$d\n\nReason: %5\$s\n\nBuy a credit pack or upgrade your plan at alt-text.pro to continue processing the remaining images.\n\nYou can view detailed results in your WordPress admin dashboard.", 'alt-text-pro'),
                     $process_data['total_images'],
                     $process_data['processed'] ?? 0,
                     $process_data['successful'] ?? 0,

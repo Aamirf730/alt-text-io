@@ -167,6 +167,19 @@ Yes, you can cancel your subscription at any time from your Alt Text Pro dashboa
 * Fix: the dashboard shows an error with "Try again" and "Reconnect account" when your account cannot be loaded, instead of placeholder credits, and loads with one request.
 * Fix: the dashboard shows plan names and credits that match your Alt Text Pro account, including bonus and credit-pack credits.
 * Fix: the settings page keeps your working API key when Alt Text Pro rejects a newly pasted one.
+* Fix: generating alt text for a post only fills images whose alt is empty or missing in the post; alt text you wrote in the post is never replaced.
+* Fix: posts with many images are processed a few images per request with progress shown in the posts list, so large posts no longer time out. Images generated before an interruption are still written to the post.
+* Fix: multisite networks get the logs table on every site, including sites created later, and uninstalling cleans every site.
+* New: a "Disconnect account" button on the Settings page removes the saved API key. Resetting settings now removes the key too.
+* Fix: long blog context in non-Latin scripts is shortened instead of being erased, and the field is limited to 500 characters.
+* Fix: out-of-credits messages mention credit packs as well as plan upgrades.
+* Fix: "Used in" context only matches posts that use the exact image (image 12 no longer matches image 120), and context is sent as plain text.
+* Fix: images offloaded to S3 or a CDN are downloaded from their public URL when the local file is missing.
+* Fix: the Logs page Export button downloads a CSV of the history (matching your search), and an empty log no longer shows PHP notices.
+* Fix: the post-activation redirect only runs for administrators on a normal page load, never during AJAX, REST or cron requests.
+* Fix: a deleted Alt Text Pro account now asks you to reconnect instead of suggesting a plugin update, and bulk runs wait and retry when the service is temporarily busy (503).
+* Fix: saved state of finished or abandoned bulk runs is cleaned up daily; an active run is never touched.
+* Fix: "Connect Account" returns the key to the admin address you are actually using, so www/non-www or proxy differences no longer drop the connection.
 * Docs: list the external service the plugin uses and what it sends.
 
 = 1.7.25 =

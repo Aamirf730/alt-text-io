@@ -136,7 +136,7 @@ export default function Dashboard() {
     const planAllowance = monthlyCreditLimit || (monthlyCreditAllowance > 0 ? monthlyCreditAllowance : currentPlanLimit);
     const creditsUsed = Number(usageStats?.monthly_credits_used ?? usageStats?.total_processed ?? 0);
     const creditsRemaining = Number(usageStats?.monthly_credits_remaining ?? usageStats?.credits_remaining ?? 0);
-    const creditUsageLimit = getUsageDisplayLimit(currentPlan, planAllowance, creditsRemaining, creditsUsed);
+    const creditUsageLimit = getUsageDisplayLimit(planAllowance, creditsRemaining, creditsUsed);
     const creditUsagePercent = creditUsageLimit > 0 ? Math.min((creditsUsed / creditUsageLimit) * 100, 100) : 0;
     // Legacy subscribers keep their original plan name and allowance.
     const basePlanLabel = getPlanDisplayName(currentPlan, monthlyCreditLimit || monthlyCreditAllowance);
@@ -153,7 +153,7 @@ export default function Dashboard() {
         ? `Credits left this month. Annual plan provides ${planAllowance.toLocaleString()} credits each month.`
         : 'Credits left this month';
     const hasApiKeyReady = Boolean(apiKey);
-    const hasGeneratedFirstAltText = Number(usageStats?.total_processed || 0) > 0 || history.length > 0;
+    const hasGeneratedFirstAltText = Number(usageStats?.total_generated ?? usageStats?.total_processed ?? 0) > 0 || history.length > 0;
     const isPluginConnected = usageStats?.plugin_connected === true;
     const showFirstRunOnboarding = !isPluginConnected || !hasGeneratedFirstAltText;
     const accountInitial = String(user?.email || 'A').charAt(0).toUpperCase();
@@ -421,6 +421,8 @@ export default function Dashboard() {
                             monthly_credit_limit: usageData.data.monthly_credit_limit,
                             monthly_credits_used: usageData.data.monthly_credits_used,
                             total_processed: usageData.data.total_processed || usageData.data.credits_used || 0,
+                            // Lifetime count; total_processed is this billing cycle only.
+                            total_generated: Number(usageData.data.total_generated ?? 0),
                             plan: usageData.data.subscription_plan || 'free',
                             subscription_status: usageData.data.subscription_status || null,
                             billing_cycle: usageData.data.billing_cycle || null,
@@ -682,7 +684,8 @@ export default function Dashboard() {
             }
 
             if (apiResponse.ok) {
-                const wasFirstProcessedImage = (usageStats?.total_processed || 0) === 0;
+                // Lifetime, not per cycle: the first image happens once per account.
+                const wasFirstProcessedImage = Number(usageStats?.total_generated ?? usageStats?.total_processed ?? 0) === 0 && history.length === 0;
 
                 // Update with real data from API response
                 const result = {
@@ -694,11 +697,20 @@ export default function Dashboard() {
                 setTestResult(result);
 
                 // Update usage stats with real credits from API
-                setUsageStats((prev: any) => ({
-                    ...prev,
-                    credits_remaining: data.credits_remaining,
-                    total_processed: data.total_processed || (prev?.total_processed || 0) + 1
-                }));
+                // The display reads the monthly fields first, so update them too.
+                setUsageStats((prev: any) => {
+                    const used = Number(data.total_processed ?? (Number(prev?.monthly_credits_used ?? prev?.total_processed ?? 0) + 1));
+                    const remaining = Number(data.monthly_credits_remaining ?? data.credits_remaining ?? prev?.monthly_credits_remaining ?? 0);
+                    return {
+                        ...prev,
+                        credits_remaining: data.credits_remaining,
+                        monthly_credits_remaining: remaining,
+                        monthly_credits_used: used,
+                        monthly_credit_limit: data.monthly_credit_limit ?? prev?.monthly_credit_limit,
+                        total_processed: used,
+                        total_generated: Number(prev?.total_generated ?? 0) + 1,
+                    };
+                });
 
                 // Update generated alt-text state for display
                 setGeneratedAltText(result.alt_text);

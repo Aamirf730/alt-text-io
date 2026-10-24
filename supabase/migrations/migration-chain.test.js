@@ -18,7 +18,7 @@ test('tracked migrations have one ordered, canonical history', () => {
   assert.ok(files.length > 1);
   assert.equal(new Set(versions).size, versions.length);
   assert.equal(files[0], '20260625140000_bootstrap_schema.sql');
-  assert.equal(files.at(-1), '20261024130000_change_subscription_plan_mid_period.sql');
+  assert.equal(files.at(-1), '20261024140000_add_payment_tax_and_refund_amounts.sql');
 });
 
 test('bootstrap defines every foundational table and reporting view', () => {
@@ -152,6 +152,19 @@ test('mid-period plan change is bound to the current subscription and replay-saf
   assert.doesNotMatch(change, /subscription_status\s*=/);
   assert.match(change, /revoke all on function public\.change_subscription_plan\(/);
   assert.match(change, /grant execute on function public\.change_subscription_plan\([\s\S]*\) to service_role/);
+});
+
+test('payments record tax and cumulative refunds for net revenue', () => {
+  const payments = fs.readFileSync(
+    path.join(migrationsDirectory, '20261024140000_add_payment_tax_and_refund_amounts.sql'),
+    'utf8',
+  ).toLowerCase();
+
+  assert.match(payments, /add column if not exists tax_amount numeric\(10, 2\) not null default 0/);
+  assert.match(payments, /add column if not exists refunded_amount numeric\(10, 2\)/);
+  assert.match(payments, /add column if not exists refunded_tax_amount numeric\(10, 2\)/);
+  assert.match(payments, /payments_tax_and_refunds_nonnegative/);
+  assert.doesNotMatch(payments, /drop column|update public\.payments/);
 });
 
 test('Agency catalogue follow-up keeps tier4 active', () => {

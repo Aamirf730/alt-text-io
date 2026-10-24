@@ -25,6 +25,9 @@ class AltTextPro_API_Client
     // Formats the AI service reads directly.
     private const DIRECT_UPLOAD_MIME_TYPES = array('image/jpeg', 'image/png', 'image/webp', 'image/gif');
 
+    // Offloaded media (S3/CDN): how long to wait for the attachment URL.
+    private const REMOTE_IMAGE_TIMEOUT = 20;
+
 
     private $api_base;
     private $api_key;
@@ -193,31 +196,48 @@ class AltTextPro_API_Client
      */
     private function get_image_base64($attachment_id)
     {
-        $file_path = get_attached_file($attachment_id);
-
-        if (!$file_path || !file_exists($file_path)) {
-            return false;
-        }
-
         // Check if it's an image
         $mime_type = (string) get_post_mime_type($attachment_id);
         if (strpos($mime_type, 'image/') !== 0) {
             return false;
         }
 
-        $file_size = (int) filesize($file_path);
-        if ($file_size <= 0 || $file_size > self::MAX_SOURCE_IMAGE_BYTES) {
-            return false;
+        $file_path = get_attached_file($attachment_id);
+        $temp_file = null;
+
+        if (!$file_path || !file_exists($file_path)) {
+            // Offloaded media (S3, CDN): the local copy was removed, so read
+            // the image from its public URL instead.
+            $remote = $this->download_remote_image($attachment_id);
+            if (!$remote) {
+                return false;
+            }
+            $file_path = $remote['path'];
+            $temp_file = $remote['path'];
+            if (!empty($remote['mime_type'])) {
+                $mime_type = $remote['mime_type'];
+            }
         }
 
-        // Send the original only when it is small and in a format the AI
-        // service reads. Everything else is downscaled and re-encoded so the
-        // request stays under the service's ~6 MB body limit (base64 adds a
-        // third) and formats such as HEIC, BMP or TIFF still work.
-        if ($file_size <= self::MAX_DIRECT_UPLOAD_BYTES && in_array($mime_type, self::DIRECT_UPLOAD_MIME_TYPES, true)) {
-            $image_data = file_get_contents($file_path);
-        } else {
-            $image_data = $this->get_resized_image_data($file_path, $mime_type);
+        try {
+            $file_size = (int) filesize($file_path);
+            if ($file_size <= 0 || $file_size > self::MAX_SOURCE_IMAGE_BYTES) {
+                return false;
+            }
+
+            // Send the original only when it is small and in a format the AI
+            // service reads. Everything else is downscaled and re-encoded so the
+            // request stays under the service's ~6 MB body limit (base64 adds a
+            // third) and formats such as HEIC, BMP or TIFF still work.
+            if ($file_size <= self::MAX_DIRECT_UPLOAD_BYTES && in_array($mime_type, self::DIRECT_UPLOAD_MIME_TYPES, true)) {
+                $image_data = file_get_contents($file_path);
+            } else {
+                $image_data = $this->get_resized_image_data($file_path, $mime_type);
+            }
+        } finally {
+            if ($temp_file !== null && file_exists($temp_file)) {
+                wp_delete_file($temp_file);
+            }
         }
 
         if (!is_string($image_data) || $image_data === '' || strlen($image_data) > self::MAX_DIRECT_UPLOAD_BYTES) {
@@ -232,6 +252,111 @@ class AltTextPro_API_Client
         }
 
         return $base64_data;
+    }
+
+    /**
+     * Download an attachment whose local file is missing (offloaded media)
+     * into a temporary file.
+     *
+     * @return array|false array('path' => string, 'mime_type' => string), or false.
+     */
+    private function download_remote_image($attachment_id)
+    {
+        $url = wp_get_attachment_url($attachment_id);
+        if (!$url || !function_exists('wp_safe_remote_get')) {
+            return false;
+        }
+
+        // Uploads through the REST API (block editor) do not load wp-admin.
+        if (!function_exists('wp_tempnam')) {
+            require_once ABSPATH . 'wp-admin/includes/file.php';
+        }
+
+        $temp_path = wp_tempnam('alt-text-pro-remote');
+        if (!$temp_path) {
+            return false;
+        }
+
+        // wp_safe_remote_get() refuses local and private network addresses.
+        // Stream to disk and stop reading one byte past the size limit, so an
+        // oversized file is detected without holding it in memory.
+        $response = wp_safe_remote_get($url, array(
+            'timeout' => self::REMOTE_IMAGE_TIMEOUT,
+            'redirection' => 3,
+            'stream' => true,
+            'filename' => $temp_path,
+            'limit_response_size' => self::MAX_SOURCE_IMAGE_BYTES + 1,
+        ));
+
+        $fail = function () use ($temp_path) {
+            if (file_exists($temp_path)) {
+                wp_delete_file($temp_path);
+            }
+            return false;
+        };
+
+        if (is_wp_error($response) || intval(wp_remote_retrieve_response_code($response)) !== 200) {
+            return $fail();
+        }
+
+        $content_type = strtolower(trim((string) wp_remote_retrieve_header($response, 'content-type')));
+        if (strpos($content_type, 'image/') !== 0) {
+            return $fail();
+        }
+
+        $content_length = wp_remote_retrieve_header($response, 'content-length');
+        if ($content_length !== '' && is_numeric($content_length) && intval($content_length) > self::MAX_SOURCE_IMAGE_BYTES) {
+            return $fail();
+        }
+
+        clearstatcache(true, $temp_path);
+        $size = file_exists($temp_path) ? (int) filesize($temp_path) : 0;
+        if ($size <= 0 || $size > self::MAX_SOURCE_IMAGE_BYTES) {
+            return $fail();
+        }
+
+        // Trust the bytes, not the header: the file must really be an image.
+        $mime_type = '';
+        if (function_exists('wp_get_image_mime')) {
+            $mime_type = (string) wp_get_image_mime($temp_path);
+        }
+        if ($mime_type === '') {
+            $image_info = @getimagesize($temp_path); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+            $mime_type = is_array($image_info) && !empty($image_info['mime']) ? (string) $image_info['mime'] : '';
+        }
+        if (strpos($mime_type, 'image/') !== 0) {
+            // PHP always recognises JPEG, PNG, GIF and WebP, so bytes it
+            // cannot read are not one of those. Other formats (HEIC, AVIF on
+            // older PHP) go through the image editor, which rejects files it
+            // cannot decode.
+            $mime_type = trim((string) strtok($content_type, ';'));
+            if (in_array($mime_type, self::DIRECT_UPLOAD_MIME_TYPES, true) || strpos($mime_type, 'image/') !== 0) {
+                return $fail();
+            }
+        }
+
+        // Give the file the right extension so image editors recognise it.
+        $extensions = array(
+            'image/jpeg' => 'jpg',
+            'image/png' => 'png',
+            'image/gif' => 'gif',
+            'image/webp' => 'webp',
+            'image/avif' => 'avif',
+            'image/heic' => 'heic',
+            'image/bmp' => 'bmp',
+            'image/tiff' => 'tif',
+        );
+        if (isset($extensions[$mime_type])) {
+            $named_path = $temp_path . '.' . $extensions[$mime_type];
+            if (@rename($temp_path, $named_path)) { // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged, WordPress.WP.AlternativeFunctions.rename_rename
+                $temp_path = $named_path;
+            }
+        }
+
+        return array(
+            'path' => $temp_path,
+            'mime_type' => $mime_type,
+        );
     }
 
     /**
@@ -388,7 +513,7 @@ class AltTextPro_API_Client
                     $error_message = esc_html__('Invalid API key. Please check your settings and ensure your API key is correct.', 'alt-text-pro');
                     break;
                 case 402:
-                    $error_message = esc_html__('No credits remaining. Please upgrade your plan.', 'alt-text-pro');
+                    $error_message = esc_html__('No credits remaining. Buy a credit pack or upgrade your plan at alt-text.pro.', 'alt-text-pro');
                     // Mark as no credits error for bulk processing to stop
                     return array(
                         'success' => false,
@@ -400,6 +525,18 @@ class AltTextPro_API_Client
                     $error_message = esc_html__('Access forbidden. Please check your API key permissions.', 'alt-text-pro');
                     break;
                 case 404:
+                    // The service answers 404 when the account behind this key
+                    // no longer exists; that needs a reconnect, not an update.
+                    if (is_string($error_message) && stripos($error_message, 'profile not found') !== false) {
+                        return array(
+                            'success' => false,
+                            'message' => esc_html__('Your Alt Text Pro account could not be found. Reconnect your account in Alt Text Pro > Settings.', 'alt-text-pro'),
+                            'status_code' => 404,
+                            'code' => 'account_not_found',
+                            'reconnect' => true,
+                            'retryable' => false
+                        );
+                    }
                     $error_message = esc_html__('The requested Alt Text Pro service is unavailable. Please update the plugin or try again later.', 'alt-text-pro');
                     break;
                 case 413:
@@ -425,6 +562,30 @@ class AltTextPro_API_Client
                 case 500:
                     $error_message = esc_html__('The Alt Text Pro service encountered an error. Please try again later.', 'alt-text-pro');
                     break;
+                case 503:
+                    // Temporary: for example the service's rate limiter is
+                    // unavailable. Bulk runs wait and retry, like a 429.
+                    $retry_after_seconds = null;
+                    if (is_array($decoded_body)) {
+                        if (isset($decoded_body['retry_after_seconds'])) {
+                            $retry_after_seconds = intval($decoded_body['retry_after_seconds']);
+                        } elseif (isset($decoded_body['retryAfter'])) {
+                            $retry_after_seconds = intval($decoded_body['retryAfter']);
+                        }
+                    }
+                    if (!$retry_after_seconds) {
+                        $retry_after_header = wp_remote_retrieve_header($response, 'retry-after');
+                        $retry_after_seconds = is_numeric($retry_after_header) ? intval($retry_after_header) : null;
+                    }
+
+                    return array(
+                        'success' => false,
+                        'message' => esc_html__('The Alt Text Pro service is temporarily busy. Please try again in a moment; bulk runs retry automatically.', 'alt-text-pro'),
+                        'retryable' => true,
+                        'retry_after_seconds' => $retry_after_seconds ? min(300, max(1, $retry_after_seconds)) : 30,
+                        'code' => 'service_unavailable',
+                        'status_code' => 503
+                    );
             }
 
             if ($status_code >= 500) {

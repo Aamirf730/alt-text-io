@@ -431,11 +431,23 @@ async function downgradeProfileToFree(
     }
 }
 
-async function markPaymentStatus(paymentId: string, status: string): Promise<void> {
+async function markPaymentStatus(
+    paymentId: string,
+    status: string,
+    refund?: { refundedAmount: number; refundedTaxAmount: number },
+): Promise<void> {
     const { error } = await getSupabase()
         .from("payments")
         .update({
             status,
+            // Polar reports cumulative refunded totals on the order, so
+            // writing them (not adding) keeps webhook replays idempotent.
+            ...(refund
+                ? {
+                    refunded_amount: refund.refundedAmount,
+                    refunded_tax_amount: refund.refundedTaxAmount,
+                }
+                : {}),
             updated_at: new Date().toISOString(),
         })
         .eq("payment_id", paymentId)
@@ -576,10 +588,15 @@ function resolveMonthlyAllowance({
     const pinned = Number(profile.monthly_credit_allowance || 0);
     if (pinned <= 0) return catalogueAllowance;
 
-    const sameSubscription =
-        Boolean(subscriptionId) && profile.subscription_id === subscriptionId;
     const sameProduct =
         !profile.polar_product_id || !productId || profile.polar_product_id === productId;
+    // A legacy profile can lack a stored subscription ID; the pinned
+    // allowance still applies while the exact same Polar product renews.
+    const sameSubscription =
+        Boolean(subscriptionId) && (
+            profile.subscription_id === subscriptionId
+            || (!profile.subscription_id && Boolean(profile.polar_product_id) && profile.polar_product_id === productId)
+        );
 
     return sameSubscription && sameProduct ? pinned : catalogueAllowance;
 }
@@ -823,6 +840,7 @@ const polarWebhookHandlers = {
                 discount_code: billingSnapshot.discountCode,
                 discount_name: billingSnapshot.discountName,
                 discount_amount: billingSnapshot.discountAmount,
+                tax_amount: billingSnapshot.taxAmount,
                 status: "completed",
                 payment_method: "polar",
                 created_at: new Date().toISOString(),
@@ -1183,6 +1201,10 @@ const polarWebhookHandlers = {
             await markPaymentStatus(
                 paymentId,
                 order.status === "partially_refunded" ? "partially_refunded" : "refunded",
+                {
+                    refundedAmount: Number((refundedAmount / 100).toFixed(2)),
+                    refundedTaxAmount: Number((Number(order.refundedTaxAmount || 0) / 100).toFixed(2)),
+                },
             );
 
             const profile = await findOrQueueBillingProfile({

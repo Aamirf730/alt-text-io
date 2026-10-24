@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getPolarServer } from "@/lib/polar-environment";
 import { Polar } from "@polar-sh/sdk";
 import { createClient } from "@supabase/supabase-js";
 import { safeServerError } from "@/lib/safe-server-log";
@@ -36,7 +37,6 @@ export async function GET(request: NextRequest) {
         }
 
         const polarAccessToken = process.env.POLAR_ACCESS_TOKEN;
-        const environment = process.env.POLAR_ENVIRONMENT || "sandbox";
 
         if (!polarAccessToken) {
             return NextResponse.json({ error: "Checkout verification is not configured" }, { status: 500 });
@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
 
         const polar = new Polar({
             accessToken: polarAccessToken,
-            server: environment === "sandbox" ? "sandbox" : "production",
+            server: getPolarServer(),
         });
         const checkout = await polar.checkouts.get({ id: checkoutId });
         const checkoutUserId = String(checkout.metadata?.user_id || "");

@@ -41,6 +41,8 @@ export default function LandingPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isLogin, setIsLogin] = useState(false);
   const [showAuthForm, setShowAuthForm] = useState(false);
+  // Email waiting for confirmation; shows an inline notice with a resend link.
+  const [pendingConfirmationEmail, setPendingConfirmationEmail] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [generatedAltText, setGeneratedAltText] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
@@ -113,6 +115,24 @@ export default function LandingPage() {
     return () => {
       subscription?.unsubscribe();
     };
+  }, []);
+
+  // Sign-in and sign-up links on other pages send visitors to /?auth=…; open
+  // the dialog for them and drop the parameter from the address bar.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const authMode = params.get("auth");
+    if (authMode !== "signin" && authMode !== "signup") return;
+
+    params.delete("auth");
+    const query = params.toString();
+    window.history.replaceState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`);
+
+    const timer = window.setTimeout(() => {
+      setIsLogin(authMode === "signin");
+      setShowAuthForm(true);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   const handleDemoImageSelect = (file: File) => {
@@ -250,6 +270,9 @@ export default function LandingPage() {
       }
 
       if (result.error) {
+        if (isLogin && /email not confirmed/i.test(result.error.message)) {
+          setPendingConfirmationEmail(email.trim());
+        }
         toast.error(result.error.message);
       } else if (result.data.user) {
         if (!isLogin && result.data.session) {
@@ -265,6 +288,7 @@ export default function LandingPage() {
         }
 
         if (!isLogin && !result.data.session) {
+          setPendingConfirmationEmail(email.trim());
           toast.success("Please check your email to confirm your account.");
         } else {
           toast.success("Welcome back!");
@@ -274,6 +298,31 @@ export default function LandingPage() {
     } catch (error) {
       console.error("Auth error:", error);
       toast.error("Authentication failed.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResendConfirmation = async () => {
+    if (!pendingConfirmationEmail) return;
+
+    setIsLoading(true);
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: pendingConfirmationEmail,
+        options: { emailRedirectTo: window.location.origin + '/email-confirmed' },
+      });
+
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+
+      toast.success("We sent a new confirmation email. Check your inbox and spam folder.");
+    } catch (error) {
+      console.error("Resend confirmation error:", error);
+      toast.error("Could not resend the confirmation email. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -473,11 +522,15 @@ export default function LandingPage() {
                       size="lg"
                       className="h-16 rounded-full bg-notebook-teal px-9 text-base font-bold text-notebook-black shadow-[0_16px_32px_rgba(254,225,28,0.28)] transition-all duration-300 hover:-translate-y-1 hover:bg-notebook-teal/90 sm:text-lg"
                       onClick={() => {
+                        if (user) {
+                          router.push("/dashboard");
+                          return;
+                        }
                         setIsLogin(false);
                         setShowAuthForm(true);
                       }}
                     >
-                      Start with 150 free credits
+                      {user ? "Go to your dashboard" : "Start with 150 free credits"}
                     </Button>
                     <Button
                       size="lg"
@@ -962,7 +1015,7 @@ export default function LandingPage() {
                 },
                 {
                   question: "Do unused subscription credits roll over?",
-                  answer: "Plan credits reset each billing cycle. Purchased and bonus credits remain available for future generations.",
+                  answer: "No. Your plan's credits refresh every month, including on annual plans, and unused plan credits do not carry over. Signup bonus credits and credit packs never expire.",
                 },
               ].map((faq, index) => {
                 const isOpen = openFaq === index;
@@ -1077,6 +1130,22 @@ export default function LandingPage() {
                   )}
                 </Button>
               </form>
+
+              {pendingConfirmationEmail && (
+                <div className="mt-4 rounded-2xl border border-slate-200 bg-notebook-paper p-4 text-sm text-slate-600" role="status">
+                  <p>
+                    Confirm <span className="font-semibold text-notebook-slate">{pendingConfirmationEmail}</span> using the link we emailed you.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => void handleResendConfirmation()}
+                    disabled={isLoading}
+                    className="mt-2 font-bold text-notebook-blue hover:text-notebook-slate disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Resend confirmation email
+                  </button>
+                </div>
+              )}
 
               <div className="relative my-5">
                 <div className="absolute inset-0 flex items-center">

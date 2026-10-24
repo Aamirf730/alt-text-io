@@ -59,7 +59,7 @@ $alt_text_pro_current_page = isset($_GET['page']) ? sanitize_text_field(wp_unsla
                 <span class="stat-title"><?php esc_html_e('Total Generated', 'alt-text-pro'); ?></span>
                 <div class="stat-icon"><span class="dashicons dashicons-format-image"></span></div>
             </div>
-            <div class="stat-value"><?php echo esc_html(number_format($stats['total_generated'])); ?></div>
+            <div class="stat-value"><?php echo esc_html(number_format((int) $stats['total_generated'])); ?></div>
         </div>
 
         <div class="stat-card">
@@ -67,7 +67,7 @@ $alt_text_pro_current_page = isset($_GET['page']) ? sanitize_text_field(wp_unsla
                 <span class="stat-title"><?php esc_html_e('Credits Used', 'alt-text-pro'); ?></span>
                 <div class="stat-icon"><span class="dashicons dashicons-chart-area"></span></div>
             </div>
-            <div class="stat-value"><?php echo esc_html(number_format($stats['total_credits_used'])); ?></div>
+            <div class="stat-value"><?php echo esc_html(number_format((int) $stats['total_credits_used'])); ?></div>
         </div>
 
         <div class="stat-card">
@@ -75,7 +75,7 @@ $alt_text_pro_current_page = isset($_GET['page']) ? sanitize_text_field(wp_unsla
                 <span class="stat-title"><?php esc_html_e('Today', 'alt-text-pro'); ?></span>
                 <div class="stat-icon"><span class="dashicons dashicons-calendar-alt"></span></div>
             </div>
-            <div class="stat-value"><?php echo esc_html(number_format($stats['today_generated'])); ?></div>
+            <div class="stat-value"><?php echo esc_html(number_format((int) $stats['today_generated'])); ?></div>
         </div>
 
         <div class="stat-card">
@@ -83,7 +83,7 @@ $alt_text_pro_current_page = isset($_GET['page']) ? sanitize_text_field(wp_unsla
                 <span class="stat-title"><?php esc_html_e('This Month', 'alt-text-pro'); ?></span>
                 <div class="stat-icon"><span class="dashicons dashicons-calendar"></span></div>
             </div>
-            <div class="stat-value"><?php echo esc_html(number_format($stats['this_month_generated'])); ?></div>
+            <div class="stat-value"><?php echo esc_html(number_format((int) $stats['this_month_generated'])); ?></div>
         </div>
     </div>
 
@@ -93,11 +93,13 @@ $alt_text_pro_current_page = isset($_GET['page']) ? sanitize_text_field(wp_unsla
             <div style="display: flex; gap: 12px; align-items: center;">
                 <input type="text" id="search-logs" placeholder="<?php esc_attr_e('Search...', 'alt-text-pro'); ?>"
                     style="padding: 6px 12px; border-radius: 4px; border: 1px solid #ddd;">
-                <button type="button" class="button-secondary-custom" id="export-logs"
+                <a href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=alt_text_pro_export_logs'), 'alt_text_pro_export_logs')); ?>"
+                    class="button-secondary-custom" id="export-logs"
+                    title="<?php esc_attr_e('Download the generation history as CSV. When you search, only matching entries are exported.', 'alt-text-pro'); ?>"
                     style="padding: 6px 12px !important; font-size: 12px !important;">
                     <span class="dashicons dashicons-download"></span>
-                    <?php esc_html_e('Export', 'alt-text-pro'); ?>
-                </button>
+                    <?php esc_html_e('Export CSV', 'alt-text-pro'); ?>
+                </a>
             </div>
         </div>
 

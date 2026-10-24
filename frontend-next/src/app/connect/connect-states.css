@@ -408,3 +408,27 @@
         width: 100%;
     }
 }
+
+.connect-link-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 8px;
+    margin: -4px 0 12px;
+}
+
+.connect-link-btn {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: #111827;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.connect-link-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}

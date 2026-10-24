@@ -143,9 +143,13 @@ async function checkAI() {
 
     try {
         // List models endpoint — lightweight, doesn't consume generation quota
+        // Send the key in a header so it never appears in request URLs or logs.
         const res = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}&pageSize=1`,
-            { signal: AbortSignal.timeout(5000) }
+            'https://generativelanguage.googleapis.com/v1beta/models?pageSize=1',
+            {
+                headers: { 'x-goog-api-key': apiKey },
+                signal: AbortSignal.timeout(5000),
+            }
         );
 
         const latency = Date.now() - start;

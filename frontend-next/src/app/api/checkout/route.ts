@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getPolarServer } from "@/lib/polar-environment";
 import { Polar } from "@polar-sh/sdk";
 import { createClient } from "@supabase/supabase-js";
 import { getConfiguredPolarProductIds, getCreditPackProductIds } from "@/lib/polar-products";
@@ -92,7 +93,6 @@ export async function GET(request: NextRequest) {
         }
 
         const polarAccessToken = process.env.POLAR_ACCESS_TOKEN;
-        const environment = process.env.POLAR_ENVIRONMENT || "sandbox";
         const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || "https://www.alt-text.pro").replace(/\/$/, "");
         const successUrl = `${siteUrl}/payment-success?checkout_id={CHECKOUT_ID}`;
 
@@ -102,7 +102,7 @@ export async function GET(request: NextRequest) {
 
         const polar = new Polar({
             accessToken: polarAccessToken,
-            server: environment === "sandbox" ? "sandbox" : "production",
+            server: getPolarServer(),
         });
 
         const checkout = await polar.checkouts.create({

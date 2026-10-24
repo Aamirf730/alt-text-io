@@ -1,3 +1,4 @@
+const { fetchAllRows } = require('./paginated-query');
 const FUNNEL_STAGES = [
   { key: 'page_viewed', label: 'Visitor' },
   { key: 'demo_used', label: 'Demo used' },
@@ -297,29 +298,20 @@ function compareReports(current, previous) {
   };
 }
 
-async function fetchMarketingEvents(supabase, { startAt, endAt, maxRows = 10000 }) {
-  const pageSize = 1000;
-  const events = [];
-
-  for (let from = 0; from < maxRows; from += pageSize) {
-    const to = Math.min(from + pageSize - 1, maxRows - 1);
-    const { data, error } = await supabase
+async function fetchMarketingEvents(supabase, { startAt, endAt }) {
+  // fetchAllRows throws at its ceiling instead of silently dropping the
+  // newest events, which used to undercount recent conversions.
+  return fetchAllRows(
+    (from, to) => supabase
       .from('marketing_events')
       .select('id,event_name,source,anonymous_id,user_id,user_email,properties,page_path,referrer,occurred_at,created_at')
       .gte('occurred_at', startAt.toISOString())
       .lt('occurred_at', endAt.toISOString())
       .order('occurred_at', { ascending: true })
-      .range(from, to);
-
-    if (error) {
-      throw new Error(`Failed to fetch marketing events: ${error.message}`);
-    }
-
-    events.push(...(data || []));
-    if (!data || data.length < pageSize) break;
-  }
-
-  return events;
+      .order('id', { ascending: true })
+      .range(from, to),
+    { label: 'marketing funnel events' }
+  );
 }
 
 async function getMarketingFunnelReport(supabase, options = {}) {

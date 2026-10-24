@@ -2,6 +2,8 @@ type UnknownRecord = Record<string, unknown>;
 
 export type PolarBillingSnapshot = {
   paymentAmount: number;
+  // Tax included in paymentAmount. Revenue reporting subtracts it.
+  taxAmount: number;
   discountAmount: number;
   currency: string;
   productId: string | null;
@@ -58,11 +60,13 @@ export function extractPolarBillingSnapshot(payload: unknown): PolarBillingSnaps
     (getFirstString(record, ["currency"]) || getFirstString(discount, ["currency"]) || "USD").toUpperCase();
 
   const totalAmountCents = getFirstNumber(record, ["totalAmount", "total_amount", "amount"]);
+  const taxAmountCents = getFirstNumber(record, ["taxAmount", "tax_amount"]);
   const discountAmountCents =
     getFirstNumber(record, ["discountAmount", "discount_amount"]) ?? getFirstNumber(discount, ["amount"]);
 
   return {
     paymentAmount: centsToDecimal(totalAmountCents),
+    taxAmount: centsToDecimal(taxAmountCents),
     discountAmount: centsToDecimal(discountAmountCents),
     currency,
     productId: getFirstString(record, ["productId", "product_id"]) || getFirstString(product, ["id"]),

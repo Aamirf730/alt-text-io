@@ -14,6 +14,13 @@ export default function EmailConfirmation() {
     const [error, setError] = useState<string | null>(null);
     const router = useRouter();
 
+    // The page promises a redirect, so make it happen.
+    useEffect(() => {
+        if (!isConfirmed) return;
+        const timer = window.setTimeout(() => router.push('/dashboard'), 3000);
+        return () => window.clearTimeout(timer);
+    }, [isConfirmed, router]);
+
     useEffect(() => {
         const handleEmailConfirmation = async () => {
             try {
@@ -86,14 +93,14 @@ export default function EmailConfirmation() {
                                 Thanks for confirming your email!
                             </h1>
                             <p className="text-gray-600 mb-6">
-                                Your account has been successfully verified. You'll be redirected to your dashboard shortly.
+                                Your account has been successfully verified. Taking you to your dashboard in a few seconds.
                             </p>
                             <div className="space-y-3">
                                 <Button
                                     onClick={() => router.push('/dashboard')}
                                     className="w-full bg-black text-white"
                                 >
-                                    Sign In
+                                    Go to dashboard
                                 </Button>
                                 <Button
                                     onClick={() => router.push('/')}

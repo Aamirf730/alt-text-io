@@ -11,6 +11,10 @@ function add_action()
 {
 }
 
+function add_filter()
+{
+}
+
 function register_activation_hook()
 {
 }
@@ -95,48 +99,88 @@ $sync_post_method->setAccessible(true);
 $sync_html_method = new ReflectionMethod('AltTextPro', 'sync_html_image_alt_text');
 $sync_html_method->setAccessible(true);
 
-$gutenberg_content = '<!-- wp:image {"id":123,"alt":"Old block alt"} -->'
-    . '<figure class="wp-block-image size-large"><img src="a.jpg" alt="Old block alt" class="wp-image-123" /></figure>'
+// An alt the author wrote in the post is never replaced, in the block
+// comment or in the rendered markup.
+$gutenberg_content = '<!-- wp:image {"id":123,"alt":"Author block alt"} -->'
+    . '<figure class="wp-block-image size-large"><img src="a.jpg" alt="Author block alt" class="wp-image-123" /></figure>'
     . '<!-- /wp:image -->';
 
+alt_text_pro_test_assert(
+    $sync_post_method->invoke($plugin, $gutenberg_content, array(123 => 'Generated alt')) === $gutenberg_content,
+    'A non-empty in-post alt (block attribute and markup) must be preserved.'
+);
+
+// A block whose comment carries the author's alt keeps its markup too, even
+// when the markup alt is empty.
+$attr_only_content = '<!-- wp:image {"id":124,"alt":"Author alt"} -->'
+    . '<figure class="wp-block-image"><img src="a.jpg" alt="" class="wp-image-124" /></figure>'
+    . '<!-- /wp:image -->';
+alt_text_pro_test_assert(
+    $sync_post_method->invoke($plugin, $attr_only_content, array(124 => 'Generated alt')) === $attr_only_content,
+    'An author-written block alt attribute must keep the block untouched.'
+);
+
+// An empty in-post alt is filled in both places.
+$empty_gutenberg = '<!-- wp:image {"id":125,"alt":""} -->'
+    . '<figure class="wp-block-image size-large"><img src="a.jpg" alt="" class="wp-image-125" /></figure>'
+    . '<!-- /wp:image -->';
 $updated_gutenberg = $sync_post_method->invoke(
     $plugin,
-    $gutenberg_content,
-    array(123 => 'Fresh alt text & detail')
+    $empty_gutenberg,
+    array(125 => 'Fresh alt text & detail')
 );
-
 alt_text_pro_test_assert(
     strpos($updated_gutenberg, '"alt":"Fresh alt text & detail"') !== false,
-    'The Gutenberg block comment metadata must receive the new alt text.'
+    'An empty Gutenberg block alt attribute must be filled.'
 );
 alt_text_pro_test_assert(
-    strpos($updated_gutenberg, 'alt="Fresh alt text &amp; detail"') !== false,
-    'The rendered Gutenberg <img> tag must receive the escaped new alt text.'
-);
-alt_text_pro_test_assert(
-    strpos($updated_gutenberg, 'Old block alt') === false,
-    'The old Gutenberg alt text must not remain in either block metadata or rendered HTML.'
+    strpos($updated_gutenberg, '<img src="a.jpg" alt="Fresh alt text &amp; detail" class="wp-image-125" />') !== false,
+    'An empty rendered alt must be filled in place with escaped text.'
 );
 
-$classic_content = '<p><img class="alignnone wp-image-456" src="b.jpg" alt="Old classic alt" /></p>'
-    . '<p><img class="alignnone wp-image-999" src="c.jpg" alt="Keep me" /></p>';
+$classic_content = '<p><img class="alignnone wp-image-456" src="b.jpg" alt="Author classic alt" /></p>'
+    . '<p><img class="alignnone wp-image-457" src="b.jpg" alt="" /></p>'
+    . '<p><img class="alignnone wp-image-458" src="b.jpg" title="The alt text matters"></p>'
+    . '<p><img class="alignnone wp-image-459" src="b.jpg" alt=Unquoted /></p>'
+    . '<p><img class="alignnone wp-image-999" src="c.jpg" alt="" /></p>';
 
 $updated_classic = $sync_html_method->invoke(
     $plugin,
     $classic_content,
-    array(456 => 'Classic replacement')
+    array(
+        456 => 'Generated 456',
+        457 => 'Generated 457',
+        458 => 'Generated 458',
+        459 => 'Generated 459',
+    )
 );
 
 alt_text_pro_test_assert(
-    strpos($updated_classic, 'wp-image-456') !== false
-        && strpos($updated_classic, 'alt="Classic replacement"') !== false
-        && strpos($updated_classic, 'Old classic alt') === false,
-    'Classic post content images must receive regenerated alt text.'
+    strpos($updated_classic, 'alt="Author classic alt"') !== false
+        && strpos($updated_classic, 'Generated 456') === false,
+    'A classic image with author-written alt text must keep it.'
 );
 alt_text_pro_test_assert(
-    strpos($updated_classic, 'wp-image-999') !== false
-        && strpos($updated_classic, 'alt="Keep me"') !== false,
+    strpos($updated_classic, '<img class="alignnone wp-image-457" src="b.jpg" alt="Generated 457" />') !== false,
+    'A classic image with an empty alt must be filled.'
+);
+alt_text_pro_test_assert(
+    strpos($updated_classic, '<img class="alignnone wp-image-458" src="b.jpg" title="The alt text matters" alt="Generated 458">') !== false,
+    'A classic image without alt must gain one, and text inside other attributes must stay intact.'
+);
+alt_text_pro_test_assert(
+    strpos($updated_classic, 'alt=Unquoted') !== false && strpos($updated_classic, 'Generated 459') === false,
+    'An unquoted non-empty alt must be preserved.'
+);
+alt_text_pro_test_assert(
+    strpos($updated_classic, '<img class="alignnone wp-image-999" src="c.jpg" alt="" />') !== false,
     'Non-target images must not be modified.'
+);
+
+// wp-image-12 must not match wp-image-120.
+alt_text_pro_test_assert(
+    $sync_html_method->invoke($plugin, '<img class="wp-image-120" alt="" />', array(12 => 'Wrong image')) === '<img class="wp-image-120" alt="" />',
+    'Attachment IDs must match exactly.'
 );
 
 // Core image blocks read alt from the markup; the plugin must not add an

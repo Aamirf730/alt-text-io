@@ -399,6 +399,23 @@ describe("Polar subscription lifecycle handlers", () => {
         expect(mocks.state.rpcCalls).toHaveLength(0);
     });
 
+    it("keeps a pinned allowance for a legacy profile without a stored subscription ID", async () => {
+        mocks.state.profiles = [profile({
+            subscription_id: null,
+            subscription_plan: "tier2",
+            monthly_credit_allowance: 1000,
+            polar_product_id: "prod_standard_annual",
+        })];
+
+        await polarWebhookHandlers.onSubscriptionUncanceled?.({
+            data: annualSubscription({ status: "active" }),
+        } as never);
+
+        expect(mocks.state.updates.find((entry) => entry.table === "profiles")?.values).toMatchObject({
+            monthly_credit_allowance: 1000,
+        });
+    });
+
     it("keeps a legacy pinned allowance when the same subscription is restored", async () => {
         mocks.state.profiles = [profile({
             subscription_plan: "tier2",
@@ -787,7 +804,35 @@ describe("Polar subscription lifecycle handlers", () => {
                 args: { p_payment_id: "polar_ord_order_pack_1" },
             },
         ]);
-        expect(mocks.state.paymentUpdates).toEqual([{ status: "refunded", updated_at: expect.any(String) }]);
+        expect(mocks.state.paymentUpdates).toEqual([{
+            status: "refunded",
+            refunded_amount: 10,
+            refunded_tax_amount: 0,
+            updated_at: expect.any(String),
+        }]);
+    });
+
+    it("stores cumulative partial-refund totals so revenue can be reported net", async () => {
+        await polarWebhookHandlers.onOrderRefunded?.({
+            data: {
+                id: "order_sub_9",
+                status: "partially_refunded",
+                totalAmount: 1452,
+                taxAmount: 252,
+                refundedAmount: 605,
+                refundedTaxAmount: 105,
+                subscriptionId: "sub_9",
+                customer: { id: "cus_1", email: "customer@example.com" },
+                product: { name: "Alt Text Pro — Growth Monthly", metadata: { plan_id: "tier2" } },
+                metadata: {},
+            },
+        } as never);
+
+        expect(mocks.state.paymentUpdates[0]).toMatchObject({
+            status: "partially_refunded",
+            refunded_amount: 6.05,
+            refunded_tax_amount: 1.05,
+        });
     });
 
     it("revokes subscription benefits only for a succeeded refund that asks Polar to revoke them", async () => {

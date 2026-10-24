@@ -142,7 +142,7 @@ export default function WooCommerceProductImageAltTextPage() {
 
                 <div className="flex flex-col sm:flex-row gap-4 mb-10">
                   <Link
-                    href="/"
+                    href="/?auth=signup"
                     className="inline-flex h-14 items-center justify-center rounded-full bg-notebook-blue px-8 text-sm font-bold uppercase tracking-widest text-white shadow-notebook hover:bg-notebook-blue/90 transition-colors font-outfit"
                   >
                     Get 150 Free Credits
@@ -331,7 +331,7 @@ export default function WooCommerceProductImageAltTextPage() {
               </p>
               <div className="flex flex-col sm:flex-row justify-center gap-4">
                 <Link
-                  href="/"
+                  href="/?auth=signup"
                   className="inline-flex h-14 items-center justify-center rounded-full bg-notebook-blue px-8 py-4 text-sm font-bold uppercase tracking-widest text-white shadow-notebook hover:bg-notebook-blue/90 transition-colors font-outfit"
                 >
                   Get 150 Free Credits

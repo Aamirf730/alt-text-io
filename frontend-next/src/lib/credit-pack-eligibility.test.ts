@@ -37,6 +37,10 @@ describe("isCreditPackEligible", () => {
         })).toBe(true);
     });
 
+    it.each(["pay_as_go", "small_pack"])("allows an older %s account", (subscription_plan) => {
+        expect(isCreditPackEligible({ subscription_plan, subscription_status: "active" })).toBe(true);
+    });
+
     it.each([
         ["revoked subscriber", { subscription_plan: "tier2", subscription_status: "revoked" }],
         ["missing subscription status", { subscription_plan: "tier2" }],

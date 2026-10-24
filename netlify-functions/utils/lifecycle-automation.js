@@ -1,5 +1,6 @@
 const SITE_URL = 'https://www.alt-text.pro';
 const { getLifecycleUnsubscribeUrl } = require('./lifecycle-unsubscribe');
+const { fetchAllRows } = require('./paginated-query');
 
 const LIFECYCLE_RULES = [
   {
@@ -332,56 +333,46 @@ function renderLifecycleEmail(candidate) {
   return { html, text };
 }
 
-async function fetchRecentMarketingEvents(supabase, { days = 30, maxRows = 10000 } = {}) {
-  const startAt = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-  const pageSize = 1000;
-  const events = [];
+// Only these events drive lifecycle rules. Page views make up most of the
+// table, so leaving them out keeps the read small.
+const LIFECYCLE_EVENT_NAMES = [...new Set(
+  LIFECYCLE_RULES.flatMap(rule => [rule.trigger, ...rule.missingAfterTrigger])
+)];
 
-  for (let from = 0; from < maxRows; from += pageSize) {
-    const to = Math.min(from + pageSize - 1, maxRows - 1);
-    const { data, error } = await supabase
+async function fetchRecentMarketingEvents(supabase, { days = 30 } = {}) {
+  const startAt = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+  // fetchAllRows throws at its ceiling instead of silently dropping the
+  // newest events, which used to hide recent purchases from the rules.
+  return fetchAllRows(
+    (from, to) => supabase
       .from('marketing_events')
       .select('id,event_name,source,anonymous_id,user_id,user_email,properties,page_path,referrer,occurred_at,created_at')
       .gte('occurred_at', startAt.toISOString())
+      .in('event_name', LIFECYCLE_EVENT_NAMES)
       .order('occurred_at', { ascending: true })
-      .range(from, to);
-
-    if (error) {
-      throw new Error(`Failed to fetch marketing events: ${error.message}`);
-    }
-
-    events.push(...(data || []));
-    if (!data || data.length < pageSize) break;
-  }
-
-  return events;
+      .order('id', { ascending: true })
+      .range(from, to),
+    { label: 'lifecycle marketing events' }
+  );
 }
 
-async function fetchLifecycleUsageCounts(supabase, { maxRows = 10000 } = {}) {
-  const pageSize = 1000;
-  const usageCountsByUserId = new Map();
-
-  for (let from = 0; from < maxRows; from += pageSize) {
-    const to = Math.min(from + pageSize - 1, maxRows - 1);
-    const { data, error } = await supabase
+async function fetchLifecycleUsageCounts(supabase) {
+  const rows = await fetchAllRows(
+    (from, to) => supabase
       .from('user_usage_stats')
       .select('user_id,total_usage_count')
       .order('user_id', { ascending: true })
-      .range(from, to);
+      .range(from, to),
+    { label: 'lifecycle usage counts' }
+  );
 
-    if (error) {
-      throw new Error(`Failed to fetch lifecycle usage counts: ${error.message}`);
+  const usageCountsByUserId = new Map();
+  for (const row of rows) {
+    if (row?.user_id) {
+      usageCountsByUserId.set(String(row.user_id), Number(row.total_usage_count || 0));
     }
-
-    for (const row of data || []) {
-      if (row?.user_id) {
-        usageCountsByUserId.set(String(row.user_id), Number(row.total_usage_count || 0));
-      }
-    }
-
-    if (!data || data.length < pageSize) break;
   }
-
   return usageCountsByUserId;
 }
 

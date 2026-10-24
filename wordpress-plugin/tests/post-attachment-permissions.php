@@ -11,6 +11,10 @@ function add_action()
 {
 }
 
+function add_filter()
+{
+}
+
 function register_activation_hook()
 {
 }
