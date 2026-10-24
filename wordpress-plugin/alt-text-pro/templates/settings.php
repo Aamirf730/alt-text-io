@@ -24,6 +24,12 @@ $alt_text_pro_disconnected = isset($_GET['alt_text_pro_disconnected']) ? sanitiz
     <!-- Notices Container -->
     <div class="alt-text-pro-notices-container">
         <?php do_action('alt_text_pro_render_notices'); ?>
+        <?php
+        // Plugin pages suppress other admin notices, so show this form's own
+        // results (saved, invalid or rejected key, encryption failure) here.
+        // options.php records "Settings saved." under 'general', so show all.
+        settings_errors();
+        ?>
         <?php if ($alt_text_pro_disconnected === '1'): ?>
         <div class="notice notice-success"><p>
             <?php esc_html_e('Your Alt Text Pro account was disconnected from this site. The API key was removed.', 'alt-text-pro'); ?>

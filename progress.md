@@ -1,5 +1,12 @@
 # Progress
 
+## 2026-10-24: Plugin 1.7.26 tested on a temporary WordPress site
+
+- Ran the exact ZIP served by alt-text.pro (1.7.26) on a local WordPress Playground site (WordPress 7.1.3, PHP 8.3) with a must-use stub standing in for the Alt Text Pro service, so no real account, key or credit was used.
+- Passed: onboarding and setup card; rejected key kept out; long Japanese Blog Context saved intact and cut at 500 characters; connected dashboard (1,697 available, 1,497 of 1,500 plan credits plus 200 pack credits, "Growth Monthly"); API key never present in page HTML; single-image draft and apply (apply fills the WordPress field, the image must still be updated to save it); posts-list button batched 3 + 1 generations and synced once, keeping the author-written alt, filling empty alts, preserving `\u003c…` and `C:\Users\name`, adding no block-comment alt, one revision; bulk run of a 3000x2400 PNG via the resize path; second concurrent bulk start refused and the lock released afterwards; logs and CSV export; Disconnect.
+- Found and fixed: the settings page never displayed its own messages ("Settings saved.", invalid, rejected or unencryptable key) because plugin pages suppress admin notices and the template did not call `settings_errors()`; a finished bulk run logged its summary twice. Both fixed, added to the 1.7.26 changelog and to `tests/p3-hygiene.php`; harnesses pass on PHP 7.4 and 8.5.
+- Not tested here: the Connect popup and auto-generate on upload with the real service.
+
 ## 2026-10-24: 2026-10 release in progress (owner approved)
 
 - Polar: created the 9 new products (IDs in `docs/pricing-2026-10-rollout.md`) through the dashboard session; old products still active until after the deploy.

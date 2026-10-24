@@ -1486,6 +1486,13 @@
         },
 
         finishProcess: function (data) {
+            // The status poll and the last batch can both report completion;
+            // finish (and log the summary) once per run.
+            if (this.finishedProcessId && this.finishedProcessId === this.processId) {
+                return;
+            }
+            this.finishedProcessId = this.processId;
+
             this.isProcessing = false;
             this.cancelRequested = false;
             this.pendingCancel = false;

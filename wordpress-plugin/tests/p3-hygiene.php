@@ -40,8 +40,13 @@ $settings = alt_text_pro_p3_read($plugin_root . '/includes/class-settings.php');
 $uninstall = alt_text_pro_p3_read($plugin_root . '/uninstall.php');
 $admin_js = alt_text_pro_p3_read($plugin_root . '/assets/js/admin.js');
 $readme = alt_text_pro_p3_read($plugin_root . '/readme.txt');
+$settings_template = alt_text_pro_p3_read($plugin_root . '/templates/settings.php');
 
 alt_text_pro_p3_contains($main, "load_plugin_textdomain('alt-text-pro'", 'The plugin text domain must be loaded.');
+// Plugin pages suppress admin notices, so the settings page must print its
+// own settings errors (found while testing 1.7.26 in a real WordPress site).
+alt_text_pro_p3_contains($settings_template, 'settings_errors();', 'The settings page must show saved, invalid-key and rejected-key messages.');
+alt_text_pro_p3_contains($admin_js, 'this.finishedProcessId = this.processId;', 'A bulk run must finish and log its summary only once.');
 alt_text_pro_p3_absent($main, "// load_plugin_textdomain('alt-text-pro'", 'The plugin text-domain call must not remain commented out.');
 alt_text_pro_p3_contains($main, '$settings[\'context_enabled\']', 'Post generation must use the context_enabled setting.');
 alt_text_pro_p3_absent($main, '$settings[\'use_context\']', 'The obsolete use_context setting must not be read.');
