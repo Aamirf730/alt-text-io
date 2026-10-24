@@ -22,23 +22,23 @@ const pageUrl = "https://www.alt-text.pro/woocommerce-product-image-alt-text";
 export const metadata: Metadata = {
   title: "WooCommerce Product Image Alt Text | Alt Text Pro",
   description:
-    "Generate AI alt text for WooCommerce product images, improve product image accessibility, and clean up missing WordPress media-library alt text.",
+    "Add alt text to WooCommerce product photos and gallery images with AI, then check product details before you save. Start with 150 free credits.",
   alternates: {
     canonical: pageUrl,
   },
   openGraph: {
-    title: "WooCommerce Product Image Alt Text",
+    title: "WooCommerce Product Image Alt Text | Alt Text Pro",
     description:
-      "Use Alt Text Pro to generate useful AI alt text for WooCommerce product galleries and WordPress media-library images.",
+      "Add alt text to WooCommerce product photos and gallery images with AI, then check product details before you save. Start with 150 free credits.",
     url: pageUrl,
     siteName: "Alt Text Pro",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "WooCommerce Product Image Alt Text",
+    title: "WooCommerce Product Image Alt Text | Alt Text Pro",
     description:
-      "Generate AI alt text for WooCommerce product images and product galleries.",
+      "Add alt text to WooCommerce product photos and gallery images with AI, then check product details before you save. Start with 150 free credits.",
   },
 };
 
@@ -48,52 +48,52 @@ const productUseCases = [
   "Variant photos that need clear product descriptions",
   "Store migrations where media metadata was lost",
   "Agency cleanup projects across client WooCommerce stores",
-  "SEO and accessibility updates before a product launch",
+  "Accessibility and search updates before a product launch",
 ];
 
 const workflow = [
   {
     title: "Connect the store",
-    copy: "Install Alt Text Pro, connect your account, and confirm your credits before processing product images.",
+    copy: "Install the Alt Text Pro plugin, click Connect, and check how many credits you have before you start.",
     icon: ShoppingCart,
   },
   {
     title: "Start with one product image",
-    copy: "Generate alt text for a single image first so you can check tone, accuracy, and product-specific context.",
+    copy: "Open a product photo in the media library and generate a draft. Check that the wording is accurate and fits your store.",
     icon: Upload,
   },
   {
-    title: "Review product details",
-    copy: "Edit generated text when a product name, material, color, or use case needs more precision.",
+    title: "Add what the AI cannot know",
+    copy: "The AI sees the photo, not your catalog. Add the product name, exact material, or model where it helps the shopper.",
     icon: Tags,
   },
   {
-    title: "Move to catalog cleanup",
-    copy: "After the first result is correct, process missing alt text in smaller batches before larger store-wide runs.",
+    title: "Fill the rest of the catalog",
+    copy: "Use bulk processing for product images still missing alt text. Try a few selected images first, then run the rest.",
     icon: PackageCheck,
   },
 ];
 
 const faqs = [
   {
-    question: "Can AI generate alt text for WooCommerce product galleries?",
+    question: "Does it work with product gallery images?",
     answer:
-      "Yes. Product galleries are a strong use case for Alt Text Pro, especially when product images were uploaded without useful alt text.",
+      "Yes. Main product images and gallery images are both stored in the WordPress media library, so Alt Text Pro treats them like any other image.",
   },
   {
     question: "Should product image alt text include keywords?",
     answer:
-      "It can include natural product details when they are visible and useful, but it should not be keyword-stuffed. The main job is to describe the image accurately.",
+      "Only where they describe what is in the photo. Name the product type, color, or material if they are visible and useful. A list of search terms makes the image harder to understand.",
   },
   {
-    question: "Can I edit generated WooCommerce alt text?",
+    question: "Will the AI know my product names?",
     answer:
-      "Yes. Generated alt text is a starting point. You can review and edit it inside WordPress when the page context needs a more specific description.",
+      "Not from the photo alone. It describes what it sees. You can add context for an image before generating, or edit the draft to include the exact product name.",
   },
   {
-    question: "Does each WooCommerce image use a credit?",
+    question: "Does each product image use a credit?",
     answer:
-      "Each successful alt text generation uses 1 credit. Failed requests do not consume credits.",
+      "Each image that gets alt text uses 1 credit, including gallery images. Failed requests do not use credits.",
   },
 ];
 
@@ -106,7 +106,7 @@ export default function WooCommerceProductImageAltTextPage() {
     operatingSystem: "WordPress",
     url: pageUrl,
     description:
-      "AI alt text generator for WooCommerce product images and WordPress media-library cleanup.",
+      "WordPress plugin that drafts alt text with AI for WooCommerce product and gallery images.",
     offers: {
       "@type": "Offer",
       price: "0",
@@ -115,10 +115,24 @@ export default function WooCommerceProductImageAltTextPage() {
     },
   };
 
+  const faqStructuredData = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faqs.map((faq) => ({
+      "@type": "Question",
+      name: faq.question,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: faq.answer,
+      },
+    })),
+  };
+
   return (
     <div className="min-h-screen bg-white text-ink">
       <Navbar />
       <JsonLd data={structuredData} />
+      <JsonLd data={faqStructuredData} />
 
       <main>
         <section className="relative overflow-hidden border-b border-line">
@@ -129,16 +143,16 @@ export default function WooCommerceProductImageAltTextPage() {
                 <div className="inline-flex h-8 items-center gap-2 rounded-full bg-yellow-soft px-3 mb-8">
                   <ShoppingCart className="h-4 w-4 text-ink" />
                   <span className="label-caps">
-                    WooCommerce Image SEO
+                    WooCommerce stores
                   </span>
                 </div>
 
                 <h1 className="text-5xl lg:text-7xl font-bold font-outfit tracking-tight leading-[1.05] mb-8">
-                  WooCommerce Product Image Alt Text
+                  Alt Text for WooCommerce Product Images
                 </h1>
 
                 <p className="text-xl text-ink-muted leading-relaxed max-w-2xl mb-10">
-                  Generate useful AI alt text for WooCommerce product images, product galleries, and old catalog uploads that are missing clear image descriptions.
+                  Product photos and gallery images live in your media library, so Alt Text Pro can describe them one at a time or across the whole catalog. You add the product details the AI cannot see.
                 </p>
 
                 <div className="flex flex-col sm:flex-row gap-4 mb-10">
@@ -219,10 +233,10 @@ export default function WooCommerceProductImageAltTextPage() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="max-w-3xl mb-12">
               <h2 className="text-3xl lg:text-5xl font-bold font-outfit tracking-tight mb-5">
-                Why WooCommerce stores need better product image alt text
+                Why product images need alt text
               </h2>
               <p className="text-lg text-ink-muted leading-relaxed">
-                Product images often carry important information: shape, material, color, packaging, and use case. Missing alt text makes that information harder for screen-reader users and search engines to understand.
+                A product photo shows shape, color, material, and packaging. Without alt text, shoppers who use screen readers miss that, and search engines have less text to understand the image.
               </p>
             </div>
 
@@ -242,10 +256,11 @@ export default function WooCommerceProductImageAltTextPage() {
             <div className="grid lg:grid-cols-[0.8fr_1.2fr] gap-12">
               <div>
                 <h2 className="text-3xl lg:text-5xl font-bold font-outfit tracking-tight mb-5">
-                  A safer catalog cleanup workflow
+                  How to add alt text to a product catalog
                 </h2>
                 <p className="text-lg text-ink-muted leading-relaxed">
-                  For product images, accuracy matters. Test one product image first, then expand into a small product batch before processing a full catalog.
+                  Accuracy matters more for products than for blog photos. Test one product image, then a few, then the full catalog. The{" "}
+                  <Link href="/bulk-generate-alt-text-wordpress" className="font-medium text-ink underline decoration-line-strong decoration-2 underline-offset-4 hover:decoration-ink">bulk guide</Link> explains how a run works.
                 </p>
               </div>
 
@@ -277,10 +292,10 @@ export default function WooCommerceProductImageAltTextPage() {
             <div className="grid lg:grid-cols-2 gap-12 items-start">
               <div>
                 <h2 className="text-3xl lg:text-5xl font-bold font-outfit tracking-tight mb-5">
-                  Product alt text should be descriptive, not stuffed
+                  Describe the product, don&apos;t stuff it
                 </h2>
                 <p className="text-lg text-ink-muted leading-relaxed">
-                  The best WooCommerce image alt text describes what is visible and useful. Include product details naturally when they help the customer understand the image.
+                  Good product alt text describes the photo the way a shopper would. Mention details that are visible and useful, and leave out lists of keywords.
                 </p>
               </div>
 
@@ -307,10 +322,10 @@ export default function WooCommerceProductImageAltTextPage() {
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-12">
               <h2 className="text-3xl lg:text-5xl font-bold font-outfit tracking-tight mb-5">
-                WooCommerce alt text FAQ
+                Questions from store owners
               </h2>
               <p className="text-lg text-ink-muted">
-                Practical answers for store owners and agencies cleaning up product catalogs.
+                For store owners and agencies working through a product catalog.
               </p>
             </div>
 
@@ -325,10 +340,11 @@ export default function WooCommerceProductImageAltTextPage() {
 
             <div className="mt-12 rounded-2xl bg-white border border-line p-8 lg:p-10 text-center shadow-notebook">
               <h2 className="text-3xl font-bold font-outfit tracking-tight mb-4">
-                Clean up your WooCommerce product images.
+                Start with one product photo.
               </h2>
               <p className="text-ink-muted mb-8">
-                Start free, connect your store, and generate one product image description before running a larger batch.
+                Create a free account, connect your store, and see the draft before you run the whole catalog. Need more credits later? Compare{" "}
+                <Link href="/#pricing" className="font-medium text-ink underline decoration-line-strong decoration-2 underline-offset-4 hover:decoration-ink">plans and credit packs</Link>.
               </p>
               <div className="flex flex-col sm:flex-row justify-center gap-4">
                 <Link
@@ -341,7 +357,7 @@ export default function WooCommerceProductImageAltTextPage() {
                   href="/ai-alt-text-generator-for-wordpress"
                   className={buttonVariants({ variant: "secondary" })}
                 >
-                  Read WordPress Guide
+                  How It Works in WordPress
                 </Link>
               </div>
             </div>

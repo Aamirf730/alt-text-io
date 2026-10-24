@@ -43,10 +43,10 @@ export default function MediaLibraryShowcase() {
             id="media-library-showcase-title"
             className="font-outfit text-4xl font-bold tracking-[-0.055em] text-ink sm:text-5xl lg:text-[4.2rem] lg:leading-[1.04]"
           >
-            Better alt text, automatically.
+            From blank alt text to a clear description
           </h2>
           <p className="mt-5 text-lg leading-relaxed text-ink-muted sm:text-xl">
-            From empty alt text to an editable description draft.
+            Images with an empty alt field get a short, specific description you can edit in WordPress.
           </p>
         </div>
 
@@ -145,7 +145,7 @@ export default function MediaLibraryShowcase() {
                         <div className="max-w-[330px] rounded-xl border border-yellow-strong bg-yellow-tint px-4 py-4 text-sm text-ink">
                           <div className="font-semibold text-ink">Generated alt text</div>
                           <p className="mt-3 leading-6">Turquoise alpine lake reflecting sunlit mountain peaks and pine trees under a clear sky.</p>
-                          <p className="mt-3 text-sm font-medium text-ink">Ready to use</p>
+                          <p className="mt-3 text-sm font-medium text-ink">Ready to review</p>
                         </div>
                       ) : (
                         <span className="w-fit rounded-lg border border-line-strong bg-yellow-tint px-3 py-2 text-sm text-ink-muted">No alt text</span>

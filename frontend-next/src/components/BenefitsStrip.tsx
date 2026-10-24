@@ -3,23 +3,23 @@ import { FileText, Layers, PencilLine, Shield } from "lucide-react";
 const benefits = [
   {
     icon: Layers,
-    title: "Bulk generation",
-    description: "Process one or thousands of images at once.",
+    title: "Fix a whole library",
+    description: "Fill missing alt text across thousands of images in one run.",
   },
   {
     icon: PencilLine,
     title: "Review and edit",
-    description: "Keep human control before saving a suggestion.",
+    description: "Change any description in WordPress, before or after it is saved.",
   },
   {
     icon: FileText,
-    title: "Context-aware",
-    description: "Use surrounding content to produce more relevant drafts.",
+    title: "Uses page context",
+    description: "Optional post and site details help the AI describe what matters.",
   },
   {
     icon: Shield,
-    title: "Transparent Usage",
-    description: "One transparent credit for every successful image.",
+    title: "Pay per image",
+    description: "One credit per image that succeeds. Failed attempts are free.",
   },
 ];
 

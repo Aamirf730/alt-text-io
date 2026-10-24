@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CREDIT_PACKS, SUBSCRIPTION_PLANS } from "@/lib/pricing-catalog";
@@ -23,11 +24,11 @@ export default function PricingSection({
         <div className="mx-auto max-w-5xl text-center">
           <p className="label-caps">Pricing</p>
           <h2 className="mt-7 font-outfit text-5xl font-bold leading-[0.94] tracking-[-0.075em] text-ink sm:text-6xl lg:text-[5.6rem]">
-            Simple pricing that scales
+            Start free.
             <br />
-            with your workflow.
+            Pay per image.
           </h2>
-          <p className="mt-7 text-xl text-ink-muted sm:text-2xl">Start free. Upgrade anytime.</p>
+          <p className="mt-7 text-xl text-ink-muted sm:text-2xl">150 free credits when you sign up, plus 15 every month. Upgrade or cancel anytime.</p>
 
           <div className="mx-auto mt-12 flex w-fit items-center rounded-full border border-line bg-white p-1.5 shadow-notebook">
             <button
@@ -65,7 +66,7 @@ export default function PricingSection({
                 <h3 className="label-caps">{plan.name}</h3>
                 {plan.featured && (
                     <span className="inline-flex h-7 items-center whitespace-nowrap rounded-full bg-brand-yellow px-3 text-xs font-semibold text-ink">
-                    Most popular
+                    Recommended
                   </span>
                 )}
               </div>
@@ -108,7 +109,8 @@ export default function PricingSection({
               Fixing a whole media library?
             </h3>
             <p className="mt-3 text-lg text-ink-muted">
-              Buy credits once. They never expire and work on every plan, including Free.
+              Buy credits once. They never expire and work on every plan, including Free.{" "}
+              <Link href="/bulk-generate-alt-text-wordpress" className="font-medium text-ink underline decoration-line-strong decoration-2 underline-offset-4 hover:decoration-ink">See how bulk processing works</Link>.
             </p>
           </div>
           <div className="mx-auto mt-8 grid max-w-5xl gap-5 md:grid-cols-3">
@@ -137,7 +139,7 @@ export default function PricingSection({
           <span className="inline-flex h-11 items-center rounded-full bg-yellow-soft px-6 text-base font-semibold text-ink">
             1 credit per successful image
           </span>
-          <p className="mt-3 text-sm text-ink-muted">Simple, transparent pricing for every image.</p>
+          <p className="mt-3 text-sm text-ink-muted">Failed requests don&apos;t use credits. Plan credits refresh monthly; signup and pack credits never expire.</p>
         </div>
       </div>
     </section>

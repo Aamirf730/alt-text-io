@@ -24,77 +24,83 @@ const pageUrl = "https://www.alt-text.pro/ai-alt-text-generator-for-wordpress";
 export const metadata: Metadata = {
   title: "AI Alt Text Generator for WordPress | Alt Text Pro",
   description:
-    "Use Alt Text Pro to generate AI alt text for WordPress images, bulk-fix missing media-library alt text, and improve accessibility with 150 free signup credits plus 15 every month.",
+    "Generate alt text for WordPress images with AI. Review each draft in the media editor before you save it. Free plugin and 150 free credits to start.",
   alternates: {
     canonical: pageUrl,
   },
   openGraph: {
-    title: "AI Alt Text Generator for WordPress",
+    title: "AI Alt Text Generator for WordPress | Alt Text Pro",
     description:
-      "Generate useful alt text for WordPress media-library, post, page, and WooCommerce images with AI.",
+      "Generate alt text for WordPress images with AI. Review each draft in the media editor before you save it. Free plugin and 150 free credits to start.",
     url: pageUrl,
     siteName: "Alt Text Pro",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "AI Alt Text Generator for WordPress",
+    title: "AI Alt Text Generator for WordPress | Alt Text Pro",
     description:
-      "Generate AI alt text for WordPress images and bulk-fix missing media-library descriptions.",
+      "Generate alt text for WordPress images with AI. Review each draft in the media editor before you save it. Free plugin and 150 free credits to start.",
   },
 };
 
 const setupSteps = [
   {
     title: "Create your free account",
-    copy: "Start with 150 free credits, then 15 free credits every month, so you can test the complete WordPress workflow before upgrading.",
+    copy: "You get 150 credits when you sign up and 15 more each month. No credit card needed.",
     icon: Sparkles,
   },
   {
     title: "Install the WordPress plugin",
-    copy: `Use WordPress.org or download plugin version ${PLUGIN_VERSION} directly from your Alt Text Pro dashboard.`,
+    copy: `Install Alt Text Pro from WordPress.org, or download version ${PLUGIN_VERSION} from your dashboard.`,
     icon: Chrome,
   },
   {
     title: "Connect your site",
-    copy: "Open Alt Text Pro in wp-admin and click Connect. The plugin can save your API key automatically.",
+    copy: "Open Alt Text Pro in wp-admin and click Connect. The plugin saves your API key for you and stores it encrypted.",
     icon: Zap,
   },
   {
     title: "Generate one image first",
-    copy: "Run a single image generation, review the result, then move to posts, pages, products, or bulk processing.",
+    copy: "Open an image in the media library and click Generate Alt-Text. Read the draft and apply it if it is right. Then try a post, a product photo, or a bulk run.",
     icon: ImageIcon,
   },
 ];
 
 const useCases = [
-  "Fill missing alt text across old media-library uploads",
-  "Generate descriptions for new WordPress uploads",
-  "Fix product image alt text for WooCommerce stores",
-  "Add image descriptions inside posts and pages",
-  "Create a repeatable workflow for client SEO and accessibility cleanups",
+  "Generate alt text for one image in the media editor, then apply it",
+  "Draft alt text automatically when you upload new images (optional)",
+  "Click Add Alt Text in the Posts or Pages list to cover every image in a post",
+  "Fill missing alt text across older uploads with bulk processing",
+  "Describe WooCommerce product photos, which live in the same media library",
+  "Export a log of every generated description as a CSV file",
 ];
 
 const faqs = [
   {
     question: "Does AI alt text replace manual review?",
     answer:
-      "No. AI provides an editable draft, but useful alt text depends on the purpose of the image on that specific page. Review important images before publishing.",
+      "No. The AI writes a draft from what it sees. It can misread an image, and it cannot always know why the image is on your page. Review important images and edit where needed.",
   },
   {
-    question: "Can it bulk generate alt text in WordPress?",
+    question: "Which AI model writes the descriptions?",
     answer:
-      "Yes. Alt Text Pro includes bulk processing for media-library images that are missing alt text. Start with one image first, then run a smaller batch before processing a large library.",
+      "Google Gemini, through the Alt Text Pro service. You do not need your own AI account or API key from Google.",
+  },
+  {
+    question: "Can it add alt text to many images at once?",
+    answer:
+      "Yes. Bulk processing fills in missing alt text across your media library, up to your newest 20,000 images per run. Try it on a few images first.",
   },
   {
     question: "Does it work with WooCommerce product images?",
     answer:
-      "Yes. WooCommerce product images are a practical use case, especially when a catalog has many missing image descriptions.",
+      "Yes. Product and gallery images are stored in the WordPress media library, so they work like any other image.",
   },
   {
     question: "How do credits work?",
     answer:
-      "Each successful alt text generation uses 1 credit. Failed generations do not consume credits.",
+      "Each image that gets alt text uses 1 credit. Failed requests do not use credits. The free plan includes 150 signup credits that never expire, plus 15 credits each month.",
   },
 ];
 
@@ -107,7 +113,7 @@ export default function AiAltTextGeneratorForWordPressPage() {
     operatingSystem: "WordPress",
     url: pageUrl,
     description:
-      "AI alt text generator for WordPress media-library, post, page, and WooCommerce images.",
+      "WordPress plugin that drafts alt text with AI for images in the media library, posts, pages, and WooCommerce products.",
     offers: {
       "@type": "Offer",
       price: "0",
@@ -116,10 +122,24 @@ export default function AiAltTextGeneratorForWordPressPage() {
     },
   };
 
+  const faqStructuredData = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faqs.map((faq) => ({
+      "@type": "Question",
+      name: faq.question,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: faq.answer,
+      },
+    })),
+  };
+
   return (
     <div className="min-h-screen bg-white text-ink">
       <Navbar />
       <JsonLd data={structuredData} />
+      <JsonLd data={faqStructuredData} />
 
       <main>
         <section className="relative overflow-hidden border-b border-line">
@@ -130,7 +150,7 @@ export default function AiAltTextGeneratorForWordPressPage() {
                 <div className="inline-flex h-8 items-center gap-2 rounded-full bg-yellow-soft px-3 mb-8">
                   <Sparkles className="h-4 w-4 text-ink" />
                   <span className="label-caps">
-                    WordPress AI Alt Text
+                    WordPress plugin
                   </span>
                 </div>
 
@@ -139,7 +159,7 @@ export default function AiAltTextGeneratorForWordPressPage() {
                 </h1>
 
                 <p className="text-xl text-ink-muted leading-relaxed max-w-2xl mb-10">
-                  Generate useful alt text for WordPress images, bulk-fix missing media-library descriptions, and improve accessibility without writing every image description by hand.
+                  Alt Text Pro adds a Generate button to the WordPress media editor. The AI writes a short description of the image, you check it, and it goes into the alt text field.
                 </p>
 
                 <div className="flex flex-col sm:flex-row gap-4 mb-10">
@@ -161,7 +181,7 @@ export default function AiAltTextGeneratorForWordPressPage() {
                 </div>
 
                 <div className="grid sm:grid-cols-3 gap-3 max-w-2xl">
-                  {["150 free signup credits", "No credit card", "WordPress plugin"].map((item) => (
+                  {["150 free credits", "No credit card", "Free on WordPress.org"].map((item) => (
                     <div key={item} className="flex items-center gap-2 text-sm font-semibold text-ink-muted">
                       <CheckCircle className="h-4 w-4 text-ink" />
                       {item}
@@ -196,7 +216,7 @@ export default function AiAltTextGeneratorForWordPressPage() {
                       Generated alt text
                     </p>
                     <p className="text-ink leading-relaxed">
-                      Stainless steel water bottle with black cap on a white background, shown as a WooCommerce product image.
+                      Stainless steel water bottle with a black screw cap, photographed on a white background.
                     </p>
                   </div>
                 </div>
@@ -206,7 +226,7 @@ export default function AiAltTextGeneratorForWordPressPage() {
                     { label: "Media library", icon: Layers },
                     { label: "Posts + pages", icon: FileText },
                     { label: "WooCommerce", icon: Search },
-                    { label: "Bulk batches", icon: Zap },
+                    { label: "Bulk runs", icon: Zap },
                   ].map((item) => {
                     const Icon = item.icon;
                     return (
@@ -228,10 +248,12 @@ export default function AiAltTextGeneratorForWordPressPage() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="max-w-3xl mb-12">
               <h2 className="text-3xl lg:text-5xl font-bold font-outfit tracking-tight mb-5">
-                Built for the WordPress workflow
+                Where it fits in WordPress
               </h2>
               <p className="text-lg text-ink-muted leading-relaxed">
-                Alt Text Pro is designed around how WordPress users actually manage images: uploads, media-library cleanup, product catalogs, and content images inside posts.
+                Alt Text Pro works where you already manage images: the media library, the upload screen, and the Posts and Pages lists. Fixing a large library? Read the{" "}
+                <Link href="/bulk-generate-alt-text-wordpress" className="font-medium text-ink underline decoration-line-strong decoration-2 underline-offset-4 hover:decoration-ink">bulk guide</Link>. Running a store? See{" "}
+                <Link href="/woocommerce-product-image-alt-text" className="font-medium text-ink underline decoration-line-strong decoration-2 underline-offset-4 hover:decoration-ink">WooCommerce product images</Link>.
               </p>
             </div>
 
@@ -254,7 +276,7 @@ export default function AiAltTextGeneratorForWordPressPage() {
                   How to generate alt text in WordPress
                 </h2>
                 <p className="text-lg text-ink-muted leading-relaxed">
-                  Start small. Generate one image first, confirm the output fits your page context, then use bulk processing for the larger cleanup.
+                  Start small. Generate alt text for one image, check that it fits the page, then move on to the rest of your library.
                 </p>
               </div>
 
@@ -286,10 +308,10 @@ export default function AiAltTextGeneratorForWordPressPage() {
             <div className="grid lg:grid-cols-2 gap-12 items-start">
               <div>
                 <h2 className="text-3xl lg:text-5xl font-bold font-outfit tracking-tight mb-5">
-                  What good AI alt text should do
+                  What good alt text looks like
                 </h2>
                 <p className="text-lg text-ink-muted leading-relaxed mb-8">
-                  A useful WordPress alt text generator should not only detect objects. It should create descriptions that make sense for visitors, screen readers, and search engines.
+                  Good alt text says what the image shows and why it is on the page. Screen-reader users hear it in place of the image, and search engines read it as text about the image.
                 </p>
                 <Link href="/alt-text-simulator" className="inline-flex items-center gap-2 text-[15px] font-semibold text-ink underline-offset-4 hover:underline">
                   See the alt text simulator
@@ -303,8 +325,8 @@ export default function AiAltTextGeneratorForWordPressPage() {
                   "Stay concise and readable",
                   "Avoid keyword stuffing",
                   "Match the page context",
-                  "Support accessibility basics",
-                  "Remain editable by humans",
+                  "Help screen-reader users",
+                  "Stay easy to edit",
                 ].map((item) => (
                   <div key={item} className="rounded-2xl bg-white border border-line p-6">
                     <Shield className="h-5 w-5 text-ink mb-4" />
@@ -320,10 +342,10 @@ export default function AiAltTextGeneratorForWordPressPage() {
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-12">
               <h2 className="text-3xl lg:text-5xl font-bold font-outfit tracking-tight mb-5">
-                AI alt text generator FAQ
+                Questions about AI alt text
               </h2>
               <p className="text-lg text-ink-muted">
-                Practical answers for WordPress site owners before they start processing images.
+                Short answers before you try it on your own images.
               </p>
             </div>
 
@@ -338,10 +360,11 @@ export default function AiAltTextGeneratorForWordPressPage() {
 
             <div className="mt-12 rounded-2xl bg-white border border-line p-8 lg:p-10 text-center shadow-notebook">
               <h2 className="text-3xl font-bold font-outfit tracking-tight mb-4">
-                Generate your first WordPress alt text today.
+                Try it on one image.
               </h2>
               <p className="text-ink-muted mb-8">
-                Start free, install the plugin, and test one image before running a larger cleanup.
+                Create a free account, connect the plugin, and see your first draft. Need more later? Compare{" "}
+                <Link href="/#pricing" className="font-medium text-ink underline decoration-line-strong decoration-2 underline-offset-4 hover:decoration-ink">plans and credit packs</Link>.
               </p>
               <div className="flex flex-col sm:flex-row justify-center gap-4">
                 <Link

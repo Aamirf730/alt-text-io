@@ -21,8 +21,14 @@ const lato = Lato({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://www.alt-text.pro"),
-  title: "Alt Text Pro | AI Alt Text Generator for WordPress",
-  description: "Generate AI alt text for WordPress images, bulk-fix missing media-library alt text, and improve accessibility with 150 free signup credits plus 15 every month.",
+  title: "Alt Text Pro | AI Alt Text Plugin for WordPress",
+  description: "Alt Text Pro drafts alt text for your WordPress images. Review and edit each one, or fix a whole media library. Start with 150 free credits.",
+  openGraph: {
+    title: "Alt Text Pro | AI Alt Text Plugin for WordPress",
+    description: "Alt Text Pro drafts alt text for your WordPress images. Review and edit each one, or fix a whole media library. Start with 150 free credits.",
+    siteName: "Alt Text Pro",
+    type: "website",
+  },
 };
 
 export const dynamic = "force-dynamic";

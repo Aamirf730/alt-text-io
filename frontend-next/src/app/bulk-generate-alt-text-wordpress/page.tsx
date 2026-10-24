@@ -21,48 +21,48 @@ import JsonLd from "@/components/JsonLd";
 const pageUrl = "https://www.alt-text.pro/bulk-generate-alt-text-wordpress";
 
 export const metadata: Metadata = {
-  title: "How to Bulk Generate Alt Text in WordPress | Alt Text Pro",
+  title: "Bulk Fix Missing Alt Text in WordPress | Alt Text Pro",
   description:
-    "Bulk generate AI alt text for WordPress media-library images, review results safely, and fix missing alt text across old posts, pages, and product images.",
+    "Find WordPress images with no alt text and fill them in one run. Stop anytime, keep the alt text you already wrote, and pay 1 credit per image.",
   alternates: {
     canonical: pageUrl,
   },
   openGraph: {
-    title: "How to Bulk Generate Alt Text in WordPress",
+    title: "Bulk Fix Missing Alt Text in WordPress | Alt Text Pro",
     description:
-      "Use Alt Text Pro to bulk generate alt text for missing WordPress media-library image descriptions.",
+      "Find WordPress images with no alt text and fill them in one run. Stop anytime, keep the alt text you already wrote, and pay 1 credit per image.",
     url: pageUrl,
     siteName: "Alt Text Pro",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "How to Bulk Generate Alt Text in WordPress",
+    title: "Bulk Fix Missing Alt Text in WordPress | Alt Text Pro",
     description:
-      "Bulk generate AI alt text for WordPress media-library images and older content.",
+      "Find WordPress images with no alt text and fill them in one run. Stop anytime, keep the alt text you already wrote, and pay 1 credit per image.",
   },
 };
 
 const bulkWorkflow = [
   {
-    title: "Audit missing alt text",
-    copy: "Find images that need descriptions before spending credits. Focus on missing or weak alt text first.",
+    title: "Check what is missing",
+    copy: "Open Alt Text Pro, then Bulk Process. The page shows how many images have no alt text and how many credits you have.",
     icon: ListChecks,
   },
   {
-    title: "Run a small batch",
-    copy: "Start with a handful of images so you can confirm output quality and credit usage before scaling.",
+    title: "Test on a few images",
+    copy: "Choose Process selected images and pick a handful. Read the results before you commit credits to the whole library.",
     icon: Layers,
   },
   {
-    title: "Review generated text",
-    copy: "Check important pages, product images, and hero visuals for context-specific accuracy.",
-    icon: ShieldCheck,
+    title: "Run the missing alt text pass",
+    copy: "Choose Process images missing alt-text and start. Leave overwrite off so existing alt text is kept. One run covers up to your newest 20,000 images.",
+    icon: RefreshCw,
   },
   {
-    title: "Scale the cleanup",
-    copy: "Once the process looks right, continue with larger media-library batches and monitor credits.",
-    icon: RefreshCw,
+    title: "Review the important images",
+    copy: "Check hero images, product photos, and anything on key pages. Edit in the media library, or export the log as CSV to read through the results.",
+    icon: ShieldCheck,
   },
 ];
 
@@ -72,29 +72,34 @@ const idealFor = [
   "WooCommerce catalogs imported without image descriptions",
   "Agency accessibility and SEO cleanup projects",
   "Site migrations where media metadata was lost",
-  "Publishers preparing older content for search and accessibility audits",
+  "Publishers preparing older content for an accessibility review",
 ];
 
 const faqs = [
   {
-    question: "Is it safe to bulk generate alt text for every image?",
+    question: "Will it overwrite alt text I already wrote?",
     answer:
-      "Start with a small batch first. Bulk processing is useful, but important images should still be reviewed because the best alt text depends on page context.",
+      "Not unless you choose to. The default option only processes images with no alt text, and replacing existing alt text is a separate setting that is off by default.",
   },
   {
-    question: "Can I cancel a bulk alt text job?",
+    question: "Can I stop a bulk run?",
     answer:
-      "Yes. The WordPress plugin includes cancellation handling for bulk processing. Already completed successful generations still use credits.",
+      "Yes. Click Stop after current image. The image already being generated finishes and is counted, and no new image starts.",
   },
   {
-    question: "Should I overwrite existing alt text?",
+    question: "How many images can one run handle?",
     answer:
-      "Usually no for the first pass. Start by filling missing alt text. Only overwrite existing descriptions when you have reviewed the current quality.",
+      "One run covers up to your newest 20,000 images. If your library is bigger, start another run when it finishes to continue with older images.",
   },
   {
-    question: "How many credits does bulk processing use?",
+    question: "How many credits will it use?",
     answer:
-      "Each successful image generation uses 1 credit. Use a small batch first to confirm the workflow before processing a large media library.",
+      "One credit for each image that gets alt text. Failed images do not use credits. For a one-off backlog, a credit pack lets you pay once instead of changing your plan, and pack credits never expire.",
+  },
+  {
+    question: "Does it also fix images inside my posts?",
+    answer:
+      "Bulk processing updates the alt text stored in the media library. To also fill empty alt attributes in a post's content, use Add Alt Text in the Posts or Pages list. It keeps any alt text the author already wrote.",
   },
 ];
 
@@ -102,9 +107,9 @@ export default function BulkGenerateAltTextWordPressPage() {
   const structuredData = {
     "@context": "https://schema.org",
     "@type": "HowTo",
-    name: "How to bulk generate alt text in WordPress",
+    name: "How to bulk fix missing alt text in WordPress",
     description:
-      "A safe workflow for bulk generating AI alt text for missing WordPress image descriptions.",
+      "Find WordPress media library images with no alt text, test on a few, then fill the rest in one run with Alt Text Pro.",
     step: bulkWorkflow.map((step, index) => ({
       "@type": "HowToStep",
       position: index + 1,
@@ -113,10 +118,24 @@ export default function BulkGenerateAltTextWordPressPage() {
     })),
   };
 
+  const faqStructuredData = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faqs.map((faq) => ({
+      "@type": "Question",
+      name: faq.question,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: faq.answer,
+      },
+    })),
+  };
+
   return (
     <div className="min-h-screen bg-white text-ink">
       <Navbar />
       <JsonLd data={structuredData} />
+      <JsonLd data={faqStructuredData} />
 
       <main>
         <section className="relative overflow-hidden border-b border-line">
@@ -132,11 +151,11 @@ export default function BulkGenerateAltTextWordPressPage() {
                 </div>
 
                 <h1 className="text-5xl lg:text-7xl font-bold font-outfit tracking-tight leading-[1.05] mb-8">
-                  How to Bulk Generate Alt Text in WordPress
+                  Bulk Fix Missing Alt Text in WordPress
                 </h1>
 
                 <p className="text-xl text-ink-muted leading-relaxed max-w-2xl mb-10">
-                  Use AI to fill missing alt text across your WordPress media library, old blog posts, pages, and product images without writing every description manually.
+                  Alt Text Pro finds the images in your media library that have no alt text and writes a description for each one. You watch the progress, stop when you want, and edit any result afterwards.
                 </p>
 
                 <div className="flex flex-col sm:flex-row gap-4 mb-10">
@@ -156,7 +175,7 @@ export default function BulkGenerateAltTextWordPressPage() {
                 </div>
 
                 <div className="grid sm:grid-cols-3 gap-3 max-w-2xl">
-                  {["Missing alt text", "Small test batches", "Credit tracking"].map((item) => (
+                  {["Missing alt text only", "Stop anytime", "1 credit per image"].map((item) => (
                     <div key={item} className="flex items-center gap-2 text-sm font-semibold text-ink-muted">
                       <CheckCircle className="h-4 w-4 text-ink" />
                       {item}
@@ -190,7 +209,7 @@ export default function BulkGenerateAltTextWordPressPage() {
                     {[
                       { label: "Images queued", value: "24" },
                       { label: "Estimated credits", value: "24" },
-                      { label: "Recommended first batch", value: "5" },
+                      { label: "Already described, skipped", value: "312" },
                     ].map((item) => (
                       <div key={item.label} className="flex items-center justify-between rounded-2xl bg-white border border-line px-5 py-4">
                         <span className="text-sm font-semibold text-ink-muted">{item.label}</span>
@@ -202,10 +221,10 @@ export default function BulkGenerateAltTextWordPressPage() {
 
                 <div className="grid grid-cols-2 gap-3">
                   {[
-                    { label: "Batch review", icon: ListChecks },
-                    { label: "Cancel safe", icon: PauseCircle },
-                    { label: "Credit aware", icon: Zap },
-                    { label: "History logs", icon: Clock },
+                    { label: "Live progress", icon: ListChecks },
+                    { label: "Stop anytime", icon: PauseCircle },
+                    { label: "Credit check", icon: Zap },
+                    { label: "CSV logs", icon: Clock },
                   ].map((item) => {
                     const Icon = item.icon;
                     return (
@@ -227,10 +246,11 @@ export default function BulkGenerateAltTextWordPressPage() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="max-w-3xl mb-12">
               <h2 className="text-3xl lg:text-5xl font-bold font-outfit tracking-tight mb-5">
-                When bulk alt text generation makes sense
+                When to use bulk processing
               </h2>
               <p className="text-lg text-ink-muted leading-relaxed">
-                Bulk generation is best when you have a clear cleanup target: images with missing alt text, imported media, or older content that needs accessibility and SEO maintenance.
+                Bulk processing is for a backlog: a media library built up over years, an import that lost its metadata, or a store catalog that never had alt text. For a single image, the{" "}
+                <Link href="/ai-alt-text-generator-for-wordpress" className="font-medium text-ink underline decoration-line-strong decoration-2 underline-offset-4 hover:decoration-ink">media editor button</Link> is quicker.
               </p>
             </div>
 
@@ -250,10 +270,10 @@ export default function BulkGenerateAltTextWordPressPage() {
             <div className="grid lg:grid-cols-[0.8fr_1.2fr] gap-12">
               <div>
                 <h2 className="text-3xl lg:text-5xl font-bold font-outfit tracking-tight mb-5">
-                  Safe bulk processing workflow
+                  How to run a bulk fix
                 </h2>
                 <p className="text-lg text-ink-muted leading-relaxed">
-                  A careful bulk workflow protects credits and quality. The goal is not just more descriptions, but useful descriptions that fit your content.
+                  A few minutes of checking up front saves credits, and saves you from a library full of descriptions you would rewrite anyway.
                 </p>
               </div>
 
@@ -285,21 +305,22 @@ export default function BulkGenerateAltTextWordPressPage() {
             <div className="grid lg:grid-cols-2 gap-12 items-start">
               <div>
                 <h2 className="text-3xl lg:text-5xl font-bold font-outfit tracking-tight mb-5">
-                  What to check before a large batch
+                  Before a large run
                 </h2>
                 <p className="text-lg text-ink-muted leading-relaxed">
-                  Before processing hundreds of images, confirm your settings, review one result, and keep enough credits for the batch size you choose.
+                  Large runs take time and use credits, so check these first. Short on credits? Credit packs never expire and work on every plan. Compare{" "}
+                  <Link href="/#pricing" className="font-medium text-ink underline decoration-line-strong decoration-2 underline-offset-4 hover:decoration-ink">plans and credit packs</Link>.
                 </p>
               </div>
 
               <div className="grid sm:grid-cols-2 gap-4">
                 {[
                   "Connection is active",
-                  "Credits are available",
-                  "Overwrite setting is intentional",
-                  "First result is reviewed",
-                  "Batch size is manageable",
-                  "Important pages are checked",
+                  "Enough credits for the run",
+                  "Overwrite is off, unless you mean it",
+                  "A few test results reviewed",
+                  "Key pages noted for review",
+                  "Product photos checked for names",
                 ].map((item) => (
                   <div key={item} className="rounded-2xl bg-white border border-line p-6">
                     <Sparkles className="h-5 w-5 text-ink mb-4" />
@@ -315,10 +336,10 @@ export default function BulkGenerateAltTextWordPressPage() {
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-12">
               <h2 className="text-3xl lg:text-5xl font-bold font-outfit tracking-tight mb-5">
-                Bulk alt text FAQ
+                Questions about bulk processing
               </h2>
               <p className="text-lg text-ink-muted">
-                Practical answers before running a media-library cleanup.
+                Answers before you run a media library cleanup.
               </p>
             </div>
 
@@ -333,10 +354,11 @@ export default function BulkGenerateAltTextWordPressPage() {
 
             <div className="mt-12 rounded-2xl bg-white border border-line p-8 lg:p-10 text-center shadow-notebook">
               <h2 className="text-3xl font-bold font-outfit tracking-tight mb-4">
-                Bulk-fix missing WordPress alt text.
+                Clear your alt text backlog.
               </h2>
               <p className="text-ink-muted mb-8">
-                Start with one image, then run a small batch before scaling to the whole media library.
+                Start with 150 free credits. Test a few images, then run the rest. Setup steps are in the{" "}
+                <Link href="/docs#wordpress-plugin" className="font-medium text-ink underline decoration-line-strong decoration-2 underline-offset-4 hover:decoration-ink">docs</Link>.
               </p>
               <div className="flex flex-col sm:flex-row justify-center gap-4">
                 <Link

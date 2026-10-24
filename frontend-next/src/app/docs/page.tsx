@@ -95,13 +95,19 @@ export default function DocsPage() {
                                     Getting Started with Alt Text Pro
                                 </h1>
                                 <p className="text-xl text-ink-muted mb-8">
-                                    Learn how to generate and review AI-assisted alt-text drafts for your images.
+                                    Set up the plugin, generate your first description, and learn how bulk runs, credits, and the API work.
                                 </p>
 
                                 <div className="prose max-w-none">
                                     <h2 className="text-2xl font-bold mt-8 mb-4 text-ink">What is Alt Text Pro?</h2>
                                     <p className="text-ink mb-4">
-                                        <strong>Alt Text Pro</strong> is a SaaS service and WordPress plugin that generates editable alt-text drafts with AI. It can help fill missing image descriptions, but you remain responsible for checking the result against the image and its page context.
+                                        <strong>Alt Text Pro</strong> is a WordPress plugin backed by a web service. The plugin sends an image to the service, which uses Google Gemini to draft alt text and returns it to WordPress. You stay responsible for checking the result against the image and the page it appears on.
+                                    </p>
+                                    <p className="text-ink mb-4">
+                                        For an overview, see{" "}
+                                        <Link href="/ai-alt-text-generator-for-wordpress" className="font-medium text-ink underline decoration-line-strong decoration-2 underline-offset-4 hover:decoration-ink">AI alt text for WordPress</Link>,{" "}
+                                        <Link href="/bulk-generate-alt-text-wordpress" className="font-medium text-ink underline decoration-line-strong decoration-2 underline-offset-4 hover:decoration-ink">bulk fixes for missing alt text</Link>, and{" "}
+                                        <Link href="/woocommerce-product-image-alt-text" className="font-medium text-ink underline decoration-line-strong decoration-2 underline-offset-4 hover:decoration-ink">WooCommerce product images</Link>.
                                     </p>
 
                                     <h2 className="text-2xl font-bold mt-8 mb-4 text-ink">Why Use Alt Text Pro?</h2>
@@ -111,21 +117,21 @@ export default function DocsPage() {
                                                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-yellow-soft"><Shield className="h-5 w-5 text-ink" aria-hidden="true" /></span>
                                                 <h3 className="text-lg font-semibold">Accessibility Support</h3>
                                             </div>
-                                            <p className="text-ink-muted">Add reviewable image descriptions that support screen-reader users and help address WCAG text-alternative requirements.</p>
+                                            <p className="text-ink-muted">Give screen-reader users a description of each meaningful image. Review drafts before relying on them, because AI can be wrong.</p>
                                         </Card>
                                         <Card className="gap-0 p-6">
                                             <div className="flex items-center gap-3 mb-3">
                                                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-yellow-soft"><Search className="h-5 w-5 text-ink" aria-hidden="true" /></span>
                                                 <h3 className="text-lg font-semibold">Search Context</h3>
                                             </div>
-                                            <p className="text-ink-muted">Give search engines clearer text context for image content without promising a particular ranking outcome.</p>
+                                            <p className="text-ink-muted">Descriptive alt text gives search engines text about each image. It helps, but no tool can promise rankings.</p>
                                         </Card>
                                         <Card className="gap-0 p-6">
                                             <div className="flex items-center gap-3 mb-3">
                                                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-yellow-soft"><Zap className="h-5 w-5 text-ink" aria-hidden="true" /></span>
                                                 <h3 className="text-lg font-semibold">Save Time</h3>
                                             </div>
-                                            <p className="text-ink-muted">Use controlled bulk runs for a media library instead of drafting every description from scratch.</p>
+                                            <p className="text-ink-muted">Run bulk processing across your media library instead of writing every description by hand.</p>
                                         </Card>
                                         <Card className="gap-0 p-6">
                                             <div className="flex items-center gap-3 mb-3">
@@ -220,7 +226,7 @@ export default function DocsPage() {
                                                 <li><strong>Auto-generate:</strong> Enable to generate alt-text automatically when uploading images</li>
                                                 <li><strong>Overwrite existing:</strong> Choose whether to replace existing alt-text</li>
                                                 <li><strong>Context-aware:</strong> Include page context in generated drafts</li>
-                                                <li><strong>Batch size:</strong> Set how many images to process at once (default: 1; maximum: 10)</li>
+                                                <li><strong>Batch size:</strong> Kept for older versions. Bulk runs now process one image at a time, so stopping a run is charged accurately</li>
                                             </ul>
                                         </li>
                                         <li>Click <strong>Save Settings</strong></li>
@@ -261,7 +267,7 @@ export default function DocsPage() {
                                     <Card className="gap-0 p-6">
                                         <TrendingUp className="h-8 w-8 mb-4 text-ink" />
                                         <h3 className="text-xl font-bold mb-3">Usage Tracking</h3>
-                                        <p className="text-ink-muted">Monitor your API usage, credit consumption, and generation history with detailed logs.</p>
+                                        <p className="text-ink-muted">See credit use and a log of every generated description, with CSV export from the Logs page.</p>
                                     </Card>
                                     <Card className="gap-0 p-6">
                                         <PencilLine className="h-8 w-8 mb-4 text-ink" />
@@ -296,7 +302,7 @@ export default function DocsPage() {
                                             <li><strong>Auto-generate on Upload:</strong> Automatically generate alt-text when images are uploaded</li>
                                             <li><strong>Overwrite Existing Alt-Text:</strong> Replace existing alt-text when processing</li>
                                             <li><strong>Context-Aware Generation:</strong> Include page or post context in a generated draft</li>
-                                            <li><strong>Batch Size:</strong> Number of images to process per batch (1-10)</li>
+                                            <li><strong>Batch Size:</strong> Kept for older versions; bulk runs process one image at a time</li>
                                         </ul>
                                     </div>
                                     <h3 className="text-2xl font-bold mt-6 mb-4 text-ink">Bulk Processing Workflow</h3>
@@ -309,8 +315,8 @@ export default function DocsPage() {
                                                 <li><strong>Process selected images:</strong> Choose specific images from media library</li>
                                             </ul>
                                         </li>
-                                        <li>Use the saved batch size from Settings; lower values are more reliable on shared hosting</li>
-                                        <li>Click <strong>Start Processing</strong> and monitor progress</li>
+                                        <li>One run covers up to your newest 20,000 images; start another run to continue with older images</li>
+                                        <li>Click <strong>Start Processing</strong> and monitor progress. Choose <strong>Stop after current image</strong> to end the run early</li>
                                         <li>Review generated alt-text and edit as needed</li>
                                     </ol>
                                     <h3 className="text-2xl font-bold mt-6 mb-4 text-ink">Best Practices</h3>
@@ -407,7 +413,7 @@ export default function DocsPage() {
                                                     <h4 className="text-xl font-bold">{plan.name}</h4>
                                                     {plan.featured && (
                                                         <Badge className="bg-brand-yellow text-ink">
-                                                            Popular
+                                                            Recommended
                                                         </Badge>
                                                     )}
                                                 </div>
@@ -492,7 +498,7 @@ export default function DocsPage() {
                                             <h4 className="font-bold text-lg mb-2">Bulk Processing Stops or Fails</h4>
                                             <p className="text-ink mb-2"><strong>Solution:</strong></p>
                                             <ul className="list-disc list-inside space-y-1 text-ink">
-                                                <li>Reduce the batch size (try 1-3 images per batch)</li>
+                                                <li>Try a small run with <strong>Process selected images</strong> first</li>
                                                 <li>Check your credit balance before starting</li>
                                                 <li>Ensure your server has sufficient resources</li>
                                                 <li>Process during off-peak hours for better performance</li>
@@ -538,14 +544,14 @@ export default function DocsPage() {
                                 <div className="space-y-6">
                                     <Card className="gap-0 p-6"><h3 className="font-bold text-lg mb-2">Do I need an Alt Text Pro account?</h3><p className="text-ink">Yes, you need a free Alt Text Pro account to use the plugin or API. Sign up at <a href="https://www.alt-text.pro" className="font-medium text-ink underline decoration-line-strong decoration-2 underline-offset-4 hover:decoration-ink">alt-text.pro</a> and get 150 free signup credits to start.</p></Card>
                                     <Card className="gap-0 p-6"><h3 className="font-bold text-lg mb-2">Should I review AI-generated alt text?</h3><p className="text-ink">Yes. AI output can miss important context or make mistakes. Treat each result as a suggestion and edit it to match the image's purpose on the page.</p></Card>
-                                    <Card className="gap-0 p-6"><h3 className="font-bold text-lg mb-2">Can I edit the generated alt-text?</h3><p className="text-ink">Absolutely! The plugin generates alt-text as a starting point. You can always edit, refine, or completely rewrite the descriptions in WordPress media library.</p></Card>
+                                    <Card className="gap-0 p-6"><h3 className="font-bold text-lg mb-2">Can I edit the generated alt-text?</h3><p className="text-ink">Yes. The plugin generates alt text as a starting point. You can edit, refine, or rewrite any description in the WordPress media library.</p></Card>
                                     <Card className="gap-0 p-6"><h3 className="font-bold text-lg mb-2">What happens if I run out of credits?</h3><p className="text-ink">If you run out of credits, the plugin will stop generating new alt-text. You can purchase more credits or upgrade your plan from your dashboard.</p></Card>
-                                    <Card className="gap-0 p-6"><h3 className="font-bold text-lg mb-2">Does this work with existing images?</h3><p className="text-ink">Yes! The plugin includes a powerful bulk processing feature that can generate alt-text for all your existing images that don't have alt-text yet.</p></Card>
-                                    <Card className="gap-0 p-6"><h3 className="font-bold text-lg mb-2">Is my data secure?</h3><p className="text-ink">Yes, we take security seriously. Images are processed securely via encrypted HTTPS connections and are not stored on our servers after processing.</p></Card>
+                                    <Card className="gap-0 p-6"><h3 className="font-bold text-lg mb-2">Does this work with existing images?</h3><p className="text-ink">Yes. Bulk processing fills in alt text for existing images that have none, up to your newest 20,000 images per run.</p></Card>
+                                    <Card className="gap-0 p-6"><h3 className="font-bold text-lg mb-2">Is my data secure?</h3><p className="text-ink">Images are sent over HTTPS to Alt Text Pro, passed to Google Gemini to write the description, and not stored by Alt Text Pro afterwards. Your API key is stored encrypted in WordPress. See the <Link href="/privacy" className="font-medium text-ink underline decoration-line-strong decoration-2 underline-offset-4 hover:decoration-ink">privacy policy</Link> for details.</p></Card>
                                     <Card className="gap-0 p-6"><h3 className="font-bold text-lg mb-2">What image formats are supported?</h3><p className="text-ink">The plugin supports all standard web image formats including JPEG, PNG, GIF, and WebP.</p></Card>
                                     <Card className="gap-0 p-6"><h3 className="font-bold text-lg mb-2">Can I cancel my subscription anytime?</h3><p className="text-ink">Yes, you can cancel your subscription at any time from your Alt Text Pro dashboard. You'll continue to have access until the end of your billing period.</p></Card>
                                     <Card className="gap-0 p-6"><h3 className="font-bold text-lg mb-2">Does this help search engines understand images?</h3><p className="text-ink">Descriptive alt text can give search engines useful text context for an image. Search rankings depend on many factors, so no ranking outcome is guaranteed.</p></Card>
-                                    <Card className="gap-0 p-6"><h3 className="font-bold text-lg mb-2">Can I use the API without WordPress?</h3><p className="text-ink">Yes! Our API can be integrated into any application or website. Check the API Documentation section above for code examples.</p></Card>
+                                    <Card className="gap-0 p-6"><h3 className="font-bold text-lg mb-2">Can I use the API without WordPress?</h3><p className="text-ink">Yes. You can call the API from any application or website. See the API Documentation section above for code examples.</p></Card>
                                 </div>
                             </section>
                         </div>

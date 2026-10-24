@@ -1,7 +1,22 @@
 import React from 'react';
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+
+export const metadata: Metadata = {
+    title: "About Alt Text Pro | AI Alt Text for WordPress Sites",
+    description:
+        "Alt Text Pro is a WordPress plugin and service that drafts image alt text with AI, so you can spend your time reviewing instead of writing from scratch.",
+    openGraph: {
+        title: "About Alt Text Pro | AI Alt Text for WordPress Sites",
+        description:
+            "Alt Text Pro is a WordPress plugin and service that drafts image alt text with AI, so you can spend your time reviewing instead of writing from scratch.",
+        url: "https://www.alt-text.pro/about",
+        siteName: "Alt Text Pro",
+        type: "website",
+    },
+};
 
 export default function AboutPage() {
     return (
@@ -16,35 +31,40 @@ export default function AboutPage() {
                     <div className="prose prose-lg max-w-none space-y-8">
                         <section>
                             <p className="text-xl text-ink-muted leading-relaxed">
-                                Alt Text Pro helps WordPress site owners create editable alt-text drafts for images that are missing useful descriptions.
+                                Alt Text Pro is a WordPress plugin and a small web service. Together they draft alt text for the images in your media library, so you spend your time checking descriptions instead of writing each one from scratch.
+                            </p>
+                            <p className="text-ink leading-relaxed mt-4">
+                                New here? Start with{" "}
+                                <Link href="/ai-alt-text-generator-for-wordpress" className="font-medium text-ink underline decoration-line-strong decoration-2 underline-offset-4 hover:decoration-ink">how it works in WordPress</Link>{" "}
+                                or the <Link href="/docs" className="font-medium text-ink underline decoration-line-strong decoration-2 underline-offset-4 hover:decoration-ink">setup guide</Link>.
                             </p>
                         </section>
 
                         <section>
-                            <h2 className="text-2xl font-semibold text-ink mb-4">Our Mission</h2>
+                            <h2 className="text-2xl font-semibold text-ink mb-4">What we are building</h2>
                             <p className="text-ink leading-relaxed">
-                                Our goal is to reduce the repetitive work of drafting image descriptions while keeping people in control of the final wording. The service combines an AI generation API, a WordPress plugin, bulk-processing controls, and a dashboard for credits and billing.
+                                Writing alt text matters, and it is slow. We want to take away the slow part and leave the decisions with you. The plugin works inside WordPress. The service runs the AI model (Google Gemini) and handles your account, credits, and billing.
                             </p>
                         </section>
 
                         <section>
-                            <h2 className="text-2xl font-semibold text-ink mb-4">Why Accessibility Matters</h2>
+                            <h2 className="text-2xl font-semibold text-ink mb-4">Why alt text matters</h2>
                             <p className="text-ink leading-relaxed">
-                                People who use screen readers depend on useful text alternatives when an image carries meaning. AI can provide a starting point, but the right alt text depends on the image's purpose and page context. Important images should always be reviewed before publishing.
+                                People who use screen readers hear alt text in place of an image. When it is missing, they miss whatever the image was there to show. Search engines also read alt text to understand images. AI gives you a solid first draft, but the right description depends on why the image is on the page, so review the important ones.
                             </p>
                         </section>
 
                         <section>
-                            <h2 className="text-2xl font-semibold text-ink mb-4">How the Product Is Designed</h2>
+                            <h2 className="text-2xl font-semibold text-ink mb-4">What we promise, and what we don&apos;t</h2>
                             <p className="text-ink leading-relaxed">
-                                Generated text stays editable, failed generation requests do not consume credits, and bulk runs can be stopped after the current image. Alt Text Pro supports accessibility work; it does not guarantee legal compliance, search rankings, or error-free AI output.
+                                Generated text is always editable. Failed requests never use credits. Bulk runs can be stopped after the current image. Your API key is stored encrypted in WordPress. Alt Text Pro helps with accessibility work, but it does not make a site accessible on its own, and it cannot promise search rankings or perfect descriptions.
                             </p>
                         </section>
 
                         <section>
                             <h2 className="text-2xl font-semibold text-ink mb-4">Contact Us</h2>
                             <p className="text-ink leading-relaxed">
-                                We'd love to hear from you. Whether you have questions, feedback, or just want to say hello, please feel free to reach out.
+                                Questions, feedback, or a bug to report? Email us or use the contact form.
                             </p>
                             <p className="text-ink leading-relaxed mt-4">
                                 <strong>Email:</strong> help@alt-text.pro<br />

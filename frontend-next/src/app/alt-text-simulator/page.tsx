@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import {
@@ -90,12 +91,12 @@ export default function AltTextSimulatorPage() {
                 <div className="max-w-6xl mx-auto px-6 py-6 md:py-0 text-center md:text-left">
                     <div className="inline-flex h-8 items-center gap-2 px-3 rounded-full bg-yellow-soft mb-4">
                         <Sparkles className="h-4 w-4 shrink-0 text-ink" aria-hidden="true" />
-                        <span className="text-xs font-semibold text-ink uppercase tracking-[0.06em]">Interactive Lab</span>
+                        <span className="text-xs font-semibold text-ink uppercase tracking-[0.06em]">Try it</span>
                     </div>
                     <h1 className="text-3xl md:text-6xl font-bold text-ink leading-tight font-outfit tracking-tight">
                         Alt Text <span className="text-ink italic">Simulator.</span>
                     </h1>
-                    <p className="text-sm md:text-xl text-ink-muted mt-4 max-w-2xl font-normal">See how a clear description changes the information available to screen readers and search systems.</p>
+                    <p className="text-sm md:text-xl text-ink-muted mt-4 max-w-2xl font-normal">Switch between an image with no alt text and one with a clear description. Hear what a screen reader says, and see what text search engines get.</p>
                 </div>
             </header>
 
@@ -337,7 +338,7 @@ export default function AltTextSimulatorPage() {
 
                     <div className="p-8 md:p-12 text-center border-b border-line">
                         <h2 className="text-3xl md:text-6xl font-bold mb-6 text-ink tracking-tight font-outfit">How Alt Text Works</h2>
-                        <p className="text-ink-muted text-sm md:text-xl max-w-2xl mx-auto font-normal">From website code to helping your users and SEO.</p>
+                        <p className="text-ink-muted text-sm md:text-xl max-w-2xl mx-auto font-normal">From the code on your page to what visitors and search engines receive.</p>
                     </div>
 
                     <div className="p-8 md:p-12">
@@ -392,7 +393,8 @@ export default function AltTextSimulatorPage() {
                     </div>
 
                     <div className="bg-yellow-tint p-6 md:p-8 text-center text-sm text-ink-muted font-medium border-t border-line">
-                        Smart descriptions make your website better for everyone—humans and search engines alike.
+                        Clear descriptions help people who cannot see the image, and give search engines useful text too. Want drafts for your own images? See the{' '}
+                        <Link href="/ai-alt-text-generator-for-wordpress" className="font-medium text-ink underline decoration-line-strong decoration-2 underline-offset-4 hover:decoration-ink">AI alt text generator for WordPress</Link>.
                     </div>
                 </div>
 

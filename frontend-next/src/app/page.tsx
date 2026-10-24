@@ -223,7 +223,7 @@ export default function LandingPage() {
               credits_remaining: data.credits_remaining,
             },
           });
-          toast.success("Alt text generated successfully!");
+          toast.success("Alt text generated.");
         } else {
           if (apiResponse.status === 401) {
             toast.error("Session expired. Please sign in again.");
@@ -507,14 +507,14 @@ export default function LandingPage() {
               <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 min-[1800px]:-translate-y-6">
                 <div className="flex flex-col">
                   <h1 className="max-w-[900px] text-[clamp(3.4rem,7.5vw,10rem)] font-bold font-outfit leading-[0.92] tracking-[-0.075em] text-ink">
-                    <span className="block text-[0.42em] leading-none tracking-[-0.05em]">Alt Text Pro</span>
-                    <span className="mt-3 block">Make Every <br />
-                      <span className="text-ink">Image Speak</span>
+                    <span className="block text-[0.42em] leading-none tracking-[-0.05em]">Alt Text Pro for WordPress</span>{" "}
+                    <span className="mt-3 block">Describe <br />
+                      <span className="text-ink">every image</span>
                     </span>
                   </h1>
 
                   <p className="mt-6 max-w-2xl text-lg font-normal leading-[1.2] text-ink-muted sm:text-xl lg:text-[1.7rem] min-[1800px]:mt-10 min-[1800px]:max-w-[900px] min-[1800px]:text-[2.15rem]">
-                    Generate useful, context-aware alt text drafts across your WordPress media library.
+                    AI drafts the alt text for images in your media library. You review it, edit it if needed, and save. One image at a time or in bulk.
                   </p>
 
                   <div className="mt-10 flex flex-col gap-3 sm:flex-row sm:items-center min-[1800px]:mt-20">
@@ -608,14 +608,14 @@ export default function LandingPage() {
                         {isGenerating ? "Generating…" : "Generate alt text"}
                       </button>
                     ) : (
-                      <span className="inline-flex h-9 items-center gap-2 text-base font-semibold text-ink">Ready to use</span>
+                      <span className="inline-flex h-9 items-center gap-2 text-base font-semibold text-ink">Ready to review</span>
                     )}
                     <button
                       type="button"
                       className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
                       onClick={() => {
                         navigator.clipboard.writeText(generatedAltText || HERO_SAMPLE_ALT_TEXT);
-                        toast.success("Copied to clipboard!");
+                        toast.success("Copied to clipboard.");
                       }}
                       aria-label="Copy generated alt text"
                     >
@@ -637,12 +637,12 @@ export default function LandingPage() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
             <div className="text-center mb-24">
               <h2 className="text-4xl lg:text-6xl font-bold text-ink mb-6 tracking-tight font-outfit">
-                From Upload to Alt Text
+                From install to saved alt text
                 <br />
-                <span className="text-ink italic">Without Guesswork.</span>
+                <span className="text-ink italic">in three steps.</span>
               </h2>
               <p className="text-ink-muted max-w-2xl mx-auto text-xl font-normal">
-                Connect WordPress, generate editable descriptions, and review every important image before publishing.
+                Connect the plugin, try it on one image, then work through the rest of your library.
               </p>
             </div>
 
@@ -694,7 +694,7 @@ export default function LandingPage() {
                         Install + Connect
                       </h3>
                       <p className="text-ink-muted text-lg leading-relaxed relative z-10 font-normal">
-                        Create a free account, install the WordPress plugin, and click Connect to save your API key automatically.
+                        Create a free account, install the plugin from WordPress.org, and click Connect. Your API key is saved for you and stored encrypted.
                       </p>
                     </div>
                   </div>
@@ -709,10 +709,12 @@ export default function LandingPage() {
                         02
                       </div>
                       <h3 className="text-2xl font-bold text-ink mb-4 relative z-10 flex items-center gap-3 font-outfit uppercase tracking-wider">
-                        Generate With Context
+                        Generate
                       </h3>
                       <p className="text-ink-muted text-lg leading-relaxed relative z-10 font-normal">
-                        Generate one image first, then use page context or bulk processing when you are ready to fix more of the media library.
+                        Start with one image in the media editor. When you like the results, use{" "}
+                        <Link href="/bulk-generate-alt-text-wordpress" className="font-medium text-ink underline decoration-line-strong decoration-2 underline-offset-4 hover:decoration-ink">bulk processing</Link>{" "}
+                        for images missing alt text, or Add Alt Text on any post or page.
                       </p>
                     </div>
                   </div>
@@ -769,7 +771,7 @@ export default function LandingPage() {
                         <div className="bg-white rounded-xl p-4 border border-line shadow-notebook">
                           <div className="flex items-center justify-between mb-3">
                             <span className="label-caps">
-                              Optimized Alt Text
+                              Generated alt text
                             </span>
                             <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-yellow-tint text-ink">
                               <Copy className="h-4 w-4" aria-hidden="true" />
@@ -782,7 +784,7 @@ export default function LandingPage() {
 
                         <div className="flex gap-2">
                           <div className="flex h-9 flex-1 items-center justify-center rounded-lg border border-line bg-yellow-tint px-3">
-                            <span className="text-[11px] font-semibold text-ink font-outfit uppercase tracking-[0.04em]">Accessibility Standards</span>
+                            <span className="text-[11px] font-semibold text-ink font-outfit uppercase tracking-[0.04em]">Editable draft</span>
                           </div>
                           <div className="flex h-9 flex-1 items-center justify-center rounded-lg bg-brand-yellow px-3">
                             <span className="text-[11px] font-semibold text-ink font-outfit uppercase tracking-[0.04em]">Ready to review</span>
@@ -802,7 +804,7 @@ export default function LandingPage() {
                         Review + Save
                       </h3>
                       <p className="text-ink-muted text-lg leading-relaxed relative z-10 font-normal">
-                        Review the generated text, edit when the page needs more context, and save it directly into WordPress.
+                        Check the wording, add details the AI could not know, and save. Every description stays editable in WordPress.
                       </p>
                     </div>
                   </div>
@@ -820,8 +822,8 @@ export default function LandingPage() {
                 <span className="h-2 w-2 rounded-full bg-yellow-strong" aria-hidden="true" />
                 <span className="text-xs font-semibold uppercase tracking-[0.06em] text-ink">Product facts</span>
               </div>
-              <h2 className="text-3xl lg:text-5xl font-bold text-ink mb-4 tracking-tight font-outfit">A workflow you can inspect and control</h2>
-              <p className="text-ink-muted text-xl max-w-2xl mx-auto font-normal">Generate suggestions, review the wording, and save approved alt text without leaving WordPress.</p>
+              <h2 className="text-3xl lg:text-5xl font-bold text-ink mb-4 tracking-tight font-outfit">You decide what gets saved</h2>
+              <p className="text-ink-muted text-xl max-w-2xl mx-auto font-normal">Alt Text Pro suggests the wording. You stay in charge of what appears on your site.</p>
             </div>
 
             <div className="grid md:grid-cols-3 gap-6 items-stretch">
@@ -830,23 +832,23 @@ export default function LandingPage() {
                   <Eye className="h-6 w-6 text-ink" aria-hidden="true" />
                 </div>
                 <h3 className="font-outfit text-xl font-bold text-ink">Review before saving</h3>
-                <p className="mt-3 text-base leading-relaxed text-ink-muted">Generated text remains editable, so you can add page-specific context before it reaches the media library.</p>
+                <p className="mt-3 text-base leading-relaxed text-ink-muted">In the media editor, the draft appears first and is saved only when you apply it. Add product names or page details the AI cannot see.</p>
               </div>
 
               <div className="h-full bg-white border border-line p-6 rounded-2xl shadow-notebook">
                 <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-xl bg-yellow-soft">
                   <Layers className="h-6 w-6 text-ink" aria-hidden="true" />
                 </div>
-                <h3 className="font-outfit text-xl font-bold text-ink">Controlled bulk processing</h3>
-                <p className="mt-3 text-base leading-relaxed text-ink-muted">Choose a batch size and whether existing alt text may be replaced before a media-library run begins.</p>
+                <h3 className="font-outfit text-xl font-bold text-ink">Bulk runs you can stop</h3>
+                <p className="mt-3 text-base leading-relaxed text-ink-muted">Pick missing, all or selected images, choose whether existing alt text can be replaced, and stop after the current image at any time.</p>
               </div>
 
               <div className="h-full bg-white border border-line p-6 rounded-2xl shadow-notebook">
                 <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-xl bg-yellow-soft">
                   <CheckCircle className="h-6 w-6 text-ink" aria-hidden="true" />
                 </div>
-                <h3 className="font-outfit text-xl font-bold text-ink">Credits debit on success</h3>
-                <p className="mt-3 text-base leading-relaxed text-ink-muted">A successful image generation uses one credit. Failed generation requests release their reservation.</p>
+                <h3 className="font-outfit text-xl font-bold text-ink">Credits only for results</h3>
+                <p className="mt-3 text-base leading-relaxed text-ink-muted">A credit is used only when an image gets alt text. If a request fails, you are not charged for it.</p>
               </div>
             </div>
           </div>
@@ -863,12 +865,12 @@ export default function LandingPage() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
             <div className="text-center mb-20 space-y-4">
               <div className="inline-flex h-8 items-center px-3 bg-yellow-soft rounded-full">
-                <span className="text-xs font-semibold uppercase tracking-[0.06em] text-ink">Real-time Previews</span>
+                <span className="text-xs font-semibold uppercase tracking-[0.06em] text-ink">Examples</span>
               </div>
               <h2 className="text-4xl lg:text-6xl font-bold text-ink tracking-tight font-outfit mb-6">
-                See Results <span className="text-ink italic">in Action.</span>
+                What the drafts <span className="text-ink italic">look like.</span>
               </h2>
-              <p className="text-ink-muted max-w-2xl mx-auto font-normal">See concise example drafts, then review each one against its page context before publishing.</p>
+              <p className="text-ink-muted max-w-2xl mx-auto font-normal">Example drafts for three common kinds of image. Results vary with the image and the context you add.</p>
             </div>
 
             <div className="grid md:grid-cols-3 gap-8">
@@ -974,14 +976,15 @@ export default function LandingPage() {
             <div>
               <p className="label-caps">Questions</p>
               <h2 className="mt-8 max-w-xl font-outfit text-6xl font-bold leading-[0.96] tracking-[-0.07em] text-ink sm:text-7xl">
-                Good answers,
+                Questions
                 <br />
                 before you
                 <br />
                 <span className="italic">start.</span>
               </h2>
               <p className="mt-10 max-w-md text-lg leading-7 text-ink-muted">
-                Still deciding? Start free and test the complete WordPress workflow.
+                Still deciding? Try it on your own images with 150 free credits. No credit card needed. Setup steps are in the{" "}
+                <Link href="/docs" className="font-medium text-ink underline decoration-line-strong decoration-2 underline-offset-4 hover:decoration-ink">docs</Link>.
               </p>
               <Button
                 className="mt-10"
@@ -995,15 +998,23 @@ export default function LandingPage() {
               {[
                 {
                   question: "What counts as one credit?",
-                  answer: "One successful alt text generation uses one credit. Failed requests do not consume credits.",
+                  answer: "One image that gets alt text. If a request fails, no credit is used.",
                 },
                 {
-                  question: "Can I process an entire WordPress media library?",
-                  answer: "Yes. Every plan, including Free, supports bulk media-library fixes. For a large backlog, a one-time credit pack is usually the cheapest option.",
+                  question: "Should I check the alt text the AI writes?",
+                  answer: "Yes. The drafts are a good starting point, but AI can misread an image or miss why it is on the page. Review your important images and edit where needed.",
                 },
                 {
-                  question: "Does it work with WooCommerce images?",
-                  answer: "Yes. Alt Text Pro works with WooCommerce product images and the rest of your WordPress media library.",
+                  question: "Can I fix my whole media library?",
+                  answer: "Yes. Bulk processing finds images with no alt text and works through them, up to your newest 20,000 images per run. It is available on every plan, including Free. For a one-off backlog, a credit pack lets you pay once instead of changing your plan.",
+                },
+                {
+                  question: "Does it work with WooCommerce product images?",
+                  answer: "Yes. Product and gallery images are stored in the WordPress media library, so they work like any other image.",
+                },
+                {
+                  question: "Which AI model writes the descriptions?",
+                  answer: "Google Gemini, through the Alt Text Pro service. You do not need your own AI account or API key from Google.",
                 },
                 {
                   question: "Do unused subscription credits roll over?",
