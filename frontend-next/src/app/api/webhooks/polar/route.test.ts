@@ -269,7 +269,7 @@ describe("Polar subscription lifecycle handlers", () => {
                 product: {
                     id: "prod_agency_monthly",
                     name: "Alt Text Pro — Agency Monthly",
-                    metadata: { plan_id: "tier4", type: "subscription", credits: 3500 },
+                    metadata: { plan_id: "tier4", type: "subscription", credits: 5000 },
                 },
                 metadata: {},
             },
@@ -284,7 +284,7 @@ describe("Polar subscription lifecycle handlers", () => {
                 p_polar_customer_id: "cus_1",
                 p_polar_product_id: "prod_agency_monthly",
                 p_billing_cycle: "monthly",
-                p_monthly_credit_allowance: 3500,
+                p_monthly_credit_allowance: 5000,
                 p_next_billing_date: "2026-09-10T00:00:00.000Z",
             },
         });
@@ -329,8 +329,26 @@ describe("Polar subscription lifecycle handlers", () => {
             subscription_plan: "tier2",
             subscription_status: "active",
             billing_cycle: "annual",
-            monthly_credit_allowance: 1000,
+            monthly_credit_allowance: 1500,
             next_billing_date: "2027-07-23T16:10:49.335Z",
+        });
+        expect(mocks.state.rpcCalls).toHaveLength(0);
+    });
+
+    it("keeps a legacy pinned allowance when the same subscription is restored", async () => {
+        mocks.state.profiles = [profile({
+            subscription_plan: "tier2",
+            monthly_credit_allowance: 1000,
+            polar_product_id: "prod_standard_annual",
+        })];
+
+        await polarWebhookHandlers.onSubscriptionUncanceled?.({
+            data: annualSubscription({ status: "active" }),
+        } as never);
+
+        expect(mocks.state.updates.find((entry) => entry.table === "profiles")?.values).toMatchObject({
+            subscription_plan: "tier2",
+            monthly_credit_allowance: 1000,
         });
         expect(mocks.state.rpcCalls).toHaveLength(0);
     });
@@ -415,7 +433,7 @@ describe("Polar subscription lifecycle handlers", () => {
             args: {
                 p_user_id: "user_1",
                 p_payment_id: "polar_ord_order_pack_1",
-                p_credits: 1200,
+                p_credits: 5000,
             },
         });
     });
@@ -437,7 +455,7 @@ describe("Polar subscription lifecycle handlers", () => {
         });
     });
 
-    it("maps the Small Credit Pack to its 500-credit allowance", async () => {
+    it("maps the Small Credit Pack to its 1,000-credit allowance", async () => {
         await polarWebhookHandlers.onOrderPaid?.({
             data: paidPackOrder({
                 product: {
@@ -450,7 +468,25 @@ describe("Polar subscription lifecycle handlers", () => {
 
         expect(mocks.state.rpcCalls).toContainEqual({
             name: "grant_credit_pack_purchase",
-            args: expect.objectContaining({ p_credits: 500 }),
+            args: expect.objectContaining({ p_credits: 1000 }),
+        });
+    });
+
+    it("maps a branded Bulk Pack to 15,000 credits, not the Pro plan", async () => {
+        await polarWebhookHandlers.onOrderPaid?.({
+            data: paidPackOrder({
+                totalAmount: 9900,
+                product: {
+                    id: "prod_bulk_pack",
+                    name: "Alt Text Pro — Bulk Pack",
+                    metadata: {},
+                },
+            }),
+        } as never);
+
+        expect(mocks.state.rpcCalls).toContainEqual({
+            name: "grant_credit_pack_purchase",
+            args: expect.objectContaining({ p_credits: 15000 }),
         });
     });
 

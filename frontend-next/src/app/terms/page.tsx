@@ -73,7 +73,7 @@ export default function TermsPage() {
                                     ))}
                                     {CREDIT_PACKS.map((pack) => (
                                         <li key={pack.id}>
-                                            <strong>{pack.name}:</strong> {pack.price} for {pack.creditCount.toLocaleString()} credits (one-time; paid subscribers only; credits do not expire)
+                                            <strong>{pack.name}:</strong> {pack.price} for {pack.creditCount.toLocaleString()} credits (one-time; available on every plan; credits do not expire)
                                         </li>
                                     ))}
                                 </ul>

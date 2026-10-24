@@ -1,37 +1,48 @@
 import { describe, expect, it } from "vitest";
-import { isCreditPackEligibleSubscriber } from "./credit-pack-eligibility";
+import { isCreditPackEligible } from "./credit-pack-eligibility";
 
-describe("isCreditPackEligibleSubscriber", () => {
-    it.each(["monthly", "annual"])("allows an active paid %s subscriber", (billing_cycle) => {
-        expect(isCreditPackEligibleSubscriber({
-            subscription_plan: "tier2",
+describe("isCreditPackEligible", () => {
+    it("allows an active free account", () => {
+        expect(isCreditPackEligible({
+            subscription_plan: "free",
             subscription_status: "active",
-            billing_cycle,
+        })).toBe(true);
+    });
+
+    it.each(["tier1", "tier2", "tier4"])("allows an active %s subscriber", (subscription_plan) => {
+        expect(isCreditPackEligible({
+            subscription_plan,
+            subscription_status: "active",
+        })).toBe(true);
+    });
+
+    it("allows a legacy Pro subscriber", () => {
+        expect(isCreditPackEligible({
+            subscription_plan: "tier3",
+            subscription_status: "active",
         })).toBe(true);
     });
 
     it("allows a paid subscriber who has scheduled cancellation", () => {
-        expect(isCreditPackEligibleSubscriber({
+        expect(isCreditPackEligible({
             subscription_plan: "tier1",
             subscription_status: "cancelled",
-            billing_cycle: "annual",
         })).toBe(true);
     });
 
     it("allows established paid-plan aliases", () => {
-        expect(isCreditPackEligibleSubscriber({
+        expect(isCreditPackEligible({
             subscription_plan: "lite",
             subscription_status: "active",
-            billing_cycle: "annual",
         })).toBe(true);
     });
 
     it.each([
-        ["free account", { subscription_plan: "free", subscription_status: "active", billing_cycle: "monthly" }],
-        ["revoked monthly subscriber", { subscription_plan: "tier2", subscription_status: "revoked", billing_cycle: "monthly" }],
-        ["unsupported billing cycle", { subscription_plan: "tier2", subscription_status: "active", billing_cycle: "weekly" }],
-        ["missing subscription status", { subscription_plan: "tier2", billing_cycle: "monthly" }],
+        ["revoked subscriber", { subscription_plan: "tier2", subscription_status: "revoked" }],
+        ["missing subscription status", { subscription_plan: "tier2" }],
+        ["unknown plan", { subscription_plan: "enterprise", subscription_status: "active" }],
+        ["missing profile", null],
     ])("rejects a %s", (_label, profile) => {
-        expect(isCreditPackEligibleSubscriber(profile)).toBe(false);
+        expect(isCreditPackEligible(profile)).toBe(false);
     });
 });

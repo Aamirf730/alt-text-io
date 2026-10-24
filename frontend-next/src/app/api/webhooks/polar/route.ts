@@ -23,38 +23,31 @@ const getSupabase = (): SupabaseClient => {
 };
 
 // Credit mapping based on product/plan
-// Updated Aug 2026: Lite/Standard/Pro/Agency plans
+// Updated Oct 2026: Starter/Growth/Agency plans; Pro (tier3) is retired from
+// sale. Legacy subscribers keep the allowance pinned on their profile while
+// their original Polar subscription and product stay active.
 const CREDITS_MAP: Record<string, number> = {
-    // Current plan names
-    lite_monthly: 150,
-    standard_monthly: 1000,
-    pro_monthly: 2000,
-    agency_monthly: 3500,
+    tier1_monthly: 500,   // Starter $5
+    tier2_monthly: 1500,  // Growth $12
+    tier3_monthly: 2000,  // Legacy Pro
+    tier4_monthly: 5000,  // Agency $29
     // Annual subscriptions (monthly credits × 12)
-    lite_annual: 1800,      // 150 × 12
-    standard_annual: 12000, // 1000 × 12
-    pro_annual: 24000,      // 2000 × 12
-    agency_annual: 42000,   // 3500 × 12
-    // Plan-id aliases
-    tier1_monthly: 150,
-    tier2_monthly: 1000,
-    tier3_monthly: 2000,
-    tier4_monthly: 3500,
-    tier1_annual: 1800,
-    tier2_annual: 12000,
+    tier1_annual: 6000,
+    tier2_annual: 18000,
     tier3_annual: 24000,
-    tier4_annual: 42000,
-    // One-time purchases (prices unchanged; credits increased)
-    small_pack: 500,   // $5
-    credit_pack: 1200, // $10
+    tier4_annual: 60000,
+    // One-time purchases
+    small_pack: 1000,   // $12
+    credit_pack: 5000,  // $45
+    bulk_pack: 15000,   // $99
 };
 
 // Monthly allowance per plan. Used by the annual drip and monthly plans.
 const MONTHLY_CREDITS_MAP: Record<string, number> = {
-    tier1: 150,
-    tier2: 1000,
+    tier1: 500,
+    tier2: 1500,
     tier3: 2000,
-    tier4: 3500,
+    tier4: 5000,
 };
 
 function logWebhookReceived(eventName: string, data: any) {
@@ -539,6 +532,7 @@ function getCreditsForProduct(
     const resolvedPlanId = resolvePolarPlanId(productName, metadata, productId);
     if (resolvedPlanId === "small_pack") return CREDITS_MAP.small_pack;
     if (resolvedPlanId === "credit_pack") return CREDITS_MAP.credit_pack;
+    if (resolvedPlanId === "bulk_pack") return CREDITS_MAP.bulk_pack;
 
     const billingCycle = resolvePolarBillingCycle(productName, metadata, productId);
     const planCredits = CREDITS_MAP[`${resolvedPlanId}_${billingCycle}`];

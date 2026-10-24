@@ -38,15 +38,16 @@ API keys use the current `alt_...` format; legacy `altai_...` keys remain accept
 
 ## Current public catalogue
 
-| Plan | Monthly price | Monthly allowance |
-|---|---:|---:|
-| Free | $0 | 15, plus 150 signup credits |
-| Lite | $4 | 150 |
-| Standard | $9 | 1,000 |
-| Pro | $14 | 2,000 |
-| Agency | $19 | 3,500 |
+| Plan | Monthly price | Annual price | Monthly allowance |
+|---|---:|---:|---:|
+| Free | $0 | $0 | 15, plus 150 signup credits |
+| Starter (`tier1`) | $5 | $50 | 500 |
+| Growth (`tier2`) | $12 | $120 | 1,500 |
+| Agency (`tier4`) | $29 | $290 | 5,000 |
 
-Annual subscriptions use the same monthly allowance on a monthly drip. One-time packs provide 500 credits for $5 or 1,200 credits for $10 and are kept in a persistent purchased-credit ledger.
+Annual subscriptions use the same monthly allowance on a monthly drip. One-time packs, open to every account, provide 1,000 credits for $12, 5,000 for $45, or 15,000 for $99, and are kept in a persistent purchased-credit ledger.
+
+Pro (`tier3`) and the pre-2026-10 Lite/Standard/Agency prices are retired from sale. Existing subscribers keep their original price and the allowance pinned in `profiles.monthly_credit_allowance` while their Polar subscription and product stay unchanged. `get-plans` returns only rows with `is_active = true`.
 
 The database catalogue is the API source of truth. UI-facing catalogue copy is centralized in `frontend-next/src/lib/pricing-catalog.ts`.
 

@@ -1,5 +1,14 @@
 # Progress
 
+## 2026-10-24: 2026-10 pricing prepared locally
+
+- Status: implemented and verified locally; not committed, not deployed. No Polar, Supabase production, or Netlify change was made.
+- New catalogue for new purchases: Starter `tier1` $5/500, Growth `tier2` $12/1,500, Agency `tier4` $29/5,000; annual is 10x monthly. Pro `tier3` and `pay_as_go` are retired from sale (`is_active = false`). Packs: `small_pack` $12/1,000, `credit_pack` (Library Pack) $45/5,000, new `bulk_pack` $99/15,000, open to every account including Free. Free is unchanged (150 signup + 15/month).
+- Existing subscribers keep their price (old Polar products are archived, not deleted) and their allowance: migration `20261024120000_apply_2026_10_pricing.sql` pins `monthly_credit_allowance` for every paid profile before changing plan rows. Old product IDs move to `NEXT_PUBLIC_POLAR_LEGACY_TIER*` variables, which map renewals but are not offered at checkout.
+- Plan copy no longer implies per-plan feature gating; every plan lists the same features. Homepage pricing now shows the three packs.
+- Polar product list, Netlify variable steps, release order and rollback are in `docs/pricing-2026-10-rollout.md`. Plugin `dashboard.php` labels (Lite/Standard) are unchanged pending a plugin release.
+- Verification: frontend 20 files / 113 tests, Netlify Functions 25 files / 176 tests, migration chain 26 tests, TypeScript, ESLint on changed files, production `next build`, and a desktop/mobile visual check of the pricing section.
+
 ## 2026-10-24: Repository root cleanup
 
 - Removed the committed Vim swap file `frontend-next/src/app/dashboard/.page.tsx.swp` and ignored `*.swp`/`*.swo`.

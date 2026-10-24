@@ -396,7 +396,7 @@ export default function DocsPage() {
                                 </h2>
                                 <div className="prose max-w-none">
                                     <h3 className="text-2xl font-bold mt-6 mb-4 text-black">Pricing Plans</h3>
-                                    <div className="grid md:grid-cols-2 xl:grid-cols-5 gap-6 my-6">
+                                    <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-6 my-6">
                                         {SUBSCRIPTION_PLANS.map((plan) => (
                                             <Card
                                                 key={plan.id}
@@ -432,8 +432,8 @@ export default function DocsPage() {
                                         {SUBSCRIPTION_PLANS.filter((plan) => plan.id !== 'free')
                                             .map((plan) => `${plan.annualPrice}/year for ${plan.name}`)
                                             .join(', ')}{' '}
-                                        — a 10% saving. The listed monthly credit allowance still renews monthly on subscription plans. One-time credit packs are available to paid subscribers only:{' '}
-                                        {CREDIT_PACKS.map((pack) => `${pack.price} for ${pack.creditCount.toLocaleString()} credits`).join(' or ')}.
+                                        — two months free compared with monthly billing. The listed monthly credit allowance still renews monthly on subscription plans. One-time credit packs are available on every plan, including Free:{' '}
+                                        {CREDIT_PACKS.map((pack) => `${pack.price} for ${pack.creditCount.toLocaleString()} credits`).join(', ')}.
                                         Pack credits never expire and are only used up when you generate.
                                     </p>
                                     <h3 className="text-2xl font-bold mt-6 mb-4 text-black">Credit System</h3>

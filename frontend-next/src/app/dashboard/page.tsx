@@ -9,7 +9,7 @@ import { getApiBase, PLAN_CREDIT_LIMITS, PLUGIN_VERSION } from '@/lib/utils';
 import { trackMarketingEvent } from '@/lib/analytics';
 import { getPolarProductId } from '@/lib/polar-products';
 import { CREDIT_PACKS, getPurchaseOption, SUBSCRIPTION_PLANS } from '@/lib/pricing-catalog';
-import { isCreditPackEligibleSubscriber } from '@/lib/credit-pack-eligibility';
+import { isCreditPackEligible as getIsCreditPackEligible } from '@/lib/credit-pack-eligibility';
 import { getUsageDisplayLimit } from '@/lib/credit-display';
 
 type UsageHistoryItem = {
@@ -117,10 +117,9 @@ export default function Dashboard() {
     const currentPlan = String(usageStats?.plan || 'free');
     const currentPlanLimit = PLAN_CREDIT_LIMITS[currentPlan] || PLAN_CREDIT_LIMITS.free;
     const billingCycle = String(usageStats?.billing_cycle || subscriptionData?.subscription?.billing_cycle || '');
-    const isCreditPackEligible = isCreditPackEligibleSubscriber({
+    const isCreditPackEligible = getIsCreditPackEligible({
         subscription_plan: currentPlan,
         subscription_status: usageStats?.subscription_status || subscriptionData?.subscription?.status,
-        billing_cycle: billingCycle,
     });
     const monthlyCreditAllowance = Number(usageStats?.monthly_credit_allowance || subscriptionData?.subscription?.monthly_credit_allowance || 0);
     const monthlyCreditLimit = Number(usageStats?.monthly_credit_limit || 0);
@@ -133,8 +132,8 @@ export default function Dashboard() {
     const creditUsagePercent = creditUsageLimit > 0 ? Math.min((creditsUsed / creditUsageLimit) * 100, 100) : 0;
     const planLabels: Record<string, string> = {
         free: 'Free',
-        tier1: 'Lite',
-        tier2: 'Standard',
+        tier1: 'Starter',
+        tier2: 'Growth',
         tier3: 'Pro',
         tier4: 'Agency',
         lite: 'Lite',
@@ -142,6 +141,8 @@ export default function Dashboard() {
         pro: 'Pro',
         agency: 'Agency',
         small_pack: 'Credit Pack',
+        credit_pack: 'Credit Pack',
+        bulk_pack: 'Credit Pack',
         pay_as_go: 'Credit Pack',
     };
     const basePlanLabel = planLabels[currentPlan] || currentPlan.replace(/_/g, ' ');
@@ -262,7 +263,7 @@ export default function Dashboard() {
         }
 
         if (selectedUpgradeIsPack && !isCreditPackEligible) {
-            toast.error('Credit top-ups are available to paid subscribers only.');
+            toast.error('This account cannot buy credit packs right now. Please contact support.');
             return;
         }
 
@@ -1077,7 +1078,7 @@ export default function Dashboard() {
                                         type="button"
                                         onClick={openCreditPacks}
                                         disabled={!isCreditPackEligible}
-                                        title={!isCreditPackEligible ? 'Available to paid subscribers only' : undefined}
+                                        title={!isCreditPackEligible ? 'Credit packs are unavailable for this account' : undefined}
                                         className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-black/15 px-4 text-sm font-semibold text-black hover:bg-[#fafafa] disabled:cursor-not-allowed disabled:opacity-45"
                                     >
                                         Top up credits
@@ -1328,7 +1329,7 @@ export default function Dashboard() {
                                                 void redirectToCheckout(productId);
                                             }}
                                             disabled={selectedUpgradeIsPack && !isCreditPackEligible}
-                                            title={selectedUpgradeIsPack && !isCreditPackEligible ? "Available to paid subscribers only" : undefined}
+                                            title={selectedUpgradeIsPack && !isCreditPackEligible ? "Credit packs are unavailable for this account" : undefined}
                                             className="w-full h-14 bg-[#000000] hover:bg-[#000000] text-white font-semibold text-lg rounded-xl transition-all shadow-[0_10px_24px_rgba(0,0,0,0.18)]"
                                         >
                                             {selectedUpgradeIsPack ? 'Buy Credits' : 'Upgrade Now'}
@@ -1370,7 +1371,7 @@ export default function Dashboard() {
                                                 </button>
                                             </div>
                                         </div>
-                                        <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-8">
+                                        <div className="grid md:grid-cols-3 gap-8">
                                             {SUBSCRIPTION_PLANS.filter((plan) => plan.id !== 'free').map((plan) => (
                                                 <article
                                                     key={plan.id}
@@ -1431,8 +1432,8 @@ export default function Dashboard() {
 
                                     <div>
                                         <h3 className="text-lg font-semibold text-[#1A1C1E] mb-3 font-lato border-l-4 border-amber-400 pl-4">Credits (One-Time)</h3>
-                                        <p className="text-sm text-[#5F6368] mb-8 ml-4">Available to paid subscribers only.</p>
-                                        <div className="grid md:grid-cols-2 gap-8">
+                                        <p className="text-sm text-[#5F6368] mb-8 ml-4">Available on every plan, including Free. Pack credits never expire and are used after your monthly allowance.</p>
+                                        <div className="grid md:grid-cols-3 gap-8">
                                             {CREDIT_PACKS.map((pack) => (
                                                 <article
                                                     key={pack.id}
@@ -1461,7 +1462,7 @@ export default function Dashboard() {
                                                             price: pack.price,
                                                         })}
                                                         disabled={!isCreditPackEligible}
-                                                        title={!isCreditPackEligible ? "Available to paid subscribers only" : undefined}
+                                                        title={!isCreditPackEligible ? "Credit packs are unavailable for this account" : undefined}
                                                         className="w-full bg-white text-[#1A1C1E] hover:bg-[#F1F3F4] border border-[#F1F3F4] rounded-xl font-medium disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 disabled:hover:bg-slate-100"
                                                     >
                                                         Buy Credits

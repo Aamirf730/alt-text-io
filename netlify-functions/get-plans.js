@@ -49,6 +49,8 @@ exports.handler = async (event, context) => {
     const { data: plans, error } = await supabase
       .from('subscription_plans')
       .select('*')
+      // Retired plans stay in the table for legacy profiles and payments.
+      .eq('is_active', true)
       .order('price', { ascending: true });
 
     if (error) {

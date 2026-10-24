@@ -432,9 +432,9 @@ export default function AdminDashboard() {
                                 >
                                     <option value="all">All Plans</option>
                                     <option value="free">Free</option>
-                                    <option value="tier1">Tier 1</option>
-                                    <option value="tier2">Tier 2</option>
-                                    <option value="tier3">Tier 3</option>
+                                    <option value="tier1">Tier 1 (Starter / legacy Lite)</option>
+                                    <option value="tier2">Tier 2 (Growth / legacy Standard)</option>
+                                    <option value="tier3">Tier 3 (legacy Pro)</option>
                                     <option value="tier4">Tier 4 (Agency)</option>
                                     <option value="pay_as_go">Pay as You Go</option>
                                 </select>

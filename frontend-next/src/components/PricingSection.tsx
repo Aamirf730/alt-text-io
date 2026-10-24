@@ -1,6 +1,6 @@
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { SUBSCRIPTION_PLANS } from "@/lib/pricing-catalog";
+import { CREDIT_PACKS, SUBSCRIPTION_PLANS } from "@/lib/pricing-catalog";
 
 type PricingSectionProps = {
   billingCycle: string;
@@ -46,12 +46,12 @@ export default function PricingSection({
                 isAnnual ? "bg-black text-white" : "text-black hover:bg-slate-50"
               }`}
             >
-              Annual <span className="ml-1 text-sm">Save 10%</span>
+              Annual <span className="ml-1 text-sm">2 months free</span>
             </button>
           </div>
         </div>
 
-        <div className="mt-12 grid gap-5 md:grid-cols-2 lg:mt-14 lg:grid-cols-3 xl:grid-cols-5">
+        <div className="mt-12 grid gap-5 md:grid-cols-2 lg:mt-14 xl:grid-cols-4">
           {pricingPlans.map((plan) => (
             <article
               key={plan.id}
@@ -76,13 +76,7 @@ export default function PricingSection({
                 </span>
                 <span className="text-xl text-slate-500">/{isAnnual && plan.id !== "free" ? "yr" : "mo"}</span>
               </div>
-              <p
-                className={`mt-5 whitespace-nowrap font-semibold text-black ${
-                  plan.id === "tier2" ? "text-sm" : "text-base"
-                }`}
-              >
-                {plan.credits}
-              </p>
+              <p className="mt-5 whitespace-nowrap text-base font-semibold text-black">{plan.credits}</p>
               {isAnnual && plan.id !== "free" && (
                 <p className="mt-2 text-sm text-slate-500">{plan.annualMonthlyPrice}/mo billed yearly</p>
               )}
@@ -109,6 +103,36 @@ export default function PricingSection({
               </Button>
             </article>
           ))}
+        </div>
+
+        <div className="mt-16">
+          <div className="mx-auto max-w-3xl text-center">
+            <h3 className="font-outfit text-3xl font-bold tracking-[-0.05em] text-black sm:text-4xl">
+              Fixing a whole media library?
+            </h3>
+            <p className="mt-3 text-lg text-slate-500">
+              Buy credits once. They never expire and work on every plan, including Free.
+            </p>
+          </div>
+          <div className="mx-auto mt-8 grid max-w-5xl gap-5 md:grid-cols-3">
+            {CREDIT_PACKS.map((pack) => (
+              <article key={pack.id} className="flex flex-col rounded-[2rem] border border-[#dbe2df] bg-white p-8">
+                <h4 className="text-base font-semibold uppercase tracking-[0.14em] text-slate-500">{pack.name}</h4>
+                <div className="mt-5 flex items-baseline gap-2 text-black">
+                  <span className="font-outfit text-5xl font-bold leading-none tracking-[-0.075em]">{pack.price}</span>
+                  <span className="text-base text-slate-500">one-time</span>
+                </div>
+                <p className="mt-4 text-base font-semibold text-black">{pack.creditCount.toLocaleString()} credits</p>
+                <Button
+                  type="button"
+                  onClick={() => onSelectPlan(pack.id, pack.name, pack.price)}
+                  className="mt-8 h-12 w-full rounded-full border border-[#dbe2df] bg-white text-base font-semibold text-black shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-50"
+                >
+                  Buy {pack.creditCount.toLocaleString()} credits
+                </Button>
+              </article>
+            ))}
+          </div>
         </div>
 
         <div className="mt-12 text-center">

@@ -18,7 +18,7 @@ test('tracked migrations have one ordered, canonical history', () => {
   assert.ok(files.length > 1);
   assert.equal(new Set(versions).size, versions.length);
   assert.equal(files[0], '20260625140000_bootstrap_schema.sql');
-  assert.equal(files.at(-1), '20260817060012_harden_credit_and_profile_integrity.sql');
+  assert.equal(files.at(-1), '20261024120000_apply_2026_10_pricing.sql');
 });
 
 test('bootstrap defines every foundational table and reporting view', () => {
@@ -100,6 +100,36 @@ test('pricing migration pins legacy allowances and supports Agency reservations'
   assert.match(pricing, /credits_remaining = 15/);
   assert.match(pricing, /bonus_credits_remaining/);
   assert.match(pricing, /credits_remaining.*165/s);
+});
+
+test('2026-10 pricing pins every legacy allowance before changing the catalogue', () => {
+  const pricing = fs.readFileSync(
+    path.join(migrationsDirectory, '20261024120000_apply_2026_10_pricing.sql'),
+    'utf8',
+  ).toLowerCase();
+
+  const pin = pricing.indexOf('monthly_credit_allowance = sp.credits');
+  const catalogue = pricing.indexOf('insert into public.subscription_plans');
+  assert.ok(pin >= 0, 'pricing migration must pin legacy allowances');
+  assert.ok(catalogue > pin, 'legacy allowances must be pinned before plan credits change');
+  assert.match(pricing.slice(pin, catalogue), /'tier1', 'tier2', 'tier3', 'tier4'/);
+  assert.match(pricing, /coalesce\(p\.monthly_credit_allowance, 0\) = 0/);
+
+  assert.match(pricing, /\('tier1', 'starter', 5, 50, 500, 'monthly'/);
+  assert.match(pricing, /\('tier2', 'growth', 12, 120, 1500, 'monthly'/);
+  assert.match(pricing, /\('tier4', 'agency', 29, 290, 5000, 'monthly'/);
+  assert.match(pricing, /\('small_pack', 'small credit pack', 12, null, 1000, 'one-time'/);
+  assert.match(pricing, /\('credit_pack', 'library pack', 45, null, 5000, 'one-time'/);
+  assert.match(pricing, /\('bulk_pack', 'bulk pack', 99, null, 15000, 'one-time'/);
+  assert.match(pricing, /'pay_as_go', 'small_pack', 'credit_pack', 'bulk_pack'/);
+
+  // Retired rows stay for legacy references but leave the public catalogue.
+  assert.match(pricing, /set is_active = false, is_popular = false\s+where id in \('tier3', 'pay_as_go'\)/);
+  assert.doesNotMatch(pricing, /delete from public\.subscription_plans/);
+  assert.doesNotMatch(pricing, /130\+|24\/7|soc\s?2|priority support/);
+  // The free plan and signup grant are unchanged by this migration.
+  assert.doesNotMatch(pricing, /\('free',/);
+  assert.doesNotMatch(pricing, /handle_new_user/);
 });
 
 test('Agency catalogue follow-up keeps tier4 active', () => {

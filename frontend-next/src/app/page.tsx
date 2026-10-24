@@ -941,7 +941,7 @@ export default function LandingPage() {
                 },
                 {
                   question: "Can I process an entire WordPress media library?",
-                  answer: "Yes. Standard and Pro plans support bulk media-library fixes so you can improve many images in one workflow.",
+                  answer: "Yes. Every plan, including Free, supports bulk media-library fixes. For a large backlog, a one-time credit pack is usually the cheapest option.",
                 },
                 {
                   question: "Does it work with WooCommerce images?",
@@ -1124,7 +1124,7 @@ export default function LandingPage() {
               </button>
               <div className="text-center mb-5 mt-2">
                 <h3 id="payment-dialog-title" className="text-2xl font-bold text-notebook-slate tracking-tight font-outfit mb-1.5">
-                  Upgrade Your Subscription
+                  {CREDIT_PACKS.some((pack) => pack.id === selectedPlan.id) ? 'Buy Credits' : 'Upgrade Your Subscription'}
                 </h3>
                 <p className="text-sm text-slate-500 font-normal leading-relaxed">
                   Selected Plan: <span className="text-notebook-blue font-bold">{selectedPlan.name}</span>
@@ -1135,7 +1135,7 @@ export default function LandingPage() {
                 <div className="text-3xl font-bold text-notebook-slate font-outfit mb-0.5">
                   {selectedPlan.price}
                 </div>
-                {!['free', 'pay_as_go', 'small_pack', 'credit_pack'].includes(selectedPlan.id) && (
+                {!['free', 'pay_as_go', 'small_pack', 'credit_pack', 'bulk_pack'].includes(selectedPlan.id) && (
                   <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                     BILLED MONTHLY / ANNUALLY
                   </div>

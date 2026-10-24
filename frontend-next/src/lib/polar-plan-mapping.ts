@@ -1,6 +1,6 @@
 const SUBSCRIPTION_PLAN_MATCHERS: Array<{ planId: string; terms: string[] }> = [
-  { planId: "tier1", terms: ["tier1", "tier_1", "lite"] },
-  { planId: "tier2", terms: ["tier2", "tier_2", "standard"] },
+  { planId: "tier1", terms: ["tier1", "tier_1", "starter", "lite"] },
+  { planId: "tier2", terms: ["tier2", "tier_2", "growth", "standard"] },
   { planId: "tier4", terms: ["tier4", "tier_4", "agency"] },
   { planId: "tier3", terms: ["tier3", "tier_3", "pro"] },
 ];
@@ -12,17 +12,25 @@ type PolarProductMatch = {
   billingCycle: PolarBillingCycle;
 };
 
+const SUBSCRIPTION_PRODUCT_ENV_PLANS = ["tier1", "tier2", "tier3", "tier4"] as const;
+
+// Current products are configured as NEXT_PUBLIC_POLAR_TIER{n}_{CYCLE}.
+// Products retired by the 2026-10 pricing update stay mapped through
+// NEXT_PUBLIC_POLAR_LEGACY_TIER{n}_{CYCLE} so existing subscribers renew on
+// their original plan. Checkout only offers the current products.
 const CONFIGURED_PRODUCT_ENV: Array<{ env: string; planId: string; billingCycle: PolarBillingCycle }> = [
-  { env: "NEXT_PUBLIC_POLAR_TIER1_MONTHLY", planId: "tier1", billingCycle: "monthly" },
-  { env: "NEXT_PUBLIC_POLAR_TIER1_ANNUAL", planId: "tier1", billingCycle: "annual" },
-  { env: "NEXT_PUBLIC_POLAR_TIER2_MONTHLY", planId: "tier2", billingCycle: "monthly" },
-  { env: "NEXT_PUBLIC_POLAR_TIER2_ANNUAL", planId: "tier2", billingCycle: "annual" },
-  { env: "NEXT_PUBLIC_POLAR_TIER3_MONTHLY", planId: "tier3", billingCycle: "monthly" },
-  { env: "NEXT_PUBLIC_POLAR_TIER3_ANNUAL", planId: "tier3", billingCycle: "annual" },
-  { env: "NEXT_PUBLIC_POLAR_TIER4_MONTHLY", planId: "tier4", billingCycle: "monthly" },
-  { env: "NEXT_PUBLIC_POLAR_TIER4_ANNUAL", planId: "tier4", billingCycle: "annual" },
+  ...["", "LEGACY_"].flatMap((prefix) =>
+    SUBSCRIPTION_PRODUCT_ENV_PLANS.flatMap((planId) =>
+      (["monthly", "annual"] as const).map((billingCycle) => ({
+        env: `NEXT_PUBLIC_POLAR_${prefix}${planId.toUpperCase()}_${billingCycle.toUpperCase()}`,
+        planId,
+        billingCycle,
+      })),
+    ),
+  ),
   { env: "NEXT_PUBLIC_POLAR_SMALL_PACK", planId: "small_pack", billingCycle: "monthly" },
   { env: "NEXT_PUBLIC_POLAR_CREDIT_PACK", planId: "credit_pack", billingCycle: "monthly" },
+  { env: "NEXT_PUBLIC_POLAR_BULK_PACK", planId: "bulk_pack", billingCycle: "monthly" },
 ];
 
 type PolarMetadata = Record<string, string | number | boolean | null | undefined>;
@@ -62,12 +70,8 @@ function matchPlanId(value: string): string | null {
       || normalized.includes(`_${normalizedTerm}_`);
   };
 
-  for (const matcher of SUBSCRIPTION_PLAN_MATCHERS) {
-    if (matcher.terms.some(hasTerm)) {
-      return matcher.planId;
-    }
-  }
-
+  // Pack names are matched before subscription terms so a branded name such
+  // as "Alt Text Pro — Bulk Pack" cannot be read as the Pro subscription.
   // Keep the name fallback deliberately narrow. A generic `pack` or `credit`
   // substring is not enough evidence to grant a paid credit pack.
   if (
@@ -80,7 +84,18 @@ function matchPlanId(value: string): string | null {
   }
 
   if (
+    normalized === "bulk_pack"
+    || normalized === "bulk_credit_pack"
+    || normalized.endsWith("_bulk_pack")
+    || normalized.endsWith("_bulk_credit_pack")
+  ) {
+    return "bulk_pack";
+  }
+
+  if (
     normalized === "credit_pack"
+    || normalized === "library_pack"
+    || normalized.endsWith("_library_pack")
     || normalized === "large_pack"
     || normalized === "large_credit_pack"
     || normalized.endsWith("_credit_pack")
@@ -88,6 +103,12 @@ function matchPlanId(value: string): string | null {
     || normalized.endsWith("_large_credit_pack")
   ) {
     return "credit_pack";
+  }
+
+  for (const matcher of SUBSCRIPTION_PLAN_MATCHERS) {
+    if (matcher.terms.some(hasTerm)) {
+      return matcher.planId;
+    }
   }
 
   if (normalized === "free") return "free";

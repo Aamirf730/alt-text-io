@@ -74,6 +74,9 @@ describe("checkout identity binding", () => {
         process.env.NEXT_PUBLIC_POLAR_TIER1_MONTHLY = "prod_1";
         process.env.NEXT_PUBLIC_POLAR_SMALL_PACK = "prod_small";
         process.env.NEXT_PUBLIC_POLAR_CREDIT_PACK = "prod_large";
+        process.env.NEXT_PUBLIC_POLAR_BULK_PACK = "prod_bulk";
+        process.env.NEXT_PUBLIC_POLAR_LEGACY_TIER3_MONTHLY = "prod_legacy_pro";
+        delete process.env.NEXT_PUBLIC_POLAR_TIER3_MONTHLY;
         mocks.state.user = { id: "user_1", email: "Verified@Example.com" };
         mocks.state.authError = null;
         mocks.state.profile = {
@@ -144,7 +147,18 @@ describe("checkout identity binding", () => {
         expect(mocks.state.checkoutArgs).not.toHaveProperty("customerEmail", "attacker@example.com");
     });
 
-    it.each(["prod_small", "prod_large"])(
+    it("rejects legacy products that are no longer on sale", async () => {
+        const response = await GET(new NextRequest(
+            "http://localhost/api/checkout?products=prod_legacy_pro&format=json",
+            { headers: { Authorization: "Bearer verified-session-token" } },
+        ));
+
+        expect(response.status).toBe(400);
+        expect(await response.json()).toEqual({ error: "Unknown checkout product" });
+        expect(mocks.createCheckout).not.toHaveBeenCalled();
+    });
+
+    it.each(["prod_small", "prod_large", "prod_bulk"])(
         "allows an eligible monthly subscriber to buy %s",
         async (productId) => {
             const response = await GET(new NextRequest(
@@ -164,11 +178,30 @@ describe("checkout identity binding", () => {
         },
     );
 
-    it("rejects a free account attempting to buy a credit pack", async () => {
+    it("allows a free account to buy a credit pack", async () => {
         mocks.state.profile = {
             polar_customer_id: null,
             subscription_plan: "free",
             subscription_status: "active",
+            billing_cycle: null,
+        };
+
+        const response = await GET(new NextRequest(
+            "http://localhost/api/checkout?products=prod_bulk&format=json",
+            { headers: { Authorization: "Bearer verified-session-token" } },
+        ));
+
+        expect(response.status).toBe(200);
+        expect(mocks.createCheckout).toHaveBeenCalledWith(expect.objectContaining({
+            products: ["prod_bulk"],
+        }));
+    });
+
+    it("rejects a revoked account attempting to buy a credit pack", async () => {
+        mocks.state.profile = {
+            polar_customer_id: null,
+            subscription_plan: "tier2",
+            subscription_status: "revoked",
             billing_cycle: "monthly",
         };
 
@@ -179,7 +212,7 @@ describe("checkout identity binding", () => {
 
         expect(response.status).toBe(403);
         expect(await response.json()).toEqual({
-            error: "Credit top-ups are available to paid subscribers only.",
+            error: "This account cannot buy credit packs right now. Please contact support.",
         });
         expect(mocks.createCheckout).not.toHaveBeenCalled();
     });
