@@ -3,6 +3,8 @@
 # IDE and editors
 .idea/
 .vscode/
+*.swp
+*.swo
 
 # Dependencies
 node_modules/
@@ -48,6 +50,10 @@ dump.rdb
 /PRE_LIVE_TEST_REPORT.md
 /PRODUCTION_READINESS*.md
 /PROJECT_REVIEW_REPORT.md
+/CODE_AUDIT_REPORT.md
+/report.md
+/full-project-code-audit-and-issue-report.json
+/audit-evidence/2026-08-17/
 /delete_react_env.sh
 /scope_env.sh
 /frontend-next/convert_theme.js
@@ -81,12 +87,6 @@ agenthub/agents/youtube/db
 
 # Archive files and large assets
 **/*.zip
-!frontend-next/public/downloads/
-!frontend-next/public/downloads/alt-text-pro.zip
-!frontend-next/public/wordpress-plugin/
-!frontend-next/public/wordpress-plugin/alt-text-pro-plugin.zip
-!frontend-next/public/wordpress-plugin/alt-text-pro-plugin-1.4.96.zip
-!frontend-next/public/wordpress-plugin/alt-text-pro-plugin-1.7.14.zip
 **/*.tar.gz
 **/*.tar
 **/*.tgz

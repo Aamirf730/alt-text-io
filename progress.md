@@ -1,5 +1,44 @@
 # Progress
 
+## 2026-10-24: Repository root cleanup
+
+- Removed the committed Vim swap file `frontend-next/src/app/dashboard/.page.tsx.swp` and ignored `*.swp`/`*.swo`.
+- The raw audit artifacts (`CODE_AUDIT_REPORT.md`, `report.md`, `full-project-code-audit-and-issue-report.json`, `audit-evidence/2026-08-17/`) stay local and are now ignored instead of showing as untracked.
+- Committed the `next dev`-generated `frontend-next/AGENTS.md` and `frontend-next/CLAUDE.md`, and the deletion of stale public plugin ZIPs. `build-plugin.sh` recreates `alt-text-pro-plugin.zip`, the current versioned ZIP, and `downloads/alt-text-pro.zip` during every Netlify build; the `.gitignore` exceptions for old ZIPs were removed.
+- Deleted unused code: the six `start-*.sh` scripts (they started a removed `frontend/` CRA app), `netlify-frontend/`, `netlify-functions-auth/`, `netlify-functions-built/`, `netlify-config/`, `netlify-config-auth/`, `supabase-auth-frontend/`, `tests/`, `deno.lock`, `.emergent/`, `legacy/` (PayPal), root `backups/`, `backup.sh`, `create-full-backup.sh`, and `.cursor/rules/zenable.mdc`.
+- Moved one-off production scripts to `scripts/ops/` and superseded docs to `docs/archive/`.
+- Known issue, not fixed: the deleted `backups/.../database-export.sql` contained customer email addresses and remains in Git history since 2025-11-20. History was intentionally not rewritten; a purge needs separate approval.
+- `email-template-preview.html` was left untracked pending a decision. No production system was touched; nothing was pushed.
+
+## 2026-10-24: Complete workspace restored to T7
+
+- Owner requested restoration for local work under `/Volumes/T7/Projects`.
+  Restored the full latest recorded vault archive `Alt-text-Pro_v1.7.25_03.zip`
+  (2026-09-01) to `/Volumes/T7/Projects/Alt-text`; preserved its original folder
+  name and complete internal structure. No destination was overwritten.
+- Authoritative source is `/Volumes/T7/Projects/Alt-text/v3 - react to next - working/app-main`.
+  The outer Git repository remains archival and must not be treated as the source root.
+- SHA-256 matched `dbffd716204f4d9cf268d5a7a2c3a02c39ffc516189610ee8bbc1a3748c8b98b`.
+  ZIP integrity and full extraction verification passed for all 77,046 entries:
+  71,852 regular files, 5,129 directories and 65 symlinks. Every regular file's
+  SHA-256, permissions, structure and symlink target matched before this update.
+- Read the project navigation/context and operational instructions and ran
+  `scripts/ai-context.sh`. Git integrity passed; local main and archived origin/main
+  remain at `ed3b4b9a61956352718af495283b9920ed2522e3`. Preserved all 14 archived
+  dirty/untracked entries, including deliberate generated-package deletions and
+  existing documentation/audit changes. No pull, commit, push or remote change.
+- Plugin header, version constant, stable tag and frontend marker all report 1.7.25.
+  No application changes, package rebuilding, deployment, live-system operation,
+  archive creation/deletion or cleanup occurred. This progress update is local and
+  uncommitted; builds/runtime tests were not rerun. Earlier production evidence is
+  historical, not a fresh production check. Vault manifest/history updated.
+
+## 2026-08-30: Generated live-site redesign directions
+
+- Status: three independent landing-page design directions were generated from a captured read-only view of `https://www.alt-text.pro/` and the existing frontend context; waiting for the user to select a visual direction before any build work.
+- Assessment: the current visual identity is distinctive, but the first-screen value proposition is still abstract until the WordPress review workflow is shown. The directions test workflow-first proof, editorial trust, and demo-first interaction.
+- Scope: no application code, production system, billing, Supabase, Netlify, or WordPress site was changed.
+
 ## 2026-08-25: Corrected frontend plugin version marker
 
 - Status: complete. Ran `scripts/sync-plugin-version.mjs` so `frontend-next/src/lib/plugin-version.ts` now reports `1.7.25`, matching the WordPress plugin header, version constant, and readme stable tag.

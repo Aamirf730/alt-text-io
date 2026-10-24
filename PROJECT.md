@@ -15,6 +15,8 @@ Alt Text Pro is a SaaS plus WordPress plugin that generates AI alt text for Word
 - `wordpress-plugin/build-plugin.sh`: builds plugin ZIP and copies it to `frontend-next/public/wordpress-plugin/` and `frontend-next/public/downloads/`.
 - `supabase/migrations/`: active Supabase migration history.
 - `supabase-migration/`: older/manual migration scripts and runner.
+- `scripts/ops/`: one-off scripts that write to the production database; run only with explicit scoped approval.
+- `docs/archive/`: superseded plans, reviews, and overviews kept for reference.
 
 ## High-Token Folders To Avoid By Default
 
@@ -22,8 +24,9 @@ Do not scan these broadly unless needed:
 
 - `node_modules/`, `frontend-next/node_modules/`, `netlify-functions/node_modules/`
 - `frontend-next/.next/`, `.netlify/`, `.next/`
-- `backups/`, `legacy/`, `venv/`, `netlify-functions-built/`
+- `wordpress-plugin/backups/`, `venv/`, `docs/archive/`
 - old reports: `PRE_LIVE_TEST_REPORT.md`, `PRODUCTION_READINESS*.md`, `PROJECT_REVIEW_REPORT.md`
+- untracked raw audit artifacts: `CODE_AUDIT_REPORT.md`, `report.md`, `full-project-code-audit-and-issue-report.json`, `audit-evidence/2026-08-17/`
 
 Use narrow searches:
 

@@ -36,7 +36,7 @@ The project has been modernized to a premium state:
 ## 📖 Essential Documentation
 
 For a deeper dive into specific areas, please refer to:
-*   [DEVELOPMENT_PROGRESS.md](./DEVELOPMENT_PROGRESS.md) - Chronological record of the project's development and migration journey.
+*   [progress.md](./progress.md) - Chronological record of the project's development, releases, and verification. Earlier history is in [docs/archive/](./docs/archive/).
 *   [TECHNICAL_OVERVIEW.md](./TECHNICAL_OVERVIEW.md) - Detailed technical architecture, API system, and infrastructure setup guide.
 
 ---
