@@ -10,7 +10,11 @@ function buildContentSecurityPolicy(nonce: string): string {
   return [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' https://accounts.google.com/gsi/client${developmentScriptSources}`,
-    "style-src 'self' 'nonce-" + nonce + "' https://accounts.google.com/gsi/style",
+    // Styles cannot be nonce-only: sonner injects its stylesheet at runtime
+    // and next/image writes inline style attributes. A nonce here would make
+    // browsers ignore 'unsafe-inline', so styles allow inline while scripts
+    // stay nonce-only.
+    "style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style",
     `font-src 'self' data:${developmentSources}`,
     `img-src 'self' https://www.alt-text.pro https://alt-text.pro https://*.supabase.co data: blob:${developmentSources}`,
     `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://accounts.google.com/gsi/ https://api.polar.sh https://*.netlify.app https://www.alt-text.pro${developmentSources}`,

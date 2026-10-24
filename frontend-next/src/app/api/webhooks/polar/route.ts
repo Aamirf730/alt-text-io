@@ -710,6 +710,56 @@ async function renewSubscriptionCredits({
     return result;
 }
 
+type SubscriptionPlanChangeResult = {
+    success: boolean;
+    changed?: boolean;
+    reason?: string;
+    error?: string;
+};
+
+// Applies a product switch made inside the current billing period (for
+// example an upgrade in the Polar customer portal). The RPC is a no-op when
+// the profile already matches, so replays and plain status updates are safe.
+async function changeSubscriptionPlan({
+    userId,
+    subscriptionId,
+    planId,
+    polarProductId,
+    billingCycle,
+    monthlyCreditAllowance,
+    nextBillingDate,
+}: {
+    userId: string;
+    subscriptionId: string;
+    planId: string;
+    polarProductId: string | null;
+    billingCycle: "monthly" | "annual";
+    monthlyCreditAllowance: number;
+    nextBillingDate: string | null;
+}): Promise<SubscriptionPlanChangeResult> {
+    const { data, error } = await getSupabase().rpc("change_subscription_plan", {
+        p_user_id: userId,
+        p_subscription_id: subscriptionId,
+        p_subscription_plan: planId,
+        p_polar_product_id: polarProductId,
+        p_billing_cycle: billingCycle,
+        p_monthly_credit_allowance: monthlyCreditAllowance,
+        p_next_billing_date: nextBillingDate,
+    });
+
+    if (error) {
+        console.error("Error changing subscription plan:", safeServerError(error));
+        throw error;
+    }
+
+    const result = data as SubscriptionPlanChangeResult | null;
+    if (!result?.success) {
+        throw new Error(result?.error || "Subscription plan change failed");
+    }
+
+    return result;
+}
+
 const polarWebhookHandlers = {
 
     // Handle successful order payment and subscription revenue bookkeeping.
@@ -1253,6 +1303,24 @@ const polarWebhookHandlers = {
 
                     if (renewalResult.renewed) {
                         console.log("Subscription allowance renewed");
+                    } else if (renewalResult.reason === "period_already_processed") {
+                        // Same period: this may be a plan switch made in the
+                        // customer portal, which must take effect now rather
+                        // than at the next renewal.
+                        const changeResult = await changeSubscriptionPlan({
+                            userId,
+                            subscriptionId: subscription.id,
+                            planId,
+                            polarProductId: productId,
+                            billingCycle,
+                            monthlyCreditAllowance: monthlyAllowance,
+                            nextBillingDate: getSubscriptionEnd(subscription),
+                        });
+                        console.log(
+                            changeResult.changed
+                                ? "Subscription plan changed within the current period"
+                                : `No plan change applied: reason=${changeResult.reason || "no_change"}`
+                        );
                     } else {
                         console.log(
                             `Skipping credit update: reason=${renewalResult.reason || "already_processed"}`

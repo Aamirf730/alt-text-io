@@ -29,4 +29,22 @@ describe("dashboard operations console", () => {
     expect(dashboardSource).not.toContain("dashboard-preview");
     expect(dashboardSource).not.toContain("TEMPORARY DESIGN QA");
   });
+
+  it("fetches a current access token for each API call instead of reusing the load-time token", () => {
+    expect(dashboardSource).not.toMatch(/Bearer \$\{user\.token\}/);
+    expect(dashboardSource).toContain("await getAccessToken()");
+
+    const adminSource = fs.readFileSync(path.resolve(process.cwd(), "src/app/admin/page.tsx"), "utf8");
+    expect(adminSource).not.toMatch(/user\??\.token/);
+    expect(adminSource).toContain("await getAccessToken()");
+  });
+
+  it("reopens a plan chosen before sign-in and keeps subscribers out of a second checkout", () => {
+    expect(dashboardSource).toContain("consumePendingCheckout()");
+    expect(dashboardSource).toContain("pending.kind === 'subscription' && isSubscribed");
+    expect(dashboardSource).toContain("data.code === SUBSCRIPTION_EXISTS_CODE");
+
+    const homeSource = fs.readFileSync(path.resolve(process.cwd(), "src/app/page.tsx"), "utf8");
+    expect(homeSource).toContain("savePendingCheckout(planId, billingCycle)");
+  });
 });

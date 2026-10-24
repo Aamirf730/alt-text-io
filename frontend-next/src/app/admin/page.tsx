@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from '@/lib/supabase';
+import { getAccessToken, supabase } from '@/lib/supabase';
 import { getApiBase } from '@/lib/utils';
 import { toast } from "sonner";
 import { Activity, BarChart3, Mail, Plug, RefreshCw, Search, TrendingDown, Users, X } from "lucide-react";
@@ -175,31 +175,55 @@ export default function AdminDashboard() {
         checkAuthAndLoadData();
     }, [router, loadUsers, loadFunnel, loadLifecycle]);
 
-    const handleRefresh = async () => {
-        if (user?.token) {
-            setIsLoading(true);
-            await Promise.all([
-                loadUsers(user.token),
-                loadFunnel(user.token, funnelDays),
-                loadLifecycle(user.token, lifecycleDays),
-            ]);
-            setIsLoading(false);
-            toast.success("Admin data refreshed");
+    // The token captured on load expires after an hour; fetch a current one
+    // for every request so a long-open admin page keeps working.
+    const requireAccessToken = async (): Promise<string | null> => {
+        const accessToken = await getAccessToken();
+        if (!accessToken) {
+            toast.error("Your session expired. Please sign in again.");
+            router.replace("/");
         }
+        return accessToken;
+    };
+
+    const handleRefresh = async () => {
+        const accessToken = await requireAccessToken();
+        if (!accessToken) return;
+
+        setIsLoading(true);
+        await Promise.all([
+            loadUsers(accessToken),
+            loadFunnel(accessToken, funnelDays),
+            loadLifecycle(accessToken, lifecycleDays),
+        ]);
+        setIsLoading(false);
+        toast.success("Admin data refreshed");
     };
 
     const handleFunnelDaysChange = async (days: string) => {
         setFunnelDays(days);
-        if (user?.token) {
-            await loadFunnel(user.token, days);
+        const accessToken = await requireAccessToken();
+        if (accessToken) {
+            await loadFunnel(accessToken, days);
         }
     };
 
     const handleLifecycleDaysChange = async (days: string) => {
         setLifecycleDays(days);
-        if (user?.token) {
-            await loadLifecycle(user.token, days);
+        const accessToken = await requireAccessToken();
+        if (accessToken) {
+            await loadLifecycle(accessToken, days);
         }
+    };
+
+    const reloadFunnel = async () => {
+        const accessToken = await requireAccessToken();
+        if (accessToken) await loadFunnel(accessToken, funnelDays);
+    };
+
+    const reloadLifecycle = async () => {
+        const accessToken = await requireAccessToken();
+        if (accessToken) await loadLifecycle(accessToken, lifecycleDays);
     };
 
     const getLifecycleRuleForStatus = (status: string) => {
@@ -212,10 +236,17 @@ export default function AdminDashboard() {
 
     const runLifecycleTestSend = async (row: any, dryRun: boolean) => {
         const automationKey = getLifecycleRuleForStatus(row.follow_up_status);
-        if (!user?.token || !automationKey) {
+        if (!automationKey) {
             toast.error("This row is not eligible for a lifecycle test email.");
             return;
         }
+
+        if (!dryRun && !window.confirm(`Send a real "${row.follow_up_status}" email to ${row.email}? This uses their one-time send for this rule.`)) {
+            return;
+        }
+
+        const accessToken = await requireAccessToken();
+        if (!accessToken) return;
 
         const actionKey = `${row.user_id}:${automationKey}:${dryRun ? "dry" : "send"}`;
         setLifecycleActionKey(actionKey);
@@ -225,7 +256,7 @@ export default function AdminDashboard() {
             const response = await fetch(`${apiBase}/admin-lifecycle-test-send`, {
                 method: "POST",
                 headers: {
-                    "Authorization": `Bearer ${user.token}`,
+                    "Authorization": `Bearer ${accessToken}`,
                     "Content-Type": "application/json",
                 },
                 body: JSON.stringify({
@@ -245,7 +276,7 @@ export default function AdminDashboard() {
                 toast.success(`Dry-run matched ${result.candidate?.automation_key || automationKey}`);
             } else {
                 toast.success(`Test email sent to ${row.email}`);
-                await loadLifecycle(user.token, lifecycleDays);
+                await loadLifecycle(accessToken, lifecycleDays);
             }
         } catch (error: any) {
             console.error("Lifecycle test send failed:", error);
@@ -581,7 +612,7 @@ export default function AdminDashboard() {
                                     <option value="90">Last 90 days</option>
                                 </select>
                                 <Button
-                                    onClick={() => user?.token && loadFunnel(user.token, funnelDays)}
+                                    onClick={() => void reloadFunnel()}
                                     variant="outline"
                                     disabled={isLoadingFunnel}
                                     className="gap-2"
@@ -800,7 +831,7 @@ export default function AdminDashboard() {
                                     <option value="Active">Active</option>
                                 </select>
                                 <Button
-                                    onClick={() => user?.token && loadLifecycle(user.token, lifecycleDays)}
+                                    onClick={() => void reloadLifecycle()}
                                     variant="outline"
                                     disabled={isLoadingLifecycle}
                                     className="gap-2"

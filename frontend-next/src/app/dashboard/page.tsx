@@ -1,16 +1,18 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import NextImage from "next/image";
-import { supabase } from '@/lib/supabase';
+import { getAccessToken, supabase } from '@/lib/supabase';
 import { getApiBase, PLAN_CREDIT_LIMITS, PLUGIN_VERSION } from '@/lib/utils';
 import { trackMarketingEvent } from '@/lib/analytics';
 import { getPolarProductId } from '@/lib/polar-products';
-import { CREDIT_PACKS, getPurchaseOption, SUBSCRIPTION_PLANS } from '@/lib/pricing-catalog';
+import { CREDIT_PACKS, getPlanDisplayName, getPurchaseOption, SUBSCRIPTION_PLANS } from '@/lib/pricing-catalog';
 import { isCreditPackEligible as getIsCreditPackEligible } from '@/lib/credit-pack-eligibility';
 import { getUsageDisplayLimit } from '@/lib/credit-display';
+import { consumePendingCheckout } from '@/lib/pending-checkout';
+import { hasLivePaidSubscription, SUBSCRIPTION_EXISTS_CODE, SUBSCRIPTION_EXISTS_MESSAGE } from '@/lib/subscription-status';
 
 type UsageHistoryItem = {
     id: string;
@@ -117,35 +119,27 @@ export default function Dashboard() {
     const currentPlan = String(usageStats?.plan || 'free');
     const currentPlanLimit = PLAN_CREDIT_LIMITS[currentPlan] || PLAN_CREDIT_LIMITS.free;
     const billingCycle = String(usageStats?.billing_cycle || subscriptionData?.subscription?.billing_cycle || '');
+    const currentSubscriptionStatus = usageStats?.subscription_status || subscriptionData?.subscription?.status;
     const isCreditPackEligible = getIsCreditPackEligible({
         subscription_plan: currentPlan,
-        subscription_status: usageStats?.subscription_status || subscriptionData?.subscription?.status,
+        subscription_status: currentSubscriptionStatus,
+    });
+    const isSubscribed = hasLivePaidSubscription({
+        subscription_plan: currentPlan,
+        subscription_status: currentSubscriptionStatus,
     });
     const monthlyCreditAllowance = Number(usageStats?.monthly_credit_allowance || subscriptionData?.subscription?.monthly_credit_allowance || 0);
     const monthlyCreditLimit = Number(usageStats?.monthly_credit_limit || 0);
     const bonusCreditsRemaining = Number(usageStats?.bonus_credits_remaining || 0);
     const purchasedCreditsRemaining = Number(usageStats?.purchased_credits_remaining || 0);
-    const planAllowance = monthlyCreditLimit || (billingCycle === 'annual' && monthlyCreditAllowance > 0 ? monthlyCreditAllowance : currentPlanLimit);
+    // A pinned allowance (legacy subscribers, annual drip) wins over the catalogue fallback.
+    const planAllowance = monthlyCreditLimit || (monthlyCreditAllowance > 0 ? monthlyCreditAllowance : currentPlanLimit);
     const creditsUsed = Number(usageStats?.monthly_credits_used ?? usageStats?.total_processed ?? 0);
     const creditsRemaining = Number(usageStats?.monthly_credits_remaining ?? usageStats?.credits_remaining ?? 0);
     const creditUsageLimit = getUsageDisplayLimit(currentPlan, planAllowance, creditsRemaining, creditsUsed);
     const creditUsagePercent = creditUsageLimit > 0 ? Math.min((creditsUsed / creditUsageLimit) * 100, 100) : 0;
-    const planLabels: Record<string, string> = {
-        free: 'Free',
-        tier1: 'Starter',
-        tier2: 'Growth',
-        tier3: 'Pro',
-        tier4: 'Agency',
-        lite: 'Lite',
-        standard: 'Standard',
-        pro: 'Pro',
-        agency: 'Agency',
-        small_pack: 'Credit Pack',
-        credit_pack: 'Credit Pack',
-        bulk_pack: 'Credit Pack',
-        pay_as_go: 'Credit Pack',
-    };
-    const basePlanLabel = planLabels[currentPlan] || currentPlan.replace(/_/g, ' ');
+    // Legacy subscribers keep their original plan name and allowance.
+    const basePlanLabel = getPlanDisplayName(currentPlan, monthlyCreditLimit || monthlyCreditAllowance);
     const displayPlanLabel = billingCycle && currentPlan !== 'free' && currentPlan !== 'small_pack' && currentPlan !== 'pay_as_go'
         ? `${basePlanLabel} ${billingCycle === 'annual' ? 'Annual' : 'Monthly'}`
         : basePlanLabel;
@@ -274,18 +268,6 @@ export default function Dashboard() {
             return;
         }
 
-        trackMarketingEvent("checkout_started", {
-            source: "dashboard",
-            userId: user?.id,
-            userEmail: session.user.email || user?.email,
-            properties: {
-                product_id: productId,
-                plan_id: selectedUpgradePlan?.id,
-                plan_name: selectedUpgradePlan?.name,
-                plan_price: selectedUpgradePlan?.price,
-            },
-        });
-
         const response = await fetch(
             `/api/checkout?products=${encodeURIComponent(productId)}&format=json`,
             {
@@ -297,10 +279,31 @@ export default function Dashboard() {
         );
         const data = await response.json().catch(() => ({}));
 
+        if (data.code === SUBSCRIPTION_EXISTS_CODE) {
+            toast.info(data.error);
+            setShowUpgradeModal(false);
+            setSelectedUpgradePlan(null);
+            return;
+        }
+
         if (!response.ok || !data.url) {
             toast.error(data.error || 'Could not start checkout. Please try again.');
             return;
         }
+
+        // Recorded only once a checkout exists, so a refused request never
+        // triggers checkout-recovery emails.
+        trackMarketingEvent("checkout_started", {
+            source: "dashboard",
+            userId: user?.id,
+            userEmail: session.user.email || user?.email,
+            properties: {
+                product_id: productId,
+                plan_id: selectedUpgradePlan?.id,
+                plan_name: selectedUpgradePlan?.name,
+                plan_price: selectedUpgradePlan?.price,
+            },
+        });
 
         window.location.href = data.url;
     };
@@ -337,16 +340,21 @@ export default function Dashboard() {
 
     // Load API key for WordPress plugin
     const loadApiKey = useCallback(async () => {
-        if (!user?.id || !user?.token) return;
+        if (!user?.id) return;
 
         setIsLoadingApiKey(true);
         setApiKeyError(null);
         setApiKeyErrorCode(null);
         try {
+            const accessToken = await getAccessToken();
+            if (!accessToken) {
+                setApiKeyError('Your session expired. Please sign in again.');
+                return;
+            }
             const response = await fetch(`${getApiBase()}/get-api-key`, {
                 method: 'GET',
                 headers: {
-                    Authorization: `Bearer ${user.token}`,
+                    Authorization: `Bearer ${accessToken}`,
                     'Content-Type': 'application/json',
                 },
             });
@@ -509,14 +517,14 @@ export default function Dashboard() {
 
     // Load API key and recent history after the authenticated user is available.
     useEffect(() => {
-        if (!user?.token) return;
+        if (!user?.id) return;
 
         const timer = window.setTimeout(() => {
             void loadApiKey();
         }, 0);
 
         return () => window.clearTimeout(timer);
-    }, [loadApiKey, user?.token]);
+    }, [loadApiKey, user?.id]);
 
     useEffect(() => {
         if (!user?.id) return;
@@ -545,8 +553,32 @@ export default function Dashboard() {
         }
     };
 
+    // Reopen a plan or pack chosen on the homepage before sign-up or sign-in.
+    const pendingCheckoutHandledRef = useRef(false);
+    useEffect(() => {
+        if (!usageStats || pendingCheckoutHandledRef.current) return;
+        pendingCheckoutHandledRef.current = true;
+
+        const pending = consumePendingCheckout();
+        if (!pending) return;
+
+        if (pending.kind === 'subscription' && isSubscribed) {
+            toast.info(SUBSCRIPTION_EXISTS_MESSAGE);
+            return;
+        }
+        if (pending.kind === 'pack' && !isCreditPackEligible) return;
+
+        // Deferred like the other dashboard effects. Not cancelled on cleanup:
+        // the saved choice is already consumed and must still open once.
+        window.setTimeout(() => {
+            setUpgradeModalView(pending.kind === 'pack' ? 'credit-packs' : 'plans');
+            setSelectedUpgradePlan({ id: pending.checkoutId, name: pending.name, price: pending.price });
+            setShowUpgradeModal(true);
+        }, 0);
+    }, [usageStats, isSubscribed, isCreditPackEligible]);
+
     const rotateApiKey = async () => {
-        if (!user?.id || !user?.token) return;
+        if (!user?.id) return;
 
         if (!confirm("Rotate your API key? Your old key will stop working immediately.")) {
             return;
@@ -554,10 +586,15 @@ export default function Dashboard() {
 
         setIsLoadingApiKey(true);
         try {
+            const accessToken = await getAccessToken();
+            if (!accessToken) {
+                toast.error("Your session expired. Please sign in again.");
+                return;
+            }
             const response = await fetch(`${getApiBase()}/get-api-key`, {
                 method: 'POST',
                 headers: {
-                    Authorization: `Bearer ${user.token}`,
+                    Authorization: `Bearer ${accessToken}`,
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({ rotate: true }),
@@ -585,7 +622,8 @@ export default function Dashboard() {
             return;
         }
 
-        if (!user?.token) {
+        const accessToken = await getAccessToken();
+        if (!accessToken) {
             toast.error("Session expired. Please sign in again.");
             router.push("/");
             return;
@@ -593,7 +631,15 @@ export default function Dashboard() {
 
         // Check if user has credits
         if (usageStats?.credits_remaining <= 0) {
-            toast.error("No credits remaining. Please upgrade your plan to continue.");
+            if (isSubscribed) {
+                // Subscribers change plans in the customer portal; offer packs here.
+                toast.error("No credits remaining. Top up with a credit pack or change your plan in Manage billing.");
+                setUpgradeModalView("credit-packs");
+            } else {
+                toast.error("No credits remaining. Please upgrade your plan to continue.");
+                setUpgradeModalView("plans");
+            }
+            setSelectedUpgradePlan(null);
             setShowUpgradeModal(true);
             return;
         }
@@ -613,7 +659,7 @@ export default function Dashboard() {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${user.token}`
+                    'Authorization': `Bearer ${accessToken}`
                 },
                 body: JSON.stringify({
                     image_base64: base64Data,

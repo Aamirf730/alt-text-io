@@ -8,6 +8,8 @@ import { supabase } from '@/lib/supabase';
 import { getApiBase } from '@/lib/utils';
 import { trackMarketingEvent } from '@/lib/analytics';
 import { getPolarProductId } from '@/lib/polar-products';
+import { savePendingCheckout } from '@/lib/pending-checkout';
+import { SUBSCRIPTION_EXISTS_CODE } from '@/lib/subscription-status';
 import { toast } from "sonner";
 import {
   Brain, CheckCircle, Star, ArrowRight, Users, Shield, Rocket,
@@ -309,7 +311,9 @@ export default function LandingPage() {
   // Handle plan selection
   const handlePlanSelection = (planId: string, planName: string, planPrice: string) => {
     if (!user) {
-      // User not logged in, show auth form first
+      // User not logged in, show auth form first. The choice is kept so the
+      // dashboard can reopen it after sign-up, email confirmation or sign-in.
+      savePendingCheckout(planId, billingCycle);
       setIsLogin(false); // Set to signup mode
       setShowAuthForm(true);
       setSelectedPlan({ id: planId, name: planName, price: planPrice });
@@ -335,17 +339,6 @@ export default function LandingPage() {
       return false;
     }
 
-    trackMarketingEvent("checkout_started", {
-      source: "landing_page",
-      userId: user?.id,
-      userEmail: session.user.email || user?.email,
-      properties: {
-        product_id: productId,
-        plan_id: selectedPlan?.id,
-        billing_cycle: billingCycle,
-      },
-    });
-
     const response = await fetch(
       `/api/checkout?products=${encodeURIComponent(productId)}&format=json`,
       {
@@ -357,10 +350,30 @@ export default function LandingPage() {
     );
     const data = await response.json().catch(() => ({}));
 
+    if (data.code === SUBSCRIPTION_EXISTS_CODE) {
+      toast.info(data.error);
+      setShowPaymentModal(false);
+      router.push("/dashboard");
+      return false;
+    }
+
     if (!response.ok || !data.url) {
       toast.error(data.error || 'Could not start checkout. Please try again.');
       return false;
     }
+
+    // Recorded only once a checkout exists, so a refused request never
+    // triggers checkout-recovery emails.
+    trackMarketingEvent("checkout_started", {
+      source: "landing_page",
+      userId: user?.id,
+      userEmail: session.user.email || user?.email,
+      properties: {
+        product_id: productId,
+        plan_id: selectedPlan?.id,
+        billing_cycle: billingCycle,
+      },
+    });
 
     window.location.href = data.url;
     return true;

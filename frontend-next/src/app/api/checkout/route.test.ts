@@ -81,9 +81,9 @@ describe("checkout identity binding", () => {
         mocks.state.authError = null;
         mocks.state.profile = {
             polar_customer_id: null,
-            subscription_plan: "tier1",
+            subscription_plan: "free",
             subscription_status: "active",
-            billing_cycle: "monthly",
+            billing_cycle: null,
         };
         mocks.state.profileError = null;
         mocks.state.checkoutArgs = null;
@@ -159,7 +159,7 @@ describe("checkout identity binding", () => {
     });
 
     it.each(["prod_small", "prod_large", "prod_bulk"])(
-        "allows an eligible monthly subscriber to buy %s",
+        "allows an account to buy %s",
         async (productId) => {
             const response = await GET(new NextRequest(
                 `http://localhost/api/checkout?products=${productId}&format=json`,
@@ -234,5 +234,59 @@ describe("checkout identity binding", () => {
         expect(mocks.createCheckout).toHaveBeenCalledWith(expect.objectContaining({
             products: ["prod_large"],
         }));
+    });
+
+    it.each(["active", "cancelled"])(
+        "sends an %s subscriber to the portal instead of starting a second subscription",
+        async (subscription_status) => {
+            mocks.state.profile = {
+                polar_customer_id: "cus_1",
+                subscription_plan: "tier1",
+                subscription_status,
+                billing_cycle: "monthly",
+            };
+            process.env.NEXT_PUBLIC_POLAR_TIER2_MONTHLY = "prod_growth";
+
+            const response = await GET(new NextRequest(
+                "http://localhost/api/checkout?products=prod_growth&format=json",
+                { headers: { Authorization: "Bearer verified-session-token" } },
+            ));
+
+            expect(response.status).toBe(409);
+            expect(await response.json()).toMatchObject({ code: "subscription_exists" });
+            expect(mocks.createCheckout).not.toHaveBeenCalled();
+        },
+    );
+
+    it("lets a subscriber buy a credit pack", async () => {
+        mocks.state.profile = {
+            polar_customer_id: "cus_1",
+            subscription_plan: "tier1",
+            subscription_status: "active",
+            billing_cycle: "monthly",
+        };
+
+        const response = await GET(new NextRequest(
+            "http://localhost/api/checkout?products=prod_small&format=json",
+            { headers: { Authorization: "Bearer verified-session-token" } },
+        ));
+
+        expect(response.status).toBe(200);
+    });
+
+    it("lets a revoked former subscriber start a new subscription", async () => {
+        mocks.state.profile = {
+            polar_customer_id: "cus_1",
+            subscription_plan: "free",
+            subscription_status: "active",
+            billing_cycle: null,
+        };
+
+        const response = await GET(new NextRequest(
+            "http://localhost/api/checkout?products=prod_1&format=json",
+            { headers: { Authorization: "Bearer verified-session-token" } },
+        ));
+
+        expect(response.status).toBe(200);
     });
 });

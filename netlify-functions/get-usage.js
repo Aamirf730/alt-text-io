@@ -26,6 +26,54 @@ const supabase = supabaseUrl && supabaseServiceKey
   ? createClient(supabaseUrl, supabaseServiceKey)
   : null;
 
+/**
+ * Reads only what the response needs, so the cost no longer grows with an
+ * account's lifetime history: an exact count for the lifetime total, this
+ * cycle's credit rows (bounded by the cycle's allowance and packs), and the
+ * ten most recent generations.
+ */
+async function loadUsageSummary(client, userId, cycleStart) {
+  const cycleStartIso = cycleStart.toISOString();
+
+  const [totalResult, cycleRows, recentResult] = await Promise.all([
+    client
+      .from('usage_logs')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId),
+    fetchAllRows(
+      (from, to) => client
+        .from('usage_logs')
+        .select('id,credits_used,created_at')
+        .eq('user_id', userId)
+        .gte('created_at', cycleStartIso)
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+        .range(from, to),
+      { label: 'cycle usage logs' }
+    ),
+    client
+      .from('usage_logs')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .limit(10),
+  ]);
+
+  if (totalResult.error) {
+    throw new Error(`Failed to count usage logs: ${totalResult.error.message || totalResult.error}`);
+  }
+  if (recentResult.error) {
+    throw new Error(`Failed to fetch recent usage: ${recentResult.error.message || recentResult.error}`);
+  }
+
+  return {
+    totalGenerated: Number(totalResult.count || 0),
+    creditsUsed: cycleRows.reduce((sum, log) => sum + Number(log.credits_used || 1), 0),
+    recentUsage: recentResult.data || [],
+  };
+}
+
 exports.handler = async (event, context) => {
   // Get secure CORS headers (origin-validated)
   const headers = getCorsHeaders(event.headers, ['GET', 'OPTIONS']);
@@ -151,20 +199,13 @@ exports.handler = async (event, context) => {
       userId || authUser.id,
     );
 
-    // Get every usage page. PostgREST commonly caps an un-ranged select at
-    // 1,000 rows, which would make customer totals silently undercount.
-    let usageLogs;
+    const cycleStart = profile.credits_last_renewed_at
+      ? new Date(profile.credits_last_renewed_at)
+      : new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1));
+
+    let usageSummary;
     try {
-      usageLogs = await fetchAllRows(
-        (from, to) => supabase
-          .from('usage_logs')
-          .select('*')
-          .eq('user_id', userId || authUser.id)
-          .order('created_at', { ascending: false })
-          .order('id', { ascending: false })
-          .range(from, to),
-        { label: 'usage logs' }
-      );
+      usageSummary = await loadUsageSummary(supabase, userId || authUser.id, cycleStart);
     } catch (usageError) {
       console.error('Error fetching usage logs:', usageError.message || usageError);
       return {
@@ -174,15 +215,7 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Calculate statistics
-    const totalGenerated = usageLogs ? usageLogs.length : 0;
-    const cycleStart = profile.credits_last_renewed_at
-      ? new Date(profile.credits_last_renewed_at)
-      : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-    const cycleUsageLogs = usageLogs
-      ? usageLogs.filter((log) => log.created_at && new Date(log.created_at) >= cycleStart)
-      : [];
-    const creditsUsed = cycleUsageLogs.reduce((sum, log) => sum + Number(log.credits_used || 1), 0);
+    const { totalGenerated, creditsUsed, recentUsage } = usageSummary;
 
     // Get subscription plan details
     const { data: planDetails, error: planError } = await supabase
@@ -223,7 +256,7 @@ exports.handler = async (event, context) => {
           plugin_connected: pluginConnection.connected,
           plugin_connected_at: pluginConnection.connectedAt,
           plugin_connection_source: pluginConnection.source,
-          recent_usage: usageLogs ? usageLogs.slice(0, 10) : [] // Last 10 generations
+          recent_usage: recentUsage // Last 10 generations
         }
       }),
     };
@@ -237,4 +270,8 @@ exports.handler = async (event, context) => {
       body: JSON.stringify({ error: 'Internal server error' }),
     };
   }
+};
+
+exports._private = {
+  loadUsageSummary,
 };

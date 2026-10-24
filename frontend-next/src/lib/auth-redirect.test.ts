@@ -50,4 +50,16 @@ describe("getSafeAuthRedirect", () => {
       ),
     ).toBe("/email-confirmed");
   });
+
+  it.each([
+    "/.//evil.com",
+    "/..//evil.com",
+    "https://www.alt-text.pro//evil.com",
+    "/\\/evil.com",
+    "//evil.com/path",
+  ])("rejects %s, which would resolve to another host", (candidate) => {
+    const result = getSafeAuthRedirect(candidate, "/email-confirmed", "https://www.alt-text.pro");
+    expect(result).toBe("/email-confirmed");
+    expect(new URL(result, "https://www.alt-text.pro").origin).toBe("https://www.alt-text.pro");
+  });
 });

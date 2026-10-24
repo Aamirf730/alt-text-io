@@ -212,16 +212,47 @@ function isMature(occurredAt, delayHours) {
   return Date.now() - new Date(occurredAt).getTime() >= delayHours * 60 * 60 * 1000;
 }
 
+/**
+ * Returns why a test send to this candidate must be refused, or null. Every
+ * candidate path is checked, including candidates built from marketing
+ * events, so a test send can never reach an account that opted out.
+ */
+async function getTargetProfileBlockReason(client, candidate, email) {
+  let query = client
+    .from('profiles')
+    .select('id,marketing_unsubscribed_at');
+
+  query = candidate?.user_id
+    ? query.eq('id', candidate.user_id)
+    : query.eq('email', email);
+
+  const { data, error } = await query.limit(20);
+
+  if (error) {
+    throw new Error(`Failed to check target email preferences: ${error.message}`);
+  }
+
+  const profiles = Array.isArray(data) ? data : [];
+  if (profiles.length === 0) return 'profile_not_found';
+  if (profiles.some(profile => profile.marketing_unsubscribed_at)) return 'unsubscribed';
+  return null;
+}
+
 async function buildSingleUserCandidate(email, automationKey) {
-  const { data: profile, error: profileError } = await supabase
+  // Profile emails are not unique, so take the newest account explicitly
+  // instead of failing on duplicates.
+  const { data: profileRows, error: profileError } = await supabase
     .from('profiles')
     .select('id,email,subscription_plan,credits_remaining,marketing_unsubscribed_at,created_at')
     .eq('email', email)
-    .maybeSingle();
+    .order('created_at', { ascending: false })
+    .limit(1);
 
   if (profileError) {
     throw new Error(`Failed to fetch target profile: ${profileError.message}`);
   }
+
+  const profile = Array.isArray(profileRows) ? profileRows[0] : null;
 
   if (!profile) return null;
   if (profile.marketing_unsubscribed_at) return null;
@@ -459,6 +490,20 @@ exports.handler = async (event) => {
 
     const candidate = matches[0];
 
+    const blockReason = await getTargetProfileBlockReason(supabase, candidate, email);
+    if (blockReason) {
+      return {
+        statusCode: 409,
+        headers,
+        body: JSON.stringify({
+          success: false,
+          sent: false,
+          reason: blockReason,
+          candidate: safeCandidate(candidate),
+        }),
+      };
+    }
+
     if (dryRun) {
       return {
         statusCode: 200,
@@ -539,4 +584,8 @@ exports.handler = async (event) => {
       }),
     };
   }
+};
+
+exports._private = {
+  getTargetProfileBlockReason,
 };

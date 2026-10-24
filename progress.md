@@ -1,5 +1,13 @@
 # Progress
 
+## 2026-10-24: Pre-launch fixes for website, dashboard and admin
+
+- Status: implemented and verified locally on top of the 2026-10 pricing commit; not committed, not deployed. No production system was changed.
+- Fixed: a plan or pack chosen before sign-up/sign-in is kept for 24 hours (`src/lib/pending-checkout.ts`) and reopened on the dashboard; `/api/checkout` returns 409 `subscription_exists` instead of starting a second subscription, and subscribers who run out of credits are offered packs; same-period plan switches from the Polar portal now apply immediately through new RPC `change_subscription_plan` (migration `20261024130000`); admin "Send Test" refuses unsubscribed or unknown accounts and asks for confirmation; open redirect in `getSafeAuthRedirect` (`//host` paths); dashboard and admin fetch a fresh access token per request; `get-usage` uses a count, this cycle's rows and the 10 newest rows instead of the whole history; legacy subscribers keep their original plan name and allowance on the dashboard.
+- CSP: `proxy.ts` sat at the project root, which Next.js ignores for a `src/` project, so no CSP was ever sent. It now lives at `src/proxy.ts`; scripts stay nonce-only and styles allow inline (needed by sonner and next/image). Verified with a local production server: header present, every script tag carries the nonce, sonner styles apply, no CSP violations on public pages.
+- Still to confirm in production (steps in `docs/pricing-2026-10-rollout.md`): scheduled lifecycle/report runs, and the Supabase reset-password template.
+- Verification: frontend 23 files / 155 tests, Netlify Functions 27 files / 181 tests, migration chain 27 tests, TypeScript, ESLint, `next build`, `git diff --check`.
+
 ## 2026-10-24: 2026-10 pricing prepared locally
 
 - Status: implemented and verified locally; not committed, not deployed. No Polar, Supabase production, or Netlify change was made.

@@ -18,7 +18,7 @@ test('tracked migrations have one ordered, canonical history', () => {
   assert.ok(files.length > 1);
   assert.equal(new Set(versions).size, versions.length);
   assert.equal(files[0], '20260625140000_bootstrap_schema.sql');
-  assert.equal(files.at(-1), '20261024120000_apply_2026_10_pricing.sql');
+  assert.equal(files.at(-1), '20261024130000_change_subscription_plan_mid_period.sql');
 });
 
 test('bootstrap defines every foundational table and reporting view', () => {
@@ -130,6 +130,28 @@ test('2026-10 pricing pins every legacy allowance before changing the catalogue'
   // The free plan and signup grant are unchanged by this migration.
   assert.doesNotMatch(pricing, /\('free',/);
   assert.doesNotMatch(pricing, /handle_new_user/);
+});
+
+test('mid-period plan change is bound to the current subscription and replay-safe', () => {
+  const change = fs.readFileSync(
+    path.join(migrationsDirectory, '20261024130000_change_subscription_plan_mid_period.sql'),
+    'utf8',
+  ).toLowerCase();
+
+  assert.match(change, /create or replace function public\.change_subscription_plan\(/);
+  assert.match(change, /for update;/);
+  assert.match(change, /'reason', 'subscription_mismatch'/);
+  assert.match(change, /'reason', 'no_change'/);
+  // Usage this cycle and active plan reservations are kept, as in reserve_credit.
+  assert.match(change, /v_allowance - v_cycle_credits_used - v_active_plan_reservations/);
+  assert.match(change, /r\.credit_source = 'plan'/);
+  // Persistent ledgers and the renewal anchor are never rewritten here.
+  assert.doesNotMatch(change, /bonus_credits_remaining\s*=/);
+  assert.doesNotMatch(change, /purchased_credits_remaining\s*=/);
+  assert.doesNotMatch(change, /credits_last_renewed_at\s*=/);
+  assert.doesNotMatch(change, /subscription_status\s*=/);
+  assert.match(change, /revoke all on function public\.change_subscription_plan\(/);
+  assert.match(change, /grant execute on function public\.change_subscription_plan\([\s\S]*\) to service_role/);
 });
 
 test('Agency catalogue follow-up keeps tier4 active', () => {

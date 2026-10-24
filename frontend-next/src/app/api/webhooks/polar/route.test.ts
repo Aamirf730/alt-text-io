@@ -34,6 +34,7 @@ const mocks = vi.hoisted(() => {
         authUsers: Array<{ id: string; email: string | null }>;
         authPageMode: "state" | "always_full";
         updateErrors: Set<string>;
+        rpcResults: Record<string, unknown>;
     } = {
         profiles: [],
         updates: [],
@@ -46,6 +47,7 @@ const mocks = vi.hoisted(() => {
         authUsers: [],
         authPageMode: "state",
         updateErrors: new Set(),
+        rpcResults: {},
     };
 
     const createQuery = (table: string) => {
@@ -132,9 +134,9 @@ const mocks = vi.hoisted(() => {
             state.operations.push(`rpc:${name}`);
             state.rpcCalls.push({ name, args });
             return {
-                data: name === "renew_subscription_credits"
+                data: state.rpcResults[name] ?? (name === "renew_subscription_credits"
                     ? { success: true, renewed: true, already_processed: false }
-                    : { success: true },
+                    : { success: true }),
                 error: null,
             };
         }),
@@ -249,6 +251,68 @@ describe("Polar subscription lifecycle handlers", () => {
         mocks.state.authUsers = [];
         mocks.state.authPageMode = "state";
         mocks.state.updateErrors = new Set();
+        mocks.state.rpcResults = {};
+    });
+
+    it("applies a same-period plan switch from the customer portal immediately", async () => {
+        mocks.state.profiles = [profile({
+            subscription_id: "sub_starter_1",
+            subscription_plan: "tier1",
+            polar_product_id: "prod_starter_monthly",
+            billing_cycle: "monthly",
+            monthly_credit_allowance: 500,
+        })];
+        mocks.state.rpcResults.renew_subscription_credits = {
+            success: true,
+            renewed: false,
+            already_processed: true,
+            reason: "period_already_processed",
+        };
+        mocks.state.rpcResults.change_subscription_plan = { success: true, changed: true };
+
+        await polarWebhookHandlers.onSubscriptionUpdated?.({
+            data: {
+                id: "sub_starter_1",
+                status: "active",
+                currentPeriodStart: new Date("2026-10-01T00:00:00.000Z"),
+                currentPeriodEnd: new Date("2026-11-01T00:00:00.000Z"),
+                endsAt: null,
+                customer: { id: "cus_1", email: "customer@example.com" },
+                product: {
+                    id: "prod_agency_monthly",
+                    name: "Alt Text Pro — Agency Monthly",
+                    metadata: { plan_id: "tier4", type: "subscription" },
+                },
+                metadata: {},
+            },
+        } as never);
+
+        expect(mocks.state.rpcCalls.map((call) => call.name)).toEqual([
+            "renew_subscription_credits",
+            "change_subscription_plan",
+        ]);
+        expect(mocks.state.rpcCalls[1].args).toEqual({
+            p_user_id: "user_1",
+            p_subscription_id: "sub_starter_1",
+            p_subscription_plan: "tier4",
+            p_polar_product_id: "prod_agency_monthly",
+            p_billing_cycle: "monthly",
+            p_monthly_credit_allowance: 5000,
+            p_next_billing_date: "2026-11-01T00:00:00.000Z",
+        });
+    });
+
+    it("does not attempt a plan change when a new period was renewed", async () => {
+        await polarWebhookHandlers.onSubscriptionUpdated?.({
+            data: annualSubscription({
+                status: "active",
+                currentPeriodStart: new Date("2026-08-23T16:10:49.335Z"),
+                currentPeriodEnd: new Date("2026-09-23T16:10:49.335Z"),
+                endsAt: null,
+            }),
+        } as never);
+
+        expect(mocks.state.rpcCalls.map((call) => call.name)).toEqual(["renew_subscription_credits"]);
     });
 
     it("provisions an Agency subscription with the new monthly allowance", async () => {

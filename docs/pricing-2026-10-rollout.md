@@ -73,7 +73,7 @@ Each step touching production needs its own go-ahead.
 2. Read-only preflight in Supabase: count paid profiles by `subscription_plan` with and without `monthly_credit_allowance`, and confirm no profile uses a plan outside the new check constraint.
 3. Create the nine Polar products. Leave the old products active for now.
 4. Set the Netlify variables from steps 1–3 above. Leave step 4 until after deploy.
-5. Apply `supabase/migrations/20261024120000_apply_2026_10_pricing.sql` to production. It is safe before the deploy: the live site reads plan credits through pinned allowances, and the old checkout products still map correctly.
+5. Apply `supabase/migrations/20261024120000_apply_2026_10_pricing.sql` to production. It is safe before the deploy: the live site reads plan credits through pinned allowances, and the old checkout products still map correctly. Then apply `20261024130000_change_subscription_plan_mid_period.sql`, which only adds a new function the new webhook code calls.
 6. Push `main` so Netlify deploys the new code with the new variables.
 7. Archive the old Polar products and delete the `TIER3` variables.
 8. Verify live:
@@ -81,6 +81,14 @@ Each step touching production needs its own go-ahead.
    - Homepage and dashboard show Starter / Growth / Agency and three packs.
    - A Polar sandbox or $0-discounted checkout of one plan and one pack grants 1,500 / 1,000 credits respectively.
    - One legacy subscriber's profile still shows its pinned allowance after the next renewal webhook.
+   - The response for `/` now carries a `Content-Security-Policy` header with a script nonce (it was never sent before, because `proxy.ts` was outside `src/`). Open the homepage, sign-in dialog, `/connect`, `/dashboard` and `/admin` and confirm the browser console shows no "Refused to …" CSP errors and that Google sign-in still renders.
+
+## Production checks before launch
+
+1. **Scheduled jobs (lifecycle emails, daily funnel report).** In Netlify: Logs → Functions → `lifecycle-automation-scheduled` and `daily-funnel-report-scheduled`. Look at the latest invocations (lifecycle runs every 2 hours at minute 0 UTC, the report daily at 03:00 UTC).
+   - If each run logs a 403 or "requires a valid secret", the wrapper is receiving an HTTP-shaped event and never adds the secret, so no run has worked.
+   - Cross-check in Supabase (read-only): `select max(created_at) from marketing_automation_sends;` — a date long in the past while eligible users exist means the scheduler is not sending.
+2. **Password reset template.** In Supabase: Authentication → Email Templates → Reset Password. The link should be `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/reset-password` (the same pattern the confirmation template uses). If it uses `{{ .ConfirmationURL }}`, the reset link only works in the browser that requested it, because the site uses the PKCE flow. `supabase/templates/recovery.html` has the ready-made template to paste in. Also confirm Authentication → URL Configuration lists `https://www.alt-text.pro/auth/confirm` under Redirect URLs.
 
 ## Rollback
 

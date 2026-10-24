@@ -179,6 +179,12 @@ otp_expiry = 3600
 subject = "Confirm your Alt Text Pro email"
 content_path = "./supabase/templates/confirmation.html"
 
+# Recovery links use token_hash through /auth/confirm so a reset works on any
+# device. A PKCE ?code= link only works in the browser that requested it.
+[auth.email.template.recovery]
+subject = "Reset your Alt Text Pro password"
+content_path = "./supabase/templates/recovery.html"
+
 [auth.sms]
 # Allow/disallow new user signups via SMS to your project.
 enable_signup = false

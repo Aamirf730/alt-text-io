@@ -3,6 +3,11 @@ import { Polar } from "@polar-sh/sdk";
 import { createClient } from "@supabase/supabase-js";
 import { getConfiguredPolarProductIds, getCreditPackProductIds } from "@/lib/polar-products";
 import { isCreditPackEligible } from "@/lib/credit-pack-eligibility";
+import {
+    hasLivePaidSubscription,
+    SUBSCRIPTION_EXISTS_CODE,
+    SUBSCRIPTION_EXISTS_MESSAGE,
+} from "@/lib/subscription-status";
 import { safeServerError } from "@/lib/safe-server-log";
 
 function getSupabaseClient() {
@@ -64,6 +69,16 @@ export async function GET(request: NextRequest) {
 
         if (!profile) {
             return NextResponse.json({ error: "Account profile is not ready" }, { status: 409 });
+        }
+
+        // Plan changes for an existing subscriber go through the Polar
+        // customer portal. A second checkout would start a parallel
+        // subscription while the old one keeps billing.
+        if (!creditPackProductIds.has(productId) && hasLivePaidSubscription(profile)) {
+            return NextResponse.json(
+                { error: SUBSCRIPTION_EXISTS_MESSAGE, code: SUBSCRIPTION_EXISTS_CODE },
+                { status: 409 },
+            );
         }
 
         if (

@@ -38,6 +38,12 @@ export function getSafeAuthRedirect(
       return `${fallback.pathname}${fallback.search}${fallback.hash}`;
     }
 
+    // A path such as "/.//evil.com" normalizes to "//evil.com", which a
+    // browser treats as a protocol-relative URL on another host.
+    if (!parsed.pathname.startsWith("/") || parsed.pathname.startsWith("//")) {
+      return `${fallback.pathname}${fallback.search}${fallback.hash}`;
+    }
+
     return `${parsed.pathname}${parsed.search}${parsed.hash}`;
   } catch {
     return `${fallback.pathname}${fallback.search}${fallback.hash}`;

@@ -116,3 +116,39 @@ export function getCreditPack(planId: string): CreditPack | undefined {
 export function getPurchaseOption(planId: string): SubscriptionPlan | CreditPack | undefined {
   return getSubscriptionPlan(planId) || getCreditPack(planId);
 }
+
+const LEGACY_PLAN_NAMES: Record<string, string> = {
+  tier1: "Lite",
+  tier2: "Standard",
+  tier3: "Pro",
+  tier4: "Agency",
+  lite: "Lite",
+  standard: "Standard",
+  pro: "Pro",
+  agency: "Agency",
+};
+
+const ONE_TIME_PLAN_LABELS: Record<string, string> = {
+  small_pack: "Credit Pack",
+  credit_pack: "Credit Pack",
+  bulk_pack: "Credit Pack",
+  pay_as_go: "Credit Pack",
+};
+
+/**
+ * Display name for an account's plan. Subscribers who kept a pre-2026-10
+ * allowance (pinned on their profile) see their original plan name, so a
+ * $4 Lite customer is not shown "Starter" next to Starter's 500 credits.
+ */
+export function getPlanDisplayName(planId: string, monthlyCreditAllowance?: number | null): string {
+  const normalized = String(planId || "free").trim().toLowerCase();
+  if (normalized === "free") return "Free";
+  if (ONE_TIME_PLAN_LABELS[normalized]) return ONE_TIME_PLAN_LABELS[normalized];
+
+  const current = SUBSCRIPTION_PLANS.find((plan) => plan.id === normalized);
+  const allowance = Number(monthlyCreditAllowance || 0);
+  const keepsCatalogueAllowance = !allowance || allowance === current?.creditCount;
+
+  if (current && keepsCatalogueAllowance) return current.name;
+  return LEGACY_PLAN_NAMES[normalized] || normalized.replace(/_/g, " ");
+}
