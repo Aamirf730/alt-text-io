@@ -1,5 +1,12 @@
 # Progress
 
+## 2026-10-24: 2026-10 release in progress (owner approved)
+
+- Polar: created the 9 new products (IDs in `docs/pricing-2026-10-rollout.md`) through the dashboard session; old products still active until after the deploy.
+- Netlify: added `NEXT_PUBLIC_POLAR_LEGACY_TIER{1-4}_{MONTHLY,ANNUAL}` with the old product IDs (confirmed against the live JS bundle) and `NEXT_PUBLIC_POLAR_BULK_PACK`; pointed `TIER1/TIER2/TIER4` and both pack variables at the new products; set `LIFECYCLE_AUTOMATION_DRY_RUN=true`. `TIER3` variables kept until after the deploy.
+- Supabase: applied `20261024120000`, `20261024130000` and `20261024140000` in order, each in one transaction that also records it in `supabase_migrations.schema_migrations`. Verified the catalogue, the `change_subscription_plan` function, the new payment columns, and that both paid profiles kept their pinned 400-credit allowance.
+- Next: push `main` (production deploy), live verification, then archive old Polar products and remove the `TIER3` variables.
+
 ## 2026-10-24: Remaining lower-priority fixes (website, admin, plugin 1.7.26)
 
 - Status: implemented, tested and committed locally; not pushed, not deployed, not released to WordPress.org. Owner chose to fix these before release and to deploy with `LIFECYCLE_AUTOMATION_DRY_RUN=true` first.

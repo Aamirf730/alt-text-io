@@ -48,6 +48,22 @@ Do not put a `credits` key on subscription products: for annual products it woul
 
 Then **archive** (do not delete) the old products so they cannot be bought again: Lite, Standard, Pro, and Agency (monthly and annual), Small Credit Pack ($5 / 500), and Credit Pack ($10 / 1,200). An archived old pack bought through a stale link would otherwise be granted the new pack size.
 
+### Created in Polar production on 2026-10-24
+
+| Netlify variable | Polar product | Product ID |
+|---|---|---|
+| `NEXT_PUBLIC_POLAR_TIER1_MONTHLY` | Alt Text Pro — Starter Monthly ($5) | `bba2bc4d-e4ab-4c10-8184-ba615dc5a7de` |
+| `NEXT_PUBLIC_POLAR_TIER1_ANNUAL` | Alt Text Pro — Starter Annual ($50) | `fcf7be1b-839b-4d7f-a3ee-547911119e99` |
+| `NEXT_PUBLIC_POLAR_TIER2_MONTHLY` | Alt Text Pro — Growth Monthly ($12) | `3d8440e2-5586-4477-b968-cb99052fa8cc` |
+| `NEXT_PUBLIC_POLAR_TIER2_ANNUAL` | Alt Text Pro — Growth Annual ($120) | `dcf8db2c-bcef-4f03-b8fe-497b7bd998b8` |
+| `NEXT_PUBLIC_POLAR_TIER4_MONTHLY` | Alt Text Pro — Agency Monthly (2026) ($29) | `57037d10-2e4f-4017-838c-f9ba81260c9c` |
+| `NEXT_PUBLIC_POLAR_TIER4_ANNUAL` | Alt Text Pro — Agency Annual (2026) ($290) | `c4b109b1-00b1-4863-9cdb-162b33a579f8` |
+| `NEXT_PUBLIC_POLAR_SMALL_PACK` | Alt Text Pro — Small Credit Pack ($12, 1,000) | `ca4c2ee0-2ae8-439c-99ab-00d2ae42a07b` |
+| `NEXT_PUBLIC_POLAR_CREDIT_PACK` | Alt Text Pro — Library Pack ($45, 5,000) | `940a7c9a-ed29-4b6f-9a87-b926f27eaeb4` |
+| `NEXT_PUBLIC_POLAR_BULK_PACK` | Alt Text Pro — Bulk Pack ($99, 15,000) | `5ae3f7aa-0c69-4d42-91e2-0fcc2bf116f7` |
+
+Old products to move to `LEGACY_*` (and archive after the deploy): Lite Monthly `0803076e-e824-46af-8aba-8c2fcf686f94`, Lite Annual `0c3c64f8-f2d5-47d9-a26b-df8dca718478`, Standard Monthly `399d3406-215d-400f-8123-e77bc036f7e0`, Standard Annual `39ac4f6a-768c-4cf0-9abb-ef718c3f29b2`, Pro Monthly `1c748e2f-df80-4271-8ff4-684ffc7ceef5`, Pro Annual `4060f5a2-1676-4647-b3cc-9b060d3f3093`, Agency Monthly `e7609ba7-5fd8-4911-90d7-3fcbe1f518ad`, Agency Annual `3d6e6bc9-5b66-4b0c-ab4e-36dcfd9ebbc6`, Small Pack (500) `cc60c632-baff-4dd5-8498-00df694ce96b`, Credit Pack (1,200) `dfc5136f-64aa-4535-a6d5-d9d02036be2c`. The two "(2026)" Agency names can be renamed to plain "Agency" once the old Agency products are archived.
+
 ## Netlify environment variables
 
 Order matters: add the legacy variables before replacing the current ones, so renewals of old products always resolve.
