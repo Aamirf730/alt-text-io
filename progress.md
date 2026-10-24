@@ -5,7 +5,9 @@
 - Polar: created the 9 new products (IDs in `docs/pricing-2026-10-rollout.md`) through the dashboard session; old products still active until after the deploy.
 - Netlify: added `NEXT_PUBLIC_POLAR_LEGACY_TIER{1-4}_{MONTHLY,ANNUAL}` with the old product IDs (confirmed against the live JS bundle) and `NEXT_PUBLIC_POLAR_BULK_PACK`; pointed `TIER1/TIER2/TIER4` and both pack variables at the new products; set `LIFECYCLE_AUTOMATION_DRY_RUN=true`. `TIER3` variables kept until after the deploy.
 - Supabase: applied `20261024120000`, `20261024130000` and `20261024140000` in order, each in one transaction that also records it in `supabase_migrations.schema_migrations`. Verified the catalogue, the `change_subscription_plan` function, the new payment columns, and that both paid profiles kept their pinned 400-credit allowance.
-- Next: push `main` (production deploy), live verification, then archive old Polar products and remove the `TIER3` variables.
+- Deployed: pushed `6792637`; Netlify deploy `6adca5c0acbdca45dd7b8bfb` is ready. Live checks: `/`, `/dashboard`, `/connect`, `/docs`, `/terms`, `/admin`, `/api/health`, `/api/get-plans` return 200; the CSP header with a script nonce is now served (no CSP console errors on `/` or `/connect`, toasts styled, Google sign-in renders); `/connect` sends `Cross-Origin-Opener-Policy: unsafe-none`; `get-plans` lists free, tier1, tier2, tier4 and the three packs only; the bundle carries the new product IDs; both plugin ZIP URLs serve 1.7.26.
+- Archived the 10 old Polar products (existing subscriptions on them continue), renamed the new Agency products to "Alt Text Pro — Agency Monthly/Annual", and deleted the `NEXT_PUBLIC_POLAR_TIER3_*` variables.
+- Still open: lifecycle dry-run check on the next scheduled run, then `LIFECYCLE_AUTOMATION_DRY_RUN=false`; WordPress.org 1.7.26 SVN release; owner tests (Connect from a WordPress site, one real or 100%-discount purchase, password reset on a phone). The Polar "Free" product still describes "50 Free Credits each month".
 
 ## 2026-10-24: Remaining lower-priority fixes (website, admin, plugin 1.7.26)
 
