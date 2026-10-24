@@ -26,16 +26,18 @@ const benefits = [
 export default function BenefitsStrip() {
   return (
     <section aria-label="Alt Text Pro benefits" className="bg-white px-4 pb-12 sm:px-6 lg:px-8 lg:pb-16">
-      <div className="mx-auto grid max-w-7xl overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.06)] md:grid-cols-4">
+      <div className="mx-auto grid max-w-7xl overflow-hidden rounded-2xl border border-line bg-white shadow-notebook md:grid-cols-2 lg:grid-cols-4">
         {benefits.map(({ icon: Icon, title, description }, index) => (
           <div
             key={title}
-            className={`flex items-start gap-5 px-7 py-8 sm:px-9 lg:py-9 ${index > 0 ? "border-t border-slate-200 md:border-l md:border-t-0" : ""}`}
+            className={`flex items-start gap-4 p-6 lg:p-8 ${index > 0 ? "border-t border-line" : ""} ${index === 1 ? "md:border-l md:border-t-0" : ""} ${index === 2 ? "md:border-t lg:border-l lg:border-t-0" : ""} ${index === 3 ? "md:border-l lg:border-t-0" : ""}`}
           >
-            <Icon className="mt-0.5 h-12 w-12 shrink-0 stroke-[1.8] text-black" aria-hidden="true" />
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-yellow-soft text-ink">
+              <Icon className="h-6 w-6 stroke-[1.8]" aria-hidden="true" />
+            </span>
             <div>
-              <h2 className="font-outfit text-lg font-bold tracking-[-0.02em] text-black">{title}</h2>
-              <p className="mt-2 text-base leading-6 text-slate-500">{description}</p>
+              <h2 className="font-outfit text-lg font-bold leading-6 tracking-[-0.02em] text-ink">{title}</h2>
+              <p className="mt-1 text-base leading-6 text-ink-muted">{description}</p>
             </div>
           </div>
         ))}

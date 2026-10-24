@@ -1,5 +1,15 @@
 # Progress
 
+## 2026-10-24: Yellow + white redesign (not deployed)
+
+- Owner decision: brand is yellow + white only, dark gray `#3F3F46` for text and icons (no black anywhere), applied to the website, customer dashboard, admin portal, WordPress plugin, emails, logo and icons. Rules in `docs/design-system.md`.
+- Logo redrawn as SVG in the same composition (`frontend-next/public/brand/logo.svg`, small "ALT" mark `logo-mark.svg`); rendered the website logo, app icon, favicon, plugin logo, and WordPress.org icons and banners from them.
+- Website/dashboard/admin (`frontend-next/`): token-based theme, one Button system, black surfaces removed, icons flex-aligned, equal-height cards; screenshots of every page at 1440/390 including signed-in dashboard and admin (mocked auth and APIs in a scratch Playwright script).
+- Plugin admin: tokens scoped to plugin screens, one button system, shared header partial, notice placement fixed, mono SVG menu icon; screenshots of every plugin screen on a Playground site.
+- Emails: Supabase confirmation and recovery templates, customer-offer email, lifecycle email, contact-form, unsubscribe page and funnel report recoloured; previews rendered.
+- Verification: frontend 162 tests, functions 208, migration chain 28, TypeScript, ESLint, `next build`, plugin harnesses on PHP 7.4/8.5.
+- Not yet: content rewrite, Supabase dashboard email templates (need pasting live), WordPress.org assets (need SVN), deploy.
+
 ## 2026-10-24: Plugin 1.7.26 tested on a temporary WordPress site
 
 - Ran the exact ZIP served by alt-text.pro (1.7.26) on a local WordPress Playground site (WordPress 7.1.3, PHP 8.3) with a must-use stub standing in for the Alt Text Pro service, so no real account, key or credit was used.

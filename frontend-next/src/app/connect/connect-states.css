@@ -1,3 +1,9 @@
+/*
+ * Shared styling for every /connect screen (auth form and result states).
+ * Tokens follow docs/design-system.md: yellow #FEE11C, yellow-strong #F2CF00,
+ * yellow-soft #FFF3B0, yellow-tint #FFFBEA, ink #3F3F46, ink-muted #6B6B73,
+ * line #EFE3A3, line-strong #E2CE5A.
+ */
 .connect-page {
     min-height: 100vh;
     display: flex;
@@ -6,7 +12,8 @@
     box-sizing: border-box;
     overflow-y: auto;
     padding: 24px;
-    background: #000000;
+    background: #FFFBEA;
+    color: #3F3F46;
     font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
@@ -19,21 +26,20 @@
 .connect-card {
     width: 100%;
     max-width: 440px;
-    padding: 40px;
-    border: 1px solid rgba(255, 255, 255, 0.7);
-    border-radius: 20px;
-    background: #ffffff;
-    box-shadow: 0 28px 70px rgba(2, 6, 23, 0.32);
+    padding: 32px;
+    border: 1px solid #EFE3A3;
+    border-radius: 16px;
+    background: #FFFFFF;
+    box-shadow: 0 1px 2px rgba(63, 63, 70, 0.06);
 }
 
 .connect-card-recovery {
     max-width: 470px;
-    padding: 28px;
 }
 
 .connect-card-fallback {
-    padding: 60px 40px;
-    color: #64748b;
+    padding: 48px 32px;
+    color: #6B6B73;
     text-align: center;
 }
 
@@ -41,124 +47,160 @@
 .connect-success,
 .connect-confirmation,
 .connect-recovery {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     text-align: center;
 }
 
 .connect-loading,
 .connect-success {
-    padding: 36px 0;
+    padding: 32px 0;
 }
 
 .connect-loading svg {
-    color: #FEE11C;
+    color: #3F3F46;
 }
 
 .connect-loading p,
 .connect-success p,
 .connect-confirmation p {
-    margin: 14px 0 0;
-    color: #64748b;
+    margin: 12px 0 0;
+    color: #6B6B73;
     font-size: 14px;
     line-height: 1.55;
 }
 
+/* Result icons sit in a yellow-soft chip so they never read as yellow-on-white. */
+.connect-success .success-icon,
+.connect-confirmation .confirmation-icon {
+    width: 64px;
+    height: 64px;
+    margin-bottom: 16px;
+    padding: 14px;
+    border-radius: 9999px;
+    background: #FFF3B0;
+    color: #3F3F46;
+}
+
 .connect-success .success-icon {
-    margin-bottom: 14px;
-    color: #059669;
+    background: #DCFCE7;
+    color: #15803D;
 }
 
 .connect-success h2,
 .connect-confirmation h2,
 .connect-recovery h2 {
     margin: 0;
-    color: #000000;
+    color: #3F3F46;
     font-size: 24px;
-    font-weight: 750;
-    letter-spacing: -0.025em;
+    font-weight: 700;
+    letter-spacing: -0.02em;
     line-height: 1.2;
 }
 
 .connect-confirmation {
-    padding: 16px 0 4px;
-}
-
-.connect-confirmation .confirmation-icon {
-    margin-bottom: 14px;
-    color: #FEE11C;
+    padding: 8px 0 0;
 }
 
 .confirmation-target {
+    width: 100%;
     overflow-wrap: anywhere;
     margin: 16px 0 12px;
-    padding: 12px 14px;
-    border: 1px solid #FEE11C;
-    border-radius: 10px;
-    background: #FFF9C4;
-    color: #000000;
+    padding: 12px 16px;
+    border: 1px solid #E2CE5A;
+    border-radius: 12px;
+    background: #FFF3B0;
+    color: #3F3F46;
     font-size: 16px;
-    font-weight: 750;
+    font-weight: 700;
 }
 
 .connect-confirmation .confirmation-note {
-    margin-bottom: 20px;
+    margin: 0 0 24px;
     font-size: 12px;
 }
 
+/* Buttons: 44px, 12px radius, 0 20px padding, 15px/600, 8px icon gap. */
 .connect-submit-btn,
 .recovery-copy-btn {
-    border: 1px solid #FEE11C;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 0 20px;
+    border: 0;
+    border-radius: 12px;
     background: #FEE11C;
-    color: #000000;
+    color: #3F3F46;
+    cursor: pointer;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+    transition: background-color 0.15s ease;
 }
 
 .connect-submit-btn {
     width: 100%;
-    min-height: 44px;
-    padding: 10px 16px;
-    border-radius: 10px;
-    cursor: pointer;
-    font-size: 14px;
-    font-weight: 700;
+}
+
+.connect-submit-btn svg,
+.recovery-copy-btn svg {
+    flex: 0 0 18px;
+    width: 18px;
+    height: 18px;
 }
 
 .connect-submit-btn:hover:not(:disabled),
 .recovery-copy-btn:hover {
-    border-color: #000000;
-    background: #000000;
-    color: #FFFFFF;
+    background: #F2CF00;
+    color: #3F3F46;
 }
 
+.connect-submit-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Ghost buttons for Cancel / Close. */
 .connect-cancel-btn,
 .recovery-close-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     width: 100%;
+    min-height: 44px;
+    margin-top: 8px;
+    padding: 0 20px;
     border: 0;
+    border-radius: 12px;
     background: transparent;
-    color: #000000;
+    color: #3F3F46;
     cursor: pointer;
-    font-size: 14px;
-    font-weight: 700;
-}
-
-.connect-cancel-btn {
-    margin-top: 10px;
-    padding: 10px;
+    font-size: 15px;
+    font-weight: 600;
 }
 
 .connect-cancel-btn:hover,
 .recovery-close-btn:hover {
+    background: #FFFBEA;
     text-decoration: underline;
+    text-underline-offset: 4px;
 }
 
 .connect-error {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     gap: 8px;
-    margin: 14px 0;
-    padding: 10px 12px;
-    border: 1px solid #fecaca;
-    border-radius: 10px;
-    background: #fef2f2;
-    color: #b91c1c;
+    width: 100%;
+    margin: 0 0 16px;
+    padding: 12px 16px;
+    border: 1px solid #FECACA;
+    border-radius: 12px;
+    background: #FEF2F2;
+    color: #B91C1C;
     font-size: 13px;
     line-height: 1.45;
     text-align: left;
@@ -166,25 +208,22 @@
 
 .connect-error svg {
     flex: 0 0 16px;
-    margin-top: 1px;
 }
 
 .recovery-brand {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 9px;
-    margin-bottom: 18px;
-    color: #000000;
+    gap: 8px;
+    margin-bottom: 16px;
+    color: #3F3F46;
     font-size: 15px;
-    font-weight: 750;
+    font-weight: 700;
 }
 
 .recovery-brand-logo {
     width: 32px;
     height: 32px;
-    border-radius: 8px;
-    object-fit: cover;
 }
 
 .recovery-icon-wrap {
@@ -194,31 +233,31 @@
     width: 48px;
     height: 48px;
     margin-bottom: 12px;
-    border: 1px solid #FEE11C;
-    border-radius: 14px;
-    background: #FFF9C4;
-    color: #FEE11C;
+    border-radius: 12px;
+    background: #FFF3B0;
+    color: #3F3F46;
 }
 
 .connect-recovery .recovery-eyebrow {
-    margin: 0 0 7px;
-    color: #000000;
-    font-size: 11px;
-    font-weight: 800;
-    letter-spacing: 0.08em;
+    margin: 0 0 8px;
+    color: #6B6B73;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
 }
 
 .connect-recovery .recovery-status {
     display: flex;
-    align-items: flex-start;
-    gap: 9px;
-    margin: 18px 0 12px;
-    padding: 11px 12px;
-    border: 1px solid #fde68a;
-    border-radius: 10px;
-    background: #fffbeb;
-    color: #92400e;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    margin: 16px 0 12px;
+    padding: 12px 16px;
+    border: 1px solid #FDE68A;
+    border-radius: 12px;
+    background: #FFFBEB;
+    color: #B45309;
     font-size: 13px;
     line-height: 1.45;
     text-align: left;
@@ -226,27 +265,28 @@
 
 .recovery-status svg {
     flex: 0 0 18px;
-    margin-top: 1px;
 }
 
 .connect-recovery .recovery-note {
-    margin: 0 0 18px;
-    color: #64748b;
+    margin: 0 0 16px;
+    color: #6B6B73;
     font-size: 13px;
     line-height: 1.5;
 }
 
 .recovery-key-label {
     display: block;
-    margin-bottom: 7px;
-    color: #334155;
+    width: 100%;
+    margin-bottom: 8px;
+    color: #3F3F46;
     font-size: 13px;
-    font-weight: 750;
+    font-weight: 600;
     text-align: left;
 }
 
 .recovery-key-row {
     display: grid;
+    width: 100%;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: stretch;
     gap: 8px;
@@ -260,25 +300,24 @@
 .recovery-key-field input {
     width: 100%;
     min-height: 44px;
-    padding: 10px 42px 10px 12px;
-    border: 1px solid #cbd5e1;
-    border-radius: 9px;
+    padding: 0 44px 0 12px;
+    border: 1px solid #E2CE5A;
+    border-radius: 12px;
     outline: none;
     background: #FFFFFF;
-    color: #000000;
+    color: #3F3F46;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     font-size: 13px;
 }
 
 .recovery-key-field input:focus {
-    border-color: #000000;
-    box-shadow: 0 0 0 3px rgba(254, 225, 28, 0.13);
+    border-color: #F2CF00;
 }
 
 .recovery-visibility-btn {
     position: absolute;
     top: 50%;
-    right: 8px;
+    right: 6px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -287,35 +326,22 @@
     padding: 0;
     transform: translateY(-50%);
     border: 0;
-    border-radius: 7px;
+    border-radius: 8px;
     background: transparent;
-    color: #64748b;
+    color: #6B6B73;
     cursor: pointer;
 }
 
 .recovery-visibility-btn:hover {
-    background: #e2e8f0;
-    color: #000000;
-}
-
-.recovery-copy-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 7px;
-    min-height: 44px;
-    padding: 0 15px;
-    border-radius: 9px;
-    cursor: pointer;
-    font-size: 13px;
-    font-weight: 750;
-    white-space: nowrap;
+    background: #FFFBEA;
+    color: #3F3F46;
 }
 
 .recovery-steps {
     display: grid;
+    width: 100%;
     gap: 8px;
-    margin: 20px 0 14px;
+    margin: 24px 0 16px;
     padding: 0;
     list-style: none;
     text-align: left;
@@ -325,7 +351,7 @@
     display: grid;
     grid-template-columns: 24px minmax(0, 1fr);
     align-items: center;
-    gap: 9px;
+    gap: 8px;
 }
 
 .recovery-steps li > span {
@@ -335,46 +361,42 @@
     width: 24px;
     height: 24px;
     border-radius: 50%;
-    background: #FFF9C4;
-    color: #000000;
-    font-size: 11px;
-    font-weight: 800;
+    background: #FFF3B0;
+    color: #3F3F46;
+    font-size: 12px;
+    font-weight: 700;
 }
 
 .connect-recovery .recovery-steps p {
     margin: 0;
-    color: #475569;
-    font-size: 12px;
+    color: #3F3F46;
+    font-size: 13px;
     line-height: 1.4;
 }
 
 .recovery-security-note {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     gap: 8px;
-    padding: 10px 11px;
-    border-radius: 9px;
-    background: #f1f5f9;
-    color: #64748b;
-    font-size: 11px;
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #EFE3A3;
+    border-radius: 12px;
+    background: #FFFBEA;
+    color: #6B6B73;
+    font-size: 12px;
     line-height: 1.45;
     text-align: left;
 }
 
 .recovery-security-note svg {
     flex: 0 0 16px;
-    margin-top: 1px;
-    color: #FEE11C;
-}
-
-.recovery-close-btn {
-    margin-top: 12px;
-    padding: 8px;
+    color: #3F3F46;
 }
 
 .connect-page button:focus-visible,
 .connect-page input:focus-visible {
-    outline: 3px solid rgba(254, 225, 28, 0.22);
+    outline: 3px solid #F2CF00;
     outline-offset: 2px;
 }
 
@@ -391,13 +413,12 @@
 @media (max-width: 520px) {
     .connect-page {
         align-items: flex-start;
-        padding: 12px;
+        padding: 16px;
     }
 
     .connect-card,
     .connect-card-recovery {
-        padding: 22px 18px;
-        border-radius: 16px;
+        padding: 24px;
     }
 
     .recovery-key-row {
@@ -414,17 +435,18 @@
     flex-wrap: wrap;
     justify-content: space-between;
     gap: 8px;
-    margin: -4px 0 12px;
+    margin: -4px 0 4px;
 }
 
 .connect-link-btn {
     padding: 0;
     border: 0;
     background: none;
-    color: #111827;
+    color: #3F3F46;
     font-size: 13px;
     font-weight: 600;
     text-decoration: underline;
+    text-underline-offset: 3px;
     cursor: pointer;
 }
 

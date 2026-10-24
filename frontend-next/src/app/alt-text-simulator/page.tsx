@@ -13,8 +13,10 @@ import {
     Search,
     Info,
     Code,
-    ChevronDown
+    ChevronDown,
+    Loader2,
 } from 'lucide-react';
+import { buttonVariants } from '@/components/ui/button';
 import { toast } from 'sonner';
 
 // Scenario data
@@ -80,40 +82,40 @@ export default function AltTextSimulatorPage() {
     };
 
     return (
-        <div className="min-h-screen bg-notebook-paper text-notebook-slate font-sans selection:bg-notebook-blue/10">
+        <div className="min-h-screen bg-white text-ink font-sans selection:bg-yellow-tint">
             <Navbar />
 
             {/* Header Section */}
-            <header className="bg-white/40 backdrop-blur-xl border-b border-gray-100 sticky top-0 z-30 shadow-sm md:static md:bg-transparent md:border-0 md:shadow-none md:pt-16 md:mb-12">
+            <header className="bg-white/40 backdrop-blur-xl border-b border-line sticky top-0 z-30 shadow-notebook md:static md:bg-transparent md:border-0 md:shadow-none md:pt-16 md:mb-12">
                 <div className="max-w-6xl mx-auto px-6 py-6 md:py-0 text-center md:text-left">
-                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-notebook-blue/5 border border-notebook-blue/10 mb-4 transition-all duration-300">
-                        <Sparkles className="h-3.5 w-3.5 text-notebook-blue" />
-                        <span className="text-[10px] font-bold text-notebook-blue uppercase tracking-widest font-outfit">Interactive Lab</span>
+                    <div className="inline-flex h-8 items-center gap-2 px-3 rounded-full bg-yellow-soft mb-4">
+                        <Sparkles className="h-4 w-4 shrink-0 text-ink" aria-hidden="true" />
+                        <span className="text-xs font-semibold text-ink uppercase tracking-[0.06em]">Interactive Lab</span>
                     </div>
-                    <h1 className="text-3xl md:text-6xl font-bold text-notebook-slate leading-tight font-outfit tracking-tight">
-                        Alt Text <span className="text-notebook-blue italic">Simulator.</span>
+                    <h1 className="text-3xl md:text-6xl font-bold text-ink leading-tight font-outfit tracking-tight">
+                        Alt Text <span className="text-ink italic">Simulator.</span>
                     </h1>
-                    <p className="text-sm md:text-xl text-slate-500 mt-4 max-w-2xl font-normal">See how a clear description changes the information available to screen readers and search systems.</p>
+                    <p className="text-sm md:text-xl text-ink-muted mt-4 max-w-2xl font-normal">See how a clear description changes the information available to screen readers and search systems.</p>
                 </div>
             </header>
 
             <main className="px-4 md:px-6 max-w-6xl mx-auto space-y-4 md:space-y-6 mt-4 md:mt-0 pb-12">
 
                 {/* Controls Section */}
-                <div className="bg-white p-6 md:p-8 rounded-[2.5rem] shadow-notebook border border-gray-100">
+                <div className="bg-white p-6 md:p-8 rounded-2xl shadow-notebook border border-line">
                     <div className="flex flex-col md:flex-row gap-6 md:gap-10 justify-between items-center">
 
                         {/* Scenario Toggle */}
                         <div className="w-full md:w-auto">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 block font-outfit">Choose a Version</span>
-                            <div className="flex bg-notebook-surface p-1.5 rounded-2xl w-full md:w-auto border border-gray-100 shadow-inner">
+                            <span className="label-caps mb-3 block">Choose a Version</span>
+                            <div className="flex bg-yellow-tint p-1 rounded-xl w-full md:w-auto border border-line">
                                 <button
                                     type="button"
                                     onClick={() => handleScenarioChange('bad')}
                                     aria-pressed={currentScenario === 'bad'}
-                                    className={`flex-1 md:flex-none px-8 py-3 rounded-xl text-sm font-bold transition-all duration-300 flex items-center justify-center gap-2 font-outfit uppercase tracking-wider ${currentScenario === 'bad'
-                                        ? 'bg-white shadow-notebook text-notebook-slate border border-gray-100'
-                                        : 'text-slate-400 hover:text-notebook-blue'
+                                    className={`flex-1 md:flex-none h-11 px-5 rounded-lg text-[15px] font-semibold transition-colors duration-300 flex items-center justify-center gap-2 ${currentScenario === 'bad'
+                                        ? 'bg-brand-yellow text-ink'
+                                        : 'text-ink-muted hover:text-ink'
                                         }`}
                                 >
                                     <X className="h-4 w-4" />
@@ -123,9 +125,9 @@ export default function AltTextSimulatorPage() {
                                     type="button"
                                     onClick={() => handleScenarioChange('good')}
                                     aria-pressed={currentScenario === 'good'}
-                                    className={`flex-1 md:flex-none px-8 py-3 rounded-xl text-sm font-bold transition-all duration-300 flex items-center justify-center gap-2 font-outfit uppercase tracking-wider ${currentScenario === 'good'
-                                        ? 'bg-white shadow-notebook text-notebook-blue border border-gray-100'
-                                        : 'text-slate-400 hover:text-notebook-blue'
+                                    className={`flex-1 md:flex-none h-11 px-5 rounded-lg text-[15px] font-semibold transition-colors duration-300 flex items-center justify-center gap-2 ${currentScenario === 'good'
+                                        ? 'bg-brand-yellow text-ink'
+                                        : 'text-ink-muted hover:text-ink'
                                         }`}
                                 >
                                     <Check className="h-4 w-4" />
@@ -135,9 +137,9 @@ export default function AltTextSimulatorPage() {
                         </div>
 
                         {/* Broken Image Toggle */}
-                        <div className="w-full md:w-auto pt-6 md:pt-0 border-t md:border-t-0 border-gray-100">
+                        <div className="w-full md:w-auto pt-6 md:pt-0 border-t md:border-t-0 border-line">
                             <label className="flex items-center justify-between md:justify-start cursor-pointer group">
-                                <span className="text-sm font-bold text-notebook-slate mr-4 font-outfit uppercase tracking-wider">Broken Image State</span>
+                                <span className="text-sm font-semibold text-ink mr-4">Broken Image State</span>
                                 <div className="relative">
                                     <input
                                         type="checkbox"
@@ -146,7 +148,7 @@ export default function AltTextSimulatorPage() {
                                         onChange={toggleBrokenImage}
                                         aria-label="Show the broken image state"
                                     />
-                                    <div className="w-14 h-7 bg-notebook-surface peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-200 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-notebook-blue peer-checked:after:bg-white shadow-inner"></div>
+                                    <div className="w-12 h-7 bg-yellow-tint border border-line-strong rounded-full peer peer-focus-visible:outline peer-focus-visible:outline-[3px] peer-focus-visible:outline-offset-2 peer-focus-visible:outline-yellow-strong peer-checked:after:translate-x-5 after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:ring-1 after:ring-line-strong after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-yellow peer-checked:border-yellow-strong"></div>
                                 </div>
                             </label>
                         </div>
@@ -158,16 +160,16 @@ export default function AltTextSimulatorPage() {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
 
                     {/* 1. The Browser View */}
-                    <div className="bg-white rounded-[2.5rem] shadow-notebook border border-gray-100 overflow-hidden flex flex-col transition-all duration-500 hover:border-notebook-blue/20 group">
-                        <div className="bg-notebook-surface px-8 py-5 border-b border-gray-100 flex items-center justify-between">
-                            <h2 className="font-bold text-notebook-slate text-sm font-outfit uppercase tracking-widest flex items-center gap-3">
-                                <div className="w-2 h-2 rounded-full bg-notebook-blue shadow-[0_0_10px_rgba(254,225,28,0.45)]"></div>
+                    <div className="bg-white rounded-2xl shadow-notebook border border-line overflow-hidden flex flex-col transition-all duration-500 hover:border-line-strong group">
+                        <div className="bg-yellow-tint px-6 py-4 border-b border-line flex items-center justify-between gap-3">
+                            <h2 className="font-semibold text-ink text-sm uppercase tracking-[0.06em] flex items-center gap-3">
+                                <span className="w-2 h-2 shrink-0 rounded-full bg-yellow-strong" aria-hidden="true" />
                                 What Users See
                             </h2>
-                            <span className="text-[10px] font-bold px-3 py-1 bg-white text-notebook-blue rounded-lg border border-gray-100 shadow-sm font-outfit tracking-widest uppercase">Visual</span>
+                            <span className="inline-flex h-7 items-center px-2.5 bg-yellow-soft text-ink rounded-lg text-xs font-semibold uppercase tracking-[0.06em]">Visual</span>
                         </div>
-                        <div className="p-10 flex-grow flex items-center justify-center bg-notebook-surface/10 min-h-[300px]">
-                            <div className="relative w-full max-w-sm aspect-video bg-white shadow-notebook rounded-3xl overflow-hidden border border-gray-100 flex items-center justify-center p-2">
+                        <div className="p-6 md:p-8 flex-grow flex items-center justify-center bg-white min-h-[300px]">
+                            <div className="relative w-full max-w-sm aspect-video bg-white shadow-notebook rounded-2xl overflow-hidden border border-line flex items-center justify-center p-2">
                                 <Image
                                     src="/red-fox.png"
                                     fill
@@ -179,9 +181,9 @@ export default function AltTextSimulatorPage() {
                                 {/* Broken Image State */}
                                 {isBroken && (
                                     <div className="absolute inset-0 bg-white flex flex-col items-center justify-center p-8 text-center backdrop-blur-sm">
-                                        <ImageIcon className="h-10 w-10 text-slate-200 mb-4" />
-                                        <p className="text-[10px] text-slate-300 mb-4 font-outfit font-bold uppercase tracking-widest">{data.fileName}</p>
-                                        <div className="text-sm font-normal text-slate-500 border border-gray-100 p-5 rounded-2xl bg-notebook-surface w-full italic shadow-inner">
+                                        <ImageIcon className="h-10 w-10 text-ink-muted mb-4" aria-hidden="true" />
+                                        <p className="label-caps mb-4">{data.fileName}</p>
+                                        <div className="text-sm font-normal text-ink-muted border border-line p-5 rounded-2xl bg-white w-full italic shadow-inner">
                                             {data.alt || data.fileName}
                                         </div>
                                     </div>
@@ -191,63 +193,58 @@ export default function AltTextSimulatorPage() {
                     </div>
 
                     {/* 2. The Code View */}
-                    <div className="bg-white rounded-[2.5rem] shadow-notebook border border-gray-100 overflow-hidden flex flex-col transition-all duration-500 hover:border-notebook-blue/20">
-                        <div className="bg-notebook-surface px-8 py-5 border-b border-gray-100 flex items-center justify-between">
-                            <h2 className="font-bold text-notebook-slate text-sm font-outfit uppercase tracking-widest flex items-center gap-3">
-                                <div className="w-2 h-2 rounded-full bg-notebook-slate shadow-[0_0_10px_rgba(15,23,42,0.5)]"></div>
+                    <div className="bg-white rounded-2xl shadow-notebook border border-line overflow-hidden flex flex-col transition-all duration-500 hover:border-line-strong">
+                        <div className="bg-yellow-tint px-6 py-4 border-b border-line flex items-center justify-between gap-3">
+                            <h2 className="font-semibold text-ink text-sm uppercase tracking-[0.06em] flex items-center gap-3">
+                                <span className="w-2 h-2 shrink-0 rounded-full bg-yellow-strong" aria-hidden="true" />
                                 Website Code (HTML)
                             </h2>
-                            <span className="text-[10px] font-bold px-3 py-1 bg-white text-notebook-slate rounded-lg border border-gray-100 shadow-sm font-outfit tracking-widest uppercase">Code</span>
+                            <span className="inline-flex h-7 items-center px-2.5 bg-yellow-soft text-ink rounded-lg text-xs font-semibold uppercase tracking-[0.06em]">Code</span>
                         </div>
-                        <div className="p-8 md:p-12 font-mono text-sm md:text-base relative flex-grow flex items-center overflow-x-auto bg-[#0F172A] selection:bg-notebook-blue/20">
-                            <div className="text-slate-400 w-full whitespace-pre-wrap leading-relaxed">
-                                <span className="text-blue-400 font-bold">&lt;img</span>{' '}
-                                <span className="text-indigo-300">src</span>=<span className="text-emerald-400">&quot;red-fox.png&quot;</span>
+                        <div className="p-6 md:p-8 font-mono text-sm md:text-base relative flex-grow flex items-center overflow-x-auto bg-yellow-tint">
+                            <div className="text-ink w-full whitespace-pre-wrap leading-relaxed">
+                                <span className="text-ink font-bold">&lt;img</span>{' '}
+                                <span className="text-ink-muted">src</span>=<span className="text-ink">&quot;red-fox.png&quot;</span>
                                 {'\n  '}
-                                <span className="text-indigo-300">alt</span>=<span className="text-white bg-white/5 rounded-lg transition-all duration-700 inline-block px-3 py-1.5 border border-white/10 shadow-lg">{data.displayAlt}</span>
-                                <span className="text-blue-400 font-bold">&gt;</span>
+                                <span className="text-ink-muted">alt</span>=<span className="text-ink bg-yellow-soft rounded-lg transition-all duration-700 inline-block px-3 py-1.5 border border-line-strong">{data.displayAlt}</span>
+                                <span className="text-ink font-bold">&gt;</span>
                             </div>
-                            <div className="absolute bottom-4 right-6 flex gap-1.5 opacity-30">
-                                <div className="w-1.5 h-1.5 rounded-full bg-white"></div>
-                                <div className="w-1.5 h-1.5 rounded-full bg-white"></div>
-                                <div className="w-1.5 h-1.5 rounded-full bg-white"></div>
-                            </div>
-                        </div>
+                                                    </div>
                     </div>
 
                     {/* 3. Google Bot View */}
-                    <div className="bg-white rounded-[2.5rem] shadow-notebook border border-gray-100 overflow-hidden flex flex-col transition-all duration-500 hover:border-notebook-blue/20">
-                        <div className="bg-notebook-surface px-8 py-5 border-b border-gray-100 flex items-center justify-between">
-                            <h2 className="font-bold text-notebook-slate text-sm font-outfit uppercase tracking-widest flex items-center gap-3">
-                                <div className="w-2 h-2 rounded-full bg-notebook-blue shadow-[0_0_10px_rgba(254,225,28,0.45)]"></div>
+                    <div className="bg-white rounded-2xl shadow-notebook border border-line overflow-hidden flex flex-col transition-all duration-500 hover:border-line-strong">
+                        <div className="bg-yellow-tint px-6 py-4 border-b border-line flex items-center justify-between gap-3">
+                            <h2 className="font-semibold text-ink text-sm uppercase tracking-[0.06em] flex items-center gap-3">
+                                <span className="w-2 h-2 shrink-0 rounded-full bg-yellow-strong" aria-hidden="true" />
                                 Search Crawler View
                             </h2>
-                            <span className="text-[10px] font-bold px-3 py-1 bg-white text-notebook-blue rounded-lg border border-gray-100 shadow-sm font-outfit tracking-widest uppercase">SEO</span>
+                            <span className="inline-flex h-7 items-center px-2.5 bg-yellow-soft text-ink rounded-lg text-xs font-semibold uppercase tracking-[0.06em]">SEO</span>
                         </div>
-                        <div className="p-10 relative bg-notebook-surface/5">
+                        <div className="p-6 md:p-8 relative bg-white">
                             {/* Scanning effect */}
                             {isScanning && (
-                                <div className="absolute inset-0 pointer-events-none z-10 overflow-hidden rounded-[2.5rem]">
+                                <div className="absolute inset-0 pointer-events-none z-10 overflow-hidden rounded-2xl">
                                     <div className="scan-line"></div>
                                 </div>
                             )}
 
                             <div className="flex flex-col md:flex-row gap-8 items-start">
-                                <div className="w-16 h-16 bg-white rounded-[1.25rem] border border-gray-100 flex items-center justify-center flex-shrink-0 self-center md:self-start shadow-notebook">
+                                <div className="w-16 h-16 bg-white rounded-[1.25rem] border border-line flex items-center justify-center flex-shrink-0 self-center md:self-start shadow-notebook">
                                     <div className="relative">
-                                        <div className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-notebook-blue animate-pulse"></div>
-                                        <Search className="w-7 h-7 text-notebook-slate" />
+                                        <div className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-brand-yellow animate-pulse"></div>
+                                        <Search className="w-7 h-7 text-ink" />
                                     </div>
                                 </div>
                                 <div className="flex-grow w-full">
-                                    <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4 font-outfit">Keywords Found</h3>
+                                    <h3 className="label-caps mb-4">Keywords Found</h3>
                                     <div className="flex flex-wrap gap-2.5 mb-8">
                                         {data.googleKeywords.map((kw, index) => (
                                             <span
                                                 key={index}
-                                                className={`px-4 py-2 rounded-xl text-[10px] font-bold font-outfit border transition-all duration-500 uppercase tracking-wider ${currentScenario === 'good'
-                                                    ? 'bg-white text-notebook-blue border-notebook-blue/20'
-                                                    : 'bg-white text-slate-400 border-gray-100'
+                                                className={`inline-flex h-8 items-center px-3 rounded-full text-xs font-semibold border transition-colors duration-500 ${currentScenario === 'good'
+                                                    ? 'bg-yellow-soft text-ink border-transparent'
+                                                    : 'bg-white text-ink-muted border-line'
                                                     }`}
                                             >
                                                 {kw}
@@ -255,13 +252,13 @@ export default function AltTextSimulatorPage() {
                                         ))}
                                     </div>
 
-                                    <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-notebook transition-all duration-500">
-                                        <div className="flex justify-between text-[10px] mb-3 items-center font-bold uppercase tracking-widest font-outfit">
-                                            <span className="text-slate-400">Understanding Level</span>
-                                            <span className="text-notebook-slate bg-notebook-surface px-2.5 py-1 rounded-lg border border-gray-100">Illustrative: {data.confidenceLabel}</span>
+                                    <div className="bg-white p-6 rounded-2xl border border-line shadow-notebook transition-all duration-500">
+                                        <div className="flex justify-between gap-3 mb-3 items-center">
+                                            <span className="label-caps">Understanding Level</span>
+                                            <span className="inline-flex h-7 items-center text-xs font-semibold text-ink bg-yellow-tint px-2.5 rounded-lg border border-line">Illustrative: {data.confidenceLabel}</span>
                                         </div>
                                         <progress
-                                            className={`confidence-progress w-full bg-notebook-surface rounded-full h-2.5 p-0.5 border border-gray-100 ${data.confidence > 50 ? 'confidence-high' : 'confidence-low'}`}
+                                            className={`confidence-progress w-full bg-white rounded-full h-2.5 p-0.5 border border-line ${data.confidence > 50 ? 'confidence-high' : 'confidence-low'}`}
                                             value={data.confidence}
                                             max={100}
                                             aria-label="Illustrative understanding level"
@@ -273,15 +270,15 @@ export default function AltTextSimulatorPage() {
                     </div>
 
                     {/* 4. Accessibility View */}
-                    <div className="bg-white rounded-[2.5rem] shadow-notebook border border-gray-100 overflow-hidden flex flex-col transition-all duration-500 hover:border-notebook-blue/20">
-                        <div className="bg-notebook-surface px-8 py-5 border-b border-gray-100 flex items-center justify-between">
-                            <h2 className="font-bold text-notebook-slate text-sm font-outfit uppercase tracking-widest flex items-center gap-3">
-                                <div className="w-2 h-2 rounded-full bg-notebook-blue shadow-[0_0_10px_rgba(254,225,28,0.45)]"></div>
+                    <div className="bg-white rounded-2xl shadow-notebook border border-line overflow-hidden flex flex-col transition-all duration-500 hover:border-line-strong">
+                        <div className="bg-yellow-tint px-6 py-4 border-b border-line flex items-center justify-between gap-3">
+                            <h2 className="font-semibold text-ink text-sm uppercase tracking-[0.06em] flex items-center gap-3">
+                                <span className="w-2 h-2 shrink-0 rounded-full bg-yellow-strong" aria-hidden="true" />
                                 How Screen Readers Hear It
                             </h2>
-                            <span className="text-[10px] font-bold px-3 py-1 bg-white text-notebook-blue rounded-lg border border-gray-100 shadow-sm font-outfit tracking-widest uppercase">Audio</span>
+                            <span className="inline-flex h-7 items-center px-2.5 bg-yellow-soft text-ink rounded-lg text-xs font-semibold uppercase tracking-[0.06em]">Audio</span>
                         </div>
-                        <div className="p-10 flex flex-col items-center justify-center text-center">
+                        <div className="p-6 md:p-8 flex flex-col items-center justify-center text-center">
 
                             {/* Waveform */}
                             <div className={`h-12 flex items-center justify-center gap-2 mb-8 w-full transition-opacity duration-500 ${isSpeaking ? 'opacity-100' : 'opacity-20'}`}>
@@ -293,31 +290,27 @@ export default function AltTextSimulatorPage() {
                                 ))}
                             </div>
 
-                            <div className="bg-notebook-slate text-notebook-surface font-outfit p-8 rounded-[2rem] w-full mb-8 text-left min-h-[120px] relative border border-gray-800 shadow-notebook group selection:bg-notebook-blue/40">
-                                <div className="absolute top-4 right-4 flex gap-1.5 opacity-40">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-white"></div>
-                                    <div className="w-1.5 h-1.5 rounded-full bg-white"></div>
-                                </div>
-                                <span className="text-white/20 text-[10px] absolute bottom-4 right-6 font-bold tracking-[0.2em] uppercase">Rendered Output</span>
-                                <span className="mr-3 text-notebook-blue font-bold tracking-widest uppercase text-[10px]">Assistant:</span>
-                                <span className="leading-relaxed text-white text-lg font-normal italic">"{data.srText}"</span>
+                            <div className="bg-yellow-tint text-ink font-outfit p-6 pb-10 rounded-2xl w-full mb-6 text-left min-h-[120px] relative border border-line">
+                                <span className="label-caps absolute bottom-4 right-6">Rendered Output</span>
+                                <span className="label-caps mr-3 !text-ink">Assistant:</span>
+                                <span className="leading-relaxed text-ink text-lg font-normal italic">"{data.srText}"</span>
                             </div>
 
                             <button
                                 type="button"
                                 onClick={speakAltText}
-                                className="w-full py-5 bg-notebook-blue hover:bg-notebook-blue/90 active:scale-[0.98] text-white rounded-2xl font-bold font-outfit uppercase tracking-widest text-sm shadow-notebook transition-all flex items-center justify-center gap-4 group"
+                                className={`w-full ${buttonVariants()}`}
                             >
                                 {isSpeaking ? (
-                                    <div className="flex items-center gap-2">
-                                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-white/30 border-t-white"></div>
+                                    <>
+                                        <Loader2 className="animate-spin" aria-hidden="true" />
                                         <span>Reading...</span>
-                                    </div>
+                                    </>
                                 ) : (
-                                    <div className="flex items-center gap-3">
-                                        <Sparkles className="h-4 w-4 group-hover:animate-pulse" />
+                                    <>
+                                        <Sparkles aria-hidden="true" />
                                         <span>Hear the Difference</span>
-                                    </div>
+                                    </>
                                 )}
                             </button>
                         </div>
@@ -326,73 +319,71 @@ export default function AltTextSimulatorPage() {
                 </div>
 
                 {/* Impact Analysis */}
-                <div className="mt-8 p-10 bg-white border border-gray-100 rounded-[2.5rem] text-notebook-slate mb-12 shadow-notebook relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-notebook-blue/5 blur-[80px] rounded-full -mr-32 -mt-32 transition-colors"></div>
-                    <h3 className="font-bold mb-6 flex items-center text-2xl text-notebook-slate gap-4 font-outfit">
-                        <div className="p-3 bg-notebook-blue/5 rounded-2xl border border-notebook-blue/10">
-                            <Info className="h-6 w-6 text-notebook-blue" />
+                <div className="mt-8 p-6 md:p-8 bg-white border border-line rounded-2xl text-ink mb-12 shadow-notebook relative overflow-hidden">
+                    <h3 className="font-bold mb-6 flex items-center text-2xl text-ink gap-4 font-outfit">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center bg-yellow-soft rounded-xl">
+                            <Info className="h-6 w-6 text-ink" aria-hidden="true" />
                         </div>
                         Why It Matters
                     </h3>
-                    <p className="text-lg leading-relaxed text-slate-500 max-w-4xl font-normal italic">
+                    <p className="text-lg leading-relaxed text-ink-muted max-w-4xl font-normal italic">
                         "{data.explanation}"
                     </p>
                 </div>
 
                 {/* INFOGRAPHIC SECTION */}
-                <div className="mt-12 bg-white text-notebook-slate rounded-[3rem] overflow-hidden shadow-notebook border border-gray-100 mb-20 relative">
-                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/2 h-1 bg-gradient-to-r from-transparent via-notebook-blue/10 to-transparent"></div>
+                <div className="mt-12 bg-white text-ink rounded-2xl overflow-hidden shadow-notebook border border-line mb-20 relative">
+                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/2 h-1 bg-gradient-to-r from-transparent via-line-strong to-transparent"></div>
 
-                    <div className="p-10 md:p-16 text-center border-b border-gray-50">
-                        <h2 className="text-3xl md:text-6xl font-black mb-6 text-notebook-slate tracking-tight font-outfit uppercase">How Alt Text Works</h2>
-                        <p className="text-slate-500 text-sm md:text-xl max-w-2xl mx-auto font-normal">From website code to helping your users and SEO.</p>
+                    <div className="p-8 md:p-12 text-center border-b border-line">
+                        <h2 className="text-3xl md:text-6xl font-bold mb-6 text-ink tracking-tight font-outfit">How Alt Text Works</h2>
+                        <p className="text-ink-muted text-sm md:text-xl max-w-2xl mx-auto font-normal">From website code to helping your users and SEO.</p>
                     </div>
 
-                    <div className="p-8 md:p-16">
-                        <div className="flex flex-col md:flex-row items-center justify-between gap-12 md:gap-4 relative">
+                    <div className="p-8 md:p-12">
+                        <div className="flex flex-col md:flex-row items-center md:items-start justify-between gap-12 md:gap-4 relative">
 
                             {/* Step 1 */}
                             <div className="relative z-10 w-full md:w-1/3 flex flex-col items-center text-center group">
-                                <div className="w-20 h-20 md:w-28 md:h-28 bg-notebook-blue rounded-[2rem] flex items-center justify-center shadow-notebook-lg mb-8 transform transition-all duration-500 group-hover:scale-110 group-hover:-rotate-3">
-                                    <Code className="h-10 w-10 text-white" />
+                                <div className="w-20 h-20 md:w-28 md:h-28 bg-brand-yellow rounded-2xl flex items-center justify-center mb-8 transform transition-all duration-500 group-hover:scale-110 group-hover:-rotate-3">
+                                    <Code className="h-10 w-10 text-ink" aria-hidden="true" />
                                 </div>
-                                <h3 className="text-sm font-bold text-notebook-slate mb-4 font-outfit uppercase tracking-widest">01 Adding the Text</h3>
-                                <p className="text-xs md:text-sm text-slate-400 leading-relaxed max-w-[240px] font-normal">
-                                    The <code className="bg-notebook-surface border border-gray-100 px-2 py-1 rounded-md text-notebook-blue font-bold font-mono text-[10px]">alt="description"</code> text is added directly to your image code.
+                                <h3 className="text-sm font-bold text-ink mb-4 font-outfit uppercase tracking-widest">01 Adding the Text</h3>
+                                <p className="text-xs md:text-sm text-ink-muted leading-relaxed max-w-[240px] font-normal">
+                                    The <code className="bg-white border border-line px-2 py-1 rounded-md text-ink font-bold font-mono text-xs">alt="description"</code> text is added directly to your image code.
                                 </p>
                             </div>
 
                             {/* Arrow 1 */}
                             <div className="md:hidden">
-                                <ChevronDown className="h-7 w-7 animate-bounce text-slate-300" aria-hidden="true" />
+                                <ChevronDown className="h-7 w-7 animate-bounce text-ink-muted" aria-hidden="true" />
                             </div>
-                            <div className="hidden md:block absolute left-[32%] top-16 w-[12%] h-[2px] bg-notebook-blue/10"></div>
+                            <div className="hidden md:block absolute left-[32%] top-16 w-[12%] h-[2px] bg-line-strong"></div>
 
                             {/* Step 2 */}
                             <div className="relative z-10 w-full md:w-1/3 flex flex-col items-center text-center group">
-                                <div className="w-20 h-20 md:w-28 md:h-28 bg-notebook-slate rounded-[2rem] flex items-center justify-center shadow-notebook-lg mb-8 transform transition-all duration-500 group-hover:scale-110 group-hover:rotate-3">
-                                    <Search className="h-10 w-10 text-white" />
+                                <div className="w-20 h-20 md:w-28 md:h-28 bg-brand-yellow rounded-2xl flex items-center justify-center mb-8 transform transition-all duration-500 group-hover:scale-110 group-hover:rotate-3">
+                                    <Search className="h-10 w-10 text-ink" aria-hidden="true" />
                                 </div>
-                                <h3 className="text-sm font-bold text-notebook-slate mb-4 font-outfit uppercase tracking-widest">02 Search Engine Analysis</h3>
-                                <p className="text-xs md:text-sm text-slate-400 leading-relaxed max-w-[240px] font-normal">
+                                <h3 className="text-sm font-bold text-ink mb-4 font-outfit uppercase tracking-widest">02 Search Engine Analysis</h3>
+                                <p className="text-xs md:text-sm text-ink-muted leading-relaxed max-w-[240px] font-normal">
                                     Search engines can use the description as one source of text context for the image.
                                 </p>
                             </div>
 
                             {/* Arrow 2 */}
                             <div className="md:hidden">
-                                <ChevronDown className="h-7 w-7 animate-bounce text-slate-300" aria-hidden="true" />
+                                <ChevronDown className="h-7 w-7 animate-bounce text-ink-muted" aria-hidden="true" />
                             </div>
-                            <div className="hidden md:block absolute right-[32%] top-16 w-[12%] h-[2px] bg-notebook-blue/10"></div>
+                            <div className="hidden md:block absolute right-[32%] top-16 w-[12%] h-[2px] bg-line-strong"></div>
 
                             {/* Step 3 */}
                             <div className="relative z-10 w-full md:w-1/3 flex flex-col items-center text-center group">
-                                <div className="w-28 h-28 bg-notebook-blue rounded-[2rem] flex items-center justify-center shadow-notebook-lg mb-8 transform transition-all duration-500 group-hover:scale-110 group-hover:-rotate-3 relative">
-                                    <div className="absolute inset-0 bg-white/20 animate-pulse rounded-[2rem]"></div>
-                                    <Zap className="h-10 w-10 text-white relative z-10" />
+                                <div className="w-20 h-20 md:w-28 md:h-28 bg-brand-yellow rounded-2xl flex items-center justify-center mb-8 transform transition-all duration-500 group-hover:scale-110 group-hover:-rotate-3 relative">
+                                                                        <Zap className="h-10 w-10 text-ink" aria-hidden="true" />
                                 </div>
-                                <h3 className="text-sm font-bold text-notebook-slate mb-4 font-outfit uppercase tracking-widest">03 Better Experience</h3>
-                                <p className="text-xs md:text-sm text-slate-400 leading-relaxed max-w-[240px] font-normal">
+                                <h3 className="text-sm font-bold text-ink mb-4 font-outfit uppercase tracking-widest">03 Better Experience</h3>
+                                <p className="text-xs md:text-sm text-ink-muted leading-relaxed max-w-[240px] font-normal">
                                     Users who cannot see the image receive a useful description when the wording matches the page context.
                                 </p>
                             </div>
@@ -400,7 +391,7 @@ export default function AltTextSimulatorPage() {
                         </div>
                     </div>
 
-                    <div className="bg-notebook-surface p-10 text-center text-[10px] text-slate-400 font-bold font-outfit uppercase tracking-[0.3em] border-t border-gray-50">
+                    <div className="bg-yellow-tint p-6 md:p-8 text-center text-sm text-ink-muted font-medium border-t border-line">
                         Smart descriptions make your website better for everyone—humans and search engines alike.
                     </div>
                 </div>
@@ -413,7 +404,7 @@ export default function AltTextSimulatorPage() {
             <style jsx>{`
                 .bar {
                     width: 6px;
-                    background: #000000;
+                    background: #F2CF00;
                     margin: 0 3px;
                     border-radius: 999px;
                     animation: sound 0ms -800ms linear infinite alternate;
@@ -442,11 +433,11 @@ export default function AltTextSimulatorPage() {
                 .scan-line {
                     width: 100%;
                     height: 2px;
-                    background: #000000;
+                    background: #F2CF00;
                     position: absolute;
                     top: 0;
                     left: 0;
-                    box-shadow: 0 0 20px #000000;
+                    box-shadow: 0 0 20px rgba(254, 225, 28, 0.8);
                     z-index: 20;
                     animation: scan 2.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
                 }

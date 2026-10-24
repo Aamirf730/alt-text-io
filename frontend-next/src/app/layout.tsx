@@ -35,7 +35,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${inter.variable} ${outfit.variable} ${lato.variable} antialiased font-sans bg-notebook-paper selection:bg-notebook-blue/10`}
+        className={`${inter.variable} ${outfit.variable} ${lato.variable} antialiased font-sans bg-white selection:bg-yellow-soft`}
       >
         {children}
         <Toaster />

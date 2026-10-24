@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import GoogleIdentityButton from "@/components/GoogleIdentityButton";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 type AccountUser = {
     id: string;
@@ -163,16 +165,16 @@ export default function CustomerOfferPage() {
     );
 
     return (
-        <main className="min-h-screen overflow-hidden bg-[#FFF9C4] text-[#000000]">
+        <main className="relative min-h-screen overflow-hidden bg-yellow-tint text-ink">
             <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
-                <div className="absolute -left-40 -top-40 h-96 w-96 rounded-full bg-[#FEE11C]/15 blur-3xl" />
-                <div className="absolute -bottom-52 -right-24 h-[32rem] w-[32rem] rounded-full bg-[#000000]/10 blur-3xl" />
+                <div className="absolute -left-40 -top-40 h-96 w-96 rounded-full bg-brand-yellow/20 blur-3xl" />
+                <div className="absolute -bottom-52 -right-24 h-[32rem] w-[32rem] rounded-full bg-yellow-soft/60 blur-3xl" />
             </div>
 
             <div className="relative mx-auto flex min-h-screen max-w-6xl items-center px-5 py-10 sm:px-8 lg:py-16">
-                <div className="grid w-full overflow-hidden rounded-[2rem] border border-white/80 bg-white shadow-[0_30px_90px_rgba(0,0,0,0.14)] lg:grid-cols-[1.06fr_0.94fr]">
-                    <section className="relative bg-[#000000] px-7 py-10 text-white sm:px-12 sm:py-14 lg:px-14 lg:py-16">
-                        <div className="absolute right-0 top-0 h-52 w-52 rounded-bl-full bg-[#FEE11C]/10" aria-hidden="true" />
+                <div className="grid w-full overflow-hidden rounded-2xl border border-line bg-white shadow-notebook lg:grid-cols-[1.06fr_0.94fr]">
+                    <section className="relative bg-brand-yellow px-7 py-10 text-ink sm:px-12 sm:py-14 lg:px-14 lg:py-16">
+                        <div className="absolute right-0 top-0 h-52 w-52 rounded-bl-full bg-yellow-soft/50" aria-hidden="true" />
                         <Link href="/" className="relative inline-flex items-center gap-3">
                             <Image
                                 src="/logo-alt-text-pro.png"
@@ -180,7 +182,7 @@ export default function CustomerOfferPage() {
                                 width={64}
                                 height={64}
                                 priority
-                                className="h-16 w-16 rounded-2xl bg-white/95 p-1 shadow-lg"
+                                className="h-16 w-16 rounded-2xl bg-white p-1 shadow-notebook"
                             />
                             <span className="font-outfit text-lg font-semibold tracking-tight">
                                 Alt Text Pro
@@ -188,14 +190,14 @@ export default function CustomerOfferPage() {
                         </Link>
 
                         <div className="relative mt-14 max-w-xl">
-                            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-[#FEE11C]/25 bg-[#FEE11C]/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] text-[#FEE11C]">
+                            <div className="mb-6 inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.06em] text-ink">
                                 <Gift className="h-4 w-4" />
                                 WPGeared customer gift
                             </div>
                             <h1 className="font-outfit text-4xl font-semibold leading-[1.08] tracking-tight sm:text-5xl lg:text-[3.55rem]">
                                 1,000 bonus credits, on us.
                             </h1>
-                            <p className="mt-6 text-lg leading-8 text-slate-300">
+                            <p className="mt-6 text-lg leading-8 text-ink">
                                 Sign in with the email address that received your invitation, then
                                 add the bonus to your free Alt Text Pro account.
                             </p>
@@ -206,8 +208,8 @@ export default function CustomerOfferPage() {
                                     "Bulk-fix missing alt text in WordPress",
                                     "Keep unused bonus credits across monthly refills",
                                 ].map((benefit) => (
-                                    <div key={benefit} className="flex items-start gap-3 text-slate-200">
-                                        <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-[#FEE11C]/15 text-[#FEE11C]">
+                                    <div key={benefit} className="flex items-center gap-3 text-ink">
+                                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-white text-ink">
                                             <Check className="h-4 w-4" strokeWidth={3} />
                                         </span>
                                         <span className="leading-6">{benefit}</span>
@@ -216,8 +218,8 @@ export default function CustomerOfferPage() {
                             </div>
                         </div>
 
-                        <div className="relative mt-14 flex items-center gap-3 border-t border-white/10 pt-7 text-sm text-slate-400">
-                            <ShieldCheck className="h-5 w-5 text-[#FEE11C]" />
+                        <div className="relative mt-14 flex items-center gap-3 border-t border-ink/15 pt-6 text-sm text-ink">
+                            <ShieldCheck className="h-5 w-5 shrink-0 text-ink" />
                             One claim per invited customer account.
                         </div>
                     </section>
@@ -226,72 +228,74 @@ export default function CustomerOfferPage() {
                         <div className="w-full">
                             {isCheckingSession ? (
                                 <div className="flex min-h-[420px] flex-col items-center justify-center text-center">
-                                    <Loader2 className="h-10 w-10 animate-spin text-[#000000]" />
-                                    <p className="mt-5 text-slate-600">Checking your account…</p>
+                                    <Loader2 className="h-10 w-10 animate-spin text-ink" />
+                                    <p className="mt-5 text-ink-muted">Checking your account…</p>
                                 </div>
                             ) : claimComplete ? (
                                 <div className="text-center">
-                                    <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#FFF9C4] text-[#000000]">
+                                    <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-yellow-soft text-ink">
                                         <CheckCircle2 className="h-11 w-11" />
                                     </div>
-                                    <p className="mt-7 text-xs font-bold uppercase tracking-[0.2em] text-[#000000]">
+                                    <p className="label-caps mt-6">
                                         Offer claimed
                                     </p>
                                     <h2 className="mt-3 font-outfit text-3xl font-semibold tracking-tight">
                                         Your credits are ready.
                                     </h2>
-                                    <p className="mx-auto mt-4 max-w-sm leading-7 text-slate-600">
+                                    <p className="mx-auto mt-4 max-w-sm leading-7 text-ink-muted">
                                         {claimResult?.status === "already_claimed"
                                             ? "You already claimed this customer offer. Your available balance is shown below."
                                             : claimResult?.message}
                                     </p>
 
-                                    <div className="my-8 rounded-2xl border border-[#FEE11C] bg-[#FFF9C4] p-6">
-                                        <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#000000]">
+                                    <div className="my-8 rounded-2xl border border-line bg-yellow-tint p-6">
+                                        <p className="label-caps">
                                             Available credits
                                         </p>
-                                        <p className="mt-2 font-outfit text-5xl font-semibold text-[#000000]">
+                                        <p className="mt-2 font-outfit text-5xl font-semibold text-ink">
                                             {Number(claimResult?.credits_remaining || 0).toLocaleString()}
                                         </p>
                                     </div>
 
                                     <Link
                                         href="/dashboard"
-                                        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#000000] px-6 py-4 font-semibold text-white transition hover:bg-[#222222]"
+                                        className={cn(buttonVariants(), "w-full")}
                                     >
                                         Go to my dashboard
-                                        <ArrowRight className="h-5 w-5" />
+                                        <ArrowRight />
                                     </Link>
                                 </div>
                             ) : user ? (
                                 <div>
                                     <div className="flex items-center justify-between gap-4">
                                         <div>
-                                            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#000000]">
+                                            <p className="label-caps">
                                                 Welcome back
                                             </p>
                                             <h2 className="mt-2 font-outfit text-3xl font-semibold tracking-tight">
                                                 Claim your customer bonus
                                             </h2>
                                         </div>
-                                        <Sparkles className="h-9 w-9 text-[#000000]" />
+                                        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-yellow-soft text-ink">
+                                            <Sparkles className="h-6 w-6" />
+                                        </span>
                                     </div>
 
-                                    <div className="mt-7 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                        <div className="flex items-start gap-3">
-                                            <Mail className="mt-0.5 h-5 w-5 shrink-0 text-[#000000]" />
+                                    <div className="mt-7 rounded-2xl border border-line bg-yellow-tint p-4">
+                                        <div className="flex items-center gap-3">
+                                            <Mail className="h-5 w-5 shrink-0 text-ink" />
                                             <div className="min-w-0">
-                                                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                                <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
                                                     Signed in as
                                                 </p>
-                                                <p className="mt-1 break-all font-medium text-slate-800">
+                                                <p className="mt-1 break-all font-medium text-ink">
                                                     {user.email}
                                                 </p>
                                             </div>
                                         </div>
                                     </div>
 
-                                    <p className="mt-6 leading-7 text-slate-600">
+                                    <p className="mt-6 leading-7 text-ink-muted">
                                         We’ll securely verify this email against the customer invitation
                                         list. Your credits will be added only after you press the button.
                                     </p>
@@ -299,7 +303,7 @@ export default function CustomerOfferPage() {
                                     {claimResult && !claimComplete && (
                                         <div
                                             role="alert"
-                                            className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900"
+                                            className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-warning"
                                         >
                                             {claimResult.message}
                                         </div>
@@ -309,16 +313,16 @@ export default function CustomerOfferPage() {
                                         type="button"
                                         onClick={handleClaim}
                                         disabled={isClaiming}
-                                        className="mt-7 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#FEE11C] px-6 py-4 font-bold text-[#000000] shadow-[0_12px_30px_rgba(254,225,28,0.30)] transition hover:bg-[#000000] disabled:cursor-wait disabled:opacity-65"
+                                        className={cn(buttonVariants(), "mt-6 w-full disabled:cursor-wait")}
                                     >
                                         {isClaiming ? (
                                             <>
-                                                <Loader2 className="h-5 w-5 animate-spin" />
+                                                <Loader2 className="animate-spin" />
                                                 Claiming securely…
                                             </>
                                         ) : (
                                             <>
-                                                <Gift className="h-5 w-5" />
+                                                <Gift />
                                                 Claim my 1,000 credits
                                             </>
                                         )}
@@ -327,21 +331,21 @@ export default function CustomerOfferPage() {
                                     <button
                                         type="button"
                                         onClick={handleSignOut}
-                                        className="mx-auto mt-5 flex items-center gap-2 text-sm font-medium text-slate-500 transition hover:text-slate-800"
+                                        className={cn(buttonVariants({ variant: "ghost" }), "mt-2 w-full")}
                                     >
-                                        <LogOut className="h-4 w-4" />
+                                        <LogOut />
                                         Use a different email
                                     </button>
                                 </div>
                             ) : (
                                 <div>
-                                    <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#000000]">
+                                    <p className="label-caps">
                                         Invitation only
                                     </p>
                                     <h2 className="mt-2 font-outfit text-3xl font-semibold tracking-tight">
                                         {isLogin ? "Sign in to claim" : "Create your free account"}
                                     </h2>
-                                    <p className="mt-4 leading-7 text-slate-600">
+                                    <p className="mt-4 leading-7 text-ink-muted">
                                         Use the same email address where you received this WPGeared
                                         customer invitation.
                                     </p>
@@ -352,18 +356,18 @@ export default function CustomerOfferPage() {
                                         onLoadingChange={setIsAuthenticating}
                                         onSuccess={handleGoogleSuccess}
                                         onError={setAuthMessage}
-                                        className="mt-7 rounded-xl"
+                                        className="mt-6 w-full"
                                     />
 
-                                    <div className="my-6 flex items-center gap-3 text-xs uppercase tracking-widest text-slate-400">
-                                        <span className="h-px flex-1 bg-slate-200" />
+                                    <div className="my-6 flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.06em] text-ink-muted">
+                                        <span className="h-px flex-1 bg-line" />
                                         or
-                                        <span className="h-px flex-1 bg-slate-200" />
+                                        <span className="h-px flex-1 bg-line" />
                                     </div>
 
                                     <form onSubmit={handleEmailAuth} className="space-y-4">
                                         <label className="block">
-                                            <span className="mb-2 block text-sm font-semibold text-slate-700">
+                                            <span className="mb-2 block text-sm font-semibold text-ink">
                                                 Email address
                                             </span>
                                             <input
@@ -373,12 +377,12 @@ export default function CustomerOfferPage() {
                                                 required
                                                 autoComplete="email"
                                                 placeholder="you@example.com"
-                                                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 outline-none transition placeholder:text-slate-400 focus:border-[#000000] focus:ring-4 focus:ring-[#FEE11C]/10"
+                                                className="h-11 w-full rounded-xl border border-line-strong bg-white px-4 text-ink outline-none transition placeholder:text-ink-muted focus:border-yellow-strong"
                                             />
                                         </label>
 
                                         <label className="block">
-                                            <span className="mb-2 block text-sm font-semibold text-slate-700">
+                                            <span className="mb-2 block text-sm font-semibold text-ink">
                                                 Password
                                             </span>
                                             <span className="relative block">
@@ -390,21 +394,21 @@ export default function CustomerOfferPage() {
                                                     minLength={6}
                                                     autoComplete={isLogin ? "current-password" : "new-password"}
                                                     placeholder={isLogin ? "Your password" : "At least 6 characters"}
-                                                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pr-12 outline-none transition placeholder:text-slate-400 focus:border-[#000000] focus:ring-4 focus:ring-[#FEE11C]/10"
+                                                    className="h-11 w-full rounded-xl border border-line-strong bg-white px-4 pr-12 text-ink outline-none transition placeholder:text-ink-muted focus:border-yellow-strong"
                                                 />
                                                 <button
                                                     type="button"
                                                     onClick={() => setShowPassword((visible) => !visible)}
                                                     aria-label={showPassword ? "Hide password" : "Show password"}
-                                                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-2 text-slate-400 hover:text-slate-700"
+                                                    className="absolute right-1.5 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-ink-muted hover:bg-yellow-tint hover:text-ink"
                                                 >
-                                                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                                                    {showPassword ? <EyeOff className="h-[18px] w-[18px]" /> : <Eye className="h-[18px] w-[18px]" />}
                                                 </button>
                                             </span>
                                         </label>
 
                                         {authMessage && (
-                                            <div role="status" className="rounded-xl border border-[#FEE11C] bg-[#FFF9C4] p-4 text-sm leading-6 text-[#000000]">
+                                            <div role="status" className="rounded-xl border border-line-strong bg-yellow-tint p-4 text-sm leading-6 text-ink">
                                                 {authMessage}
                                             </div>
                                         )}
@@ -412,12 +416,12 @@ export default function CustomerOfferPage() {
                                         <button
                                             type="submit"
                                             disabled={isAuthenticating}
-                                            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#000000] px-6 py-4 font-semibold text-white transition hover:bg-[#222222] disabled:cursor-wait disabled:opacity-60"
+                                            className={cn(buttonVariants(), "w-full disabled:cursor-wait")}
                                         >
                                             {isAuthenticating ? (
-                                                <Loader2 className="h-5 w-5 animate-spin" />
+                                                <Loader2 className="animate-spin" />
                                             ) : (
-                                                <LockKeyhole className="h-5 w-5" />
+                                                <LockKeyhole />
                                             )}
                                             {isLogin ? "Sign in securely" : "Create free account"}
                                         </button>
@@ -429,7 +433,7 @@ export default function CustomerOfferPage() {
                                             setIsLogin((login) => !login);
                                             setAuthMessage("");
                                         }}
-                                        className="mx-auto mt-5 block text-sm font-semibold text-[#000000] hover:text-[#222222]"
+                                        className={cn(buttonVariants({ variant: "link" }), "mx-auto mt-4 flex text-sm")}
                                     >
                                         {isLogin
                                             ? "New to Alt Text Pro? Create a free account"

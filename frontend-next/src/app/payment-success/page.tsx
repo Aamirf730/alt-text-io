@@ -2,9 +2,11 @@
 
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, CheckCircle } from "lucide-react";
+import Image from "next/image";
+import { AlertTriangle, CheckCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
+import { cn } from "@/lib/utils";
 
 type PaymentState = "processing" | "success" | "error";
 type CheckoutStatus = "open" | "expired" | "confirmed" | "succeeded" | "failed";
@@ -99,29 +101,45 @@ export default function PaymentSuccess() {
     }, [router]);
 
     return (
-        <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-yellow-50 to-white px-5">
-            <div className="text-center max-w-md mx-auto rounded-3xl border border-slate-200 bg-white p-8 shadow-sm" aria-live="polite">
-                {state === "success" ? (
-                    <CheckCircle className="h-16 w-16 text-green-600 mx-auto mb-4" aria-hidden="true" />
-                ) : state === "error" ? (
-                    <AlertTriangle className="h-14 w-14 text-amber-600 mx-auto mb-4" aria-hidden="true" />
-                ) : (
-                    <div className="animate-spin rounded-full h-12 w-12 border-4 border-teal-100 border-b-teal-600 mx-auto mb-5" aria-hidden="true" />
-                )}
+        <main className="flex min-h-screen items-center justify-center bg-yellow-tint px-4 py-12 text-ink">
+            <div className="w-full max-w-md rounded-2xl border border-line bg-white p-6 text-center shadow-notebook sm:p-8" aria-live="polite">
+                <Image
+                    src="/logo-alt-text-pro.png"
+                    alt="Alt Text Pro"
+                    width={64}
+                    height={64}
+                    className="mx-auto h-16 w-16"
+                />
+                <div
+                    className={cn(
+                        "mx-auto mt-6 flex h-16 w-16 items-center justify-center rounded-full",
+                        state === "success" && "bg-green-50 text-success",
+                        state === "error" && "bg-amber-50 text-warning",
+                        state === "processing" && "bg-yellow-soft text-ink",
+                    )}
+                    aria-hidden="true"
+                >
+                    {state === "success" ? (
+                        <CheckCircle className="h-8 w-8" />
+                    ) : state === "error" ? (
+                        <AlertTriangle className="h-8 w-8" />
+                    ) : (
+                        <Loader2 className="h-8 w-8 animate-spin" />
+                    )}
+                </div>
 
-                <h1 className="text-3xl font-bold text-gray-900 mb-3">
+                <h1 className="mt-6 font-outfit text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
                     {state === "success" ? "Payment confirmed" : state === "error" ? "Confirmation needed" : "Checking your payment"}
                 </h1>
-                <p className="text-gray-600 mb-6">{message}</p>
+                <p className="mt-3 leading-7 text-ink-muted">{message}</p>
                 {state === "success" && (
-                    <p className="text-sm text-gray-500 mb-4">Redirecting to your dashboard…</p>
+                    <p className="mt-2 text-sm text-ink-muted">Redirecting to your dashboard…</p>
                 )}
-                <Button
-                    onClick={() => router.push("/dashboard")}
-                    className="bg-teal-700 hover:bg-teal-800 text-white px-6 py-2 rounded-lg"
-                >
-                    Go to Dashboard
-                </Button>
+                <div className="mt-8 grid gap-3">
+                    <Button onClick={() => router.push("/dashboard")} className="w-full">
+                        Go to Dashboard
+                    </Button>
+                </div>
             </div>
         </main>
     );

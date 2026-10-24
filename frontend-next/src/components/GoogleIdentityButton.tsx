@@ -130,7 +130,7 @@ export default function GoogleIdentityButton({
         className={`flex min-h-11 w-full justify-center transition-opacity ${disabled || isSigningIn ? "pointer-events-none opacity-50" : ""}`}
       />
       {isSigningIn && (
-        <div className="absolute inset-0 flex items-center justify-center bg-white/90 text-sm font-medium text-slate-700">
+        <div className="absolute inset-0 flex items-center justify-center bg-white/90 text-sm font-medium text-ink">
           Signing in securely…
         </div>
       )}

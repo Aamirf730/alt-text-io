@@ -597,7 +597,7 @@ class AltTextPro
                 navigator.clipboard.writeText(text);
                 var \$btn = $(this);
                 var orig = \$btn.html();
-                \$btn.html('Copied!');
+                \$btn.find('.atp-copy-label').text('Copied!');
                 setTimeout(function(){ \$btn.html(orig); }, 1500);
             });
         });";
@@ -774,7 +774,7 @@ class AltTextPro
         $total = count($attachments) + count($permission_skipped_ids);
 
         if ($total === 0) {
-            echo '<span class="atp-post-status atp-no-images" style="color:#9CA3AF;font-size:12px;">— ' . esc_html__('No images', 'alt-text-pro') . '</span>';
+            echo '<span class="atp-post-status atp-no-images">— ' . esc_html__('No images', 'alt-text-pro') . '</span>';
             return;
         }
 
@@ -789,21 +789,21 @@ class AltTextPro
 
         if ($missing === 0) {
             if ($permission_warning) {
-                echo '<span class="atp-post-status atp-post-warning" style="color:#B45309;font-size:12px;">⚠ ' . esc_html($permission_warning['message']) . '</span>';
+                echo '<span class="atp-post-status atp-post-warning">⚠ ' . esc_html($permission_warning['message']) . '</span>';
             }
             else {
-                echo '<span class="atp-post-status atp-all-done" style="color:#10B981;font-size:12px;">✓ ' . esc_html__('All done', 'alt-text-pro') . '</span>';
+                echo '<span class="atp-post-status atp-all-done">✓ ' . esc_html__('All done', 'alt-text-pro') . '</span>';
             }
             return;
         }
 
         // Show the button
         printf(
-            '<button type="button" class="button button-small atp-post-generate-btn" data-post-id="%d" data-nonce="%s" title="%s">
-                <span class="dashicons dashicons-images-alt2" style="font-size:14px;width:14px;height:14px;vertical-align:middle;margin-right:2px;"></span>
+            '<span class="atp-post-actions"><button type="button" class="button atp-post-generate-btn" data-post-id="%d" data-nonce="%s" title="%s">
+                <span class="dashicons dashicons-images-alt2" aria-hidden="true"></span>
                 <span class="atp-btn-text">%s</span>
             </button>
-            <span class="atp-post-badge" style="margin-left:4px;font-size:11px;color:#6B7280;">%d/%d</span>',
+            <span class="atp-post-badge">%d/%d</span></span>',
             intval($post_id),
             esc_attr(wp_create_nonce('alt_text_pro_nonce')),
             /* translators: %d: number of images missing alt-text */
@@ -814,7 +814,7 @@ class AltTextPro
         );
 
         if ($permission_warning) {
-            echo '<span class="atp-post-status atp-post-warning" style="display:block;color:#B45309;font-size:11px;margin-top:4px;">⚠ ' . esc_html($permission_warning['message']) . '</span>';
+            echo '<span class="atp-post-status atp-post-warning">⚠ ' . esc_html($permission_warning['message']) . '</span>';
         }
     }
 
@@ -1389,11 +1389,6 @@ class AltTextPro
 
                         $("<div>", {
                             "class": "atp-post-status atp-post-warning",
-                            "css": {
-                                "color": "#B45309",
-                                "font-size": "11px",
-                                "margin-top": "6px"
-                            },
                             "text": "⚠ " + message
                         }).appendTo($container);
                     });
@@ -1415,9 +1410,9 @@ class AltTextPro
                     if ($btn.prop("disabled")) return;
 
                     // Show loading state
-                    $btn.prop("disabled", true);
+                    $btn.prop("disabled", true).removeClass("atp-btn-has-error");
                     $btn.find(".atp-btn-text").text(altTextAI.strings.postGenerating);
-                    $btn.find(".dashicons").removeClass("dashicons-images-alt2").addClass("dashicons-update atp-spin");
+                    $btn.find(".dashicons").removeClass("dashicons-images-alt2 dashicons-warning").addClass("dashicons-update atp-spin");
 
                     function resetButton() {
                         $btn.prop("disabled", false);
@@ -1438,8 +1433,7 @@ class AltTextPro
                         if (!data || !data.content_update_error) return;
                         $cell.append(
                             $("<div>", {
-                                "class": "atp-post-status",
-                                "css": { "color": "#B45309", "font-size": "12px", "margin-top": "6px" }
+                                "class": "atp-post-status atp-post-warning"
                             }).text(data.content_update_error)
                         );
                     }
@@ -1479,7 +1473,7 @@ class AltTextPro
 
                         if (processed > 0) {
                             var msg = altTextAI.strings.postSuccess.replace("%d", processed);
-                            $cell.html("<span class=\"atp-post-status atp-all-done\" style=\"color:#10B981;font-size:12px;\"></span>");
+                            $cell.html("<span class=\"atp-post-status atp-all-done\"></span>");
                             $cell.find(".atp-all-done").text("✓ " + msg);
                             if (errors > 0 && altTextAI.strings.postErrors) {
                                 appendPostWarnings($cell, { "warnings": [altTextAI.strings.postErrors.replace("%d", errors)] });
@@ -1488,7 +1482,7 @@ class AltTextPro
                             // Do not present a permission-only result as a successful completion.
                             $cell.empty();
                         } else if (!data.no_credits && errors === 0) {
-                            $cell.html("<span class=\"atp-post-status atp-all-done\" style=\"color:#10B981;font-size:12px;\"></span>");
+                            $cell.html("<span class=\"atp-post-status atp-all-done\"></span>");
                             $cell.find(".atp-all-done").text("✓ " + altTextAI.strings.postAllDone);
                         } else if (data.no_credits) {
                             resetButton();
@@ -1497,7 +1491,7 @@ class AltTextPro
                             $btn.prop("disabled", false);
                             $btn.find(".dashicons").removeClass("dashicons-update atp-spin").addClass("dashicons-warning");
                             $btn.find(".atp-btn-text").text(altTextAI.strings.postErrors ? altTextAI.strings.postErrors.replace("%d", errors) : (errors + " error(s)"));
-                            $btn.css("color", "#EF4444");
+                            $btn.addClass("atp-btn-has-error");
                         }
 
                         showContentUpdateError(data);

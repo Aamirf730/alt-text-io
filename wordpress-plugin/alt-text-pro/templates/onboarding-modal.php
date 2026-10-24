@@ -9,16 +9,17 @@ if (!defined('ABSPATH')) {
     exit;
 }
 ?>
-<div id="alt-text-pro-onboarding-modal" class="alt-text-pro-modal modal" aria-hidden="true">
+<div id="alt-text-pro-onboarding-modal" class="alt-text-pro-modal modal atp-ui" aria-hidden="true">
     <div class="modal-overlay close-modal" tabindex="-1"></div>
     <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="alt-text-pro-onboarding-title">
-        <button type="button" class="close-modal modal-close"
+        <button type="button" class="close-modal modal-close atp-btn button-secondary-custom atp-btn-sm atp-btn-icon"
             aria-label="<?php esc_attr_e('Close', 'alt-text-pro'); ?>">
             <span class="dashicons dashicons-no-alt" aria-hidden="true"></span>
         </button>
 
         <div class="modal-header">
-            <span class="onboarding-heading-icon dashicons dashicons-admin-links" aria-hidden="true"></span>
+            <img class="onboarding-logo" src="<?php echo esc_url(ALT_TEXT_PRO_PLUGIN_URL . 'assets/images/logo-alt-text-pro.png'); ?>"
+                alt="" width="64" height="64" />
             <h2 id="alt-text-pro-onboarding-title">
                 <?php esc_html_e('Connect', 'alt-text-pro'); ?>
                 <span><?php esc_html_e('Alt Text Pro', 'alt-text-pro'); ?></span>
@@ -39,7 +40,7 @@ if (!defined('ABSPATH')) {
                     <p>
                         <?php esc_html_e('Sign in or create a free account and we will securely connect this site for you.', 'alt-text-pro'); ?>
                     </p>
-                    <button type="button" class="button button-primary-custom onboarding-connect-button"
+                    <button type="button" class="button button-primary-custom atp-btn-block onboarding-connect-button"
                         id="auto-connect-btn">
                         <span><?php esc_html_e('Connect Account', 'alt-text-pro'); ?></span>
                         <span class="dashicons dashicons-arrow-right-alt2" aria-hidden="true"></span>
@@ -54,7 +55,7 @@ if (!defined('ABSPATH')) {
 
             <section class="onboarding-step onboarding-step-manual">
                 <div class="manual-heading">
-                    <span class="manual-heading-icon dashicons dashicons-admin-network" aria-hidden="true"></span>
+                    <span class="atp-icon-chip manual-heading-icon" aria-hidden="true"><span class="dashicons dashicons-admin-network"></span></span>
                     <div>
                         <h3><?php esc_html_e('Connect manually', 'alt-text-pro'); ?></h3>
                         <p><?php esc_html_e('Paste the API key from your dashboard.', 'alt-text-pro'); ?></p>
@@ -83,7 +84,7 @@ if (!defined('ABSPATH')) {
 
                 <div id="onboarding-message" class="onboarding-message" aria-live="polite"></div>
 
-                <button type="button" class="button onboarding-save-button" id="onboarding-save">
+                <button type="button" class="button button-secondary-custom atp-btn-block onboarding-save-button" id="onboarding-save">
                     <span class="dashicons dashicons-lock" aria-hidden="true"></span>
                     <span><?php esc_html_e('Save API Key', 'alt-text-pro'); ?></span>
                 </button>
@@ -95,7 +96,7 @@ if (!defined('ABSPATH')) {
                 <span class="dashicons dashicons-shield" aria-hidden="true"></span>
                 <?php esc_html_e('Your API key is encrypted before it is stored.', 'alt-text-pro'); ?>
             </p>
-            <button type="button" class="button button-link close-modal">
+            <button type="button" class="button atp-btn atp-btn-ghost atp-btn-sm close-modal">
                 <?php esc_html_e('I\'ll do this later', 'alt-text-pro'); ?>
             </button>
         </div>

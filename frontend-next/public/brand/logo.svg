@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <radialGradient id="orb" cx="40%" cy="35%" r="65%">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="0.55" stop-color="#FFF6BF"/>
+      <stop offset="1" stop-color="#FEE11C"/>
+    </radialGradient>
+    <clipPath id="disc"><circle cx="500" cy="530" r="330"/></clipPath>
+  </defs>
+  <!-- outer ring -->
+  <circle cx="500" cy="530" r="356" fill="none" stroke="#FEE11C" stroke-width="9" opacity="0.55"/>
+  <!-- main yellow disc -->
+  <circle cx="500" cy="530" r="330" fill="#FEE11C"/>
+  <!-- white swoosh across the top-left of the disc, as in the original mark -->
+  <path clip-path="url(#disc)" d="M150 470 C 190 300, 330 200, 520 205 C 640 208, 720 250, 760 300 C 640 270, 520 300, 440 330 C 330 372, 260 450, 230 600 C 200 590, 160 540, 150 470 Z" fill="#FFF3B0"/>
+  <path clip-path="url(#disc)" d="M230 600 C 260 450, 330 372, 440 330 C 520 300, 640 270, 760 300" fill="none" stroke="#FFFFFF" stroke-width="14" stroke-linecap="round"/>
+  <!-- orb -->
+  <circle cx="802" cy="214" r="58" fill="url(#orb)" stroke="#FEE11C" stroke-width="8"/>
+  <ellipse cx="788" cy="196" rx="20" ry="12" fill="#FFFFFF" opacity="0.9"/>
+  <!-- wordmark -->
+  <text x="512" y="560" text-anchor="middle" font-family="Montserrat, 'Helvetica Neue', Arial, sans-serif" font-weight="800" font-size="210" letter-spacing="2" fill="#3F3F46">ALT</text>
+  <text x="512" y="672" text-anchor="middle" font-family="Montserrat, 'Helvetica Neue', Arial, sans-serif" font-weight="700" font-size="92" letter-spacing="4" fill="#3F3F46">TEXT PRO</text>
+</svg>

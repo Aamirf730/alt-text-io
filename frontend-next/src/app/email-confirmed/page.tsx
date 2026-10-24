@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { supabase } from '@/lib/supabase';
-import { CheckCircle, X } from "lucide-react";
+import { CheckCircle, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 // Email Confirmation Component
@@ -50,69 +50,58 @@ export default function EmailConfirmation() {
     }, []);
 
     return (
-        <main className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center px-4 py-12">
-            <div className="max-w-md w-full">
-                <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
-                    {/* Logo */}
-                    <div className="flex justify-center mb-6">
-                        <Image
-                            src="/logo-alt-text-pro.png"
-                            alt="Alt Text Pro Logo"
-                            width={64}
-                            height={64}
-                            className="h-16 w-16 object-contain"
-                        />
-                    </div>
+        <main className="flex min-h-screen items-center justify-center bg-yellow-tint px-4 py-12 text-ink">
+            <div className="w-full max-w-md rounded-2xl border border-line bg-white p-6 text-center shadow-notebook sm:p-8">
+                <Image
+                    src="/logo-alt-text-pro.png"
+                    alt="Alt Text Pro Logo"
+                    width={64}
+                    height={64}
+                    className="mx-auto h-16 w-16 object-contain"
+                />
 
-                    {isLoading ? (
-                        <>
-                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
-                            <h1 className="text-2xl font-bold text-gray-900 mb-2">Confirming your email...</h1>
-                            <p className="text-gray-600">Please wait while we verify your account.</p>
-                        </>
-                    ) : error ? (
-                        <>
-                            <div className="mb-4">
-                                <X className="h-12 w-12 mx-auto text-red-500" />
-                            </div>
-                            <h1 className="text-2xl font-bold text-gray-900 mb-2">Confirmation Failed</h1>
-                            <p className="text-gray-600 mb-6">{error}</p>
-                            <Button
-                                onClick={() => router.push('/')}
-                                className="w-full bg-black text-white"
-                            >
+                {isLoading ? (
+                    <>
+                        <div className="mx-auto mt-6 flex h-16 w-16 items-center justify-center rounded-full bg-yellow-soft text-ink" aria-hidden="true">
+                            <Loader2 className="h-8 w-8 animate-spin" />
+                        </div>
+                        <h1 className="mt-6 font-outfit text-2xl font-semibold tracking-tight text-ink">Confirming your email...</h1>
+                        <p className="mt-3 leading-7 text-ink-muted">Please wait while we verify your account.</p>
+                    </>
+                ) : error ? (
+                    <>
+                        <div className="mx-auto mt-6 flex h-16 w-16 items-center justify-center rounded-full bg-red-50 text-error" aria-hidden="true">
+                            <X className="h-8 w-8" />
+                        </div>
+                        <h1 className="mt-6 font-outfit text-2xl font-semibold tracking-tight text-ink">Confirmation Failed</h1>
+                        <p className="mt-3 leading-7 text-ink-muted">{error}</p>
+                        <div className="mt-8 grid gap-3">
+                            <Button onClick={() => router.push('/')} className="w-full">
                                 Go to Homepage
                             </Button>
-                        </>
-                    ) : isConfirmed ? (
-                        <>
-                            <div className="mb-4">
-                                <CheckCircle className="h-16 w-16 mx-auto text-black" />
-                            </div>
-                            <h1 className="text-3xl font-bold mb-4 text-black">
-                                Thanks for confirming your email!
-                            </h1>
-                            <p className="text-gray-600 mb-6">
-                                Your account has been successfully verified. Taking you to your dashboard in a few seconds.
-                            </p>
-                            <div className="space-y-3">
-                                <Button
-                                    onClick={() => router.push('/dashboard')}
-                                    className="w-full bg-black text-white"
-                                >
-                                    Go to dashboard
-                                </Button>
-                                <Button
-                                    onClick={() => router.push('/')}
-                                    variant="outline"
-                                    className="w-full border-black text-black"
-                                >
-                                    Back to Homepage
-                                </Button>
-                            </div>
-                        </>
-                    ) : null}
-                </div>
+                        </div>
+                    </>
+                ) : isConfirmed ? (
+                    <>
+                        <div className="mx-auto mt-6 flex h-16 w-16 items-center justify-center rounded-full bg-green-50 text-success" aria-hidden="true">
+                            <CheckCircle className="h-8 w-8" />
+                        </div>
+                        <h1 className="mt-6 font-outfit text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
+                            Thanks for confirming your email!
+                        </h1>
+                        <p className="mt-3 leading-7 text-ink-muted">
+                            Your account has been successfully verified. Taking you to your dashboard in a few seconds.
+                        </p>
+                        <div className="mt-8 grid gap-3">
+                            <Button onClick={() => router.push('/dashboard')} className="w-full">
+                                Go to dashboard
+                            </Button>
+                            <Button onClick={() => router.push('/')} variant="secondary" className="w-full">
+                                Back to Homepage
+                            </Button>
+                        </div>
+                    </>
+                ) : null}
             </div>
         </main>
     );

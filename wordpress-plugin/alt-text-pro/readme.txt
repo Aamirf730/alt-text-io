@@ -159,6 +159,7 @@ Yes, you can cancel your subscription at any time from your Alt Text Pro dashboa
 
 == Changelog ==
 = 1.7.26 =
+* Design: yellow and white interface with consistent buttons and aligned icons.
 * Fix: the settings page shows its own results again ("Settings saved.", invalid or rejected API key, encryption problems); plugin pages hid them.
 * Fix: a finished bulk run logs its completion summary once.
 * Fix: generating alt text for a post no longer strips backslashes from the post content (block data and code samples stay intact), and posts are only re-saved when an image's alt text actually changes.

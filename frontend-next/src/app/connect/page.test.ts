@@ -43,7 +43,7 @@ describe("WordPress connect result screens", () => {
         expect(pageSource).not.toContain("signInWithOAuth");
     });
 
-    it("keeps the primary connection flow on the Alt Text Pro yellow and black palette", () => {
+    it("keeps the primary connection flow on the Alt Text Pro yellow and white palette", () => {
         expect(pageSource).toContain("background: #FEE11C;");
         expect(pageSource).toContain("margin: 0 auto 16px");
         expect(pageSource).not.toContain("#6366f1");

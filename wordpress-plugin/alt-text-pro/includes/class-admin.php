@@ -130,6 +130,17 @@ class AltTextPro_Admin
     }
 
     /**
+     * Admin menu icon: the simplified "ALT" mark as a single-colour SVG.
+     *
+     * The letters are cut out of the disc (even-odd fill), so WordPress can
+     * repaint the one fill colour to match the admin colour scheme.
+     */
+    public static function menu_icon()
+    {
+        return 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cGF0aCBmaWxsPSIjYTdhYWFkIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiIGQ9Ik01MCAyYTQ4IDQ4IDAgMSAwIDAgOTZBNDggNDggMCAxIDAgNTAgMlpNMTQgNjUgMjMuNSAzNWg3LjVMNDAuNSA2NWgtNy42bC0xLjgtNmgtOC43bC0xLjggNlpNMjQuNiA1M2g0LjlMMjcgNDQuNlpNNDIuNSAzNWg3LjZ2MjMuNmgxMS42VjY1SDQyLjVaTTYyLjUgMzVoMjUuNXY2LjZoLTlWNjVoLTcuNVY0MS42aC05WiIvPjwvc3ZnPgo=';
+    }
+
+    /**
      * Add admin menu
      */
     public function add_admin_menu()
@@ -140,7 +151,7 @@ class AltTextPro_Admin
             'manage_options',
             'alt-text-pro',
             array($this, 'dashboard_page'),
-            'dashicons-format-image',
+            self::menu_icon(),
             30
         );
 
@@ -553,7 +564,7 @@ class AltTextPro_Admin
 
         ob_start();
         ?>
-        <div class="alt-text-pro-media-field">
+        <div class="alt-text-pro-media-field atp-ui">
             <?php if ($api_configured): ?>
                 <div class="alt-text-pro-current">
                     <strong><?php esc_html_e('Current Alt-Text:', 'alt-text-pro'); ?></strong>
@@ -566,26 +577,25 @@ class AltTextPro_Admin
                 // Show context field if setting is enabled
                 $show_context = !empty($settings['show_context_field']);
                 ?>
-                <div class="alt-text-pro-context" style="margin: 10px 0;<?php echo $show_context ? '' : ' display: none;'; ?>">
+                <div class="alt-text-pro-context"<?php echo $show_context ? '' : ' style="display: none;"'; ?>>
                     <label for="alt_text_pro_context_<?php echo esc_attr($attachment_id); ?>">
                         <?php esc_html_e('Image Context (optional):', 'alt-text-pro'); ?>
                     </label>
                     <input type="text" id="alt_text_pro_context_<?php echo esc_attr($attachment_id); ?>"
                         name="attachments[<?php echo esc_attr($attachment_id); ?>][alt_text_pro_context]"
-                        placeholder="<?php esc_attr_e('e.g., product photo, team meeting, etc.', 'alt-text-pro'); ?>"
-                        style="width: 100%; margin-top: 5px;">
-                    <p class="description" style="font-size: 11px; margin-top: 4px;">
+                        placeholder="<?php esc_attr_e('e.g., product photo, team meeting, etc.', 'alt-text-pro'); ?>">
+                    <p class="description">
                         <?php esc_html_e('Add specific context to make the generated draft more relevant to this page.', 'alt-text-pro'); ?>
                     </p>
                 </div>
 
-                <button type="button" class="button button-primary alt-text-pro-generate-btn"
+                <button type="button" class="button button-primary-custom atp-btn-sm atp-btn-block alt-text-pro-generate-btn"
                     data-attachment-id="<?php echo esc_attr($attachment_id); ?>">
-                    <span style="font-weight: 600; margin-right: 4px;">AI</span>
-                    <?php esc_html_e('Generate Alt-Text', 'alt-text-pro'); ?>
+                    <span class="dashicons dashicons-images-alt2" aria-hidden="true"></span>
+                    <span><?php esc_html_e('Generate Alt-Text', 'alt-text-pro'); ?></span>
                 </button>
 
-                <div class="alt-text-pro-result" style="margin-top: 10px; display: none !important;">
+                <div class="alt-text-pro-result" style="display: none !important;">
                     <div class="alt-text-pro-loading" style="display: none !important;">
                         <span class="spinner is-active"></span>
                         <?php esc_html_e('Generating alt-text...', 'alt-text-pro'); ?>
@@ -593,17 +603,19 @@ class AltTextPro_Admin
                     <div class="alt-text-pro-success" style="display: none !important;">
                         <p class="generated-alt-text"></p>
                         <p class="description"><?php esc_html_e('Review this draft before applying it to the WordPress alt-text field.', 'alt-text-pro'); ?></p>
-                        <button type="button" class="button alt-text-pro-apply-btn">
-                            <?php esc_html_e('Apply Alt-Text', 'alt-text-pro'); ?>
+                        <button type="button" class="button button-secondary-custom atp-btn-sm atp-btn-block alt-text-pro-apply-btn">
+                            <span class="dashicons dashicons-yes" aria-hidden="true"></span>
+                            <span><?php esc_html_e('Apply Alt-Text', 'alt-text-pro'); ?></span>
                         </button>
                     </div>
-                    <div class="alt-text-pro-error" style="display: none !important; color: #d63638;"></div>
+                    <div class="alt-text-pro-error" role="alert" style="display: none !important;"></div>
                 </div>
             <?php else: ?>
                 <div class="alt-text-pro-notice">
                     <p><?php esc_html_e('API key not configured.', 'alt-text-pro'); ?></p>
-                    <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-pro-settings')); ?>" class="button">
-                        <?php esc_html_e('Configure Settings', 'alt-text-pro'); ?>
+                    <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-pro-settings')); ?>" class="button button-secondary-custom atp-btn-sm atp-btn-block">
+                        <span class="dashicons dashicons-admin-network" aria-hidden="true"></span>
+                        <span><?php esc_html_e('Configure Settings', 'alt-text-pro'); ?></span>
                     </a>
                 </div>
             <?php endif; ?>

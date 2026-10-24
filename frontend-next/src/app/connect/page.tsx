@@ -734,7 +734,7 @@ function ConnectPageContent() {
                 <div className="connect-card connect-card-recovery">
                     <div className="connect-recovery">
                         <div className="recovery-brand">
-                            <Image src="/logo-alt-text-pro.png" alt="" width={40} height={40} className="recovery-brand-logo" />
+                            <Image src="/brand/logo-mark.svg" alt="" width={32} height={32} className="recovery-brand-logo" unoptimized />
                             <span>Alt Text Pro</span>
                         </div>
                         <div className="recovery-icon-wrap" aria-hidden="true">
@@ -980,48 +980,35 @@ function ConnectPageContent() {
             </div>
 
             <style jsx>{`
-        .connect-page {
-          min-height: 100vh;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          background: linear-gradient(135deg, #000000 0%, #222222 50%, #000000 100%);
-          padding: 20px;
-          font-family: 'Inter', -apple-system, sans-serif;
-        }
-
-        .connect-card {
-          background: #ffffff;
-          border-radius: 20px;
-          padding: 40px;
-          width: 100%;
-          max-width: 440px;
-          box-shadow: 0 25px 60px rgba(0, 0, 0, 0.3);
-        }
-
+        /* Auth form only; shared states live in connect-states.css. */
         .connect-header {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
           text-align: center;
           margin-bottom: 24px;
         }
 
-        .connect-logo {
+        .connect-header :global(.connect-logo) {
           display: block;
-          width: 56px;
-          height: 56px;
+          width: 64px;
+          height: 64px;
           margin: 0 auto 16px;
-          border-radius: 12px;
         }
 
         .connect-header h1 {
-          font-size: 22px;
+          font-size: 24px;
           font-weight: 700;
-          color: #000000;
-          margin: 0 0 6px 0;
+          letter-spacing: -0.02em;
+          line-height: 1.2;
+          color: #3F3F46;
+          margin: 0 0 8px 0;
         }
 
         .connect-subtitle {
           font-size: 14px;
-          color: #64748b;
+          line-height: 1.5;
+          color: #6B6B73;
           margin: 0;
         }
 
@@ -1034,41 +1021,32 @@ function ConnectPageContent() {
         }
 
         .benefit-pill {
-          display: flex;
+          display: inline-flex;
           align-items: center;
           gap: 4px;
-          background: #FFF9C4;
-          color: #000000;
+          height: 28px;
+          padding: 0 12px;
+          background: #FFF3B0;
+          color: #3F3F46;
           font-size: 12px;
           font-weight: 600;
-          padding: 4px 10px;
-          border-radius: 20px;
-          border: 1px solid #FEE11C;
+          line-height: 1;
+          border-radius: 9999px;
         }
 
-        .connect-error {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          background: #fef2f2;
-          color: #dc2626;
-          padding: 10px 14px;
-          border-radius: 10px;
-          font-size: 13px;
-          margin-bottom: 16px;
-          border: 1px solid #fecaca;
+        .benefit-pill :global(svg) {
+          flex: 0 0 14px;
         }
 
-        .connect-google-btn {
+        .connect-page :global(.connect-google-btn) {
           width: 100%;
-          border-radius: 10px;
         }
 
         .connect-divider {
           display: flex;
           align-items: center;
-          margin: 20px 0;
-          color: #94a3b8;
+          margin: 24px 0;
+          color: #6B6B73;
           font-size: 13px;
         }
 
@@ -1077,7 +1055,7 @@ function ConnectPageContent() {
           content: '';
           flex: 1;
           height: 1px;
-          background: #e2e8f0;
+          background: #EFE3A3;
         }
 
         .connect-divider span {
@@ -1087,33 +1065,37 @@ function ConnectPageContent() {
         .connect-form {
           display: flex;
           flex-direction: column;
-          gap: 14px;
+          gap: 16px;
         }
 
         .connect-field label {
           display: block;
-          font-size: 13px;
+          font-size: 14px;
           font-weight: 600;
-          color: #000000;
-          margin-bottom: 6px;
+          color: #3F3F46;
+          margin-bottom: 8px;
         }
 
         .connect-field input {
           width: 100%;
-          padding: 10px 14px;
-          border: 1px solid #e2e8f0;
-          border-radius: 10px;
-          font-size: 14px;
-          color: #000000;
+          height: 44px;
+          padding: 0 16px;
+          border: 1px solid #E2CE5A;
+          border-radius: 12px;
+          font-size: 15px;
+          color: #3F3F46;
           background: #FFFFFF;
-          transition: border-color 0.2s;
+          transition: border-color 0.15s;
           outline: none;
           box-sizing: border-box;
         }
 
+        .connect-field input::placeholder {
+          color: #6B6B73;
+        }
+
         .connect-field input:focus {
-          border-color: #FEE11C;
-          box-shadow: 0 0 0 3px rgba(254, 225, 28, 0.28);
+          border-color: #F2CF00;
         }
 
         .connect-password-wrapper {
@@ -1121,255 +1103,59 @@ function ConnectPageContent() {
         }
 
         .connect-password-wrapper input {
-          padding-right: 44px;
+          padding-right: 48px;
         }
 
         .connect-password-toggle {
           position: absolute;
-          right: 10px;
+          right: 6px;
           top: 50%;
           transform: translateY(-50%);
+          width: 32px;
+          height: 32px;
           background: none;
           border: none;
-          color: #94a3b8;
+          border-radius: 8px;
+          color: #6B6B73;
           cursor: pointer;
-          padding: 4px;
-          display: flex;
+          padding: 0;
+          display: inline-flex;
           align-items: center;
+          justify-content: center;
         }
 
         .connect-password-toggle:hover {
-          color: #64748b;
+          background: #FFFBEA;
+          color: #3F3F46;
         }
 
         .connect-submit-btn {
-          width: 100%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 8px;
-          padding: 12px 16px;
           background: #FEE11C;
-          color: #000000;
-          border: 1px solid #FEE11C;
-          border-radius: 10px;
-          font-size: 14px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.2s;
+          color: #3F3F46;
           margin-top: 4px;
         }
 
-        .connect-submit-btn:hover:not(:disabled) {
-          transform: translateY(-1px);
-          background: #000000;
-          color: #FFFFFF;
-          border-color: #000000;
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.22);
-        }
-
-        .connect-submit-btn:disabled {
-          opacity: 0.7;
-          cursor: not-allowed;
-        }
-
         .connect-toggle {
-          text-align: center;
-          margin-top: 20px;
-          font-size: 13px;
-          color: #64748b;
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          justify-content: center;
+          gap: 4px;
+          margin-top: 24px;
+          font-size: 14px;
+          color: #6B6B73;
         }
 
         .connect-toggle button {
           background: none;
           border: none;
-          color: #000000;
+          padding: 0;
+          color: #3F3F46;
           font-weight: 600;
           cursor: pointer;
-          margin-left: 4px;
-          font-size: 13px;
-        }
-
-        .connect-toggle button:hover {
+          font-size: 14px;
           text-decoration: underline;
-        }
-
-        .connect-loading {
-          text-align: center;
-          padding: 40px 0;
-        }
-
-        .connect-loading p {
-          margin-top: 16px;
-          color: #64748b;
-          font-size: 14px;
-        }
-
-        .connect-success {
-          text-align: center;
-          padding: 40px 0;
-        }
-
-        .success-icon {
-          color: #000000;
-          margin-bottom: 16px;
-        }
-
-        .connect-success h2 {
-          font-size: 24px;
-          font-weight: 700;
-          color: #000000;
-          margin: 0 0 8px;
-        }
-
-        .connect-success p {
-          color: #64748b;
-          font-size: 14px;
-          margin: 0;
-        }
-
-        .connect-confirmation {
-          text-align: center;
-          padding: 24px 0 8px;
-        }
-
-        .confirmation-icon {
-          color: #000000;
-          margin-bottom: 16px;
-        }
-
-        .connect-confirmation h2 {
-          font-size: 22px;
-          font-weight: 700;
-          color: #000000;
-          margin: 0 0 10px;
-        }
-
-        .connect-confirmation p {
-          color: #64748b;
-          font-size: 14px;
-          line-height: 1.5;
-          margin: 0 auto 16px;
-        }
-
-        .confirmation-target {
-          overflow-wrap: anywhere;
-          background: #FFF9C4;
-          border: 1px solid #FEE11C;
-          border-radius: 10px;
-          color: #000000;
-          font-size: 16px;
-          font-weight: 700;
-          padding: 12px 14px;
-          margin: 0 0 14px;
-        }
-
-        .connect-confirmation .confirmation-note {
-          font-size: 12px;
-          margin-bottom: 20px;
-        }
-
-        .connect-cancel-btn {
-          width: 100%;
-          background: transparent;
-          border: 0;
-          color: #000000;
-          cursor: pointer;
-          font-size: 14px;
-          font-weight: 600;
-          margin-top: 14px;
-          padding: 8px;
-        }
-
-        .connect-cancel-btn:hover {
-          text-decoration: underline;
-        }
-
-        .connect-recovery {
-          text-align: center;
-          padding: 24px 0 8px;
-        }
-
-        .recovery-icon {
-          color: #000000;
-          margin-bottom: 16px;
-        }
-
-        .connect-recovery h2 {
-          font-size: 22px;
-          font-weight: 700;
-          color: #000000;
-          margin: 0 0 10px;
-        }
-
-        .connect-recovery p {
-          color: #64748b;
-          font-size: 14px;
-          line-height: 1.5;
-          margin: 0 auto 16px;
-        }
-
-        .connect-recovery .recovery-note {
-          font-size: 13px;
-          margin-bottom: 20px;
-        }
-
-        .recovery-key-label {
-          display: block;
-          color: #334155;
-          font-size: 13px;
-          font-weight: 700;
-          margin-bottom: 7px;
-          text-align: left;
-        }
-
-        .recovery-key-row {
-          display: flex;
-          gap: 8px;
-          align-items: stretch;
-        }
-
-        .recovery-key-row input {
-          min-width: 0;
-          flex: 1;
-          border: 1px solid #cbd5e1;
-          border-radius: 8px;
-          color: #334155;
-          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-          font-size: 12px;
-          padding: 11px 12px;
-        }
-
-        .recovery-copy-btn {
-          flex: 0 0 auto;
-          background: #000000;
-          border: 0;
-          border-radius: 8px;
-          color: #fff;
-          cursor: pointer;
-          font-size: 13px;
-          font-weight: 700;
-          padding: 0 15px;
-        }
-
-        .recovery-copy-btn:hover {
-          background: #222222;
-        }
-
-        .connect-recovery .recovery-help {
-          color: #64748b;
-          font-size: 12px;
-          margin-top: 16px;
-          margin-bottom: 0;
-        }
-
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-
-        .animate-spin {
-          animation: spin 1s linear infinite;
+          text-underline-offset: 3px;
         }
       `}</style>
         </main>

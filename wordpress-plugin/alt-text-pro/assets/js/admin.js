@@ -269,7 +269,7 @@
             }
 
             var originalHtml = $button.html();
-            $button.html('<span class="dashicons dashicons-update rotating"></span> Testing...').prop('disabled', true);
+            $button.html('<span class="dashicons dashicons-update rotating" aria-hidden="true"></span><span>Testing...</span>').prop('disabled', true);
             $result.html('<div class="notice notice-info"><p>' + (useSavedKey ? 'Testing saved connection...' : 'Testing connection...') + '</p></div>');
 
             $.ajax({
@@ -416,7 +416,7 @@
 
             $('.alt-text-pro-notification').remove();
 
-            var $notification = $('<div class="alt-text-pro-notification notice notice-' + type + '" role="alert">')
+            var $notification = $('<div class="atp-ui alt-text-pro-notification notice notice-' + type + '" role="alert">')
                 .append($('<p>').text(message))
                 .append($('<button type="button" class="notice-dismiss"><span class="screen-reader-text">Dismiss this notice.</span></button>'))
                 .hide();
@@ -1517,7 +1517,7 @@
             if (data.success || data.status === 'completed') {
                 $('#progress-status').text('Completed').removeClass('warning error').addClass('success');
                 this.updateLiveTask(null, 'Every scheduled image has finished.', 'Complete');
-                $('#progress-log').append('<div style="color: var(--success-color); font-weight: bold;">Bulk optimization completed!</div>');
+                $('#progress-log').append('<div class="atp-log-line is-success">Bulk optimization completed!</div>');
             } else if (data.status === 'cancelled') {
                 $('#progress-status').text('Cancelled').removeClass('warning success').addClass('error');
 
@@ -1525,18 +1525,18 @@
                 $('#process-summary-text').text('Process Cancelled');
                 $('#process-summary-details').text('Processed ' + processed + ' images (' + successful + ' successful, ' + errors + ' errors) before stopping.');
                 this.updateLiveTask(null, 'No additional images will start. Any active image is included above.', 'Stopped');
-                $('#progress-log').append('<div style="color: var(--danger-color); font-weight: bold;">Bulk optimization cancelled by user.</div>');
+                $('#progress-log').append('<div class="atp-log-line is-error is-strong">Bulk optimization cancelled by user.</div>');
             } else if (data.status === 'stopped_no_credits') {
                 $('#progress-status').text('Credits Exhausted').removeClass('warning success').addClass('error');
                 $('#process-summary-container').show();
                 $('#process-summary-text').text('Credits Used Up');
                 $('#process-summary-details').text(data.stopped_reason || ('Processed ' + processed + ' images before available credits ran out.'));
                 this.updateLiveTask(null, (altTextAI.strings && altTextAI.strings.noCreditsStopped) || 'The run stopped because there are no credits remaining. Buy a credit pack or upgrade your plan at alt-text.pro.', 'Stopped');
-                $('#progress-log').append('<div style="color: var(--danger-color); font-weight: bold;">Bulk optimization stopped because the account ran out of credits.</div>');
+                $('#progress-log').append('<div class="atp-log-line is-error is-strong">Bulk optimization stopped because the account ran out of credits.</div>');
             } else {
                 $('#progress-status').text('Error').removeClass('warning success').addClass('error');
                 this.updateLiveTask(null, 'The run ended before all scheduled images completed.', 'Needs attention');
-                $('#progress-log').append('<div style="color: var(--danger-color);">Process ended with errors or was interrupted.</div>');
+                $('#progress-log').append('<div class="atp-log-line is-error">Process ended with errors or was interrupted.</div>');
 
                 if (window.AltTextProAdmin && typeof window.AltTextProAdmin.showNotification === 'function') {
                     var attentionMessage = errors > 0
@@ -1567,7 +1567,7 @@
 
         showError: function (msg) {
             $('#progress-log').append(
-                $('<div>').css('color', 'var(--danger-color)').text('Error: ' + String(msg || ''))
+                $('<div>').addClass('atp-log-line is-error').text('Error: ' + String(msg || ''))
             );
         },
 

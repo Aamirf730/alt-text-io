@@ -135,10 +135,10 @@ function createHandler({
       subject: subject || `Contact Form: ${name}`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #000000; border-bottom: 2px solid #FEE11C; padding-bottom: 10px;">
+          <h2 style="color: #3F3F46; border-bottom: 2px solid #FEE11C; padding-bottom: 10px;">
             New Contact Form Submission
           </h2>
-          <div style="background-color: #f9fafb; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <div style="background-color: #FFFBEA; padding: 20px; border-radius: 8px; margin: 20px 0;">
             <p><strong>Name:</strong> ${safeName}</p>
             <p><strong>Email:</strong> <a href="mailto:${safeEmail}">${safeEmail}</a></p>
             ${subject ? `<p><strong>Subject:</strong> ${safeSubject}</p>` : ''}
@@ -147,7 +147,7 @@ function createHandler({
             <p><strong>Message:</strong></p>
             <p style="white-space: pre-wrap; line-height: 1.6;">${safeMessage}</p>
           </div>
-          <p style="color: #6b7280; font-size: 12px;">Sent from the Alt Text Pro contact form.</p>
+          <p style="color: #6B6B73; font-size: 12px;">Sent from the Alt Text Pro contact form.</p>
         </div>
       `,
       text: `New Contact Form Submission\n\nName: ${name}\nEmail: ${email}\n${subject ? `Subject: ${subject}\n` : ''}\nMessage:\n${message}`,

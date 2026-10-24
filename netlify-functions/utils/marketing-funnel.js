@@ -381,11 +381,11 @@ function escapeHtml(value) {
 function renderFunnelReportHtml(report) {
   const rows = report.stages.map(stage => `
     <tr>
-      <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;">${escapeHtml(stage.label)}</td>
-      <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;text-align:right;">${stage.unique_actors}</td>
-      <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;text-align:right;">${stage.events}</td>
-      <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;text-align:right;">${formatPercent(stage.conversion_from_previous)}</td>
-      <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;text-align:right;">${formatPercent(stage.conversion_from_start)}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #EFE3A3;">${escapeHtml(stage.label)}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #EFE3A3;text-align:right;">${stage.unique_actors}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #EFE3A3;text-align:right;">${stage.events}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #EFE3A3;text-align:right;">${formatPercent(stage.conversion_from_previous)}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #EFE3A3;text-align:right;">${formatPercent(stage.conversion_from_start)}</td>
     </tr>
   `).join('');
 
@@ -394,21 +394,21 @@ function renderFunnelReportHtml(report) {
   `).join('');
 
   return `
-    <div style="font-family:Arial,sans-serif;max-width:760px;margin:0 auto;color:#000000;">
-      <h1 style="color:#000000;">Alt Text Pro daily funnel report</h1>
-      <p style="color:#475569;">${escapeHtml(formatDateTime(report.range.start_at))} to ${escapeHtml(formatDateTime(report.range.end_at))} UTC</p>
+    <div style="font-family:Arial,sans-serif;max-width:760px;margin:0 auto;color:#3F3F46;">
+      <h1 style="color:#3F3F46;">Alt Text Pro daily funnel report</h1>
+      <p style="color:#6B6B73;">${escapeHtml(formatDateTime(report.range.start_at))} to ${escapeHtml(formatDateTime(report.range.end_at))} UTC</p>
       <div style="display:flex;gap:12px;margin:20px 0;">
-        <div style="padding:14px 16px;background:#FFF9C4;border:1px solid #FEE11C;border-radius:8px;">
-          <div style="font-size:12px;text-transform:uppercase;color:#000000;">Events</div>
+        <div style="padding:14px 16px;background:#FFF3B0;border:1px solid #FEE11C;border-radius:8px;">
+          <div style="font-size:12px;text-transform:uppercase;color:#3F3F46;">Events</div>
           <div style="font-size:28px;font-weight:700;">${report.totals.events}</div>
         </div>
-        <div style="padding:14px 16px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;">
-          <div style="font-size:12px;text-transform:uppercase;color:#000000;">Unique actors</div>
+        <div style="padding:14px 16px;background:#FFFBEA;border:1px solid #EFE3A3;border-radius:8px;">
+          <div style="font-size:12px;text-transform:uppercase;color:#3F3F46;">Unique actors</div>
           <div style="font-size:28px;font-weight:700;">${report.totals.unique_actors}</div>
         </div>
       </div>
-      <table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;">
-        <thead style="background:#f8fafc;">
+      <table style="width:100%;border-collapse:collapse;border:1px solid #EFE3A3;">
+        <thead style="background:#FFFBEA;">
           <tr>
             <th style="padding:8px 10px;text-align:left;">Stage</th>
             <th style="padding:8px 10px;text-align:right;">Actors</th>
@@ -419,7 +419,7 @@ function renderFunnelReportHtml(report) {
         </thead>
         <tbody>${rows}</tbody>
       </table>
-      <h2 style="color:#000000;margin-top:24px;">Dropoffs</h2>
+      <h2 style="color:#3F3F46;margin-top:24px;">Dropoffs</h2>
       <ul>${dropoffs}</ul>
     </div>
   `;

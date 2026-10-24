@@ -13,7 +13,7 @@ function Progress({
       data-slot="progress"
       max={100}
       className={cn(
-        "bg-primary/20 h-2 w-full overflow-hidden rounded-full",
+        "credit-progress h-2 w-full overflow-hidden rounded-full",
         className
       )}
       value={value ?? 0}

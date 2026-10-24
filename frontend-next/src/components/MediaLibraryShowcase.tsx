@@ -41,20 +41,20 @@ export default function MediaLibraryShowcase() {
         <div className="mx-auto max-w-4xl text-center">
           <h2
             id="media-library-showcase-title"
-            className="font-outfit text-4xl font-bold tracking-[-0.055em] text-black sm:text-5xl lg:text-[4.2rem] lg:leading-[1.04]"
+            className="font-outfit text-4xl font-bold tracking-[-0.055em] text-ink sm:text-5xl lg:text-[4.2rem] lg:leading-[1.04]"
           >
             Better alt text, automatically.
           </h2>
-          <p className="mt-5 text-lg leading-relaxed text-slate-500 sm:text-xl">
+          <p className="mt-5 text-lg leading-relaxed text-ink-muted sm:text-xl">
             From empty alt text to an editable description draft.
           </p>
         </div>
 
-        <div className="relative mt-14 overflow-hidden rounded-[2rem] border border-[#d4dadd] bg-white shadow-[0_22px_70px_rgba(15,23,42,0.12)] sm:mt-16 lg:mt-20 lg:rounded-[2.1rem]">
+        <div className="relative mt-14 overflow-hidden rounded-[2rem] border border-line bg-white shadow-notebook-lg sm:mt-16 lg:mt-20 lg:rounded-[2.1rem]">
           <div className="flex min-h-[680px] flex-col lg:flex-row">
-            <aside className="flex w-full shrink-0 flex-col bg-[#1f2b32] px-5 py-6 text-white sm:px-7 lg:w-[230px] lg:px-0 lg:py-8 lg:rounded-l-[2.1rem]">
+            <aside className="flex w-full shrink-0 flex-col border-b border-line bg-yellow-tint px-5 py-6 text-ink sm:px-7 lg:w-[230px] lg:border-b-0 lg:border-r lg:px-0 lg:py-8 lg:rounded-l-[2.1rem]">
               <div className="flex items-center px-1 lg:px-6">
-                <div className="relative h-10 w-10 overflow-hidden rounded-full border border-white/45 bg-[#1f2b32]">
+                <div className="relative h-10 w-10 overflow-hidden rounded-full border border-line-strong bg-white">
                   <Image
                     src="/logos/wordpress.svg"
                     alt="WordPress"
@@ -69,8 +69,8 @@ export default function MediaLibraryShowcase() {
                 {sidebarItems.map(({ label, icon: Icon, active }) => (
                   <div
                     key={label}
-                    className={`flex items-center gap-3 rounded-lg px-3 py-3 text-sm transition-colors lg:rounded-none lg:px-6 ${
-                      active ? "bg-[#2b93c9] text-white" : "text-slate-200/90"
+                    className={`flex h-11 items-center gap-3 rounded-xl px-3 text-sm transition-colors lg:mx-3 lg:px-3 ${
+                      active ? "bg-brand-yellow font-semibold text-ink" : "text-ink-muted"
                     }`}
                   >
                     <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
@@ -79,47 +79,47 @@ export default function MediaLibraryShowcase() {
                 ))}
               </nav>
 
-              <span className="mt-auto hidden px-6 pt-12 text-xs text-slate-300/80 lg:block">Collapse menu</span>
+              <span className="mt-auto hidden px-6 pt-12 text-xs text-ink-muted lg:block">Collapse menu</span>
             </aside>
 
             <div className="min-w-0 flex-1 px-5 py-8 sm:px-8 lg:px-11 lg:py-10">
-              <div className="flex flex-col gap-7 border-b border-slate-200 pb-7 xl:flex-row xl:items-center xl:justify-between xl:gap-10">
+              <div className="flex flex-col gap-7 border-b border-line pb-7 xl:flex-row xl:items-center xl:justify-between xl:gap-10">
                 <div className="flex flex-wrap items-center gap-5">
-                  <h3 className="font-outfit text-3xl font-medium tracking-[-0.04em] text-black sm:text-4xl">Media Library</h3>
-                  <button type="button" className="inline-flex h-12 items-center gap-2 rounded-md border border-[#a9bac8] px-4 text-base font-medium text-[#245b87] transition hover:border-[#245b87] hover:bg-[#f4f8fb]">
-                    <Plus className="h-5 w-5" aria-hidden="true" />
+                  <h3 className="font-outfit text-3xl font-medium tracking-[-0.04em] text-ink sm:text-4xl">Media Library</h3>
+                  <button type="button" className="inline-flex h-11 items-center gap-2 rounded-xl border border-line-strong bg-white px-5 text-[15px] font-semibold text-ink transition-colors hover:bg-yellow-tint">
+                    <Plus className="h-[18px] w-[18px]" aria-hidden="true" />
                     Add New
                   </button>
                 </div>
-                <div className="flex w-full max-w-[420px] items-center justify-end gap-3 text-sm text-slate-500">
+                <div className="flex w-full max-w-[420px] items-center justify-end gap-3 text-sm text-ink-muted">
                   <span className="shrink-0 whitespace-nowrap">Search media</span>
-                  <div className="flex h-12 w-full min-w-0 max-w-[300px] flex-1 items-center rounded-md border border-[#a9bac8] bg-white px-3">
-                    <Search className="h-4 w-4 text-slate-400" aria-hidden="true" />
+                  <div className="flex h-11 w-full min-w-0 max-w-[300px] flex-1 items-center rounded-xl border border-line-strong bg-white px-3">
+                    <Search className="h-4 w-4 text-ink-muted" aria-hidden="true" />
                     <span className="sr-only">Search media</span>
                   </div>
                 </div>
               </div>
 
               <div className="flex flex-wrap items-center gap-3 py-7">
-                <button type="button" aria-label="Grid view" className="inline-flex h-12 w-12 items-center justify-center rounded-md border border-[#a9bac8] text-[#245b87]">
+                <button type="button" aria-label="Grid view" className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-line-strong bg-white text-ink">
                   <LayoutGrid className="h-5 w-5" aria-hidden="true" />
                 </button>
-                <button type="button" aria-label="List view" className="inline-flex h-12 w-12 items-center justify-center rounded-md border border-[#a9bac8] text-[#245b87]">
+                <button type="button" aria-label="List view" className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-line-strong bg-white text-ink">
                   <LayoutList className="h-5 w-5" aria-hidden="true" />
                 </button>
-                <button type="button" className="inline-flex h-12 items-center gap-3 rounded-md border border-[#a9bac8] px-4 text-base text-[#245b87]">
+                <button type="button" className="inline-flex h-11 items-center gap-2 rounded-xl border border-line-strong bg-white px-4 text-[15px] text-ink">
                   All media items
                   <ChevronDown className="h-4 w-4" aria-hidden="true" />
                 </button>
-                <button type="button" className="inline-flex h-12 items-center gap-3 rounded-md border border-[#a9bac8] px-4 text-base text-[#245b87]">
+                <button type="button" className="inline-flex h-11 items-center gap-2 rounded-xl border border-line-strong bg-white px-4 text-[15px] text-ink">
                   All dates
                   <ChevronDown className="h-4 w-4" aria-hidden="true" />
                 </button>
               </div>
 
-              <div className="overflow-x-auto rounded-sm border border-slate-200">
+              <div className="overflow-x-auto rounded-xl border border-line">
                 <div className="min-w-[860px]">
-                  <div className="grid grid-cols-[2.2fr_0.8fr_1fr_1fr_1.5fr] items-center border-b border-slate-200 bg-[#fbfcfd] px-5 py-5 text-sm font-semibold text-slate-700">
+                  <div className="grid grid-cols-[2.2fr_0.8fr_1fr_1fr_1.5fr] items-center border-b border-line bg-yellow-tint px-5 py-5 text-sm font-semibold text-ink">
                     <span>File</span>
                     <span>Author</span>
                     <span>Uploaded to</span>
@@ -128,32 +128,32 @@ export default function MediaLibraryShowcase() {
                   </div>
 
                   {mediaRows.map((row, index) => (
-                    <div key={row.altState} className="relative grid min-h-[190px] grid-cols-[2.2fr_0.8fr_1fr_1fr_1.5fr] items-center border-b border-slate-200 px-5 py-7 last:border-b-0">
+                    <div key={row.altState} className="relative grid min-h-[190px] grid-cols-[2.2fr_0.8fr_1fr_1fr_1.5fr] items-center border-b border-line px-5 py-7 last:border-b-0">
                       <div className="flex items-center gap-4">
-                        <div className="relative h-24 w-28 shrink-0 overflow-hidden rounded-md bg-slate-100">
+                        <div className="relative h-24 w-28 shrink-0 overflow-hidden rounded-md bg-yellow-tint">
                           <Image src="/mountain-landscape.jpg" alt={row.imageAlt} fill sizes="112px" className="object-cover" />
                         </div>
                         <div>
-                          <p className="text-base font-medium text-[#2a4057]">mountain-lake.jpg</p>
-                          <p className="mt-1 text-sm text-slate-500">JPG</p>
+                          <p className="text-base font-medium text-ink">mountain-lake.jpg</p>
+                          <p className="mt-1 text-sm text-ink-muted">JPG</p>
                         </div>
                       </div>
-                      <span className="text-base text-[#40556d]">You</span>
-                      <span className="text-base text-[#1767ad]">Blog Post</span>
-                      <span className="text-base text-[#40556d]">May 20, 2026</span>
+                      <span className="text-base text-ink">You</span>
+                      <span className="text-base text-ink underline decoration-line-strong underline-offset-4">Blog Post</span>
+                      <span className="text-base text-ink">May 20, 2026</span>
                       {row.altState === "generated" ? (
-                        <div className="max-w-[330px] rounded-xl border border-[#f1d211] bg-[#fffef0] px-4 py-4 text-sm text-[#25384c]">
-                          <div className="font-semibold text-black">Generated alt text</div>
+                        <div className="max-w-[330px] rounded-xl border border-yellow-strong bg-yellow-tint px-4 py-4 text-sm text-ink">
+                          <div className="font-semibold text-ink">Generated alt text</div>
                           <p className="mt-3 leading-6">Turquoise alpine lake reflecting sunlit mountain peaks and pine trees under a clear sky.</p>
-                          <p className="mt-3 text-sm font-medium text-black">Ready to use</p>
+                          <p className="mt-3 text-sm font-medium text-ink">Ready to use</p>
                         </div>
                       ) : (
-                        <span className="w-fit rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-600">No alt text</span>
+                        <span className="w-fit rounded-lg border border-line-strong bg-yellow-tint px-3 py-2 text-sm text-ink-muted">No alt text</span>
                       )}
 
                       {index === 0 && (
-                        <div className="pointer-events-none absolute left-1/2 top-full z-10 -translate-x-1/2 -translate-y-1/2 rounded-full border border-[#d7dfe2] bg-white px-7 py-4 shadow-[0_16px_34px_rgba(15,23,42,0.1)]">
-                          <span className="whitespace-nowrap text-lg font-bold text-black">After Alt Text Pro</span>
+                        <div className="pointer-events-none absolute left-1/2 top-full z-10 -translate-x-1/2 -translate-y-1/2 rounded-full border border-line bg-white px-7 py-4 shadow-notebook-lg">
+                          <span className="whitespace-nowrap text-lg font-bold text-ink">After Alt Text Pro</span>
                         </div>
                       )}
                     </div>

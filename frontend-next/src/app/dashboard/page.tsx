@@ -91,7 +91,8 @@ import {
     LayoutDashboard, Menu, PanelLeftClose, Sparkles, Layers3, BarChart3,
     ChevronRight, CircleCheck, PlugZap
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export default function Dashboard() {
     const [user, setUser] = useState<any>(null);
@@ -769,28 +770,27 @@ export default function Dashboard() {
 
     if (isLoading) {
         return (
-            <main className="min-h-screen bg-slate-50 flex items-center justify-center" aria-busy="true">
+            <main className="min-h-screen bg-yellow-tint flex items-center justify-center" aria-busy="true">
                 <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#000000] mx-auto mb-4"></div>
-                    <p className="text-slate-500">Loading dashboard...</p>
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-line-strong mx-auto mb-4"></div>
+                    <p className="text-ink-muted">Loading dashboard...</p>
                 </div>
             </main>
         );
     }
 
     return (
-        <div className="dashboard-shell min-h-screen bg-[#f7f7f5] text-notebook-slate font-lato selection:bg-notebook-yellow selection:text-black">
-            <aside className="fixed inset-y-0 left-0 z-50 hidden w-[248px] flex-col bg-notebook-black px-4 py-5 text-white lg:flex">
+        <div className="dashboard-shell min-h-screen bg-yellow-tint text-ink font-lato selection:bg-yellow-soft selection:text-ink">
+            <aside className="fixed inset-y-0 left-0 z-50 hidden w-[248px] flex-col border-r border-line bg-white px-4 py-5 text-ink lg:flex">
                 <Link href="/" className="flex items-center gap-3 px-2 py-2">
-                    <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white">
-                        <NextImage
-                            src="/logo-alt-text-pro.png"
-                            alt="Alt Text Pro"
-                            width={36}
-                            height={36}
-                            className="h-9 w-9 object-contain"
-                        />
-                    </span>
+                    <NextImage
+                        src="/brand/logo-mark.svg"
+                        alt="Alt Text Pro"
+                        width={40}
+                        height={40}
+                        unoptimized
+                        className="h-10 w-10 shrink-0"
+                    />
                     <span className="font-lato text-xl font-semibold tracking-tight">Alt Text Pro</span>
                 </Link>
 
@@ -801,7 +801,7 @@ export default function Dashboard() {
                             <a
                                 key={item.label}
                                 href={item.href}
-                                className={`flex min-h-12 items-center gap-3 rounded-xl px-4 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-notebook-yellow ${index === 0 ? 'bg-notebook-yellow text-black' : 'text-white/70 hover:bg-white/10 hover:text-white'}`}
+                                className={`flex h-11 items-center gap-3 rounded-xl px-4 text-sm font-semibold transition-colors ${index === 0 ? 'bg-yellow-soft text-ink' : 'text-ink-muted hover:bg-yellow-tint hover:text-ink'}`}
                             >
                                 <Icon className="h-5 w-5" />
                                 {item.label}
@@ -810,10 +810,10 @@ export default function Dashboard() {
                     })}
                 </nav>
 
-                <div className="mt-6 border-t border-white/10 pt-6">
+                <div className="mt-6 border-t border-line pt-6">
                     <Link
                         href="/docs"
-                        className="flex min-h-12 items-center gap-3 rounded-xl px-4 text-sm font-semibold text-white/70 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-notebook-yellow"
+                        className="flex h-11 items-center gap-3 rounded-xl px-4 text-sm font-semibold text-ink-muted transition-colors hover:bg-yellow-tint hover:text-ink"
                     >
                         <HelpCircle className="h-5 w-5" />
                         Help & docs
@@ -821,30 +821,32 @@ export default function Dashboard() {
                 </div>
 
                 <div className="mt-auto space-y-4">
-                    <div className="rounded-2xl border border-white/15 bg-white/[0.06] p-4">
+                    <div className="rounded-2xl border border-line bg-yellow-tint p-4">
                         <div className="flex items-center justify-between gap-3">
-                            <span className="text-xs text-white/60">Current plan</span>
-                            <span className="rounded-full bg-notebook-yellow px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-black">
+                            <span className="text-xs font-medium text-ink-muted">Current plan</span>
+                            <span className="inline-flex items-center rounded-full bg-brand-yellow px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.06em] text-ink">
                                 {basePlanLabel}
                             </span>
                         </div>
-                        <p className="mt-3 text-xs font-medium text-white/80">{renewalDateLabel}</p>
+                        <p className="mt-3 text-xs font-medium text-ink">{renewalDateLabel}</p>
                     </div>
 
-                    <button
-                        type="button"
-                        onClick={signOut}
-                        className="flex w-full items-center gap-3 rounded-xl border-t border-white/10 px-2 pt-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-notebook-yellow"
-                    >
-                        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-sm font-bold text-black">
-                            {accountInitial}
-                        </span>
-                        <span className="min-w-0 flex-1">
-                            <span className="block truncate text-sm font-semibold text-white">{user?.email}</span>
-                            <span className="block text-xs text-white/50">Sign out</span>
-                        </span>
-                        <LogOut className="h-4 w-4 text-white/60" />
-                    </button>
+                    <div className="border-t border-line pt-4">
+                        <button
+                            type="button"
+                            onClick={signOut}
+                            className="flex w-full items-center gap-3 rounded-xl p-2 text-left transition-colors hover:bg-yellow-tint"
+                        >
+                            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-yellow text-sm font-bold text-ink">
+                                {accountInitial}
+                            </span>
+                            <span className="min-w-0 flex-1">
+                                <span className="block truncate text-sm font-semibold text-ink">{user?.email}</span>
+                                <span className="block text-xs text-ink-muted">Sign out</span>
+                            </span>
+                            <LogOut className="h-4 w-4 shrink-0 text-ink-muted" />
+                        </button>
+                    </div>
                 </div>
             </aside>
 
@@ -853,16 +855,16 @@ export default function Dashboard() {
                     <button
                         type="button"
                         aria-label="Close navigation"
-                        className="absolute inset-0 bg-black/45"
+                        className="absolute inset-0 bg-ink/45"
                         onClick={() => setIsMobileNavOpen(false)}
                     />
-                    <aside id="mobile-dashboard-nav" className="relative flex h-full w-[min(86vw,320px)] flex-col bg-black p-5 text-white shadow-2xl">
+                    <aside id="mobile-dashboard-nav" className="relative flex h-full w-[min(86vw,320px)] flex-col border-r border-line bg-white p-5 text-ink shadow-notebook-lg">
                         <div className="flex items-center justify-between">
                             <Link href="/" className="flex items-center gap-3" onClick={() => setIsMobileNavOpen(false)}>
-                                <NextImage src="/logo-alt-text-pro.png" alt="Alt Text Pro" width={40} height={40} className="h-10 w-10 rounded-xl bg-white object-contain p-1" />
+                                <NextImage src="/brand/logo-mark.svg" alt="Alt Text Pro" width={40} height={40} unoptimized className="h-10 w-10 shrink-0" />
                                 <span className="font-lato text-lg font-semibold">Alt Text Pro</span>
                             </Link>
-                            <button type="button" onClick={() => setIsMobileNavOpen(false)} className="rounded-lg p-2 text-white/70 hover:bg-white/10" aria-label="Close navigation">
+                            <button type="button" onClick={() => setIsMobileNavOpen(false)} className={buttonVariants({ variant: 'ghost', size: 'icon' })} aria-label="Close navigation">
                                 <PanelLeftClose className="h-5 w-5" />
                             </button>
                         </div>
@@ -874,7 +876,7 @@ export default function Dashboard() {
                                         key={item.label}
                                         href={item.href}
                                         onClick={() => setIsMobileNavOpen(false)}
-                                        className={`flex min-h-12 items-center gap-3 rounded-xl px-4 text-sm font-semibold ${index === 0 ? 'bg-notebook-yellow text-black' : 'text-white/75 hover:bg-white/10 hover:text-white'}`}
+                                        className={`flex h-11 items-center gap-3 rounded-xl px-4 text-sm font-semibold transition-colors ${index === 0 ? 'bg-yellow-soft text-ink' : 'text-ink-muted hover:bg-yellow-tint hover:text-ink'}`}
                                     >
                                         <Icon className="h-5 w-5" />
                                         {item.label}
@@ -882,7 +884,7 @@ export default function Dashboard() {
                                 );
                             })}
                         </nav>
-                        <button type="button" onClick={signOut} className="mt-auto flex min-h-12 items-center gap-3 rounded-xl border border-white/10 px-4 text-sm font-semibold text-white/80">
+                        <button type="button" onClick={signOut} className={cn(buttonVariants({ variant: 'secondary' }), 'mt-auto w-full')}>
                             <LogOut className="h-5 w-5" />
                             Sign out
                         </button>
@@ -891,59 +893,59 @@ export default function Dashboard() {
             )}
 
             <main id="overview" className="min-h-screen scroll-mt-6 lg:ml-[248px]">
-                <div className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-black/10 bg-white/95 px-4 backdrop-blur lg:hidden">
+                <div className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-line bg-white/95 px-4 backdrop-blur lg:hidden">
                     <button
                         type="button"
                         aria-label="Open dashboard navigation"
                         aria-controls="mobile-dashboard-nav"
                         aria-expanded={isMobileNavOpen}
                         onClick={() => setIsMobileNavOpen(true)}
-                        className="rounded-xl border border-black/10 p-2.5 text-black"
+                        className={buttonVariants({ variant: 'secondary', size: 'icon' })}
                     >
                         <Menu className="h-5 w-5" />
                     </button>
                     <span className="font-lato text-lg font-semibold">Operations console</span>
-                    <span className="flex h-9 w-9 items-center justify-center rounded-full bg-notebook-yellow text-xs font-bold text-black">{accountInitial}</span>
+                    <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-yellow text-xs font-bold text-ink">{accountInitial}</span>
                 </div>
 
                 <div className="mx-auto max-w-[1480px] px-4 py-7 sm:px-6 lg:px-8 xl:px-10 xl:py-9">
-                    <header className="mb-7 flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
+                    <header className="mb-8 flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
                         <div>
-                            <h1 className="font-lato text-3xl font-semibold tracking-tight text-black sm:text-4xl">
+                            <h1 className="font-lato text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
                                 Operations Console
                             </h1>
-                            <p className="mt-2 text-sm text-slate-500 sm:text-base">
+                            <p className="mt-2 text-sm text-ink-muted sm:text-base">
                                 Welcome back, <span className="capitalize">{firstName}</span>. Monitor alt text generation and manage your workflow.
                             </p>
                         </div>
 
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center xl:flex-nowrap">
-                            <div className="flex shrink-0 items-center gap-3 rounded-2xl border border-black/10 bg-white px-4 py-3 xl:min-w-[256px]">
-                                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-notebook-yellow/25">
+                            <div className="flex h-16 shrink-0 items-center gap-3 rounded-2xl border border-line bg-white px-4 xl:min-w-[256px]">
+                                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-yellow-soft">
                                     <NextImage src="/logos/wordpress.svg" alt="" aria-hidden width={24} height={24} className="h-6 w-6" />
                                 </span>
                                 <div className="min-w-0">
-                                    <p className="flex items-center gap-2 whitespace-nowrap text-sm font-semibold text-black">
+                                    <p className="flex items-center gap-2 whitespace-nowrap text-sm font-semibold text-ink">
                                         WordPress {isPluginConnected ? 'connected' : 'not connected'}
-                                        <span className={`h-2 w-2 rounded-full ${isPluginConnected ? 'bg-emerald-500' : 'bg-amber-500'}`} aria-hidden />
+                                        <span className={`h-2 w-2 rounded-full ${isPluginConnected ? 'bg-success' : 'bg-warning'}`} aria-hidden />
                                     </p>
-                                    <p className="whitespace-nowrap text-xs text-slate-500">{isPluginConnected ? 'Plugin connection active' : 'Finish setup to start generating'}</p>
+                                    <p className="whitespace-nowrap text-xs text-ink-muted">{isPluginConnected ? 'Plugin connection active' : 'Finish setup to start generating'}</p>
                                 </div>
                             </div>
 
-                            <div className="flex shrink-0 items-center gap-3 rounded-2xl border border-black/10 bg-white px-4 py-3 xl:min-w-[180px]">
-                                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-notebook-yellow">
-                                    <CreditCard className="h-5 w-5 text-black" />
+                            <div className="flex h-16 shrink-0 items-center gap-3 rounded-2xl border border-line bg-white px-4 xl:min-w-[180px]">
+                                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-yellow-soft">
+                                    <CreditCard className="h-5 w-5 text-ink" />
                                 </span>
                                 <div>
-                                    <p className="whitespace-nowrap text-sm font-semibold text-black">{creditsRemaining.toLocaleString()} credits</p>
-                                    <p className="whitespace-nowrap text-xs text-slate-500">{creditsUsed.toLocaleString()} used this cycle</p>
+                                    <p className="whitespace-nowrap text-sm font-semibold text-ink">{creditsRemaining.toLocaleString()} credits</p>
+                                    <p className="whitespace-nowrap text-xs text-ink-muted">{creditsUsed.toLocaleString()} used this cycle</p>
                                 </div>
                             </div>
 
                             <Link
                                 href="/docs#bulk-processing"
-                                className="inline-flex min-h-14 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-2xl bg-notebook-yellow px-5 text-sm font-bold text-black shadow-notebook transition-transform hover:-translate-y-0.5 hover:bg-yellow-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 xl:min-w-[232px]"
+                                className={cn(buttonVariants(), 'xl:min-w-[232px]')}
                             >
                                 <Layers3 className="h-5 w-5" />
                                 Start bulk generation
@@ -954,17 +956,17 @@ export default function Dashboard() {
                     {showFirstRunOnboarding && (
                         <section
                             aria-labelledby="setup-heading"
-                            className="mb-7 flex flex-col gap-4 rounded-2xl border border-notebook-yellow/80 bg-[#fffdf2] p-4 shadow-notebook sm:flex-row sm:items-center sm:justify-between sm:p-5"
+                            className="mb-6 flex flex-col gap-4 rounded-2xl border border-line-strong bg-yellow-tint p-6 sm:flex-row sm:items-center sm:justify-between"
                         >
                             <div className="flex items-start gap-4">
-                                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-notebook-yellow text-black">
+                                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand-yellow text-ink">
                                     {isPluginConnected ? <Sparkles className="h-5 w-5" /> : <PlugZap className="h-5 w-5" />}
                                 </span>
                                 <div>
-                                    <h2 id="setup-heading" className="font-lato text-lg font-semibold text-black">
+                                    <h2 id="setup-heading" className="font-lato text-lg font-semibold text-ink">
                                         {isPluginConnected ? 'Generate your first alt text' : 'Connect your WordPress plugin'}
                                     </h2>
-                                    <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
+                                    <p className="mt-1 max-w-2xl text-sm leading-6 text-ink-muted">
                                         {isPluginConnected
                                             ? 'Your account is connected. Try one image before starting a larger media-library batch.'
                                             : hasApiKeyReady
@@ -975,7 +977,7 @@ export default function Dashboard() {
                             </div>
                             <a
                                 href={isPluginConnected ? '#generate' : '/docs#installation'}
-                                className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-black/15 bg-white px-4 text-sm font-semibold text-black transition-colors hover:bg-black hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
+                                className={cn(buttonVariants({ variant: 'secondary' }), 'self-start sm:self-auto')}
                             >
                                 {isPluginConnected ? 'Generate an image' : 'Open setup guide'}
                                 <ChevronRight className="h-4 w-4" />
@@ -984,18 +986,18 @@ export default function Dashboard() {
                     )}
 
                     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-                        <section id="activity" aria-labelledby="activity-heading" className="scroll-mt-24 overflow-hidden rounded-2xl border border-black/10 bg-white shadow-notebook">
-                            <div className="flex flex-col gap-3 border-b border-black/10 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                        <section id="activity" aria-labelledby="activity-heading" className="scroll-mt-24 overflow-hidden rounded-2xl border border-line bg-white shadow-notebook">
+                            <div className="flex flex-col gap-3 border-b border-line px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                                 <div>
-                                    <h2 id="activity-heading" className="font-lato text-xl font-semibold text-black">Recent activity</h2>
-                                    <p className="mt-1 text-sm text-slate-500">Your latest generated alt text</p>
+                                    <h2 id="activity-heading" className="font-lato text-xl font-semibold text-ink">Recent activity</h2>
+                                    <p className="mt-1 text-sm text-ink-muted">Your latest generated alt text</p>
                                 </div>
-                                <span className="inline-flex w-fit items-center rounded-full bg-notebook-yellow/30 px-3 py-1.5 text-xs font-semibold text-black">
+                                <span className="inline-flex w-fit items-center rounded-full bg-yellow-soft px-3 py-1.5 text-xs font-semibold text-ink">
                                     {(usageStats?.total_processed || 0).toLocaleString()} images optimized
                                 </span>
                             </div>
 
-                            <div className="hidden grid-cols-[72px_minmax(0,1fr)_130px_130px_48px] items-center gap-4 border-b border-black/10 bg-[#fafafa] px-6 py-3 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 md:grid">
+                            <div className="hidden grid-cols-[72px_minmax(0,1fr)_130px_130px_48px] items-center gap-4 border-b border-line bg-yellow-tint px-6 py-3 label-caps md:grid">
                                 <span>Image</span>
                                 <span>Generated alt text / source</span>
                                 <span>Status</span>
@@ -1006,30 +1008,30 @@ export default function Dashboard() {
                             <div aria-live="polite">
                                 {isLoadingHistory ? (
                                     <div className="flex min-h-72 flex-col items-center justify-center px-6 py-12 text-center">
-                                        <RefreshCw className="h-7 w-7 animate-spin text-black" />
-                                        <p className="mt-4 text-sm font-semibold text-black">Loading activity</p>
-                                        <p className="mt-1 text-sm text-slate-500">Fetching your latest generations.</p>
+                                        <RefreshCw className="h-7 w-7 animate-spin text-ink" />
+                                        <p className="mt-4 text-sm font-semibold text-ink">Loading activity</p>
+                                        <p className="mt-1 text-sm text-ink-muted">Fetching your latest generations.</p>
                                     </div>
                                 ) : history.length > 0 ? (
                                     history.slice(0, 5).map((item, index) => (
                                         <article
                                             key={item.id || index}
-                                            className="grid grid-cols-[56px_minmax(0,1fr)_40px] items-start gap-x-3 gap-y-2 border-b border-black/10 px-5 py-4 last:border-b-0 hover:bg-[#fffdf2] md:grid-cols-[72px_minmax(0,1fr)_130px_130px_48px] md:items-center md:gap-4 md:px-6"
+                                            className="grid grid-cols-[56px_minmax(0,1fr)_40px] items-start gap-x-3 gap-y-2 border-b border-line px-5 py-4 last:border-b-0 hover:bg-yellow-tint md:grid-cols-[72px_minmax(0,1fr)_130px_130px_48px] md:items-center md:gap-4 md:px-6"
                                         >
-                                            <div className="col-start-1 row-start-1 flex h-14 w-14 items-center justify-center rounded-xl border border-black/10 bg-notebook-yellow/25 md:col-auto md:row-auto">
-                                                <ImageIcon className="h-6 w-6 text-black" />
+                                            <div className="col-start-1 row-start-1 flex h-14 w-14 items-center justify-center rounded-xl border border-line bg-yellow-soft md:col-auto md:row-auto">
+                                                <ImageIcon className="h-6 w-6 text-ink" />
                                             </div>
                                             <div className="col-start-2 row-start-1 min-w-0 md:col-auto md:row-auto">
-                                                <p className="line-clamp-2 text-sm font-semibold leading-6 text-black">{item.alt}</p>
-                                                <p className="mt-1 truncate text-xs text-slate-500">{item.context || 'WordPress media'}</p>
+                                                <p className="line-clamp-2 text-sm font-semibold leading-6 text-ink">{item.alt}</p>
+                                                <p className="mt-1 truncate text-xs text-ink-muted">{item.context || 'WordPress media'}</p>
                                             </div>
                                             <div className="col-start-2 row-start-2 md:col-auto md:row-auto">
-                                                <span className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700">
+                                                <span className="inline-flex items-center gap-1.5 rounded-lg border border-green-200 bg-green-50 px-2.5 py-1.5 text-xs font-semibold text-success">
                                                     <CircleCheck className="h-3.5 w-3.5" />
                                                     Generated
                                                 </span>
                                             </div>
-                                            <time className="col-start-2 row-start-3 text-xs leading-5 text-slate-500 md:col-auto md:row-auto" dateTime={item.date}>
+                                            <time className="col-start-2 row-start-3 text-xs leading-5 text-ink-muted md:col-auto md:row-auto" dateTime={item.date}>
                                                 {new Date(item.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                                                 <span className="ml-1 md:ml-0 md:block">{new Date(item.date).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}</span>
                                             </time>
@@ -1039,7 +1041,7 @@ export default function Dashboard() {
                                                     navigator.clipboard.writeText(item.alt);
                                                     toast.success("Copied to clipboard");
                                                 }}
-                                                className="col-start-3 row-start-1 flex h-10 w-10 items-center justify-center rounded-xl border border-black/10 text-slate-500 transition-colors hover:bg-black hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 md:col-auto md:row-auto"
+                                                className={cn(buttonVariants({ variant: 'secondary', size: 'icon-sm' }), 'col-start-3 row-start-1 md:col-auto md:row-auto')}
                                                 aria-label="Copy generated alt text"
                                             >
                                                 <Copy className="h-4 w-4" />
@@ -1048,12 +1050,12 @@ export default function Dashboard() {
                                     ))
                                 ) : (
                                     <div className="flex min-h-72 flex-col items-center justify-center px-6 py-12 text-center">
-                                        <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-notebook-yellow/30">
-                                            <ImageIcon className="h-6 w-6 text-black" />
+                                        <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-yellow-soft">
+                                            <ImageIcon className="h-6 w-6 text-ink" />
                                         </span>
-                                        <p className="mt-4 text-sm font-semibold text-black">No generations yet</p>
-                                        <p className="mt-1 max-w-sm text-sm leading-6 text-slate-500">Upload one image below to create your first reviewable alt text draft.</p>
-                                        <a href="#generate" className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-black underline decoration-notebook-yellow decoration-4 underline-offset-4">
+                                        <p className="mt-4 text-sm font-semibold text-ink">No generations yet</p>
+                                        <p className="mt-1 max-w-sm text-sm leading-6 text-ink-muted">Upload one image below to create your first reviewable alt text draft.</p>
+                                        <a href="#generate" className={cn(buttonVariants({ variant: 'secondary', size: 'sm' }), 'mt-5')}>
                                             Generate alt text <ArrowRight className="h-4 w-4" />
                                         </a>
                                     </div>
@@ -1062,9 +1064,9 @@ export default function Dashboard() {
                         </section>
 
                         <aside className="space-y-6" aria-label="Dashboard controls">
-                            <section aria-labelledby="quick-actions-heading" className="rounded-2xl border border-black/10 bg-white p-5 shadow-notebook">
-                                <h2 id="quick-actions-heading" className="font-lato text-lg font-semibold text-black">Quick actions</h2>
-                                <div className="mt-4 divide-y divide-black/10">
+                            <section aria-labelledby="quick-actions-heading" className="rounded-2xl border border-line bg-white p-5 shadow-notebook">
+                                <h2 id="quick-actions-heading" className="font-lato text-lg font-semibold text-ink">Quick actions</h2>
+                                <div className="mt-4 divide-y divide-line">
                                     {[
                                         { label: 'Generate alt text', help: 'Upload and review one image', href: '#generate', icon: Sparkles },
                                         { label: 'Bulk generator', help: 'Process images inside WordPress', href: '/docs#bulk-processing', icon: Layers3 },
@@ -1076,59 +1078,59 @@ export default function Dashboard() {
                                             <a
                                                 key={action.label}
                                                 href={action.href}
-                                                className="group flex min-h-[72px] items-center gap-3 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
+                                                className="group -mx-2 flex min-h-[72px] items-center gap-3 rounded-xl px-2 py-3 transition-colors hover:bg-yellow-tint"
                                             >
-                                                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-black/10 bg-[#fafafa] group-hover:bg-notebook-yellow">
-                                                    <Icon className="h-5 w-5 text-black" />
+                                                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-line bg-yellow-tint group-hover:bg-yellow-soft">
+                                                    <Icon className="h-5 w-5 text-ink" />
                                                 </span>
                                                 <span className="min-w-0 flex-1">
-                                                    <span className="block text-sm font-semibold text-black">{action.label}</span>
-                                                    <span className="mt-0.5 block text-xs text-slate-500">{action.help}</span>
+                                                    <span className="block text-sm font-semibold text-ink">{action.label}</span>
+                                                    <span className="mt-0.5 block text-xs text-ink-muted">{action.help}</span>
                                                 </span>
-                                                <ChevronRight className="h-4 w-4 text-slate-400 transition-transform group-hover:translate-x-0.5 group-hover:text-black" />
+                                                <ChevronRight className="h-4 w-4 text-ink-muted transition-transform group-hover:translate-x-0.5 group-hover:text-ink" />
                                             </a>
                                         );
                                     })}
                                 </div>
                             </section>
 
-                            <section id="usage" aria-labelledby="usage-heading" className="scroll-mt-24 rounded-2xl border border-black/10 bg-white p-5 shadow-notebook">
+                            <section id="usage" aria-labelledby="usage-heading" className="scroll-mt-24 rounded-2xl border border-line bg-white p-5 shadow-notebook">
                                 <div className="flex items-center justify-between gap-3">
-                                    <h2 id="usage-heading" className="font-lato text-lg font-semibold text-black">Plan & usage</h2>
-                                    <span className="rounded-full bg-notebook-yellow px-3 py-1 text-xs font-bold text-black">{displayPlanLabel}</span>
+                                    <h2 id="usage-heading" className="font-lato text-lg font-semibold text-ink">Plan & usage</h2>
+                                    <span className="rounded-full bg-brand-yellow px-3 py-1 text-xs font-bold text-ink">{displayPlanLabel}</span>
                                 </div>
                                 <div className="mt-6 flex items-end justify-between gap-3">
                                     <div>
-                                        <p className="text-xs font-medium text-slate-500">Credits used</p>
-                                        <p className="mt-1 font-lato text-2xl font-semibold text-black">{creditsUsed.toLocaleString()}</p>
+                                        <p className="text-xs font-medium text-ink-muted">Credits used</p>
+                                        <p className="mt-1 font-lato text-2xl font-semibold text-ink">{creditsUsed.toLocaleString()}</p>
                                     </div>
-                                    <p className="text-sm text-slate-500">of {creditUsageLimit.toLocaleString()}</p>
+                                    <p className="text-sm text-ink-muted">of {creditUsageLimit.toLocaleString()}</p>
                                 </div>
                                 <progress
-                                    className="operations-credit-progress mt-4 h-2 w-full overflow-hidden rounded-full bg-slate-100"
+                                    className="operations-credit-progress mt-4 h-2 w-full overflow-hidden rounded-full bg-yellow-tint"
                                     value={creditUsagePercent}
                                     max={100}
                                     aria-label={`${creditUsagePercent.toFixed(0)} percent of available credits used`}
                                 />
-                                <p className="mt-3 text-xs leading-5 text-slate-500">{creditCardDescription}</p>
+                                <p className="mt-3 text-xs leading-5 text-ink-muted">{creditCardDescription}</p>
 
-                                <ul className="mt-5 space-y-3 border-t border-black/10 pt-5 text-sm text-slate-600">
-                                    <li className="flex items-center gap-2"><CircleCheck className="h-4 w-4 text-emerald-600" /> WordPress plugin included</li>
-                                    <li className="flex items-center gap-2"><CircleCheck className="h-4 w-4 text-emerald-600" /> One credit per successful image</li>
-                                    <li className="flex items-center gap-2"><CircleCheck className="h-4 w-4 text-emerald-600" /> Bonus and purchased credits persist</li>
+                                <ul className="mt-5 space-y-3 border-t border-line pt-5 text-sm text-ink-muted">
+                                    <li className="flex items-center gap-2"><CircleCheck className="h-4 w-4 shrink-0 text-ink" /> WordPress plugin included</li>
+                                    <li className="flex items-center gap-2"><CircleCheck className="h-4 w-4 shrink-0 text-ink" /> One credit per successful image</li>
+                                    <li className="flex items-center gap-2"><CircleCheck className="h-4 w-4 shrink-0 text-ink" /> Bonus and purchased credits persist</li>
                                 </ul>
 
                                 <div className="mt-6 grid gap-3">
                                     {usageStats?.plan && usageStats.plan !== 'free' && subscriptionData?.subscription?.polar_customer_id ? (
-                                        <button type="button" onClick={openCustomerPortal} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-black/15 bg-white px-4 text-sm font-semibold text-black hover:bg-black hover:text-white">
+                                        <button type="button" onClick={openCustomerPortal} className={cn(buttonVariants({ variant: 'secondary' }), 'w-full')}>
                                             Manage billing <ArrowRight className="h-4 w-4" />
                                         </button>
                                     ) : usageStats?.plan && usageStats.plan !== 'free' ? (
-                                        <button type="button" onClick={() => router.push('/#pricing')} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-black/15 bg-white px-4 text-sm font-semibold text-black hover:bg-black hover:text-white">
+                                        <button type="button" onClick={() => router.push('/#pricing')} className={cn(buttonVariants({ variant: 'secondary' }), 'w-full')}>
                                             View plan details <ArrowRight className="h-4 w-4" />
                                         </button>
                                     ) : (
-                                        <button type="button" onClick={openUpgradePlans} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-notebook-yellow px-4 text-sm font-bold text-black hover:bg-yellow-300">
+                                        <button type="button" onClick={openUpgradePlans} className={cn(buttonVariants(), 'w-full')}>
                                             Upgrade plan <ArrowRight className="h-4 w-4" />
                                         </button>
                                     )}
@@ -1137,7 +1139,7 @@ export default function Dashboard() {
                                         onClick={openCreditPacks}
                                         disabled={!isCreditPackEligible}
                                         title={!isCreditPackEligible ? 'Credit packs are unavailable for this account' : undefined}
-                                        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-black/15 px-4 text-sm font-semibold text-black hover:bg-[#fafafa] disabled:cursor-not-allowed disabled:opacity-45"
+                                        className={cn(buttonVariants({ variant: 'secondary' }), 'w-full disabled:cursor-not-allowed')}
                                     >
                                         Top up credits
                                     </button>
@@ -1146,15 +1148,15 @@ export default function Dashboard() {
                         </aside>
                     </div>
 
-                    <section id="generate" aria-labelledby="generate-heading" className="mt-6 scroll-mt-24 overflow-hidden rounded-2xl border border-black/10 bg-white shadow-notebook">
-                        <div className="border-b border-black/10 px-5 py-5 sm:px-6">
+                    <section id="generate" aria-labelledby="generate-heading" className="mt-6 scroll-mt-24 overflow-hidden rounded-2xl border border-line bg-white shadow-notebook">
+                        <div className="border-b border-line px-5 py-5 sm:px-6">
                             <div className="flex items-center gap-3">
-                                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-notebook-yellow">
-                                    <Sparkles className="h-5 w-5 text-black" />
+                                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-yellow">
+                                    <Sparkles className="h-5 w-5 text-ink" />
                                 </span>
                                 <div>
-                                    <h2 id="generate-heading" className="font-lato text-xl font-semibold text-black">Generate alt text</h2>
-                                    <p className="mt-1 text-sm text-slate-500">Test one image before starting a WordPress bulk batch.</p>
+                                    <h2 id="generate-heading" className="font-lato text-xl font-semibold text-ink">Generate alt text</h2>
+                                    <p className="mt-1 text-sm text-ink-muted">Test one image before starting a WordPress bulk batch.</p>
                                 </div>
                             </div>
                         </div>
@@ -1163,7 +1165,7 @@ export default function Dashboard() {
                             <div>
                                 <button
                                     type="button"
-                                    className="flex min-h-[260px] w-full cursor-pointer flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-black/15 bg-[#fafafa] p-6 text-center transition-colors hover:border-black hover:bg-[#fffdf2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
+                                    className="flex min-h-[260px] w-full cursor-pointer flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-line-strong bg-yellow-tint p-6 text-center transition-colors hover:border-yellow-strong hover:bg-yellow-soft/50"
                                     onClick={() => document.getElementById('operations-image-upload')?.click()}
                                 >
                                     <input id="operations-image-upload" type="file" className="sr-only" accept="image/*" onChange={handleImageUpload} />
@@ -1173,37 +1175,37 @@ export default function Dashboard() {
                                         </span>
                                     ) : (
                                         <>
-                                            <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-notebook-yellow text-black">
+                                            <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-yellow text-ink">
                                                 <Upload className="h-6 w-6" />
                                             </span>
-                                            <span className="mt-5 text-sm font-semibold text-black">Choose an image</span>
-                                            <span className="mt-1 text-xs text-slate-500">PNG, JPG, WEBP, or GIF</span>
+                                            <span className="mt-5 text-sm font-semibold text-ink">Choose an image</span>
+                                            <span className="mt-1 text-xs text-ink-muted">PNG, JPG, WEBP, or GIF</span>
                                         </>
                                     )}
                                 </button>
-                                <div className="mt-4 flex items-center justify-between rounded-xl border border-black/10 bg-white px-4 py-3">
+                                <div className="mt-4 flex items-center justify-between rounded-xl border border-line bg-white px-4 py-3">
                                     <div>
-                                        <p className="text-xs font-semibold text-black">Generation mode</p>
-                                        <p className="mt-0.5 text-xs text-slate-500">Reviewable AI draft</p>
+                                        <p className="text-xs font-semibold text-ink">Generation mode</p>
+                                        <p className="mt-0.5 text-xs text-ink-muted">Reviewable AI draft</p>
                                     </div>
-                                    <span className="inline-flex items-center gap-2 text-xs font-semibold text-emerald-700">
-                                        <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden /> Ready
+                                    <span className="inline-flex items-center gap-2 text-xs font-semibold text-success">
+                                        <span className="h-2 w-2 rounded-full bg-success" aria-hidden /> Ready
                                     </span>
                                 </div>
                             </div>
 
                             <div className="flex min-h-[320px] flex-col">
-                                <div className="flex flex-1 flex-col rounded-2xl border border-black/10 bg-[#fafafa] p-5 sm:p-6" aria-live="polite">
+                                <div className="flex flex-1 flex-col rounded-2xl border border-line bg-yellow-tint p-5 sm:p-6" aria-live="polite">
                                     {isGenerating ? (
                                         <div className="flex flex-1 flex-col items-center justify-center text-center">
-                                            <RefreshCw className="h-8 w-8 animate-spin text-black" />
-                                            <p className="mt-4 text-sm font-semibold text-black">Analyzing image</p>
-                                            <p className="mt-1 text-xs text-slate-500">Creating a concise, reviewable description.</p>
+                                            <RefreshCw className="h-8 w-8 animate-spin text-ink" />
+                                            <p className="mt-4 text-sm font-semibold text-ink">Analyzing image</p>
+                                            <p className="mt-1 text-xs text-ink-muted">Creating a concise, reviewable description.</p>
                                         </div>
                                     ) : generatedAltText ? (
                                         <>
                                             <div className="flex items-center justify-between gap-3">
-                                                <span className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700">
+                                                <span className="inline-flex items-center gap-1.5 rounded-lg border border-green-200 bg-green-50 px-2.5 py-1.5 text-xs font-semibold text-success">
                                                     <CircleCheck className="h-3.5 w-3.5" /> Ready to review
                                                 </span>
                                                 <button
@@ -1212,19 +1214,19 @@ export default function Dashboard() {
                                                         navigator.clipboard.writeText(generatedAltText);
                                                         toast.success("Copied to clipboard");
                                                     }}
-                                                    className="flex h-10 w-10 items-center justify-center rounded-xl border border-black/10 text-slate-500 hover:bg-black hover:text-white"
+                                                    className={buttonVariants({ variant: 'secondary', size: 'icon-sm' })}
                                                     aria-label="Copy generated alt text"
                                                 >
                                                     <Copy className="h-4 w-4" />
                                                 </button>
                                             </div>
-                                            <p className="mt-5 flex-1 rounded-xl bg-white p-4 text-sm font-medium leading-7 text-black">{generatedAltText}</p>
+                                            <p className="mt-5 flex-1 rounded-xl bg-white p-4 text-sm font-medium leading-7 text-ink">{generatedAltText}</p>
                                         </>
                                     ) : (
                                         <div className="flex flex-1 flex-col items-center justify-center text-center">
-                                            <FileText className="h-8 w-8 text-slate-300" />
-                                            <p className="mt-4 text-sm font-semibold text-black">Your generated alt text will appear here</p>
-                                            <p className="mt-1 max-w-xs text-xs leading-5 text-slate-500">Choose an image, then generate a draft you can review before using it.</p>
+                                            <FileText className="h-8 w-8 text-ink-muted" />
+                                            <p className="mt-4 text-sm font-semibold text-ink">Your generated alt text will appear here</p>
+                                            <p className="mt-1 max-w-xs text-xs leading-5 text-ink-muted">Choose an image, then generate a draft you can review before using it.</p>
                                         </div>
                                     )}
                                 </div>
@@ -1232,7 +1234,7 @@ export default function Dashboard() {
                                     type="button"
                                     onClick={generateTestAltText}
                                     disabled={!testImage || isGenerating}
-                                    className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-black px-5 text-sm font-bold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
+                                    className={cn(buttonVariants(), 'mt-4 w-full disabled:cursor-not-allowed')}
                                 >
                                     <Sparkles className="h-4 w-4" />
                                     {isGenerating ? 'Generating alt text…' : 'Generate alt text'}
@@ -1241,21 +1243,21 @@ export default function Dashboard() {
                         </div>
                     </section>
 
-                    <section id="settings" aria-labelledby="settings-heading" className="mt-6 scroll-mt-24 grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
-                        <div className="rounded-2xl border border-black/10 bg-white p-5 shadow-notebook sm:p-6">
+                    <section id="settings" aria-labelledby="settings-heading" className="mt-6 scroll-mt-24 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
+                        <div className="rounded-2xl border border-line bg-white p-5 shadow-notebook sm:p-6">
                             <div className="flex items-center gap-3">
-                                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-notebook-yellow"><Key className="h-5 w-5 text-black" /></span>
+                                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-yellow"><Key className="h-5 w-5 text-ink" /></span>
                                 <div>
-                                    <h2 id="settings-heading" className="font-lato text-xl font-semibold text-black">API settings</h2>
-                                    <p className="mt-1 text-sm text-slate-500">Manage the key used by your WordPress plugin.</p>
+                                    <h2 id="settings-heading" className="font-lato text-xl font-semibold text-ink">API settings</h2>
+                                    <p className="mt-1 text-sm text-ink-muted">Manage the key used by your WordPress plugin.</p>
                                 </div>
                             </div>
-                            <p className="mt-6 text-xs font-semibold text-slate-600">Secret API key</p>
-                            <div className="mt-2 flex overflow-hidden rounded-xl border border-black/15 bg-[#fafafa] focus-within:ring-2 focus-within:ring-black">
-                                <div className="min-w-0 flex-1 px-4 py-3.5 font-mono text-xs text-black" aria-label="Secret API key">
+                            <p className="mt-6 text-xs font-semibold text-ink-muted">Secret API key</p>
+                            <div className="mt-2 flex overflow-hidden rounded-xl border border-line-strong bg-yellow-tint focus-within:border-yellow-strong">
+                                <div className="min-w-0 flex-1 truncate px-4 py-3.5 font-mono text-xs text-ink" aria-label="Secret API key">
                                     {isLoadingApiKey ? 'Loading…' : apiKeyError ? 'Unavailable' : showApiKey ? apiKey : '••••••••••••••••••••••••••••••'}
                                 </div>
-                                <button type="button" onClick={() => setShowApiKey(!showApiKey)} disabled={!apiKey} className="flex w-12 items-center justify-center border-l border-black/10 text-slate-500 hover:bg-white hover:text-black disabled:cursor-not-allowed disabled:opacity-40" aria-label={showApiKey ? 'Hide API key' : 'Show API key'}>
+                                <button type="button" onClick={() => setShowApiKey(!showApiKey)} disabled={!apiKey} className="flex w-12 items-center justify-center border-l border-line text-ink-muted hover:bg-white hover:text-ink disabled:cursor-not-allowed disabled:opacity-40" aria-label={showApiKey ? 'Hide API key' : 'Show API key'}>
                                     {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                                 </button>
                                 <button
@@ -1267,19 +1269,19 @@ export default function Dashboard() {
                                         }
                                     }}
                                     disabled={!apiKey}
-                                    className="flex w-12 items-center justify-center border-l border-black/10 text-slate-500 hover:bg-white hover:text-black disabled:cursor-not-allowed disabled:opacity-40"
+                                    className="flex w-12 items-center justify-center border-l border-line text-ink-muted hover:bg-white hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
                                     aria-label="Copy API key"
                                 >
                                     <Copy className="h-4 w-4" />
                                 </button>
                             </div>
                             {apiKeyError && (
-                                <p className="mt-3 text-xs leading-5 text-amber-800" role="status">
+                                <p className="mt-3 text-xs leading-5 text-warning" role="status">
                                     {apiKeyError}
                                 </p>
                             )}
                             <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-                                <button type="button" onClick={rotateApiKey} disabled={isLoadingApiKey || apiKeyErrorCode === 'api_key_encryption_not_configured'} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-black/15 px-4 text-sm font-semibold text-black hover:bg-[#fafafa] disabled:opacity-50">
+                                <button type="button" onClick={rotateApiKey} disabled={isLoadingApiKey || apiKeyErrorCode === 'api_key_encryption_not_configured'} className={buttonVariants({ variant: 'secondary' })}>
                                     <RefreshCw className={`h-4 w-4 ${isLoadingApiKey ? 'animate-spin' : ''}`} />
                                     Generate new key
                                 </button>
@@ -1292,33 +1294,33 @@ export default function Dashboard() {
                                         userEmail: user?.email,
                                         properties: { plugin_version: PLUGIN_VERSION, location: "dashboard_settings" },
                                     })}
-                                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-notebook-yellow px-4 text-sm font-bold text-black hover:bg-yellow-300"
+                                    className={buttonVariants()}
                                 >
                                     <Download className="h-4 w-4" /> Download plugin v{PLUGIN_VERSION}
                                 </a>
                             </div>
-                            <p className="mt-4 flex items-start gap-2 text-xs leading-5 text-amber-800">
+                            <p className="mt-4 flex items-start gap-2 text-xs leading-5 text-warning">
                                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                                 Rotating the key disconnects the old key immediately. Update WordPress after rotating it.
                             </p>
                         </div>
 
-                        <div className="rounded-2xl border border-black/10 bg-black p-5 text-white shadow-notebook sm:p-6">
-                            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-notebook-yellow text-black"><HelpCircle className="h-5 w-5" /></span>
+                        <div className="flex flex-col rounded-2xl border border-line bg-yellow-soft p-5 text-ink shadow-notebook sm:p-6">
+                            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-ink"><HelpCircle className="h-5 w-5" /></span>
                             <h2 className="mt-5 font-lato text-xl font-semibold">Help & support</h2>
-                            <p className="mt-2 text-sm leading-6 text-white/65">Find installation guidance or contact us if your WordPress connection needs attention.</p>
-                            <div className="mt-6 grid gap-3">
-                                <Link href="/docs" className="inline-flex min-h-11 items-center justify-between rounded-xl border border-white/15 px-4 text-sm font-semibold text-white hover:bg-white/10">
+                            <p className="mt-2 text-sm leading-6 text-ink-muted">Find installation guidance or contact us if your WordPress connection needs attention.</p>
+                            <div className="mt-auto grid gap-3 pt-6">
+                                <Link href="/docs" className={cn(buttonVariants({ variant: 'secondary' }), 'justify-between')}>
                                     Documentation <Book className="h-4 w-4" />
                                 </Link>
-                                <Link href="/contact" className="inline-flex min-h-11 items-center justify-between rounded-xl border border-white/15 px-4 text-sm font-semibold text-white hover:bg-white/10">
+                                <Link href="/contact" className={cn(buttonVariants({ variant: 'secondary' }), 'justify-between')}>
                                     Contact support <MessageCircle className="h-4 w-4" />
                                 </Link>
                             </div>
                         </div>
                     </section>
 
-                    <footer className="mt-8 flex flex-col gap-2 border-t border-black/10 py-6 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+                    <footer className="mt-8 flex flex-col gap-2 border-t border-line py-6 text-xs text-ink-muted sm:flex-row sm:items-center sm:justify-between">
                         <p>Alt Text Pro v{PLUGIN_VERSION} · System status: active</p>
                         <p>© 2026 Alt Text Pro. Built for accessible publishing.</p>
                     </footer>
@@ -1327,28 +1329,30 @@ export default function Dashboard() {
             </main>
             {/* Upgrade Modal */}
             {showUpgradeModal && (
-                <div className="fixed inset-0 bg-[#1A1C1E]/40 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-in fade-in duration-300">
-                    <div className="bg-white border border-[#F1F3F4] rounded-[2.5rem] max-w-5xl w-full max-h-[90vh] overflow-hidden shadow-2xl flex flex-col">
+                <div className="fixed inset-0 bg-ink/40 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-in fade-in duration-300">
+                    <div role="dialog" aria-modal="true" aria-labelledby="upgrade-modal-title" className="bg-white border border-line rounded-2xl max-w-5xl w-full max-h-[90vh] overflow-hidden shadow-notebook-lg flex flex-col">
                         {/* Modal Header */}
-                        <div className="relative p-10 border-b border-[#F1F3F4] shrink-0 bg-[#FAF9F6]">
+                        <div className="relative p-6 sm:p-8 border-b border-line shrink-0 bg-yellow-tint">
                             <button
+                                type="button"
                                 onClick={() => setShowUpgradeModal(false)}
-                                className="absolute top-8 right-8 p-2 rounded-full hover:bg-[#F1F3F4] text-[#5F6368] transition-colors z-10"
+                                aria-label="Close"
+                                className={cn(buttonVariants({ variant: 'secondary', size: 'icon-sm' }), 'absolute top-4 right-4 sm:top-6 sm:right-6 z-10')}
                             >
                                 <X className="h-5 w-5" />
                             </button>
 
-                            <div className="relative z-10 max-w-2xl">
-                                <div className="inline-flex items-center space-x-2 bg-notebook-teal/10 text-[#000000] px-4 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-widest mb-6 border border-notebook-teal/20">
+                            <div className="relative max-w-2xl pr-12">
+                                <div className="inline-flex items-center gap-2 bg-yellow-soft text-ink px-3 py-1 rounded-full text-xs font-bold uppercase tracking-[0.06em] mb-4 border border-line">
                                     <Crown className="h-3.5 w-3.5" />
                                     <span>Plan Management</span>
                                 </div>
-                                <h2 className="text-4xl font-semibold text-[#1A1C1E] mb-4 tracking-tight font-lato">
+                                <h2 id="upgrade-modal-title" className="text-3xl sm:text-4xl font-semibold text-ink mb-2 tracking-tight font-lato">
                                     {upgradeModalView === "credit-packs"
-                                        ? <>Top up <span className="text-[#000000]">credits</span></>
-                                        : <>Choose a <span className="text-[#000000]">Plan</span></>}
+                                        ? <>Top up <span className="text-ink">credits</span></>
+                                        : <>Choose a <span className="text-ink">Plan</span></>}
                                 </h2>
-                                <p className="text-[#5F6368] text-lg font-lato">
+                                <p className="text-ink-muted text-base sm:text-lg font-lato">
                                     {upgradeModalView === "credit-packs"
                                         ? "Choose a one-time pack to add credits to your account."
                                         : "Compare the available plans and credit allowances."}
@@ -1357,24 +1361,24 @@ export default function Dashboard() {
                         </div>
 
                         {/* Modal Content - Scrollable */}
-                        <div className="p-10 overflow-y-auto bg-white">
+                        <div className="p-6 sm:p-8 overflow-y-auto bg-white">
                             {selectedUpgradePlan ? (
                                 <div className="max-w-md mx-auto">
-                                    <div className="bg-[#FAF9F6] border border-[#F1F3F4] rounded-[2rem] p-10 mb-8 shadow-sm text-center">
-                                        <div className="w-20 h-20 bg-notebook-teal/10 rounded-[1.5rem] flex items-center justify-center mx-auto mb-8">
-                                            <Crown className="h-10 w-10 text-[#000000]" />
+                                    <div className="bg-yellow-tint border border-line rounded-2xl p-6 sm:p-8 mb-6 text-center">
+                                        <div className="w-16 h-16 bg-brand-yellow rounded-2xl flex items-center justify-center mx-auto mb-6">
+                                            <Crown className="h-8 w-8 text-ink" />
                                         </div>
-                                        <h3 className="text-2xl font-semibold text-[#1A1C1E] mb-2 font-lato">
+                                        <h3 className="text-2xl font-semibold text-ink mb-2 font-lato">
                                             {selectedUpgradePlan.name}{selectedUpgradeIsPack ? '' : ' Plan'}
                                         </h3>
-                                        <div className="text-5xl font-semibold text-[#1A1C1E] mb-8 font-lato">
-                                            {selectedUpgradePlan.price}<span className="text-xl text-[#5F6368] font-normal font-lato">{selectedUpgradeIsPack ? ' one time' : selectedUpgradePlan.id.endsWith('_annual') ? '/yr' : '/mo'}</span>
+                                        <div className="text-5xl font-semibold text-ink mb-8 font-lato">
+                                            {selectedUpgradePlan.price}<span className="text-xl text-ink-muted font-normal font-lato">{selectedUpgradeIsPack ? ' one time' : selectedUpgradePlan.id.endsWith('_annual') ? '/yr' : '/mo'}</span>
                                         </div>
-                                        <div className="space-y-5 text-left mb-10 pt-8 border-t border-[#F1F3F4] font-lato">
+                                        <div className="space-y-4 text-left mb-8 pt-6 border-t border-line font-lato">
                                             {selectedUpgradeDetails?.features.map((feature) => (
-                                                <div key={feature} className="flex items-center text-[#5F6368]">
-                                                    <div className="w-5 h-5 rounded-full bg-notebook-teal/10 flex items-center justify-center mr-4 shrink-0">
-                                                        <Check className="h-3 w-3 text-[#000000]" />
+                                                <div key={feature} className="flex items-center text-ink-muted">
+                                                    <div className="w-5 h-5 rounded-full bg-yellow-soft flex items-center justify-center mr-3 shrink-0">
+                                                        <Check className="h-3 w-3 text-ink" />
                                                     </div>
                                                     <span>{feature}</span>
                                                 </div>
@@ -1388,34 +1392,36 @@ export default function Dashboard() {
                                             }}
                                             disabled={selectedUpgradeIsPack && !isCreditPackEligible}
                                             title={selectedUpgradeIsPack && !isCreditPackEligible ? "Credit packs are unavailable for this account" : undefined}
-                                            className="w-full h-14 bg-[#000000] hover:bg-[#000000] text-white font-semibold text-lg rounded-xl transition-all shadow-[0_10px_24px_rgba(0,0,0,0.18)]"
+                                            className="w-full"
                                         >
                                             {selectedUpgradeIsPack ? 'Buy Credits' : 'Upgrade Now'}
-                                            <ArrowRight className="h-5 w-5 ml-2" />
+                                            <ArrowRight />
                                         </Button>
 
-                                        <button
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
                                             onClick={() => setSelectedUpgradePlan(null)}
-                                            className="w-full mt-6 text-[#5F6368] hover:text-[#1A1C1E] text-sm font-medium transition-colors p-2"
+                                            className="w-full mt-3"
                                         >
                                             Back to {upgradeModalView === "credit-packs" ? "Credit Packs" : "Plans"}
-                                        </button>
+                                        </Button>
                                     </div>
-                                    <div className="text-center text-xs text-[#9AA0A6] flex items-center justify-center gap-2">
+                                    <div className="text-center text-xs text-ink-muted flex items-center justify-center gap-2">
                                         <Shield className="h-3.5 w-3.5" /> Encrypted Transaction via Polar.sh
                                     </div>
                                 </div>
                             ) : (
-                                <div className="space-y-12">
+                                <div className="space-y-10">
                                     {upgradeModalView === "plans" && <div>
-                                        <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
-                                            <h3 className="text-lg font-semibold text-[#1A1C1E] font-lato border-l-4 border-[#000000] pl-4">Subscription Plans</h3>
-                                            <div className="inline-flex rounded-xl border border-[#F1F3F4] bg-[#FAF9F6] p-1" role="group" aria-label="Billing cycle">
+                                        <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+                                            <h3 className="text-lg font-semibold text-ink font-lato border-l-4 border-brand-yellow pl-4">Subscription Plans</h3>
+                                            <div className="inline-flex rounded-xl border border-line bg-yellow-tint p-1" role="group" aria-label="Billing cycle">
                                                 <button
                                                     type="button"
                                                     onClick={() => setUpgradeBillingCycle('monthly')}
                                                     aria-pressed={upgradeBillingCycle === 'monthly'}
-                                                    className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${upgradeBillingCycle === 'monthly' ? 'bg-[#000000] text-white' : 'text-[#5F6368] hover:text-[#1A1C1E]'}`}
+                                                    className={`inline-flex h-9 items-center rounded-lg px-4 text-sm font-semibold transition-colors ${upgradeBillingCycle === 'monthly' ? 'bg-brand-yellow text-ink' : 'text-ink-muted hover:bg-white hover:text-ink'}`}
                                                 >
                                                     Monthly
                                                 </button>
@@ -1423,46 +1429,46 @@ export default function Dashboard() {
                                                     type="button"
                                                     onClick={() => setUpgradeBillingCycle('annual')}
                                                     aria-pressed={upgradeBillingCycle === 'annual'}
-                                                    className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${upgradeBillingCycle === 'annual' ? 'bg-[#000000] text-white' : 'text-[#5F6368] hover:text-[#1A1C1E]'}`}
+                                                    className={`inline-flex h-9 items-center rounded-lg px-4 text-sm font-semibold transition-colors ${upgradeBillingCycle === 'annual' ? 'bg-brand-yellow text-ink' : 'text-ink-muted hover:bg-white hover:text-ink'}`}
                                                 >
                                                     Annual
                                                 </button>
                                             </div>
                                         </div>
-                                        <div className="grid md:grid-cols-3 gap-8">
+                                        <div className="grid md:grid-cols-3 gap-6">
                                             {SUBSCRIPTION_PLANS.filter((plan) => plan.id !== 'free').map((plan) => (
                                                 <article
                                                     key={plan.id}
-                                                    className={`relative flex flex-col rounded-[2rem] bg-white p-8 transition-all ${
+                                                    className={`relative flex h-full flex-col rounded-2xl p-6 transition-colors ${
                                                         plan.featured
-                                                            ? 'border-2 border-[#000000] shadow-[0_20px_45px_rgba(0,0,0,0.10)] hover:-translate-y-2'
-                                                            : 'border border-[#F1F3F4] hover:border-[#000000]/20 hover:shadow-[0_16px_36px_rgba(0,0,0,0.08)]'
+                                                            ? 'border-2 border-brand-yellow bg-yellow-tint'
+                                                            : 'border border-line bg-white hover:border-line-strong'
                                                     }`}
                                                 >
                                                     {plan.featured && (
-                                                        <div className="absolute -top-4 left-1/2 -translate-x-1/2 rounded-full bg-[#000000] px-4 py-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-white shadow-lg">
+                                                        <div className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-brand-yellow px-3 py-1 text-xs font-bold uppercase tracking-[0.06em] text-ink">
                                                             Most popular
                                                         </div>
                                                     )}
-                                                    <h4 className="text-lg font-semibold text-[#1A1C1E] font-lato">{plan.name}</h4>
-                                                    <div className="mt-4 mb-8">
-                                                        <span className="text-4xl font-semibold text-[#1A1C1E] font-lato">{upgradeBillingCycle === 'annual' ? plan.annualPrice : plan.monthlyPrice}</span>
-                                                        <span className="text-[#5F6368] font-normal ml-1 font-lato">/{upgradeBillingCycle === 'annual' ? 'yr' : 'mo'}</span>
+                                                    <h4 className="text-lg font-semibold text-ink font-lato">{plan.name}</h4>
+                                                    <div className="mt-3 mb-6">
+                                                        <span className="text-4xl font-semibold text-ink font-lato">{upgradeBillingCycle === 'annual' ? plan.annualPrice : plan.monthlyPrice}</span>
+                                                        <span className="text-ink-muted font-normal ml-1 font-lato">/{upgradeBillingCycle === 'annual' ? 'yr' : 'mo'}</span>
                                                         {upgradeBillingCycle === 'annual' && (
-                                                            <p className="mt-2 text-xs text-[#5F6368]">Equivalent to {plan.annualMonthlyPrice}/mo</p>
+                                                            <p className="mt-2 text-xs text-ink-muted">Equivalent to {plan.annualMonthlyPrice}/mo</p>
                                                         )}
                                                     </div>
-                                                    <ul className="space-y-4 mb-10 flex-1 font-lato">
-                                                        <li className="flex items-start text-sm text-[#5F6368]">
-                                                            <div className="w-5 h-5 rounded-full bg-slate-50 flex items-center justify-center mr-3 mt-0.5 shrink-0">
-                                                                <Check className="h-3 w-3 text-[#000000]" aria-hidden="true" />
+                                                    <ul className="space-y-3 mb-8 flex-1 font-lato">
+                                                        <li className="flex items-start text-sm text-ink-muted">
+                                                            <div className="w-5 h-5 rounded-full bg-yellow-soft flex items-center justify-center mr-3 mt-0.5 shrink-0">
+                                                                <Check className="h-3 w-3 text-ink" aria-hidden="true" />
                                                             </div>
                                                             <span>{plan.creditCount.toLocaleString()} credits every month</span>
                                                         </li>
                                                         {plan.features.map((feature) => (
-                                                            <li key={feature} className="flex items-start text-sm text-[#5F6368]">
-                                                                <div className="w-5 h-5 rounded-full bg-slate-50 flex items-center justify-center mr-3 mt-0.5 shrink-0">
-                                                                    <Check className="h-3 w-3 text-[#000000]" aria-hidden="true" />
+                                                            <li key={feature} className="flex items-start text-sm text-ink-muted">
+                                                                <div className="w-5 h-5 rounded-full bg-yellow-soft flex items-center justify-center mr-3 mt-0.5 shrink-0">
+                                                                    <Check className="h-3 w-3 text-ink" aria-hidden="true" />
                                                                 </div>
                                                                 <span>{feature}</span>
                                                             </li>
@@ -1475,11 +1481,8 @@ export default function Dashboard() {
                                                             plan.name,
                                                             upgradeBillingCycle === 'annual' ? plan.annualPrice : plan.monthlyPrice,
                                                         )}
-                                                        className={`w-full rounded-xl font-medium ${
-                                                            plan.featured
-                                                                ? 'bg-[#000000] text-white hover:bg-[#000000] shadow-[0_10px_24px_rgba(0,0,0,0.18)]'
-                                                                : 'bg-[#FAF9F6] text-[#1A1C1E] hover:bg-[#F1F3F4] border border-[#F1F3F4]'
-                                                        }`}
+                                                        variant={plan.featured ? 'default' : 'secondary'}
+                                                        className="w-full"
                                                     >
                                                         Select Plan
                                                     </Button>
@@ -1489,24 +1492,24 @@ export default function Dashboard() {
                                     </div>}
 
                                     <div>
-                                        <h3 className="text-lg font-semibold text-[#1A1C1E] mb-3 font-lato border-l-4 border-amber-400 pl-4">Credits (One-Time)</h3>
-                                        <p className="text-sm text-[#5F6368] mb-8 ml-4">Available on every plan, including Free. Pack credits never expire and are used after your monthly allowance.</p>
-                                        <div className="grid md:grid-cols-3 gap-8">
+                                        <h3 className="text-lg font-semibold text-ink mb-2 font-lato border-l-4 border-brand-yellow pl-4">Credits (One-Time)</h3>
+                                        <p className="text-sm text-ink-muted mb-6 pl-5">Available on every plan, including Free. Pack credits never expire and are used after your monthly allowance.</p>
+                                        <div className="grid md:grid-cols-3 gap-6">
                                             {CREDIT_PACKS.map((pack) => (
                                                 <article
                                                     key={pack.id}
-                                                    className="flex flex-col rounded-[2rem] border border-[#F1F3F4] bg-[#FAF9F6] p-8 transition-all hover:shadow-lg"
+                                                    className="flex h-full flex-col rounded-2xl border border-line bg-white p-6 transition-colors hover:border-line-strong"
                                                 >
-                                                    <h4 className="text-lg font-semibold text-[#1A1C1E] font-lato">{pack.name}</h4>
-                                                    <div className="mt-4 mb-8">
-                                                        <span className="text-4xl font-semibold text-[#1A1C1E] font-lato">{pack.price}</span>
-                                                        <span className="text-[#5F6368] font-normal ml-2 font-lato text-sm">one-time purchase</span>
+                                                    <h4 className="text-lg font-semibold text-ink font-lato">{pack.name}</h4>
+                                                    <div className="mt-3 mb-6">
+                                                        <span className="text-4xl font-semibold text-ink font-lato">{pack.price}</span>
+                                                        <span className="text-ink-muted font-normal ml-2 font-lato text-sm">one-time purchase</span>
                                                     </div>
-                                                    <ul className="space-y-4 mb-10 flex-1 font-lato">
+                                                    <ul className="space-y-3 mb-8 flex-1 font-lato">
                                                         {pack.features.map((feature) => (
-                                                            <li key={feature} className="flex items-start text-sm text-[#5F6368]">
-                                                                <div className="w-5 h-5 rounded-full bg-amber-50 flex items-center justify-center mr-3 mt-0.5 shrink-0">
-                                                                    <Check className="h-3 w-3 text-amber-600" aria-hidden="true" />
+                                                            <li key={feature} className="flex items-start text-sm text-ink-muted">
+                                                                <div className="w-5 h-5 rounded-full bg-yellow-soft flex items-center justify-center mr-3 mt-0.5 shrink-0">
+                                                                    <Check className="h-3 w-3 text-ink" aria-hidden="true" />
                                                                 </div>
                                                                 <span>{feature}</span>
                                                             </li>
@@ -1521,7 +1524,8 @@ export default function Dashboard() {
                                                         })}
                                                         disabled={!isCreditPackEligible}
                                                         title={!isCreditPackEligible ? "Credit packs are unavailable for this account" : undefined}
-                                                        className="w-full bg-white text-[#1A1C1E] hover:bg-[#F1F3F4] border border-[#F1F3F4] rounded-xl font-medium disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 disabled:hover:bg-slate-100"
+                                                        variant="secondary"
+                                                        className="w-full disabled:cursor-not-allowed"
                                                     >
                                                         Buy Credits
                                                     </Button>

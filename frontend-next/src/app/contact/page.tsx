@@ -6,7 +6,7 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Mail } from 'lucide-react';
+import { Mail, Loader2 } from 'lucide-react';
 import { getApiBase } from '@/lib/utils';
 
 export default function ContactPage() {
@@ -66,18 +66,18 @@ export default function ContactPage() {
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+        <div className="min-h-screen bg-yellow-tint">
             <Navbar />
 
             {/* Contact Form Section */}
             <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-                <div className="bg-white rounded-2xl shadow-xl p-8 md:p-12">
+                <div className="bg-white rounded-2xl border border-line shadow-notebook p-8 md:p-12">
                     {/* Header */}
                     <div className="text-center mb-8">
-                        <h1 className="text-4xl font-bold mb-4 text-black">
+                        <h1 className="text-4xl font-bold mb-4 text-ink">
                             Get in Touch
                         </h1>
-                        <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+                        <p className="text-lg text-ink-muted max-w-2xl mx-auto">
                             Have a question or need help? We'd love to hear from you. Send us a message and we'll respond as soon as possible.
                         </p>
                     </div>
@@ -99,8 +99,8 @@ export default function ContactPage() {
                         <div className="grid md:grid-cols-2 gap-6">
                             {/* Name Field */}
                             <div>
-                                <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
-                                    Name <span className="text-red-500">*</span>
+                                <label htmlFor="name" className="block text-sm font-medium text-ink mb-2">
+                                    Name <span className="text-error" aria-hidden="true">*</span>
                                 </label>
                                 <Input
                                     id="name"
@@ -116,8 +116,8 @@ export default function ContactPage() {
                             </div>
                             {/* Email Field */}
                             <div>
-                                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                                    Email <span className="text-red-500">*</span>
+                                <label htmlFor="email" className="block text-sm font-medium text-ink mb-2">
+                                    Email <span className="text-error" aria-hidden="true">*</span>
                                 </label>
                                 <Input
                                     id="email"
@@ -135,8 +135,8 @@ export default function ContactPage() {
 
                         {/* Subject Field */}
                         <div>
-                            <label htmlFor="subject" className="block text-sm font-medium text-gray-700 mb-2">
-                                Subject <span className="text-red-500">*</span>
+                            <label htmlFor="subject" className="block text-sm font-medium text-ink mb-2">
+                                Subject <span className="text-error" aria-hidden="true">*</span>
                             </label>
                             <Input
                                 id="subject"
@@ -153,8 +153,8 @@ export default function ContactPage() {
 
                         {/* Message Field */}
                         <div>
-                            <label htmlFor="message" className="block text-sm font-medium text-gray-700 mb-2">
-                                Message <span className="text-red-500">*</span>
+                            <label htmlFor="message" className="block text-sm font-medium text-ink mb-2">
+                                Message <span className="text-error" aria-hidden="true">*</span>
                             </label>
                             <textarea
                                 id="message"
@@ -164,7 +164,7 @@ export default function ContactPage() {
                                 value={formData.message}
                                 onChange={handleChange}
                                 placeholder="Tell us more about your inquiry..."
-                                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                className="w-full rounded-xl border border-line-strong bg-white px-4 py-3 text-base text-ink placeholder:text-ink-muted focus-visible:border-yellow-strong disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
                             />
                         </div>
 
@@ -173,16 +173,16 @@ export default function ContactPage() {
                             <Button
                                 type="submit"
                                 disabled={isSubmitting}
-                                className="w-full md:w-auto px-8 py-3 text-lg font-semibold text-white rounded-lg transition-all transform hover:scale-105 bg-black"
+                                className="w-full md:w-auto"
                             >
                                 {isSubmitting ? (
                                     <>
-                                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                                        <Loader2 className="animate-spin" aria-hidden="true" />
                                         Sending...
                                     </>
                                 ) : (
                                     <>
-                                        <Mail className="mr-2 h-5 w-5" />
+                                        <Mail aria-hidden="true" />
                                         Send Message
                                     </>
                                 )}

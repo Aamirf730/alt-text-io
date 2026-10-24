@@ -7,8 +7,6 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Only used for active menu highlighting
-$alt_text_pro_current_page = isset($_GET['page']) ? sanitize_text_field(wp_unslash($_GET['page'])) : '';
 $alt_text_pro_settings_handler = new AltTextPro_Settings();
 $alt_text_pro_usable_settings = $alt_text_pro_settings_handler->get_settings();
 $alt_text_pro_has_key = !empty($alt_text_pro_usable_settings['api_key'])
@@ -20,64 +18,22 @@ $alt_text_pro_api_key_placeholder = $alt_text_pro_has_key
 $alt_text_pro_disconnected = isset($_GET['alt_text_pro_disconnected']) ? sanitize_key(wp_unslash($_GET['alt_text_pro_disconnected'])) : '';
 ?>
 
-<div class="wrap alt-text-pro-settings">
-    <!-- Notices Container -->
-    <div class="alt-text-pro-notices-container">
-        <?php do_action('alt_text_pro_render_notices'); ?>
-        <?php
-        // Plugin pages suppress other admin notices, so show this form's own
-        // results (saved, invalid or rejected key, encryption failure) here.
-        // options.php records "Settings saved." under 'general', so show all.
+<div class="wrap alt-text-pro-settings atp-ui">
+    <?php
+    // Plugin pages suppress other admin notices, so show this form's own
+    // results (saved, invalid or rejected key, encryption failure) inside the
+    // header's notices container. options.php records "Settings saved." under
+    // 'general', so show all.
+    $alt_text_pro_extra_notices = function () use ($alt_text_pro_disconnected) {
         settings_errors();
-        ?>
-        <?php if ($alt_text_pro_disconnected === '1'): ?>
-        <div class="notice notice-success"><p>
-            <?php esc_html_e('Your Alt Text Pro account was disconnected from this site. The API key was removed.', 'alt-text-pro'); ?>
-        </p></div>
-        <?php elseif ($alt_text_pro_disconnected === '0'): ?>
-        <div class="notice notice-error"><p>
-            <?php esc_html_e('The API key could not be removed. Please try again.', 'alt-text-pro'); ?>
-        </p></div>
-        <?php endif; ?>
-    </div>
-
-    <!-- Header & Navigation -->
-    <div class="alt-text-pro-header">
-        <div class="alt-text-pro-logo">
-            <img src="<?php echo esc_url(ALT_TEXT_PRO_PLUGIN_URL . 'assets/images/logo-alt-text-pro.png'); ?>"
-                alt="Alt Text Pro" />
-            <div>
-                <h1>
-                    <?php esc_html_e('Alt Text Pro', 'alt-text-pro'); ?>
-                </h1>
-                <span style="color: var(--text-secondary); font-size: 13px;">v
-                    <?php echo esc_html(ALT_TEXT_PRO_VERSION); ?>
-                </span>
-            </div>
-        </div>
-        <div class="alt-text-pro-nav">
-            <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-pro')); ?>"
-                class="alt-text-pro-nav-item <?php echo esc_attr($alt_text_pro_current_page === 'alt-text-pro' ? 'active' : ''); ?>">
-                <span class="dashicons dashicons-dashboard"></span>
-                <?php esc_html_e('Dashboard', 'alt-text-pro'); ?>
-            </a>
-            <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-pro-bulk')); ?>"
-                class="alt-text-pro-nav-item <?php echo esc_attr($alt_text_pro_current_page === 'alt-text-pro-bulk' ? 'active' : ''); ?>">
-                <span class="dashicons dashicons-images-alt2"></span>
-                <?php esc_html_e('Bulk Process', 'alt-text-pro'); ?>
-            </a>
-            <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-pro-logs')); ?>"
-                class="alt-text-pro-nav-item <?php echo esc_attr($alt_text_pro_current_page === 'alt-text-pro-logs' ? 'active' : ''); ?>">
-                <span class="dashicons dashicons-list-view"></span>
-                <?php esc_html_e('Logs', 'alt-text-pro'); ?>
-            </a>
-            <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-pro-settings')); ?>"
-                class="alt-text-pro-nav-item <?php echo esc_attr($alt_text_pro_current_page === 'alt-text-pro-settings' ? 'active' : ''); ?>">
-                <span class="dashicons dashicons-admin-settings"></span>
-                <?php esc_html_e('Settings', 'alt-text-pro'); ?>
-            </a>
-        </div>
-    </div>
+        if ($alt_text_pro_disconnected === '1') {
+            echo '<div class="notice notice-success"><p>' . esc_html__('Your Alt Text Pro account was disconnected from this site. The API key was removed.', 'alt-text-pro') . '</p></div>';
+        } elseif ($alt_text_pro_disconnected === '0') {
+            echo '<div class="notice notice-error"><p>' . esc_html__('The API key could not be removed. Please try again.', 'alt-text-pro') . '</p></div>';
+        }
+    };
+    require ALT_TEXT_PRO_PLUGIN_PATH . 'templates/partials/header.php';
+    ?>
 
     <form method="post" action="options.php" class="alt-text-pro-settings-form">
         <?php
@@ -92,22 +48,21 @@ settings_fields('alt_text_pro_settings');
                 </h3>
             </div>
             <div class="card-content">
-                <div class="settings-field" style="margin-bottom: 24px;">
-                    <label for="api_key" class="field-label"
-                        style="display: block; margin-bottom: 8px; font-weight: 600;">
-                        <?php esc_html_e('API Key', 'alt-text-pro'); ?> <span
-                            style="color: var(--danger-color);">*</span>
+                <div class="settings-field atp-field">
+                    <label for="api_key" class="field-label atp-label">
+                        <?php esc_html_e('API Key', 'alt-text-pro'); ?> <span class="atp-required" aria-hidden="true">*</span>
                     </label>
-                    <div style="display: flex; gap: 8px; align-items: center; max-width: 600px;">
+                    <div class="atp-input-row">
                         <input type="password" id="api_key" name="alt_text_pro_settings[api_key]"
                             value="" placeholder="<?php echo esc_attr($alt_text_pro_api_key_placeholder); ?>" autocomplete="off"
                             data-has-key="<?php echo esc_attr($alt_text_pro_has_key ? '1' : '0'); ?>" />
 
                         <button type="button" class="button-secondary-custom" id="test-connection">
-                            <?php esc_html_e('Test', 'alt-text-pro'); ?>
+                            <span class="dashicons dashicons-admin-plugins" aria-hidden="true"></span>
+                            <span><?php esc_html_e('Test', 'alt-text-pro'); ?></span>
                         </button>
                     </div>
-                    <p class="description" style="margin-top: 8px; color: var(--text-secondary); font-size: 13px;">
+                    <p class="description atp-help">
                         <?php
 echo wp_kses_post(
     sprintf(
@@ -118,31 +73,30 @@ echo wp_kses_post(
 ); ?>
                     </p>
                     <?php if ($alt_text_pro_has_key): ?>
-                    <p class="description" style="margin-top: 8px; color: var(--text-secondary); font-size: 13px;">
+                    <p class="description atp-help">
                         <?php esc_html_e('An API key is already saved. Leave this blank to keep it, or paste a new key to replace it.', 'alt-text-pro'); ?>
                     </p>
                     <?php endif; ?>
+                    <div class="atp-actions atp-field-actions">
                     <?php if ($alt_text_pro_has_key || !empty($settings['api_key'])): ?>
-                    <p style="margin-top: 10px;">
                         <!-- Submits the separate disconnect form below; forms cannot be nested. -->
-                        <button type="submit" class="button-secondary-custom" id="alt-text-pro-disconnect"
+                        <button type="submit" class="button-secondary-custom atp-btn-danger" id="alt-text-pro-disconnect"
                             form="alt-text-pro-disconnect-form"
                             data-confirm="<?php esc_attr_e('Disconnect your Alt Text Pro account from this site? The saved API key will be removed. Alt text already generated stays on your images.', 'alt-text-pro'); ?>">
-                            <span class="dashicons dashicons-dismiss"></span>
-                            <?php esc_html_e('Disconnect account', 'alt-text-pro'); ?>
+                            <span class="dashicons dashicons-dismiss" aria-hidden="true"></span>
+                            <span><?php esc_html_e('Disconnect account', 'alt-text-pro'); ?></span>
                         </button>
-                    </p>
                     <?php endif; ?>
                     <?php if (!$alt_text_pro_has_key): ?>
-                    <p style="margin-top: 10px;">
                         <button type="button" class="button-secondary-custom open-modal"
                             data-modal="alt-text-pro-onboarding-modal">
-                            <?php esc_html_e('Start onboarding', 'alt-text-pro'); ?>
+                            <span class="dashicons dashicons-admin-links" aria-hidden="true"></span>
+                            <span><?php esc_html_e('Start onboarding', 'alt-text-pro'); ?></span>
                         </button>
-                    </p>
                     <?php
 endif; ?>
-                    <div id="connection-test-result" style="margin-top: 12px;"></div>
+                    </div>
+                    <div id="connection-test-result" aria-live="polite"></div>
                 </div>
             </div>
         </div>
@@ -205,15 +159,13 @@ endif; ?>
                 </h3>
             </div>
             <div class="card-content">
-                <div class="settings-field" style="margin-bottom: 24px;">
-                    <label for="blog_context" class="field-label"
-                        style="display: block; margin-bottom: 8px; font-weight: 600;">
+                <div class="settings-field atp-field">
+                    <label for="blog_context" class="field-label atp-label">
                         <?php esc_html_e('Blog Context', 'alt-text-pro'); ?>
                     </label>
                     <textarea id="blog_context" name="alt_text_pro_settings[blog_context]" rows="3" maxlength="500"
-                        style="width: 100%; max-width: 600px;"
                         placeholder="<?php esc_attr_e('e.g., travel blog about New Zealand, food blog focusing on Italian cuisine', 'alt-text-pro'); ?>"><?php echo esc_textarea($settings['blog_context'] ?? ''); ?></textarea>
-                    <p class="description" style="margin-top: 8px; color: var(--text-secondary); font-size: 13px;">
+                    <p class="description atp-help">
                         <?php esc_html_e('Provide general context about your blog to help AI generate more relevant alt text. This context will be included with every image generation request.', 'alt-text-pro'); ?>
                     </p>
                 </div>
@@ -227,38 +179,34 @@ endif; ?>
                 </h3>
             </div>
             <div class="card-content">
-                <div class="settings-field">
-                    <label for="batch_size" class="field-label"
-                        style="display: block; margin-bottom: 8px; font-weight: 600;">
+                <div class="settings-field atp-field">
+                    <label for="batch_size" class="field-label atp-label">
                         <?php esc_html_e('Bulk Batch Size', 'alt-text-pro'); ?>
                     </label>
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <input type="number" id="batch_size" name="alt_text_pro_settings[batch_size]"
-                            value="<?php echo esc_attr($settings['batch_size']); ?>" min="1" max="10"
-                            style="width: 100px;" />
-                        <span style="color: var(--text-secondary);">
+                    <div class="atp-input-row">
+                        <input type="number" id="batch_size" name="alt_text_pro_settings[batch_size]" class="atp-input-number"
+                            value="<?php echo esc_attr($settings['batch_size']); ?>" min="1" max="10" />
+                        <span class="atp-muted">
                             <?php esc_html_e('images per batch', 'alt-text-pro'); ?>
                         </span>
                     </div>
-                    <p class="description" style="margin-top: 8px; color: var(--text-secondary); font-size: 13px;">
+                    <p class="description atp-help">
                         <?php esc_html_e('For credit-accurate cancellation, bulk processing runs one billable image at a time even if an older saved value is higher.', 'alt-text-pro'); ?>
                     </p>
                 </div>
             </div>
         </div>
 
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 24px;">
-            <div>
-                <?php submit_button(esc_html__('Save Settings', 'alt-text-pro'), 'primary button-primary-custom', 'submit', false); ?>
-            </div>
-            <div style="display: flex; gap: 12px;">
+        <div class="atp-form-actions">
+            <?php submit_button(esc_html__('Save Settings', 'alt-text-pro'), 'button-primary-custom', 'submit', false); ?>
+            <div class="atp-actions is-stack">
                 <button type="button" class="button-secondary-custom" id="export-settings">
-                    <span class="dashicons dashicons-download"></span>
-                    <?php esc_html_e('Export', 'alt-text-pro'); ?>
+                    <span class="dashicons dashicons-download" aria-hidden="true"></span>
+                    <span><?php esc_html_e('Export', 'alt-text-pro'); ?></span>
                 </button>
                 <button type="button" class="button-secondary-custom" id="import-settings">
-                    <span class="dashicons dashicons-upload"></span>
-                    <?php esc_html_e('Import', 'alt-text-pro'); ?>
+                    <span class="dashicons dashicons-upload" aria-hidden="true"></span>
+                    <span><?php esc_html_e('Import', 'alt-text-pro'); ?></span>
                 </button>
                 <input type="file" id="import-file" accept=".json" style="display: none;">
             </div>

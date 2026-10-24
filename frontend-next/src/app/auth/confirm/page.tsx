@@ -8,6 +8,8 @@ import { CheckCircle, Loader2, XCircle } from "lucide-react";
 import { getSafeAuthRedirect } from "@/lib/auth-redirect";
 import { trackMarketingEvent } from "@/lib/analytics";
 import { supabase } from "@/lib/supabase";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 type ConfirmationState = "loading" | "success" | "error";
 
@@ -84,42 +86,46 @@ export default function AuthConfirmPage() {
   }, []);
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#FFF9C4] px-4 py-12 text-black">
-      <section className="w-full max-w-md rounded-[2rem] border border-black/10 bg-white p-8 text-center shadow-[0_30px_90px_rgba(0,0,0,0.14)] sm:p-10">
+    <main className="flex min-h-screen items-center justify-center bg-yellow-tint px-4 py-12 text-ink">
+      <section className="w-full max-w-md rounded-2xl border border-line bg-white p-6 text-center shadow-notebook sm:p-8">
         <Image
           src="/logo-alt-text-pro.png"
           alt="Alt Text Pro"
-          width={72}
-          height={72}
+          width={64}
+          height={64}
           priority
-          className="mx-auto h-[72px] w-[72px] rounded-2xl"
+          className="mx-auto h-16 w-16"
         />
 
-        {state === "loading" && <Loader2 className="mx-auto mt-8 h-12 w-12 animate-spin" />}
-        {state === "success" && <CheckCircle className="mx-auto mt-8 h-14 w-14 text-emerald-600" />}
-        {state === "error" && <XCircle className="mx-auto mt-8 h-14 w-14 text-red-600" />}
+        <div
+          className={cn(
+            "mx-auto mt-6 flex h-16 w-16 items-center justify-center rounded-full",
+            state === "loading" && "bg-yellow-soft text-ink",
+            state === "success" && "bg-green-50 text-success",
+            state === "error" && "bg-red-50 text-error",
+          )}
+          aria-hidden="true"
+        >
+          {state === "loading" && <Loader2 className="h-8 w-8 animate-spin" />}
+          {state === "success" && <CheckCircle className="h-8 w-8" />}
+          {state === "error" && <XCircle className="h-8 w-8" />}
+        </div>
 
-        <h1 className="mt-6 font-outfit text-3xl font-semibold tracking-tight">
+        <h1 className="mt-6 font-outfit text-2xl font-semibold tracking-tight sm:text-3xl">
           {state === "loading" && "Confirming your email"}
           {state === "success" && "Email confirmed"}
           {state === "error" && "Confirmation failed"}
         </h1>
-        <p role={state === "error" ? "alert" : "status"} className="mt-4 leading-7 text-slate-600">
+        <p role={state === "error" ? "alert" : "status"} className="mt-3 leading-7 text-ink-muted">
           {message}
         </p>
 
         {state === "error" && (
           <div className="mt-8 grid gap-3">
-            <Link
-              href="/"
-              className="rounded-xl bg-black px-5 py-3.5 font-semibold text-white transition hover:bg-slate-800"
-            >
+            <Link href="/" className={cn(buttonVariants(), "w-full")}>
               Return to Alt Text Pro
             </Link>
-            <Link
-              href={destination}
-              className="rounded-xl border border-slate-200 px-5 py-3.5 font-semibold text-slate-700 transition hover:bg-slate-50"
-            >
+            <Link href={destination} className={cn(buttonVariants({ variant: "secondary" }), "w-full")}>
               Continue without confirming
             </Link>
           </div>

@@ -14,7 +14,7 @@ function htmlResponse(statusCode, title, message) {
       'Content-Type': 'text/html; charset=utf-8',
       'Cache-Control': 'no-store',
     },
-    body: `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${title}</title></head><body style="font-family:Arial,sans-serif;max-width:620px;margin:64px auto;padding:24px;color:#0f172a"><h1>${title}</h1><p>${message}</p></body></html>`,
+    body: `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${title}</title></head><body style="font-family:Arial,sans-serif;max-width:620px;margin:64px auto;padding:24px;color:#3F3F46"><h1>${title}</h1><p>${message}</p></body></html>`,
   };
 }
 

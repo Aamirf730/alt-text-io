@@ -297,24 +297,25 @@ function filterCandidatesByAuthUsers(candidates, authUsers) {
 function renderLifecycleEmail(candidate) {
   const unsubscribeUrl = getLifecycleUnsubscribeUrl(candidate);
   const unsubscribeHtml = unsubscribeUrl
-    ? `<p style="margin-top:20px;font-size:12px;color:#64748b;">Prefer not to receive these emails? <a href="${unsubscribeUrl}" style="color:#475569;">Unsubscribe</a>.</p>`
+    ? `<p style="margin:20px 0 0;font-size:12px;line-height:1.6;color:#6B6B73;">Prefer not to receive these emails? <a href="${unsubscribeUrl}" style="color:#3F3F46;text-decoration:underline;">Unsubscribe</a>.</p>`
     : '';
 
+  // Yellow + white layout from docs/design-system.md, inline styles only.
   const html = `
-    <div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;color:#000000;">
-      <div style="padding:24px 0;border-bottom:1px solid #e5e7eb;">
-        <h1 style="margin:0;color:#000000;font-size:26px;">Alt Text Pro</h1>
+    <div style="margin:0;padding:32px 16px;background:#FFFBEA;font-family:Arial,'Helvetica Neue',sans-serif;color:#3F3F46;">
+      <div style="max-width:560px;margin:0 auto;background:#FFFFFF;border:1px solid #EFE3A3;border-radius:16px;overflow:hidden;">
+        <div style="padding:28px 32px 8px;">
+          <img src="https://www.alt-text.pro/logo-alt-text-pro.png" width="56" height="56" alt="Alt Text Pro" style="display:block;width:56px;height:56px;border:0;">
+        </div>
+        <div style="padding:12px 32px 32px;">
+          <h1 style="margin:0 0 12px;font-size:22px;line-height:1.35;font-weight:700;color:#3F3F46;">${candidate.subject}</h1>
+          <p style="margin:0;font-size:16px;line-height:1.6;color:#6B6B73;">${candidate.preview}</p>
+          <a href="${candidate.cta_url}" style="display:inline-block;margin-top:24px;background:#FEE11C;color:#3F3F46;text-decoration:none;padding:14px 24px;border-radius:12px;font-size:16px;font-weight:700;line-height:1;">${candidate.cta_text}</a>
+          <p style="margin:24px 0 0;font-size:14px;line-height:1.6;color:#6B6B73;">Need help? Reply to this email and we will help you finish the setup.</p>
+          ${unsubscribeHtml}
+        </div>
       </div>
-      <div style="padding:28px 0;">
-        <h2 style="margin:0 0 12px;font-size:22px;color:#000000;">${candidate.subject}</h2>
-        <p style="font-size:16px;line-height:1.6;color:#475569;">${candidate.preview}</p>
-        <a href="${candidate.cta_url}" style="display:inline-block;margin-top:16px;background:#FEE11C;color:#000000;text-decoration:none;padding:12px 18px;border-radius:8px;font-weight:700;">${candidate.cta_text}</a>
-        <p style="margin-top:24px;font-size:14px;color:#64748b;">Need help? Reply to this email and we will help you finish the setup.</p>
-        ${unsubscribeHtml}
-      </div>
-      <div style="padding-top:16px;border-top:1px solid #e5e7eb;color:#94a3b8;font-size:12px;">
-        You are receiving this because you started using Alt Text Pro.
-      </div>
+      <p style="max-width:560px;margin:16px auto 0;font-size:12px;line-height:1.6;color:#6B6B73;text-align:center;">You are receiving this because you started using Alt Text Pro.</p>
     </div>
   `;
 

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { buttonVariants } from "@/components/ui/button";
 import {
   ArrowRight,
   CheckCircle,
@@ -116,19 +117,19 @@ export default function AiAltTextGeneratorForWordPressPage() {
   };
 
   return (
-    <div className="min-h-screen bg-notebook-paper text-notebook-slate">
+    <div className="min-h-screen bg-white text-ink">
       <Navbar />
       <JsonLd data={structuredData} />
 
       <main>
-        <section className="relative overflow-hidden border-b border-notebook-blue/5">
-          <div className="absolute inset-0 bg-gradient-to-b from-notebook-blue/5 via-transparent to-transparent pointer-events-none" />
+        <section className="relative overflow-hidden border-b border-line">
+          <div className="absolute inset-0 bg-gradient-to-b from-yellow-tint via-transparent to-transparent pointer-events-none" />
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 lg:py-28 relative z-10">
             <div className="grid lg:grid-cols-[1.05fr_0.95fr] gap-14 items-center">
               <div>
-                <div className="inline-flex items-center gap-2 rounded-full bg-white border border-notebook-blue/10 px-4 py-2 mb-8 shadow-sm">
-                  <Sparkles className="h-4 w-4 text-notebook-blue" />
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-notebook-blue font-outfit">
+                <div className="inline-flex h-8 items-center gap-2 rounded-full bg-yellow-soft px-3 mb-8">
+                  <Sparkles className="h-4 w-4 text-ink" />
+                  <span className="label-caps">
                     WordPress AI Alt Text
                   </span>
                 </div>
@@ -137,23 +138,23 @@ export default function AiAltTextGeneratorForWordPressPage() {
                   AI Alt Text Generator for WordPress
                 </h1>
 
-                <p className="text-xl text-slate-500 leading-relaxed max-w-2xl mb-10">
+                <p className="text-xl text-ink-muted leading-relaxed max-w-2xl mb-10">
                   Generate useful alt text for WordPress images, bulk-fix missing media-library descriptions, and improve accessibility without writing every image description by hand.
                 </p>
 
                 <div className="flex flex-col sm:flex-row gap-4 mb-10">
                   <Link
                     href="/?auth=signup"
-                    className="inline-flex h-14 items-center justify-center rounded-full bg-notebook-blue px-8 text-sm font-bold uppercase tracking-widest text-white shadow-notebook hover:bg-notebook-blue/90 transition-colors font-outfit"
+                    className={buttonVariants()}
                   >
                     Get 150 Free Credits
-                    <ArrowRight className="ml-3 h-4 w-4" />
+                    <ArrowRight aria-hidden="true" />
                   </Link>
                   <a
                     href="https://wordpress.org/plugins/alt-text-pro/"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex h-14 items-center justify-center rounded-full border border-notebook-blue/10 bg-white px-8 text-sm font-bold uppercase tracking-widest text-notebook-slate hover:text-notebook-blue transition-colors font-outfit"
+                    className={buttonVariants({ variant: "secondary" })}
                   >
                     Install Plugin
                   </a>
@@ -161,40 +162,40 @@ export default function AiAltTextGeneratorForWordPressPage() {
 
                 <div className="grid sm:grid-cols-3 gap-3 max-w-2xl">
                   {["150 free signup credits", "No credit card", "WordPress plugin"].map((item) => (
-                    <div key={item} className="flex items-center gap-2 text-sm font-semibold text-slate-500">
-                      <CheckCircle className="h-4 w-4 text-notebook-blue" />
+                    <div key={item} className="flex items-center gap-2 text-sm font-semibold text-ink-muted">
+                      <CheckCircle className="h-4 w-4 text-ink" />
                       {item}
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div className="bg-white border border-notebook-blue/10 rounded-[2.5rem] p-6 lg:p-8 shadow-notebook-lg">
-                <div className="rounded-[2rem] bg-notebook-paper border border-notebook-blue/5 p-6 mb-6">
+              <div className="bg-white border border-line rounded-2xl p-6 lg:p-8 shadow-notebook-lg">
+                <div className="rounded-2xl bg-white border border-line p-6 mb-6">
                   <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-3">
-                      <div className="h-11 w-11 rounded-2xl bg-white border border-notebook-blue/10 flex items-center justify-center">
-                        <Upload className="h-5 w-5 text-notebook-blue" />
+                      <div className="h-12 w-12 rounded-xl bg-yellow-soft flex items-center justify-center shrink-0">
+                        <Upload className="h-5 w-5 text-ink" />
                       </div>
                       <div>
-                        <p className="text-xs font-bold uppercase tracking-widest text-slate-400 font-outfit">
+                        <p className="label-caps">
                           WordPress Upload
                         </p>
-                        <p className="text-sm font-semibold text-notebook-slate">
+                        <p className="text-sm font-semibold text-ink">
                           product-photo-042.jpg
                         </p>
                       </div>
                     </div>
-                    <span className="rounded-full bg-notebook-blue/10 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-notebook-blue">
+                    <span className="inline-flex h-7 items-center rounded-full bg-yellow-soft px-3 text-xs font-semibold text-ink">
                       Ready
                     </span>
                   </div>
 
-                  <div className="rounded-2xl bg-white border border-notebook-blue/5 p-5">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-notebook-blue mb-3 font-outfit">
+                  <div className="rounded-2xl bg-white border border-line p-5">
+                    <p className="label-caps mb-3">
                       Generated alt text
                     </p>
-                    <p className="text-notebook-slate leading-relaxed">
+                    <p className="text-ink leading-relaxed">
                       Stainless steel water bottle with black cap on a white background, shown as a WooCommerce product image.
                     </p>
                   </div>
@@ -209,9 +210,9 @@ export default function AiAltTextGeneratorForWordPressPage() {
                   ].map((item) => {
                     const Icon = item.icon;
                     return (
-                      <div key={item.label} className="rounded-2xl border border-notebook-blue/5 bg-white p-4">
-                        <Icon className="h-5 w-5 text-notebook-blue mb-3" />
-                        <p className="text-xs font-bold uppercase tracking-widest text-slate-500 font-outfit">
+                      <div key={item.label} className="rounded-2xl border border-line bg-white p-4">
+                        <Icon className="h-5 w-5 text-ink mb-3" />
+                        <p className="label-caps">
                           {item.label}
                         </p>
                       </div>
@@ -223,36 +224,36 @@ export default function AiAltTextGeneratorForWordPressPage() {
           </div>
         </section>
 
-        <section className="py-20 bg-white border-b border-notebook-blue/5">
+        <section className="py-20 bg-white border-b border-line">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="max-w-3xl mb-12">
               <h2 className="text-3xl lg:text-5xl font-bold font-outfit tracking-tight mb-5">
                 Built for the WordPress workflow
               </h2>
-              <p className="text-lg text-slate-500 leading-relaxed">
+              <p className="text-lg text-ink-muted leading-relaxed">
                 Alt Text Pro is designed around how WordPress users actually manage images: uploads, media-library cleanup, product catalogs, and content images inside posts.
               </p>
             </div>
 
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
               {useCases.map((item) => (
-                <div key={item} className="rounded-[2rem] bg-notebook-paper border border-notebook-blue/5 p-6">
-                  <CheckCircle className="h-5 w-5 text-notebook-blue mb-5" />
-                  <p className="text-notebook-slate font-semibold leading-relaxed">{item}</p>
+                <div key={item} className="rounded-2xl bg-white border border-line p-6">
+                  <CheckCircle className="h-5 w-5 text-ink mb-5" />
+                  <p className="text-ink font-semibold leading-relaxed">{item}</p>
                 </div>
               ))}
             </div>
           </div>
         </section>
 
-        <section className="py-20 bg-notebook-paper border-b border-notebook-blue/5">
+        <section className="py-20 bg-white border-b border-line">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid lg:grid-cols-[0.8fr_1.2fr] gap-12">
               <div>
                 <h2 className="text-3xl lg:text-5xl font-bold font-outfit tracking-tight mb-5">
                   How to generate alt text in WordPress
                 </h2>
-                <p className="text-lg text-slate-500 leading-relaxed">
+                <p className="text-lg text-ink-muted leading-relaxed">
                   Start small. Generate one image first, confirm the output fits your page context, then use bulk processing for the larger cleanup.
                 </p>
               </div>
@@ -261,16 +262,16 @@ export default function AiAltTextGeneratorForWordPressPage() {
                 {setupSteps.map((step, index) => {
                   const Icon = step.icon;
                   return (
-                    <div key={step.title} className="rounded-[2rem] bg-white border border-notebook-blue/5 p-6 flex gap-5">
-                      <div className="h-12 w-12 rounded-2xl bg-notebook-blue/5 border border-notebook-blue/10 flex items-center justify-center shrink-0">
-                        <Icon className="h-5 w-5 text-notebook-blue" />
+                    <div key={step.title} className="rounded-2xl bg-white border border-line p-6 flex gap-5">
+                      <div className="h-12 w-12 rounded-xl bg-yellow-soft flex items-center justify-center shrink-0">
+                        <Icon className="h-5 w-5 text-ink" />
                       </div>
                       <div>
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2 font-outfit">
+                        <p className="label-caps mb-2">
                           Step {index + 1}
                         </p>
                         <h3 className="text-xl font-bold font-outfit mb-2">{step.title}</h3>
-                        <p className="text-slate-500 leading-relaxed">{step.copy}</p>
+                        <p className="text-ink-muted leading-relaxed">{step.copy}</p>
                       </div>
                     </div>
                   );
@@ -280,19 +281,19 @@ export default function AiAltTextGeneratorForWordPressPage() {
           </div>
         </section>
 
-        <section className="py-20 bg-white border-b border-notebook-blue/5">
+        <section className="py-20 bg-white border-b border-line">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid lg:grid-cols-2 gap-12 items-start">
               <div>
                 <h2 className="text-3xl lg:text-5xl font-bold font-outfit tracking-tight mb-5">
                   What good AI alt text should do
                 </h2>
-                <p className="text-lg text-slate-500 leading-relaxed mb-8">
+                <p className="text-lg text-ink-muted leading-relaxed mb-8">
                   A useful WordPress alt text generator should not only detect objects. It should create descriptions that make sense for visitors, screen readers, and search engines.
                 </p>
-                <Link href="/alt-text-simulator" className="inline-flex items-center text-sm font-bold uppercase tracking-widest text-notebook-blue font-outfit hover:opacity-80">
+                <Link href="/alt-text-simulator" className="inline-flex items-center gap-2 text-[15px] font-semibold text-ink underline-offset-4 hover:underline">
                   See the alt text simulator
-                  <ArrowRight className="ml-2 h-4 w-4" />
+                  <ArrowRight aria-hidden="true" />
                 </Link>
               </div>
 
@@ -305,9 +306,9 @@ export default function AiAltTextGeneratorForWordPressPage() {
                   "Support accessibility basics",
                   "Remain editable by humans",
                 ].map((item) => (
-                  <div key={item} className="rounded-3xl bg-notebook-paper border border-notebook-blue/5 p-6">
-                    <Shield className="h-5 w-5 text-notebook-blue mb-4" />
-                    <p className="font-semibold text-notebook-slate">{item}</p>
+                  <div key={item} className="rounded-2xl bg-white border border-line p-6">
+                    <Shield className="h-5 w-5 text-ink mb-4" />
+                    <p className="font-semibold text-ink">{item}</p>
                   </div>
                 ))}
               </div>
@@ -315,43 +316,43 @@ export default function AiAltTextGeneratorForWordPressPage() {
           </div>
         </section>
 
-        <section className="py-20 bg-notebook-paper">
+        <section className="py-20 bg-white">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-12">
               <h2 className="text-3xl lg:text-5xl font-bold font-outfit tracking-tight mb-5">
                 AI alt text generator FAQ
               </h2>
-              <p className="text-lg text-slate-500">
+              <p className="text-lg text-ink-muted">
                 Practical answers for WordPress site owners before they start processing images.
               </p>
             </div>
 
             <div className="space-y-4">
               {faqs.map((faq) => (
-                <div key={faq.question} className="rounded-[2rem] bg-white border border-notebook-blue/5 p-7">
+                <div key={faq.question} className="rounded-2xl bg-white border border-line p-6">
                   <h3 className="text-xl font-bold font-outfit mb-3">{faq.question}</h3>
-                  <p className="text-slate-500 leading-relaxed">{faq.answer}</p>
+                  <p className="text-ink-muted leading-relaxed">{faq.answer}</p>
                 </div>
               ))}
             </div>
 
-            <div className="mt-12 rounded-[2.5rem] bg-white border border-notebook-blue/10 p-8 lg:p-10 text-center shadow-notebook">
+            <div className="mt-12 rounded-2xl bg-white border border-line p-8 lg:p-10 text-center shadow-notebook">
               <h2 className="text-3xl font-bold font-outfit tracking-tight mb-4">
                 Generate your first WordPress alt text today.
               </h2>
-              <p className="text-slate-500 mb-8">
+              <p className="text-ink-muted mb-8">
                 Start free, install the plugin, and test one image before running a larger cleanup.
               </p>
               <div className="flex flex-col sm:flex-row justify-center gap-4">
                 <Link
                   href="/?auth=signup"
-                  className="inline-flex h-14 items-center justify-center rounded-full bg-notebook-blue px-8 py-4 text-sm font-bold uppercase tracking-widest text-white shadow-notebook hover:bg-notebook-blue/90 transition-colors font-outfit"
+                  className={buttonVariants()}
                 >
                   Get 150 Free Credits
                 </Link>
                 <Link
                   href="/docs#installation"
-                  className="inline-flex h-14 items-center justify-center rounded-full border border-notebook-blue/10 bg-white px-8 py-4 text-sm font-bold uppercase tracking-widest text-notebook-slate hover:text-notebook-blue transition-colors font-outfit"
+                  className={buttonVariants({ variant: "secondary" })}
                 >
                   Read Setup Guide
                 </Link>

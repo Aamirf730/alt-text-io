@@ -98,59 +98,56 @@ const Navbar = ({ onSignInClick, onSignUpClick }: NavbarProps) => {
     return (
         <nav className="sticky top-0 z-50 py-4">
             <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="bg-white/95 backdrop-blur-xl rounded-full shadow-lg border border-gray-200 px-6 py-3">
-                    <div className="flex items-center justify-between h-12">
+                <div className="bg-white/95 backdrop-blur-xl rounded-full shadow-notebook border border-line pl-4 pr-3 py-2">
+                    <div className="flex items-center justify-between h-12 gap-4">
                         <div className="flex items-center">
-                            <Link href="/" className="flex items-center space-x-3 group">
+                            <Link href="/" className="flex items-center gap-3 rounded-full">
                                 <Image
-                                    src="/logo-alt-text-pro.png"
-                                    alt="Alt Text Pro Logo"
+                                    src="/brand/logo-mark.svg"
+                                    alt=""
                                     width={40}
                                     height={40}
-                                    className="h-10 w-10 object-contain transition-transform group-hover:rotate-12"
+                                    unoptimized
+                                    className="h-10 w-10 shrink-0"
                                 />
-                                <span className="text-2xl font-bold text-notebook-slate tracking-tight font-outfit">Alt Text Pro</span>
+                                <span className="text-2xl font-bold leading-none text-ink tracking-tight font-outfit">Alt Text Pro</span>
                             </Link>
                         </div>
 
                         {/* Centered Navigation Links */}
-                        <div className="hidden lg:flex items-center space-x-12">
-                            <Link href="/#pricing" className="text-gray-600 hover:text-notebook-blue font-medium transition-colors">Pricing</Link>
-                            <Link href="/contact" className="text-gray-600 hover:text-notebook-blue font-medium transition-colors">Contact</Link>
-                            <Link href="/docs" className="text-gray-600 hover:text-notebook-blue font-medium transition-colors">Docs</Link>
+                        <div className="hidden lg:flex items-center gap-10">
+                            <Link href="/#pricing" className="text-ink-muted hover:text-ink font-medium transition-colors">Pricing</Link>
+                            <Link href="/contact" className="text-ink-muted hover:text-ink font-medium transition-colors">Contact</Link>
+                            <Link href="/docs" className="text-ink-muted hover:text-ink font-medium transition-colors">Docs</Link>
                         </div>
 
                         {/* Right Side Buttons */}
-                        <div className="hidden lg:flex items-center space-x-3">
+                        <div className="hidden lg:flex items-center gap-2">
                             {user ? (
                                 <>
                                     <Button
                                         variant="ghost"
-                                        className="text-gray-700 font-medium px-6 py-2.5 rounded-full hover:bg-gray-100 hover:text-notebook-blue transition-all duration-300"
+                                        onClick={handleSignOut}
+                                    >
+                                        Sign Out
+                                    </Button>
+                                    <Button
                                         onClick={() => {
                                             router.push("/dashboard");
                                         }}
                                     >
                                         Dashboard
                                     </Button>
-                                    <Button
-                                        className="bg-notebook-teal text-notebook-black hover:bg-notebook-teal/90 font-semibold px-6 py-2.5 rounded-full shadow-notebook transition-all duration-300"
-                                        onClick={handleSignOut}
-                                    >
-                                        Sign Out
-                                    </Button>
                                 </>
                             ) : (
                                 <>
                                     <Button
                                         variant="ghost"
-                                        className="text-gray-700 font-medium px-6 py-2.5 rounded-full hover:bg-gray-100 hover:text-notebook-blue transition-all duration-300"
                                         onClick={handleSignIn}
                                     >
                                         Sign In
                                     </Button>
                                     <Button
-                                        className="bg-notebook-teal text-notebook-black hover:bg-notebook-teal/90 font-semibold px-6 py-2.5 rounded-full shadow-notebook transition-all duration-300 flex items-center gap-2"
                                         onClick={handleSignUp}
                                     >
                                         Get 150 Free Credits
@@ -164,7 +161,7 @@ const Navbar = ({ onSignInClick, onSignUpClick }: NavbarProps) => {
                             <button
                                 type="button"
                                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                                className="p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+                                className="inline-flex size-11 items-center justify-center rounded-xl text-ink hover:bg-yellow-tint transition-colors"
                                 aria-label={isMobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
                                 aria-expanded={isMobileMenuOpen}
                                 aria-controls="mobile-navigation-menu"
@@ -185,31 +182,31 @@ const Navbar = ({ onSignInClick, onSignUpClick }: NavbarProps) => {
                 <>
                     {/* Backdrop */}
                     <div
-                        className="lg:hidden fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-40 top-20"
+                        className="lg:hidden fixed inset-0 bg-ink/60 backdrop-blur-sm z-40 top-20"
                         onClick={() => setIsMobileMenuOpen(false)}
                     ></div>
                     {/* Menu */}
-                    <div id="mobile-navigation-menu" className="lg:hidden fixed inset-x-4 top-24 z-50 bg-white/95 backdrop-blur-xl border border-gray-200 rounded-2xl shadow-2xl overflow-hidden mobile-menu-container">
+                    <div id="mobile-navigation-menu" className="lg:hidden fixed inset-x-4 top-24 z-50 bg-white/95 backdrop-blur-xl border border-line rounded-2xl shadow-notebook-lg overflow-hidden mobile-menu-container">
                         <div className="px-4 py-6 space-y-4">
                             {/* Navigation Links */}
-                            <div className="space-y-3">
+                            <div className="space-y-1">
                                 <Link
                                     href="/#pricing"
-                                    className="block text-gray-700 hover:text-primary font-medium transition-colors py-2"
+                                    className="flex h-11 items-center rounded-xl px-3 text-ink font-medium transition-colors hover:bg-yellow-tint"
                                     onClick={() => setIsMobileMenuOpen(false)}
                                 >
                                     Pricing
                                 </Link>
                                 <Link
                                     href="/contact"
-                                    className="block text-gray-700 hover:text-primary font-medium transition-colors py-2"
+                                    className="flex h-11 items-center rounded-xl px-3 text-ink font-medium transition-colors hover:bg-yellow-tint"
                                     onClick={() => setIsMobileMenuOpen(false)}
                                 >
                                     Contact
                                 </Link>
                                 <Link
                                     href="/docs"
-                                    className="block text-gray-700 hover:text-primary font-medium transition-colors py-2"
+                                    className="flex h-11 items-center rounded-xl px-3 text-ink font-medium transition-colors hover:bg-yellow-tint"
                                     onClick={() => setIsMobileMenuOpen(false)}
                                 >
                                     Docs
@@ -217,15 +214,14 @@ const Navbar = ({ onSignInClick, onSignUpClick }: NavbarProps) => {
                             </div>
 
                             {/* Divider */}
-                            <div className="border-t border-gray-200 my-4"></div>
+                            <div className="border-t border-line my-4"></div>
 
                             {/* Auth Buttons */}
                             <div className="space-y-3">
                                 {user ? (
                                     <>
                                         <Button
-                                            variant="ghost"
-                                            className="w-full text-gray-700 font-medium px-6 py-2.5 rounded-full hover:bg-gray-100 hover:text-notebook-blue"
+                                            className="w-full"
                                             onClick={() => {
                                                 setIsMobileMenuOpen(false);
                                                 router.push("/dashboard");
@@ -234,7 +230,8 @@ const Navbar = ({ onSignInClick, onSignUpClick }: NavbarProps) => {
                                             Dashboard
                                         </Button>
                                         <Button
-                                            className="w-full bg-notebook-teal text-notebook-black hover:bg-notebook-teal/90 font-semibold px-6 py-2.5 rounded-full"
+                                            variant="secondary"
+                                            className="w-full"
                                             onClick={handleSignOut}
                                         >
                                             Sign Out
@@ -243,14 +240,14 @@ const Navbar = ({ onSignInClick, onSignUpClick }: NavbarProps) => {
                                 ) : (
                                     <>
                                         <Button
-                                            variant="ghost"
-                                            className="w-full text-gray-700 font-medium px-6 py-2.5 rounded-full hover:bg-gray-100 hover:text-notebook-blue"
+                                            variant="secondary"
+                                            className="w-full"
                                             onClick={handleSignIn}
                                         >
                                             Sign In
                                         </Button>
                                         <Button
-                                            className="w-full bg-notebook-teal text-notebook-black hover:bg-notebook-teal/90 font-semibold px-6 py-2.5 rounded-full"
+                                            className="w-full"
                                             onClick={handleSignUp}
                                         >
                                             Get 150 Free Credits
