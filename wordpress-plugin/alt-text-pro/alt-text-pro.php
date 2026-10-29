@@ -97,7 +97,7 @@ class AltTextPro
     private static $instance = null;
 
     // Bump when create_tables() changes so existing sites run dbDelta again.
-    private const DB_VERSION = '1.7.26';
+    private const DB_VERSION = '1.7.28';
 
     // Post-level generation calls the service at most this many times per
     // admin-ajax request so posts with many images do not time out.
@@ -164,6 +164,8 @@ class AltTextPro
         require_once ALT_TEXT_PRO_PLUGIN_PATH . 'includes/class-media-handler.php';
         require_once ALT_TEXT_PRO_PLUGIN_PATH . 'includes/class-bulk-processor.php';
         require_once ALT_TEXT_PRO_PLUGIN_PATH . 'includes/class-settings.php';
+        require_once ALT_TEXT_PRO_PLUGIN_PATH . 'includes/class-generation-log.php';
+        require_once ALT_TEXT_PRO_PLUGIN_PATH . 'includes/class-quick-generate.php';
     }
 
     /**
@@ -175,6 +177,8 @@ class AltTextPro
         if (is_admin()) {
             new AltTextPro_Admin();
             new AltTextPro_Settings();
+            // Media Library list row/bulk actions and the image block button.
+            new AltTextPro_Quick_Generate();
 
             // Posts list columns
             add_filter('manage_posts_columns', array($this, 'add_alt_text_column'));
@@ -188,6 +192,10 @@ class AltTextPro
         if (!is_admin() && self::supports_content_img_tag_filter()) {
             add_filter('wp_content_img_tag', array($this, 'fill_content_image_alt'), 10, 3);
         }
+
+        // Logs: mark a draft as saved when its text becomes the image's alt
+        // text, wherever that happens (media window, REST API, bulk runs).
+        AltTextPro_Generation_Log::register_hooks();
 
         // Media hooks
         new AltTextPro_Media_Handler();
@@ -287,8 +295,7 @@ class AltTextPro
         require_once ALT_TEXT_PRO_PLUGIN_PATH . 'includes/class-settings.php';
 
         // Create database tables if needed
-        $this->create_tables();
-        update_option('alt_text_pro_db_version', self::DB_VERSION, true);
+        $this->upgrade_schema();
 
         // Set default options
         if (!get_option('alt_text_pro_settings')) {
@@ -351,8 +358,7 @@ class AltTextPro
     public function maybe_upgrade()
     {
         if (get_option('alt_text_pro_db_version') !== self::DB_VERSION) {
-            $this->create_tables();
-            update_option('alt_text_pro_db_version', self::DB_VERSION, true);
+            $this->upgrade_schema();
         }
 
         if (!wp_next_scheduled('alt_text_pro_cleanup')) {
@@ -396,7 +402,64 @@ class AltTextPro
     }
 
     /**
+     * Create or update the logs table and record the schema version.
+     */
+    private function upgrade_schema()
+    {
+        // Activation runs before init has loaded the plugin classes.
+        require_once ALT_TEXT_PRO_PLUGIN_PATH . 'includes/class-generation-log.php';
+
+        $had_status_column = $this->logs_table_has_status_column();
+        $this->create_tables();
+
+        // Logging writes the status column once the version is recorded, so
+        // record it only when the table really has it; otherwise the next
+        // admin page load tries again.
+        if ($this->logs_table_has_status_column() !== true) {
+            return;
+        }
+
+        // Rows logged before 1.7.28 never recorded whether a draft was
+        // applied: mark them "not recorded" rather than "saved".
+        if ($had_status_column === false) {
+            AltTextPro_Generation_Log::clear_legacy_status();
+        }
+
+        update_option('alt_text_pro_db_version', self::DB_VERSION, true);
+    }
+
+    /**
+     * Whether the logs table already has the status column, or null when the
+     * table does not exist yet.
+     *
+     * @return bool|null
+     */
+    private function logs_table_has_status_column()
+    {
+        global $wpdb;
+
+        $table_name = $wpdb->prefix . 'alt_text_pro_logs';
+
+        // DESCRIBE, like dbDelta(): it also works on SQLite installs. A
+        // missing table is an error, which is expected here.
+        $suppressed = $wpdb->suppress_errors();
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name comes from $wpdb
+        $columns = $wpdb->get_col("DESCRIBE {$table_name}", 0);
+        $wpdb->suppress_errors($suppressed);
+
+        if (empty($columns)) {
+            return null;
+        }
+
+        return in_array('status', array_map('strtolower', (array) $columns), true);
+    }
+
+    /**
      * Create database tables
+     *
+     * status: 'saved' (the text became the image's alt text), 'draft'
+     * (generated, credit used, never applied), 'block' (placed in an image
+     * block only) or '' (logged before 1.7.28, not recorded).
      */
     private function create_tables()
     {
@@ -412,6 +475,7 @@ class AltTextPro
             alt_text text NOT NULL,
             credits_used int(11) DEFAULT 1,
             processing_time float DEFAULT NULL,
+            status varchar(20) NOT NULL DEFAULT 'saved',
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
             KEY attachment_id (attachment_id)
@@ -478,6 +542,8 @@ class AltTextPro
             'nonce' => wp_create_nonce('alt_text_pro_nonce'),
             'version' => ALT_TEXT_PRO_VERSION,
             'pricingUrl' => ALT_TEXT_PRO_PRICING_URL,
+            // Rejected-key messages link here; only administrators can open it.
+            'settingsUrl' => current_user_can('manage_options') ? admin_url('admin.php?page=alt-text-pro-settings') : '',
             'onboarding' => array(
                 'show' => (bool)$show_onboarding,
                 'modalId' => 'alt-text-pro-onboarding-modal',
@@ -549,6 +615,7 @@ class AltTextPro
     {
         return array(
             'accountSuspendedTitle' => __('Account suspended', 'alt-text-pro'),
+            'askAdminReconnect' => __('Ask a site administrator to reconnect Alt Text Pro in its Settings.', 'alt-text-pro'),
             'altFieldMissing' => __('The WordPress alt-text field could not be found. Copy the draft and paste it manually.', 'alt-text-pro'),
             'analysing' => __('Alt Text Pro AI is analysing this image.', 'alt-text-pro'),
             'bulkAttention' => __('Bulk processing needs attention. Review the activity list for details.', 'alt-text-pro'),
@@ -611,6 +678,7 @@ class AltTextPro
             'missingAlt' => __('Missing alt text', 'alt-text-pro'),
             'needsAttentionState' => __('Needs attention', 'alt-text-pro'),
             'noImagesFound' => __('No images match.', 'alt-text-pro'),
+            'openSettingsReconnect' => __('Open Settings to reconnect', 'alt-text-pro'),
             'noMoreImages' => __('No additional images will start. Any active image is included above.', 'alt-text-pro'),
             // translators: %d: number of images with errors (1).
             'oneImageAttention' => __('%d image needs attention. Review the activity list for details.', 'alt-text-pro'),
@@ -795,8 +863,9 @@ class AltTextPro
 
         if ($result['success'] && !empty($result['alt_text'])) {
             // Keep single-image output as a reviewable draft. The user applies
-            // it to WordPress explicitly from the media field.
-            $this->log_generation($attachment_id, $result['alt_text'], $result['credits_used'] ?? 1);
+            // it to WordPress explicitly from the media field; the log row
+            // turns "saved" once the image's alt text is saved with it.
+            $this->log_generation($attachment_id, $result['alt_text'], $result['credits_used'] ?? 1, AltTextPro_Generation_Log::STATUS_DRAFT);
 
             wp_send_json_success(array(
                 'alt_text' => $result['alt_text'],
@@ -807,9 +876,10 @@ class AltTextPro
         }
         else {
             $message = $result['message'] ?? esc_html__('Failed to generate alt-text. Please check your API key and try again.', 'alt-text-pro');
-            // Out of credits or a suspended account: give the browser a code
-            // so it can add the buy-credits link or explain the suspension.
-            if (!empty($result['no_credits']) || in_array($result['code'] ?? '', array('account_suspended', 'invalid_api_key'), true)) {
+            // Out of credits, a suspended account or a rejected key: give the
+            // browser a code so it can add the buy-credits link, explain the
+            // suspension or link to Settings to reconnect.
+            if (!empty($result['no_credits']) || in_array($result['code'] ?? '', array('account_suspended', 'invalid_api_key', 'account_not_found'), true)) {
                 wp_send_json_error(array(
                     'message' => $message,
                     'code' => !empty($result['no_credits']) ? 'no_credits' : sanitize_key($result['code']),
@@ -905,24 +975,12 @@ class AltTextPro
 
     /**
      * Log alt-text generation
+     *
+     * @param string $status AltTextPro_Generation_Log::STATUS_SAVED or STATUS_DRAFT.
      */
-    private function log_generation($attachment_id, $alt_text, $credits_used = 1)
+    private function log_generation($attachment_id, $alt_text, $credits_used = 1, $status = 'saved')
     {
-        global $wpdb;
-
-        $table_name = $wpdb->prefix . 'alt_text_pro_logs';
-
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery
-        $wpdb->insert(
-            $table_name,
-            array(
-            'attachment_id' => $attachment_id,
-            'alt_text' => $alt_text,
-            'credits_used' => $credits_used,
-            'created_at' => current_time('mysql')
-        ),
-            array('%d', '%s', '%d', '%s')
-        );
+        AltTextPro_Generation_Log::insert($attachment_id, $alt_text, $credits_used, $status);
     }
 
     /**
@@ -1751,6 +1809,9 @@ class AltTextPro
                                 "rel": "noopener noreferrer",
                                 "text": altTextAI.strings.buyCredits
                             }));
+                        } else if (warning && window.AltTextProI18n && AltTextProI18n.needsReconnect(warning.code)) {
+                            // Rejected key or deleted account: reconnect in Settings.
+                            $warning.append(" ").append(AltTextProI18n.settingsLink());
                         }
                     });
                 }

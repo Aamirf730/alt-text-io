@@ -189,6 +189,9 @@ if (!defined('ABSPATH')) {
                         <div class="atp-info-box is-error" role="alert">
                             <span class="dashicons dashicons-warning" aria-hidden="true"></span>
                             <span><?php echo esc_html($usage_error); ?></span>
+                            <?php if (in_array($usage_error_code ?? '', array('invalid_api_key', 'account_not_found'), true) && current_user_can('manage_options')): ?>
+                                <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-pro-settings')); ?>" class="atp-upgrade-link"><?php esc_html_e('Open Settings to reconnect', 'alt-text-pro'); ?></a>
+                            <?php endif; ?>
                         </div>
                     <?php endif; ?>
 

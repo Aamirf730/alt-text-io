@@ -169,9 +169,12 @@ class AltTextPro_Admin
         }
         $args[] = self::EXPORT_LOGS_LIMIT;
 
+        // Whether each draft was applied; sites not yet upgraded have no column.
+        $status_column = AltTextPro_Generation_Log::has_status_column() ? ', l.status' : '';
+
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared -- table names come from $wpdb; values are prepared
         $rows = $wpdb->get_results($wpdb->prepare(
-            "SELECT l.id, l.attachment_id, p.post_title, l.alt_text, l.credits_used, l.created_at
+            "SELECT l.id, l.attachment_id, p.post_title, l.alt_text, l.credits_used, l.created_at{$status_column}
              FROM {$logs_table} l
              LEFT JOIN {$wpdb->posts} p ON l.attachment_id = p.ID
              {$where}
@@ -204,7 +207,7 @@ class AltTextPro_Admin
      * Cells that a spreadsheet would run as a formula are prefixed with a
      * quote so exported alt text cannot execute anything.
      *
-     * @param array[] $rows Log rows with id, attachment_id, post_title, alt_text, credits_used, created_at.
+     * @param array[] $rows Log rows with id, attachment_id, post_title, alt_text, credits_used, created_at and status.
      * @return array[]
      */
     public static function get_logs_csv_rows(array $rows)
@@ -216,6 +219,7 @@ class AltTextPro_Admin
             __('Alt Text', 'alt-text-pro'),
             __('Credits', 'alt-text-pro'),
             __('Date', 'alt-text-pro'),
+            __('Status', 'alt-text-pro'),
         ));
 
         foreach ($rows as $row) {
@@ -227,10 +231,25 @@ class AltTextPro_Admin
                 self::csv_safe_cell($row['alt_text'] ?? ''),
                 (string) intval($row['credits_used'] ?? 0),
                 self::csv_safe_cell($row['created_at'] ?? ''),
+                self::csv_safe_cell(self::get_log_status_label($row['status'] ?? '')),
             );
         }
 
         return $csv_rows;
+    }
+
+    /**
+     * Status label of a log row ("Draft, not applied" and so on), or '' for
+     * rows logged before statuses were recorded.
+     */
+    private static function get_log_status_label($status)
+    {
+        if (!class_exists('AltTextPro_Generation_Log')) {
+            return '';
+        }
+
+        $display = AltTextPro_Generation_Log::get_status_display($status);
+        return $display ? $display['label'] : '';
     }
 
     /**
@@ -865,6 +884,9 @@ class AltTextPro_Admin
                     <span class="dashicons dashicons-images-alt2" aria-hidden="true"></span>
                     <span><?php esc_html_e('Generate Alt-Text', 'alt-text-pro'); ?></span>
                 </button>
+                <p class="description atp-credit-note">
+                    <?php esc_html_e('Uses 1 credit, even if you do not apply the draft.', 'alt-text-pro'); ?>
+                </p>
 
                 <div class="alt-text-pro-result" style="display: none !important;">
                     <div class="alt-text-pro-loading" style="display: none !important;">
@@ -873,7 +895,7 @@ class AltTextPro_Admin
                     </div>
                     <div class="alt-text-pro-success" style="display: none !important;">
                         <p class="generated-alt-text"></p>
-                        <p class="description"><?php esc_html_e('Review this draft before applying it to the WordPress alt-text field.', 'alt-text-pro'); ?></p>
+                        <p class="description"><?php esc_html_e('Review this draft, then apply it. The credit is already used, but the image keeps its current alt text until you apply the draft and save.', 'alt-text-pro'); ?></p>
                         <p class="description credits-remaining" style="display: none;"></p>
                         <button type="button" class="button button-secondary-custom atp-btn-sm atp-btn-block alt-text-pro-apply-btn">
                             <span class="dashicons dashicons-yes" aria-hidden="true"></span>

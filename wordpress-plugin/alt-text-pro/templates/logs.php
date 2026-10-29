@@ -109,6 +109,18 @@ if (!defined('ABSPATH')) {
                                 <td>
                                     <p class="atp-log-alt">
                                         <?php echo esc_html($alt_text_pro_log->alt_text); ?></p>
+                                    <?php
+                                    // Whether the text reached the image; rows logged before
+                                    // 1.7.28 did not record it and show no status.
+                                    $alt_text_pro_status = AltTextPro_Generation_Log::get_status_display($alt_text_pro_log->status ?? '');
+                                    if ($alt_text_pro_status): ?>
+                                        <p class="atp-log-status-row">
+                                            <span class="atp-badge atp-log-status is-<?php echo esc_attr($alt_text_pro_status['class']); ?>"><?php echo esc_html($alt_text_pro_status['label']); ?></span>
+                                            <?php if ($alt_text_pro_status['description'] !== ''): ?>
+                                                <span class="atp-log-meta"><?php echo esc_html($alt_text_pro_status['description']); ?></span>
+                                            <?php endif; ?>
+                                        </p>
+                                    <?php endif; ?>
                                     <button type="button" class="button-secondary-custom atp-btn-sm copy-alt-text"
                                         data-alt-text="<?php echo esc_attr($alt_text_pro_log->alt_text); ?>">
                                         <span class="dashicons dashicons-admin-page" aria-hidden="true"></span>
