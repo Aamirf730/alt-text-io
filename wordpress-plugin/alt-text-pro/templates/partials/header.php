@@ -17,6 +17,7 @@ $alt_text_pro_current_page = isset($_GET['page']) ? sanitize_text_field(wp_unsla
 $alt_text_pro_nav_items = array(
     array('alt-text-pro', 'dashicons-dashboard', __('Dashboard', 'alt-text-pro'), 'manage_options'),
     array('alt-text-pro-bulk', 'dashicons-images-alt2', __('Bulk Process', 'alt-text-pro'), 'upload_files'),
+    array('alt-text-pro-review', 'dashicons-visibility', __('Review', 'alt-text-pro'), 'upload_files'),
     array('alt-text-pro-logs', 'dashicons-list-view', __('Logs', 'alt-text-pro'), 'manage_options'),
     array('alt-text-pro-settings', 'dashicons-admin-settings', __('Settings', 'alt-text-pro'), 'manage_options'),
 );

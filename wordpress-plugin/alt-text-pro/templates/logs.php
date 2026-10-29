@@ -56,15 +56,24 @@ if (!defined('ABSPATH')) {
                     <input type="hidden" name="page" value="alt-text-pro-logs">
                     <label class="screen-reader-text" for="search-logs"><?php esc_html_e('Search alt text', 'alt-text-pro'); ?></label>
                     <input type="search" id="search-logs" name="s" class="atp-input-sm" value="<?php echo esc_attr($search); ?>" placeholder="<?php esc_attr_e('Search alt text or image...', 'alt-text-pro'); ?>">
+                    <?php if (!empty($outcome_labels)): ?>
+                        <label class="screen-reader-text" for="logs-outcome"><?php esc_html_e('Result', 'alt-text-pro'); ?></label>
+                        <select id="logs-outcome" name="outcome">
+                            <option value=""><?php esc_html_e('All results', 'alt-text-pro'); ?></option>
+                            <?php foreach ($outcome_labels as $alt_text_pro_outcome_key => $alt_text_pro_outcome_label): ?>
+                                <option value="<?php echo esc_attr($alt_text_pro_outcome_key); ?>" <?php selected($outcome, $alt_text_pro_outcome_key); ?>><?php echo esc_html($alt_text_pro_outcome_label); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    <?php endif; ?>
                     <button type="submit" class="button-secondary-custom atp-btn-sm">
                         <span class="dashicons dashicons-search" aria-hidden="true"></span>
                         <span><?php esc_html_e('Search', 'alt-text-pro'); ?></span>
                     </button>
-                    <?php if ($search !== ''): ?>
+                    <?php if ($search !== '' || $outcome !== ''): ?>
                         <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-pro-logs')); ?>" class="atp-btn atp-btn-ghost atp-btn-sm"><?php esc_html_e('Clear', 'alt-text-pro'); ?></a>
                     <?php endif; ?>
                 </form>
-                <a href="<?php echo esc_url(wp_nonce_url(add_query_arg($search !== '' ? array('s' => rawurlencode($search)) : array(), admin_url('admin-post.php?action=alt_text_pro_export_logs')), 'alt_text_pro_export_logs')); ?>"
+                <a href="<?php echo esc_url(wp_nonce_url(add_query_arg(array_filter(array('s' => $search !== '' ? rawurlencode($search) : '', 'outcome' => $outcome)), admin_url('admin-post.php?action=alt_text_pro_export_logs')), 'alt_text_pro_export_logs')); ?>"
                     class="button-secondary-custom atp-btn-sm" id="export-logs"
                     title="<?php esc_attr_e('Download the generation history as CSV. When you search, only matching entries are exported.', 'alt-text-pro'); ?>">
                     <span class="dashicons dashicons-download" aria-hidden="true"></span>
@@ -107,6 +116,18 @@ if (!defined('ABSPATH')) {
                                         <?php echo esc_html($alt_text_pro_log->attachment_id); ?></span>
                                 </td>
                                 <td>
+                                    <?php
+                                    // Bulk-run result: failed and skipped images (with why),
+                                    // suggestions waiting for review, undone or rejected.
+                                    $alt_text_pro_outcome = (string) ($alt_text_pro_log->outcome ?? 'generated');
+                                    if ($alt_text_pro_outcome !== 'generated' && isset($outcome_labels[$alt_text_pro_outcome])): ?>
+                                        <p class="atp-log-status-row">
+                                            <span class="atp-badge atp-outcome is-<?php echo esc_attr($alt_text_pro_outcome); ?>"><?php echo esc_html($outcome_labels[$alt_text_pro_outcome]); ?></span>
+                                            <?php if ((string) ($alt_text_pro_log->outcome_reason ?? '') !== ''): ?>
+                                                <span class="atp-log-meta"><?php echo esc_html($alt_text_pro_log->outcome_reason); ?></span>
+                                            <?php endif; ?>
+                                        </p>
+                                    <?php endif; ?>
                                     <p class="atp-log-alt">
                                         <?php echo esc_html($alt_text_pro_log->alt_text); ?></p>
                                     <?php
@@ -163,6 +184,9 @@ if (!defined('ABSPATH')) {
                         if ($search !== '') {
                             $alt_text_pro_base_url = add_query_arg('s', rawurlencode($search), $alt_text_pro_base_url);
                         }
+                        if ($outcome !== '') {
+                            $alt_text_pro_base_url = add_query_arg('outcome', $outcome, $alt_text_pro_base_url);
+                        }
                         if ($current_page > 1) {
                             echo '<a href="' . esc_url(add_query_arg('paged', $current_page - 1, $alt_text_pro_base_url)) . '" class="button-secondary-custom atp-btn-sm"><span class="dashicons dashicons-arrow-left-alt2" aria-hidden="true"></span><span>' . esc_html__('Prev', 'alt-text-pro') . '</span></a>';
                         }
@@ -177,7 +201,7 @@ if (!defined('ABSPATH')) {
         <?php else: ?>
             <div class="atp-empty-state">
                 <span class="atp-icon-chip is-lg" aria-hidden="true"><span class="dashicons dashicons-list-view"></span></span>
-                <h3><?php echo esc_html($search !== '' ? __('No entries match your search', 'alt-text-pro') : __('No logs found', 'alt-text-pro')); ?></h3>
+                <h3><?php echo esc_html($search !== '' || $outcome !== '' ? __('No entries match your search', 'alt-text-pro') : __('No logs found', 'alt-text-pro')); ?></h3>
                 <p>
                     <?php esc_html_e('Start generating alt-text to see history here.', 'alt-text-pro'); ?></p>
                 <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-pro-bulk')); ?>"

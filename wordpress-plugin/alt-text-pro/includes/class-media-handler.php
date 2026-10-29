@@ -195,6 +195,11 @@ class AltTextPro_Media_Handler
             return;
         }
 
+        // Suggested alt text is already waiting on the Review page.
+        if (class_exists('AltTextPro_Review') && AltTextPro_Review::has_suggestion($attachment_id)) {
+            return;
+        }
+
         $api_client = new AltTextPro_API_Client();
 
         // Get context from attachment metadata if available
@@ -216,7 +221,10 @@ class AltTextPro_Media_Handler
         $result = $api_client->generate_alt_text($attachment_id, $context, $blog_context);
         $alt_text = sanitize_text_field((string) ($result['alt_text'] ?? ''));
 
-        if ($result['success'] && $alt_text !== '') {
+        if ($result['success'] && $alt_text !== '' && class_exists('AltTextPro_Review') && AltTextPro_Review::is_enabled()) {
+            // "Review alt text before it goes live": keep it as a suggestion.
+            AltTextPro_Review::store_suggestion($attachment_id, $alt_text, 'upload', '', $result['credits_used'] ?? 1);
+        } elseif ($result['success'] && $alt_text !== '') {
             // Update attachment alt text
             update_post_meta($attachment_id, '_wp_attachment_image_alt', $alt_text);
 

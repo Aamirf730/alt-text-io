@@ -267,7 +267,7 @@
 
             // Leaving the page while a run is going pauses it
             $(window).on('beforeunload', function (e) {
-                if (window.bulkProcessor && window.bulkProcessor.isProcessing) {
+                if (window.bulkProcessor && window.bulkProcessor.isProcessing && !window.bulkProcessor.backgroundMode) {
                     var message = t('leaveWarning', 'A bulk run is in progress. Leaving this page pauses it; you can resume it from the Bulk page.');
                     e.preventDefault();
                     e.returnValue = message;
@@ -1104,6 +1104,9 @@
         pickerPage: 1,
         pickerLoaded: false,
         pickerRequest: null,
+        // True while WP-Cron drives the run ("Keep going in the background");
+        // this tab then only shows progress.
+        backgroundMode: false,
 
         init: function () {
             debugLog('Alt Text Pro: Initializing bulk processor');
@@ -1146,6 +1149,7 @@
             $('#progress-status').text(t('initializing', 'Initializing...')).removeClass('success error').addClass('warning');
             $('#progress-log').empty().append($('<div>').text(t('resumeRun', 'Resuming your bulk run...')));
             this.updateLiveTask(null, t('readyNext', 'Ready to start after the latest update.'), t('queued', 'Queued'));
+            this.setMode(run.mode);
 
             // The run was being stopped when the page was left. It will never
             // schedule another image, so finish the stop instead of polling
@@ -1215,7 +1219,8 @@
                 nonce: altTextAI.nonce,
                 page: page,
                 search: $('#image-search').val() || '',
-                filter: $('#image-filter').val() || 'missing'
+                filter: $('#image-filter').val() || 'missing',
+                filters: window.AltTextProBulkTools ? window.AltTextProBulkTools.getFilters() : {}
             }).done(function (response) {
                 if (!response || !response.success) {
                     $list.empty().append($('<p class="atp-muted">').text((response && response.data) || t('loadImagesFailed', 'Images could not be loaded.')));
@@ -1315,6 +1320,8 @@
                     overwrite_existing: overwriteExisting ? 1 : 0,
                     selected_images: selectedImages,
                     batch_size: batchSize,
+                    filters: window.AltTextProBulkTools ? window.AltTextProBulkTools.getFilters() : {},
+                    background: $('#bulk_background').is(':checked') ? 1 : 0,
                     nonce: altTextAI.nonce
                 },
                 success: function (response) {
@@ -1339,6 +1346,12 @@
                         $('#progress-log').append(
                             $('<div>').text(sprintf(t('initializedProcess', 'Run started: up to %d images can be processed with the available credits.'), processableTotal))
                         );
+                        if (response.data.estimated_time) {
+                            $('#progress-log').append(
+                                $('<div>').text(sprintf(t('estimatedTimeLog', 'Estimated time: about %s.'), response.data.estimated_time))
+                            );
+                        }
+                        self.setMode(response.data.mode);
 
                         if (response.data.queue_capped) {
                             $('#progress-log').append(
@@ -1450,10 +1463,42 @@
 
         startStatusPolling: function () {
             var self = this;
+            if (this.statusInterval) {
+                clearInterval(this.statusInterval);
+            }
             this.pollStatus();
+            // A background run moves at WP-Cron's pace; poll it less often.
             this.statusInterval = setInterval(function () {
                 self.pollStatus();
-            }, 1000);
+            }, this.backgroundMode ? 4000 : 1000);
+        },
+
+        // Follow the run's mode: "background" (WP-Cron) or this tab.
+        setMode: function (mode) {
+            var background = mode === 'background';
+            var changed = background !== this.backgroundMode;
+            this.backgroundMode = background;
+
+            $('#bulk-mode-panel').show();
+            $('#bulk-to-background').toggle(!background);
+            if (!$('#bulk-to-foreground').length) {
+                $('<button type="button" class="button-secondary-custom atp-btn-sm" id="bulk-to-foreground">')
+                    .append($('<span class="dashicons dashicons-controls-play" aria-hidden="true">'))
+                    .append($('<span>').text(t('runInTab', 'Run in this tab instead')))
+                    .appendTo('#bulk-mode-panel');
+            }
+            $('#bulk-to-foreground').toggle(background);
+            $('#bulk-mode-note').text(background
+                ? t('backgroundNote', 'Running in the background with WP-Cron. You can close this tab. WP-Cron runs when someone visits the site (or on your host\'s schedule), so progress can pause on a quiet site.')
+                : t('foregroundNote', 'This tab is running the bulk job. Keep it open, or let it keep going in the background.'));
+
+            if (background) {
+                this.clearScheduledBatch();
+                this.updateLiveTask(null, t('backgroundTask', 'Images are processed in the background a few at a time.'), t('backgroundState', 'Background'));
+            }
+            if (changed && this.statusInterval && (this.isProcessing || this.pendingCancel)) {
+                this.startStatusPolling();
+            }
         },
 
         pollStatus: function () {
@@ -1504,6 +1549,12 @@
                             return;
                         }
 
+                        if (self.backgroundMode) {
+                            self.updateLiveTask(null, t('backgroundTask', 'Images are processed in the background a few at a time.'), t('backgroundState', 'Background'));
+                            $('#progress-status').text(t('backgroundStatus', 'Running in the background')).removeClass('success error').addClass('warning');
+                            return;
+                        }
+
                         // Schedule the next billable request after the UI has rendered the latest count.
                         if (response.data.needs_next_batch && response.data.next_batch_offset !== null) {
                             self.scheduleNextBatch(response.data.next_batch_offset, response.data.retry_after_seconds);
@@ -1518,7 +1569,7 @@
 
         scheduleNextBatch: function (offset, retryAfterSeconds) {
             var self = this;
-            if (this.cancelRequested || this.pendingCancel || !this.isProcessing || !this.processId) return;
+            if (this.cancelRequested || this.pendingCancel || !this.isProcessing || !this.processId || this.backgroundMode) return;
             if (this.processingBatches[offset]) return;
             if (this.nextBatchTimer && this.scheduledBatchOffset === offset) return;
 
@@ -1552,7 +1603,7 @@
 
         triggerNextBatch: function (offset) {
             var self = this;
-            if (this.cancelRequested || this.pendingCancel || !this.isProcessing || !this.processId) return;
+            if (this.cancelRequested || this.pendingCancel || !this.isProcessing || !this.processId || this.backgroundMode) return;
 
             // Prevent duplicate requests for same offset
             if (this.processingBatches[offset]) return;
@@ -1755,6 +1806,9 @@
         },
 
         updateProgress: function (data) {
+            if (data && data.mode && (data.mode === 'background') !== this.backgroundMode && (this.isProcessing || this.pendingCancel)) {
+                this.setMode(data.mode);
+            }
             var total = data.total_images || 0;
             var displayTotal = data.processable_images || total;
             var processed = data.processed_count !== undefined ? data.processed_count : (data.processed || 0);
@@ -1795,7 +1849,7 @@
             results.forEach(function (result) {
                 var icon = 'dashicons-yes';
                 var statusClass = 'success';
-                var statusText = t('statusSuccess', 'Success');
+                var statusText = result.suggested ? t('statusSuggested', 'Saved for review') : t('statusSuccess', 'Success');
 
                 if (result.status === 'error') {
                     icon = 'dashicons-no-alt';
@@ -1852,6 +1906,8 @@
 
             $('#start-bulk-process').show();
             $('#cancel-bulk-process').prop('disabled', false).attr('style', 'display: none !important;').hide();
+            $('#bulk-mode-panel').hide();
+            this.backgroundMode = false;
 
             this.updateProgress(data);
             this.updateProcessLimitNote(data);
@@ -1952,6 +2008,8 @@
         },
 
         resetUI: function () {
+            $('#bulk-mode-panel').hide();
+            this.backgroundMode = false;
             $('#start-bulk-process').show();
             $('#cancel-bulk-process').prop('disabled', false).attr('style', 'display: none !important;').hide();
             $('#progress-card').hide();

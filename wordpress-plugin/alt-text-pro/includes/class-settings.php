@@ -154,6 +154,8 @@ class AltTextPro_Settings
             'fill_title_from_alt' => false,
             'fill_caption_from_alt' => false,
             'fill_description_from_alt' => false,
+            // Bulk, upload and Posts-list alt text waits on the Review page.
+            'review_before_live' => false,
         );
     }
 
@@ -471,6 +473,9 @@ class AltTextPro_Settings
                     ? !empty($input[$alt_text_pro_detail_key])
                     : !empty($sanitized[$alt_text_pro_detail_key]);
             }
+            $sanitized['review_before_live'] = array_key_exists('review_before_live', $input)
+                ? !empty($input['review_before_live'])
+                : !empty($sanitized['review_before_live']);
         }
 
         // Output language: '' (site language) or one of the offered locales.

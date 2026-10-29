@@ -158,23 +158,30 @@ class AltTextPro_Admin
         global $wpdb;
         $logs_table = $wpdb->prefix . 'alt_text_pro_logs';
         $search = isset($_GET['s']) ? sanitize_text_field(wp_unslash($_GET['s'])) : '';
+        $outcome = isset($_GET['outcome']) ? sanitize_key(wp_unslash($_GET['outcome'])) : '';
 
-        $where = '';
+        $where = 'WHERE 1=1';
         $args = array();
         if ($search !== '') {
             // Same match as the Logs page search: alt text or image title.
-            $where = 'WHERE (l.alt_text LIKE %s OR p.post_title LIKE %s)';
+            $where .= ' AND (l.alt_text LIKE %s OR p.post_title LIKE %s)';
             $args[] = '%' . $wpdb->esc_like($search) . '%';
             $args[] = '%' . $wpdb->esc_like($search) . '%';
         }
+        // Same outcome filter as the Logs page (generated, failed...).
+        $where .= AltTextPro_Bulk_Processor::outcome_filter_sql($outcome, 'l');
         $args[] = self::EXPORT_LOGS_LIMIT;
 
         // Whether each draft was applied; sites not yet upgraded have no column.
         $status_column = AltTextPro_Generation_Log::has_status_column() ? ', l.status' : '';
+        // Failed and skipped bulk images are exported with their reason.
+        $outcome_columns = AltTextPro_Bulk_Processor::log_columns_ready()
+            ? ', l.outcome, l.outcome_reason, l.run_ref'
+            : '';
 
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared -- table names come from $wpdb; values are prepared
         $rows = $wpdb->get_results($wpdb->prepare(
-            "SELECT l.id, l.attachment_id, p.post_title, l.alt_text, l.credits_used, l.created_at{$status_column}
+            "SELECT l.id, l.attachment_id, p.post_title, l.alt_text, l.credits_used, l.created_at{$status_column}{$outcome_columns}
              FROM {$logs_table} l
              LEFT JOIN {$wpdb->posts} p ON l.attachment_id = p.ID
              {$where}
@@ -207,7 +214,10 @@ class AltTextPro_Admin
      * Cells that a spreadsheet would run as a formula are prefixed with a
      * quote so exported alt text cannot execute anything.
      *
-     * @param array[] $rows Log rows with id, attachment_id, post_title, alt_text, credits_used, created_at and status.
+     * Status, then result, reason and run come last so the first six
+     * columns keep their place for existing spreadsheets.
+     *
+     * @param array[] $rows Log rows with id, attachment_id, post_title, alt_text, credits_used, created_at, and optionally status, outcome, outcome_reason, run_ref.
      * @return array[]
      */
     public static function get_logs_csv_rows(array $rows)
@@ -220,10 +230,16 @@ class AltTextPro_Admin
             __('Credits', 'alt-text-pro'),
             __('Date', 'alt-text-pro'),
             __('Status', 'alt-text-pro'),
+            // Bulk-run result (generated, failed, skipped...) and why.
+            __('Result', 'alt-text-pro'),
+            __('Reason', 'alt-text-pro'),
+            __('Bulk run', 'alt-text-pro'),
         ));
+        $outcome_labels = class_exists('AltTextPro_Bulk_Processor') ? AltTextPro_Bulk_Processor::get_outcome_labels() : array();
 
         foreach ($rows as $row) {
             $row = (array) $row;
+            $outcome = (string) ($row['outcome'] ?? 'generated');
             $csv_rows[] = array(
                 (string) intval($row['id'] ?? 0),
                 (string) intval($row['attachment_id'] ?? 0),
@@ -232,6 +248,9 @@ class AltTextPro_Admin
                 (string) intval($row['credits_used'] ?? 0),
                 self::csv_safe_cell($row['created_at'] ?? ''),
                 self::csv_safe_cell(self::get_log_status_label($row['status'] ?? '')),
+                self::csv_safe_cell($outcome_labels[$outcome] ?? $outcome),
+                self::csv_safe_cell($row['outcome_reason'] ?? ''),
+                self::csv_safe_cell($row['run_ref'] ?? ''),
             );
         }
 
@@ -493,7 +512,11 @@ class AltTextPro_Admin
         global $wpdb;
         $logs_table = $wpdb->prefix . 'alt_text_pro_logs';
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name comes from $wpdb
-        $count = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$logs_table}");
+        // Failed and skipped bulk images are logged too; they are not
+        // descriptions.
+        $generated_clause = class_exists('AltTextPro_Bulk_Processor') ? AltTextPro_Bulk_Processor::generated_logs_sql('') : '';
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name comes from $wpdb; the clause is fixed SQL
+        $count = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$logs_table} WHERE 1=1{$generated_clause}");
         set_transient('alt_text_pro_generated_count', $count, 6 * HOUR_IN_SECONDS);
 
         return $count;
@@ -597,19 +620,23 @@ class AltTextPro_Admin
         global $wpdb;
         $logs_table = $wpdb->prefix . 'alt_text_pro_logs';
 
+        // Failed and skipped bulk images are logged too; count generations.
+        $generated_clause = AltTextPro_Bulk_Processor::generated_logs_sql('');
         // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery
-        $total_generated = $wpdb->get_var("SELECT COUNT(*) FROM $logs_table");
+        $total_generated = $wpdb->get_var("SELECT COUNT(*) FROM $logs_table WHERE 1=1{$generated_clause}");
         $site_month_prefix = current_time('Y-m') . '-%';
         $this_month_generated = $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$logs_table} WHERE created_at LIKE %s",
+            "SELECT COUNT(*) FROM {$logs_table} WHERE created_at LIKE %s{$generated_clause}",
             $site_month_prefix
         ));
         // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery
         $total_credits_used = $wpdb->get_var("SELECT SUM(credits_used) FROM $logs_table");
         // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        $recent_clause = AltTextPro_Bulk_Processor::generated_logs_sql('l');
         $query = "SELECT l.*, p.post_title 
              FROM $logs_table l 
              LEFT JOIN {$wpdb->posts} p ON l.attachment_id = p.ID 
+             WHERE 1=1{$recent_clause}
              ORDER BY l.created_at DESC 
              LIMIT 10";
 
@@ -646,46 +673,19 @@ class AltTextPro_Admin
      */
     public function bulk_process_page()
     {
-        global $wpdb;
         $credits_remaining = null;
         $billing_cycle = null;
         $monthly_credit_allowance = null;
         $monthly_credits_remaining = null;
         $monthly_credit_limit = null;
 
-        // Count the same editable media set the processor uses. Scoping in SQL
-        // keeps this page fast on large libraries; a single run takes the
-        // newest images up to the processor's queue cap.
-        $editable_clause = AltTextPro_Bulk_Processor::get_editable_media_sql_clause('p');
-        // SVG and other non-raster files are never queued, so not counted.
-        $supported_mime_clause = AltTextPro_API_Client::get_supported_mime_sql_clause('p');
-        // Decorative images keep an empty alt on purpose and are not queued.
-        $not_decorative_clause = AltTextPro_Image_Details::get_not_decorative_sql_clause('p');
-        $missing_alt_sql = "FROM {$wpdb->posts} p
-             LEFT JOIN {$wpdb->postmeta} pm ON (
-                 p.ID = pm.post_id
-                 AND pm.meta_key = '_wp_attachment_image_alt'
-                 AND pm.meta_value IS NOT NULL
-                 AND pm.meta_value != ''
-                 AND TRIM(pm.meta_value) != ''
-             )
-             WHERE p.post_type = 'attachment'
-             {$supported_mime_clause}
-             AND pm.post_id IS NULL
-             {$not_decorative_clause}
-             {$editable_clause}";
-
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared -- the only variable fragments are prepared above
-        $total_without_alt = (int) $wpdb->get_var("SELECT COUNT(*) {$missing_alt_sql}");
-
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
-        $total_images = (int) $wpdb->get_var(
-            "SELECT COUNT(*)
-             FROM {$wpdb->posts} p
-             WHERE p.post_type = 'attachment'
-             {$supported_mime_clause}
-             {$editable_clause}"
-        );
+        // Count the same editable media set the processor uses (no SVG, no
+        // decorative images, none waiting for review), scoped in SQL so
+        // this page stays fast on large libraries.
+        $image_counts = AltTextPro_Bulk_Processor::count_images();
+        $total_without_alt = $image_counts['missing'];
+        $total_images = $image_counts['all'];
+        $run_credit_limit = null;
 
         $settings_handler = new AltTextPro_Settings();
         $settings = $settings_handler->get_settings();
@@ -707,12 +707,19 @@ class AltTextPro_Admin
                 $monthly_credit_allowance = isset($usage_response['data']['monthly_credit_allowance']) ? intval($usage_response['data']['monthly_credit_allowance']) : null;
                 $monthly_credits_remaining = isset($usage_response['data']['monthly_credits_remaining']) ? intval($usage_response['data']['monthly_credits_remaining']) : null;
                 $monthly_credit_limit = isset($usage_response['data']['monthly_credit_limit']) ? intval($usage_response['data']['monthly_credit_limit']) : null;
+                // Credits one run may use: the run estimate compares with this.
+                $run_credit_limit = AltTextPro_Bulk_Processor::get_run_credit_limits((array) $usage_response['data'])['run_limit'];
             }
         }
 
         // A run that is still going (this tab was closed or reloaded, or
         // another administrator started it).
         $active_run = AltTextPro_Bulk_Processor::get_active_run_for_page();
+
+        // Finished runs with their failed and skipped images, and undo.
+        $recent_runs = AltTextPro_Bulk_Processor::get_recent_runs_for_page();
+        $pending_review = AltTextPro_Review::count_pending();
+        $review_enabled = AltTextPro_Review::is_enabled();
 
         include ALT_TEXT_PRO_PLUGIN_PATH . 'templates/bulk-process.php';
     }
@@ -758,13 +765,21 @@ class AltTextPro_Admin
         // not only the rows on this page. Read-only, so no nonce.
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         $search = isset($_GET['s']) ? trim(sanitize_text_field(wp_unslash($_GET['s']))) : '';
-        $where = '';
+        // Show one outcome only (generated, failed, skipped...). Read-only.
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $outcome = isset($_GET['outcome']) ? sanitize_key(wp_unslash($_GET['outcome'])) : '';
+        $outcome_labels = AltTextPro_Bulk_Processor::log_columns_ready() ? AltTextPro_Bulk_Processor::get_outcome_labels() : array();
+        if (!array_key_exists($outcome, $outcome_labels)) {
+            $outcome = '';
+        }
+        $where = 'WHERE 1=1';
         $where_args = array();
         if ($search !== '') {
             $like = '%' . $wpdb->esc_like($search) . '%';
-            $where = 'WHERE (l.alt_text LIKE %s OR p.post_title LIKE %s)';
+            $where .= ' AND (l.alt_text LIKE %s OR p.post_title LIKE %s)';
             $where_args = array($like, $like);
         }
+        $where .= AltTextPro_Bulk_Processor::outcome_filter_sql($outcome, 'l');
 
         // Get logs with pagination
         // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
@@ -779,35 +794,38 @@ class AltTextPro_Admin
         $logs = $wpdb->get_results($wpdb->prepare($query, array_merge($where_args, array($per_page, $offset))));
 
         // Get total count for pagination
-        if ($search !== '') {
+        if (!empty($where_args)) {
             // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery
             $total_logs = (int) $wpdb->get_var($wpdb->prepare(
                 "SELECT COUNT(*) FROM $logs_table l LEFT JOIN {$wpdb->posts} p ON l.attachment_id = p.ID {$where}",
                 $where_args
             ));
         } else {
-            // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery
-            $total_logs = (int) $wpdb->get_var("SELECT COUNT(*) FROM $logs_table");
+            // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared -- the outcome clause is prepared
+            $total_logs = (int) $wpdb->get_var("SELECT COUNT(*) FROM $logs_table l {$where}");
         }
         $total_pages = ceil($total_logs / $per_page);
 
         $site_date_prefix = current_time('Y-m-d') . '%';
         $site_month_prefix = current_time('Y-m') . '-%';
+        // Failed and skipped bulk images are listed too; they are not
+        // generations.
+        $generated_clause = AltTextPro_Bulk_Processor::generated_logs_sql('');
 
         // Get summary stats
         $stats = array(
             // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery
-            'total_generated' => $wpdb->get_var("SELECT COUNT(*) FROM $logs_table"),
+            'total_generated' => $wpdb->get_var("SELECT COUNT(*) FROM $logs_table WHERE 1=1{$generated_clause}"),
             // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery
             'total_credits_used' => $wpdb->get_var("SELECT SUM(credits_used) FROM $logs_table"),
             // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery
             'avg_processing_time' => $wpdb->get_var("SELECT AVG(processing_time) FROM $logs_table WHERE processing_time IS NOT NULL"),
             'today_generated' => $wpdb->get_var($wpdb->prepare(
-                "SELECT COUNT(*) FROM {$logs_table} WHERE created_at LIKE %s",
+                "SELECT COUNT(*) FROM {$logs_table} WHERE created_at LIKE %s{$generated_clause}",
                 $site_date_prefix
             )),
             'this_month_generated' => $wpdb->get_var($wpdb->prepare(
-                "SELECT COUNT(*) FROM {$logs_table} WHERE created_at LIKE %s",
+                "SELECT COUNT(*) FROM {$logs_table} WHERE created_at LIKE %s{$generated_clause}",
                 $site_month_prefix
             ))
         );

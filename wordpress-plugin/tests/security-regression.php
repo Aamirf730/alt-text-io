@@ -428,13 +428,23 @@ alt_text_pro_security_assert(
 $alt_text_pro_test_options[$durable_state_option ?? 'unused'] = $alt_text_pro_test_options[$durable_state_option ?? 'unused'] ?? null;
 $stale_run_option = alt_text_pro_invoke_private($processor, 'get_bulk_process_option_name', array($second_run));
 $stale_run = $alt_text_pro_test_options[$stale_run_option];
+// A run left by a closed tab is paused, not abandoned: it keeps the site's
+// one run slot and stays resumable for 7 days (G5, 1.7.28).
 $stale_run['last_updated'] = '2026-08-12 09:30:00';
 $alt_text_pro_test_options[$stale_run_option] = $stale_run;
 $alt_text_pro_test_transients['alt_text_pro_bulk_' . $second_run] = $stale_run;
 $alt_text_pro_test_user_id = 41;
 alt_text_pro_security_assert(
+    is_array(alt_text_pro_invoke_private($processor, 'get_live_active_run')),
+    'A run paused for 30 minutes must stay resumable and keep blocking a second run.'
+);
+
+$stale_run['last_updated'] = '2026-08-04 09:59:00';
+$alt_text_pro_test_options[$stale_run_option] = $stale_run;
+$alt_text_pro_test_transients['alt_text_pro_bulk_' . $second_run] = $stale_run;
+alt_text_pro_security_assert(
     alt_text_pro_invoke_private($processor, 'get_live_active_run') === null,
-    'A run with no progress for 30 minutes must stop blocking new runs.'
+    'A run with no progress for more than 7 days must stop blocking new runs.'
 );
 
 $bulk_source = file_get_contents(dirname(__DIR__) . '/alt-text-pro/includes/class-bulk-processor.php');

@@ -223,6 +223,20 @@ echo wp_kses_post(
 
                 <div class="settings-field">
                     <label class="checkbox-group">
+                        <input type="hidden" name="alt_text_pro_settings[review_before_live]" value="0" />
+                        <input type="checkbox" id="review_before_live" name="alt_text_pro_settings[review_before_live]"
+                            value="1" <?php checked(1, !empty($settings['review_before_live'])); ?> />
+                        <span class="checkbox-label">
+                            <?php esc_html_e('Review alt text before it goes live', 'alt-text-pro'); ?>
+                        </span>
+                    </label>
+                    <p class="checkbox-desc">
+                        <?php esc_html_e('Alt text written by bulk runs, generate-on-upload and the Posts list is kept as a suggestion until you approve it on the Review page. Generating one image in the media editor is not affected.', 'alt-text-pro'); ?>
+                    </p>
+                </div>
+
+                <div class="settings-field">
+                    <label class="checkbox-group">
                         <input type="hidden" name="alt_text_pro_settings[show_context_field]" value="0" />
                         <input type="checkbox" id="show_context_field" name="alt_text_pro_settings[show_context_field]"
                             value="1" <?php checked(1, $settings['show_context_field'] ?? false); ?> />

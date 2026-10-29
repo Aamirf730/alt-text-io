@@ -49,6 +49,8 @@ function alt_text_pro_uninstall_site()
     delete_option('alt_text_pro_db_version');
     delete_option('alt_text_pro_api_key_storage_error');
     delete_option('alt_text_pro_active_bulk_run');
+    delete_option('alt_text_pro_bulk_runs');
+    delete_option('alt_text_pro_bulk_log_db_version');
     delete_transient('alt_text_pro_activation_redirect');
     delete_transient('alt_text_pro_generated_count');
     delete_option('alt_text_pro_credit_status');
@@ -57,6 +59,7 @@ function alt_text_pro_uninstall_site()
     wp_clear_scheduled_hook('alt_text_pro_bulk_process_batch');
     wp_unschedule_hook('alt_text_pro_generate_background');
     wp_clear_scheduled_hook('alt_text_pro_refresh_credit_status');
+    wp_clear_scheduled_hook('alt_text_pro_bulk_background_tick');
 
     // Uploads still waiting for automatic generation, and generated alt
     // text kept to fill image titles and captions. The "decorative" flag
@@ -66,6 +69,8 @@ function alt_text_pro_uninstall_site()
 
     // Per-site "low credits" notice dismissals (stored with update_user_option()).
     delete_metadata('user', 0, $wpdb->get_blog_prefix() . 'alt_text_pro_credit_notice_dismissed', '', true);
+    // Suggested alt text waiting on the Review page.
+    delete_post_meta_by_key('_alt_text_pro_suggested_alt');
 
     $logs_table = $wpdb->prefix . 'alt_text_pro_logs';
     // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
@@ -75,14 +80,16 @@ function alt_text_pro_uninstall_site()
     $timeout_prefix = $wpdb->esc_like('_transient_timeout_alt_text_pro_') . '%';
     $lock_prefix = $wpdb->esc_like('alt_text_pro_bulk_lock_') . '%';
     $bulk_state_prefix = $wpdb->esc_like('alt_text_pro_bulk_state_') . '%';
+    $bulk_background_prefix = $wpdb->esc_like('alt_text_pro_bulk_bg_') . '%';
     // phpcs:ignore WordPress.DB.DirectDatabaseQuery
     $wpdb->query(
         $wpdb->prepare(
-            "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s",
+            "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s",
             $transient_prefix,
             $timeout_prefix,
             $lock_prefix,
-            $bulk_state_prefix
+            $bulk_state_prefix,
+            $bulk_background_prefix
         )
     );
 }
