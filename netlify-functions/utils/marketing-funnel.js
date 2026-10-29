@@ -1,14 +1,20 @@
 const { fetchAllRows } = require('./paginated-query');
+// In the order a customer moves through them: the plugin is downloaded
+// before it can be connected.
 const FUNNEL_STAGES = [
   { key: 'page_viewed', label: 'Visitor' },
   { key: 'demo_used', label: 'Demo used' },
   { key: 'signup_created', label: 'Signup created' },
+  { key: 'plugin_downloaded', label: 'Plugin downloaded' },
   { key: 'connect_started', label: 'Connect started' },
   { key: 'connect_completed', label: 'Connect completed' },
-  { key: 'plugin_downloaded', label: 'Plugin downloaded' },
   { key: 'checkout_started', label: 'Checkout started' },
   { key: 'purchase_completed', label: 'Purchase completed' },
 ];
+
+// High-volume, anonymous events are aggregated in SQL and never loaded row by
+// row (marketing_event_aggregates, migration 20261029120200).
+const AGGREGATE_ONLY_EVENTS = ['page_viewed'];
 
 const DROPOFFS = [
   {
@@ -137,6 +143,31 @@ function buildDateKeys(startAt, endAt) {
   return keys;
 }
 
+/**
+ * Funnel stages with conversion rates from per-stage counts
+ * (Map key -> { events, unique_actors }).
+ */
+function buildStages(countsByKey, fallbackStartActors = 0) {
+  const countFor = key => countsByKey.get(key) || { events: 0, unique_actors: 0 };
+  const firstStageActors = countFor(FUNNEL_STAGES[0].key).unique_actors || fallbackStartActors;
+
+  return FUNNEL_STAGES.map((stage, index) => {
+    const uniqueActors = Number(countFor(stage.key).unique_actors || 0);
+    const previousActors = index > 0 ? Number(countFor(FUNNEL_STAGES[index - 1].key).unique_actors || 0) : null;
+
+    return {
+      key: stage.key,
+      label: stage.label,
+      events: Number(countFor(stage.key).events || 0),
+      unique_actors: uniqueActors,
+      conversion_from_previous:
+        previousActors && previousActors > 0 ? uniqueActors / previousActors : null,
+      conversion_from_start:
+        firstStageActors > 0 ? uniqueActors / firstStageActors : null,
+    };
+  });
+}
+
 function buildMarketingFunnelReport(events, options = {}) {
   const now = options.generatedAt ? new Date(options.generatedAt) : new Date();
   const startAt = options.startAt ? new Date(options.startAt) : new Date(now.getTime() - 7 * 86400000);
@@ -202,23 +233,10 @@ function buildMarketingFunnelReport(events, options = {}) {
     }
   }
 
-  const firstStageActors = stageActorSets.get(FUNNEL_STAGES[0].key)?.size || actors.size;
-  const stages = FUNNEL_STAGES.map((stage, index) => {
-    const uniqueActors = stageActorSets.get(stage.key)?.size || 0;
-    const previousStage = index > 0 ? FUNNEL_STAGES[index - 1] : null;
-    const previousActors = previousStage ? (stageActorSets.get(previousStage.key)?.size || 0) : null;
-
-    return {
-      key: stage.key,
-      label: stage.label,
-      events: stageEventCounts.get(stage.key) || 0,
-      unique_actors: uniqueActors,
-      conversion_from_previous:
-        previousActors && previousActors > 0 ? uniqueActors / previousActors : null,
-      conversion_from_start:
-        firstStageActors > 0 ? uniqueActors / firstStageActors : null,
-    };
-  });
+  const stages = buildStages(new Map(FUNNEL_STAGES.map(stage => [stage.key, {
+    events: stageEventCounts.get(stage.key) || 0,
+    unique_actors: stageActorSets.get(stage.key)?.size || 0,
+  }])), actors.size);
 
   const actorList = [...actors.values()];
   const dropoffs = DROPOFFS.map(dropoff => {
@@ -298,20 +316,94 @@ function compareReports(current, previous) {
   };
 }
 
-async function fetchMarketingEvents(supabase, { startAt, endAt }) {
+/**
+ * Row-level events for actor-level analysis (dropoffs). Page views are left
+ * out; their counts come from marketing_event_aggregates.
+ */
+async function fetchMarketingEvents(supabase, { startAt, endAt, excludeEventNames = AGGREGATE_ONLY_EVENTS } = {}) {
   // fetchAllRows throws at its ceiling instead of silently dropping the
   // newest events, which used to undercount recent conversions.
   return fetchAllRows(
-    (from, to) => supabase
-      .from('marketing_events')
-      .select('id,event_name,source,anonymous_id,user_id,user_email,properties,page_path,referrer,occurred_at,created_at')
-      .gte('occurred_at', startAt.toISOString())
-      .lt('occurred_at', endAt.toISOString())
-      .order('occurred_at', { ascending: true })
-      .order('id', { ascending: true })
-      .range(from, to),
+    (from, to) => {
+      let query = supabase
+        .from('marketing_events')
+        .select('id,event_name,source,anonymous_id,user_id,user_email,page_path,referrer,occurred_at,created_at')
+        .gte('occurred_at', startAt.toISOString())
+        .lt('occurred_at', endAt.toISOString());
+      if (excludeEventNames.length > 0) {
+        query = query.not('event_name', 'in', `(${excludeEventNames.join(',')})`);
+      }
+      return query
+        .order('occurred_at', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, to);
+    },
     { label: 'marketing funnel events' }
   );
+}
+
+async function fetchEventAggregates(supabase, { startAt, endAt }) {
+  const { data, error } = await supabase.rpc('marketing_event_aggregates', {
+    p_start_at: startAt.toISOString(),
+    p_end_at: endAt.toISOString(),
+    p_top_limit: 8,
+  });
+  if (error) throw new Error(`Failed to aggregate marketing events: ${error.message}`);
+  return data || {};
+}
+
+function countsFromAggregates(aggregates) {
+  return new Map(Object.entries(aggregates?.by_event || {}).map(([key, value]) => [key, {
+    events: Number(value?.events || 0),
+    unique_actors: Number(value?.unique_actors || 0),
+  }]));
+}
+
+/**
+ * Replace the row-derived counts with the SQL aggregates, which include
+ * page views. Dropoffs stay row-derived.
+ */
+function applyAggregates(report, aggregates) {
+  const counts = countsFromAggregates(aggregates);
+  const dailyByDate = new Map((aggregates?.daily || []).map(day => [day.date, day]));
+
+  return {
+    ...report,
+    totals: {
+      ...report.totals,
+      events: Number(aggregates?.events || 0),
+      unique_actors: Number(aggregates?.unique_actors || 0),
+      known_users: Number(aggregates?.known_users ?? report.totals.known_users),
+    },
+    stages: buildStages(counts, Number(aggregates?.unique_actors || 0)),
+    daily_series: report.daily_series.map(day => {
+      const aggregate = dailyByDate.get(day.date);
+      if (!aggregate) {
+        return { ...day, total_events: 0, unique_actors: 0, events: Object.fromEntries(FUNNEL_STAGES.map(stage => [stage.key, 0])) };
+      }
+      return {
+        date: day.date,
+        total_events: Number(aggregate.total_events || 0),
+        unique_actors: Number(aggregate.unique_actors || 0),
+        events: Object.fromEntries(FUNNEL_STAGES.map(stage => [stage.key, Number(aggregate.events?.[stage.key] || 0)])),
+      };
+    }),
+    event_counts: rankEntries([...counts.entries()].map(([key, value]) => [key, value.events]), 20),
+    top_sources: aggregates?.top_sources || [],
+    top_referrers: aggregates?.top_referrers || [],
+    top_pages: aggregates?.top_pages || [],
+  };
+}
+
+function summaryFromAggregates(aggregates, { startAt, endAt }) {
+  return {
+    range: { start_at: startAt.toISOString(), end_at: endAt.toISOString(), timezone: 'UTC' },
+    totals: {
+      events: Number(aggregates?.events || 0),
+      unique_actors: Number(aggregates?.unique_actors || 0),
+    },
+    stages: buildStages(countsFromAggregates(aggregates), Number(aggregates?.unique_actors || 0)),
+  };
 }
 
 async function getMarketingFunnelReport(supabase, options = {}) {
@@ -322,30 +414,53 @@ async function getMarketingFunnelReport(supabase, options = {}) {
     : new Date(endAt.getTime() - days * 86400000);
   const previousStartAt = new Date(startAt.getTime() - (endAt.getTime() - startAt.getTime()));
 
-  const [events, previousEvents] = await Promise.all([
-    fetchMarketingEvents(supabase, { startAt, endAt, maxRows: options.maxRows || 10000 }),
-    fetchMarketingEvents(supabase, {
-      startAt: previousStartAt,
-      endAt: startAt,
-      maxRows: options.maxRows || 10000,
-    }),
+  const [events, aggregates, previousAggregates] = await Promise.all([
+    fetchMarketingEvents(supabase, { startAt, endAt }),
+    fetchEventAggregates(supabase, { startAt, endAt }),
+    fetchEventAggregates(supabase, { startAt: previousStartAt, endAt: startAt }),
   ]);
 
-  const current = buildMarketingFunnelReport(events, {
+  const rowReport = buildMarketingFunnelReport(events, {
     startAt,
     endAt,
     generatedAt: options.generatedAt,
   });
-  const previous = buildMarketingFunnelReport(previousEvents, {
-    startAt: previousStartAt,
-    endAt: startAt,
-    generatedAt: options.generatedAt,
-  });
+  const current = applyAggregates(rowReport, aggregates);
+  const previous = summaryFromAggregates(previousAggregates, { startAt: previousStartAt, endAt: startAt });
 
   return {
     ...current,
     comparison: compareReports(current, previous),
   };
+}
+
+function formatSignedNumber(value) {
+  const number = Number(value || 0);
+  return number > 0 ? `+${number}` : String(number);
+}
+
+function formatChange(stageComparison) {
+  if (!stageComparison) return 'N/A';
+  const delta = formatSignedNumber(stageComparison.unique_actors_delta);
+  if (stageComparison.unique_actors_change === null || stageComparison.unique_actors_change === undefined) {
+    return `${delta} (new)`;
+  }
+  const percent = Math.round(stageComparison.unique_actors_change * 1000) / 10;
+  return `${delta} (${percent > 0 ? '+' : ''}${percent}%)`;
+}
+
+function comparisonFor(report, key) {
+  return (report.comparison?.stages || []).find(stage => stage.key === key) || null;
+}
+
+function renderOperationsText(operations) {
+  if (!operations) return [];
+  return [
+    '',
+    'Operations:',
+    `Unmatched payments awaiting assignment: ${operations.unresolved_reconciliations ?? 'unknown'}`,
+    `Polar cancellations pending after account deletion: ${operations.pending_subscription_cancellations ?? 'unknown'}`,
+  ];
 }
 
 function renderFunnelReportText(report) {
@@ -354,16 +469,17 @@ function renderFunnelReportText(report) {
     `Generated: ${formatDateTime(report.generated_at)} UTC`,
     `Range: ${formatDateTime(report.range.start_at)} to ${formatDateTime(report.range.end_at)} UTC`,
     '',
-    `Total events: ${report.totals.events}`,
-    `Unique actors: ${report.totals.unique_actors}`,
+    `Total events: ${report.totals.events} (${formatSignedNumber(report.comparison?.totals?.events_delta)} vs previous period)`,
+    `Unique actors: ${report.totals.unique_actors} (${formatSignedNumber(report.comparison?.totals?.unique_actors_delta)} vs previous period)`,
     '',
-    'Funnel:',
+    'Funnel (actors vs the previous period):',
     ...report.stages.map(stage =>
-      `${stage.label}: ${stage.unique_actors} actors, ${stage.events} events, ${formatPercent(stage.conversion_from_previous)} from previous`
+      `${stage.label}: ${stage.unique_actors} actors (${formatChange(comparisonFor(report, stage.key))}), ${stage.events} events, ${formatPercent(stage.conversion_from_previous)} from previous stage`
     ),
     '',
     'Dropoffs:',
     ...report.dropoffs.map(dropoff => `${dropoff.label}: ${dropoff.count}`),
+    ...renderOperationsText(report.operations),
   ];
 
   return lines.join('\n');
@@ -383,11 +499,20 @@ function renderFunnelReportHtml(report) {
     <tr>
       <td style="padding:8px 10px;border-bottom:1px solid #EFE3A3;">${escapeHtml(stage.label)}</td>
       <td style="padding:8px 10px;border-bottom:1px solid #EFE3A3;text-align:right;">${stage.unique_actors}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #EFE3A3;text-align:right;">${escapeHtml(formatChange(comparisonFor(report, stage.key)))}</td>
       <td style="padding:8px 10px;border-bottom:1px solid #EFE3A3;text-align:right;">${stage.events}</td>
       <td style="padding:8px 10px;border-bottom:1px solid #EFE3A3;text-align:right;">${formatPercent(stage.conversion_from_previous)}</td>
       <td style="padding:8px 10px;border-bottom:1px solid #EFE3A3;text-align:right;">${formatPercent(stage.conversion_from_start)}</td>
     </tr>
   `).join('');
+
+  const operations = report.operations;
+  const operationsHtml = operations ? `
+      <h2 style="color:#3F3F46;margin-top:24px;">Operations</h2>
+      <ul>
+        <li style="margin:6px 0;"><strong>Unmatched payments awaiting assignment:</strong> ${escapeHtml(operations.unresolved_reconciliations ?? 'unknown')}</li>
+        <li style="margin:6px 0;"><strong>Polar cancellations pending after account deletion:</strong> ${escapeHtml(operations.pending_subscription_cancellations ?? 'unknown')}</li>
+      </ul>` : '';
 
   const dropoffs = report.dropoffs.map(dropoff => `
     <li style="margin:6px 0;"><strong>${escapeHtml(dropoff.label)}:</strong> ${dropoff.count}</li>
@@ -401,10 +526,12 @@ function renderFunnelReportHtml(report) {
         <div style="padding:14px 16px;background:#FFF3B0;border:1px solid #FEE11C;border-radius:8px;">
           <div style="font-size:12px;text-transform:uppercase;color:#3F3F46;">Events</div>
           <div style="font-size:28px;font-weight:700;">${report.totals.events}</div>
+          <div style="font-size:12px;color:#6B6B73;">${escapeHtml(formatSignedNumber(report.comparison?.totals?.events_delta))} vs previous</div>
         </div>
         <div style="padding:14px 16px;background:#FFFBEA;border:1px solid #EFE3A3;border-radius:8px;">
           <div style="font-size:12px;text-transform:uppercase;color:#3F3F46;">Unique actors</div>
           <div style="font-size:28px;font-weight:700;">${report.totals.unique_actors}</div>
+          <div style="font-size:12px;color:#6B6B73;">${escapeHtml(formatSignedNumber(report.comparison?.totals?.unique_actors_delta))} vs previous</div>
         </div>
       </div>
       <table style="width:100%;border-collapse:collapse;border:1px solid #EFE3A3;">
@@ -412,6 +539,7 @@ function renderFunnelReportHtml(report) {
           <tr>
             <th style="padding:8px 10px;text-align:left;">Stage</th>
             <th style="padding:8px 10px;text-align:right;">Actors</th>
+            <th style="padding:8px 10px;text-align:right;">vs previous</th>
             <th style="padding:8px 10px;text-align:right;">Events</th>
             <th style="padding:8px 10px;text-align:right;">Previous</th>
             <th style="padding:8px 10px;text-align:right;">Start</th>
@@ -421,15 +549,19 @@ function renderFunnelReportHtml(report) {
       </table>
       <h2 style="color:#3F3F46;margin-top:24px;">Dropoffs</h2>
       <ul>${dropoffs}</ul>
+      ${operationsHtml}
     </div>
   `;
 }
 
 module.exports = {
+  AGGREGATE_ONLY_EVENTS,
   FUNNEL_STAGES,
   DROPOFFS,
   parsePositiveInt,
+  applyAggregates,
   buildMarketingFunnelReport,
+  buildStages,
   compareReports,
   fetchMarketingEvents,
   getMarketingFunnelReport,

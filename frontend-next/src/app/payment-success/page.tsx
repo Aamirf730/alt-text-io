@@ -11,6 +11,16 @@ import { cn } from "@/lib/utils";
 type PaymentState = "processing" | "success" | "error";
 type CheckoutStatus = "open" | "expired" | "confirmed" | "succeeded" | "failed";
 
+// Polar reports success before its webhook reaches us. Keep polling until
+// /api/checkout-status confirms the account itself was updated, then hand
+// over to the dashboard: ?checkout=success when the purchase is applied,
+// ?checkout=pending if it is still on its way when we stop waiting.
+const POLL_INTERVAL_MS = 2000;
+const MAX_CHECKOUT_ATTEMPTS = 10;
+const MAX_ACCOUNT_ATTEMPTS = 15;
+const SUCCESS_REDIRECT = "/dashboard?checkout=success";
+const PENDING_REDIRECT = "/dashboard?checkout=pending";
+
 export default function PaymentSuccess() {
     const [state, setState] = useState<PaymentState>("processing");
     const [message, setMessage] = useState("Verifying your payment with Polar…");
@@ -21,6 +31,7 @@ export default function PaymentSuccess() {
         let pollTimer: ReturnType<typeof setTimeout> | undefined;
         let redirectTimer: ReturnType<typeof setTimeout> | undefined;
         let attempts = 0;
+        let accountAttempts = 0;
 
         const checkoutId = new URLSearchParams(window.location.search).get("checkout_id")?.trim();
 
@@ -55,6 +66,7 @@ export default function PaymentSuccess() {
                 );
                 const data = await response.json().catch(() => ({})) as {
                     status?: CheckoutStatus;
+                    account_updated?: boolean;
                     error?: string;
                 };
 
@@ -65,9 +77,24 @@ export default function PaymentSuccess() {
 
                 if (data.status === "succeeded") {
                     if (cancelled) return;
-                    setMessage("Your payment is confirmed. Your account will update from Polar’s secure webhook.");
-                    setState("success");
-                    redirectTimer = setTimeout(() => router.push("/dashboard"), 3000);
+
+                    if (data.account_updated) {
+                        setMessage("Your payment is confirmed and your account has been updated.");
+                        setState("success");
+                        redirectTimer = setTimeout(() => router.push(SUCCESS_REDIRECT), 2000);
+                        return;
+                    }
+
+                    accountAttempts += 1;
+                    if (accountAttempts >= MAX_ACCOUNT_ATTEMPTS) {
+                        setMessage("Your payment is confirmed. Your account is still updating and will show the purchase within a few minutes.");
+                        setState("success");
+                        redirectTimer = setTimeout(() => router.push(PENDING_REDIRECT), 3000);
+                        return;
+                    }
+
+                    setMessage("Payment confirmed. Updating your account…");
+                    pollTimer = setTimeout(verifyCheckout, POLL_INTERVAL_MS);
                     return;
                 }
 
@@ -77,14 +104,14 @@ export default function PaymentSuccess() {
                 }
 
                 attempts += 1;
-                if (attempts >= 10) {
+                if (attempts >= MAX_CHECKOUT_ATTEMPTS) {
                     fail("Polar is still finalizing this checkout. Open your dashboard in a moment to review the account status.");
                     return;
                 }
 
                 if (!cancelled) {
                     setMessage("Polar is finalizing your payment. This usually takes only a few seconds…");
-                    pollTimer = setTimeout(verifyCheckout, 2000);
+                    pollTimer = setTimeout(verifyCheckout, POLL_INTERVAL_MS);
                 }
             } catch {
                 fail("We could not reach the payment verifier. Your dashboard will show the purchase after Polar confirms it.");

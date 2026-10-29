@@ -11,8 +11,10 @@ const PAID_SUBSCRIPTION_PLANS = new Set([
 ]);
 
 // "cancelled" means a scheduled cancellation: the subscription still runs (and
-// can be resumed) until the end of the paid period.
-const LIVE_SUBSCRIPTION_STATUSES = new Set(["active", "cancelled", "canceled"]);
+// can be resumed) until the end of the paid period. "past_due" means a renewal
+// charge failed and Polar is retrying it; the subscription still exists, so a
+// second checkout would start a parallel one.
+const LIVE_SUBSCRIPTION_STATUSES = new Set(["active", "cancelled", "canceled", "past_due"]);
 
 export type SubscriptionProfile = {
   subscription_plan?: unknown;

@@ -94,6 +94,28 @@ exports.handler = async (event, context) => {
       };
     }
 
+    // Suspended accounts must not get a key back (an admin revoke would
+    // otherwise be undone by the next dashboard load). Generation enforces the
+    // same flag, so a failed lookup here is logged rather than blocking.
+    const { data: blockProfile, error: blockError } = await supabase
+      .from('profiles')
+      .select('blocked_at')
+      .eq('id', authUser.id)
+      .maybeSingle();
+
+    if (blockError) {
+      console.error('Error checking account suspension:', blockError.message);
+    } else if (blockProfile?.blocked_at) {
+      return {
+        statusCode: 403,
+        headers,
+        body: JSON.stringify({
+          error: 'account_suspended',
+          message: 'This account is suspended. Contact help@alt-text.pro for help.',
+        }),
+      };
+    }
+
     let rotateRequested = false;
     if (event.httpMethod === 'POST' && event.body) {
       try {

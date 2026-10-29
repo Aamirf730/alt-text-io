@@ -18,7 +18,6 @@ describe('audit findings 4.5 through 4.10', () => {
     const sourceFiles = [
       'netlify-functions/get-usage.js',
       'netlify-functions/utils/api-key-validator.js',
-      'netlify-functions/admin-get-users.js',
       'netlify-functions/utils/lifecycle-status.js',
     ];
 
@@ -27,6 +26,12 @@ describe('audit findings 4.5 through 4.10', () => {
       expect(source, relativePath).toContain('fetchAllRows');
       expect(source, relativePath).toContain('.range(from, to)');
     }
+
+    // The Users tab pages in SQL instead of reading every row.
+    const adminUsers = readFileSync(resolve(root, 'netlify-functions/admin-get-users.js'), 'utf8');
+    expect(adminUsers).toContain("rpc('admin_list_users'");
+    expect(adminUsers).toContain('p_limit');
+    expect(adminUsers).toContain('p_offset');
   });
 
   it('uses paginated send lookup for lifecycle deduplication', () => {

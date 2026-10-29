@@ -303,15 +303,19 @@ function createHandler({
                     break;
                 }
 
-                default:
-                    // Basic liveness check — no external health probes.
+                default: {
+                    // Basic liveness check — no external health probes. The
+                    // public response says only whether throttling works, not
+                    // which backend serves it.
+                    const rateLimiterStatus = checkRateLimiterStatusFn();
                     result = {
                         service: 'alt-text-pro',
                         checks: {
                             basic: checkBasic(),
-                            rate_limiter: checkRateLimiterStatusFn(),
+                            rate_limiter: { status: rateLimiterStatus.status },
                         },
                     };
+                }
             }
 
             // Determine overall status

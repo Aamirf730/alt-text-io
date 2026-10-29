@@ -14,7 +14,12 @@ describe('Netlify function configuration safety', () => {
       'get-api-key.js',
       'get-subscription.js',
       'admin-get-users.js',
+      'admin-user-detail.js',
+      'admin-user-action.js',
+      'admin-payment-reconciliation.js',
+      'admin-audit-log.js',
       'delete-users.js',
+      'delete-account.js',
     ];
 
     for (const functionName of functions) {

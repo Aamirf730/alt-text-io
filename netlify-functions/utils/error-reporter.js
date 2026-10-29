@@ -229,7 +229,7 @@ function reportInfo(message, context = {}) {
  * @returns {Function} - Wrapped handler
  */
 function withErrorReporting(functionName, handler) {
-    return async (event, netlifyContext) => {
+    return async (event = {}, netlifyContext) => {
         const requestId = event.headers?.['x-request-id'] ||
             event.headers?.['x-nf-request-id'] ||
             Math.random().toString(36).substring(2, 10);
@@ -260,11 +260,6 @@ function withErrorReporting(functionName, handler) {
                 },
             });
 
-            // Flush Sentry before function terminates
-            if (sentryClient) {
-                try { await sentryClient.flush(2000); } catch (_) { /* ignore */ }
-            }
-
             return {
                 statusCode: 500,
                 headers: { 'Content-Type': 'application/json' },
@@ -273,6 +268,11 @@ function withErrorReporting(functionName, handler) {
                     requestId,
                 }),
             };
+        } finally {
+            // A serverless function can be frozen as soon as it returns, so
+            // send anything the handler reported (reportError in its own
+            // catch blocks included) before returning.
+            await flush(2000);
         }
     };
 }

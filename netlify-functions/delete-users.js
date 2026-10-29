@@ -1,6 +1,10 @@
-// Netlify Function to Delete Test User Accounts
+// Netlify Function: admin account deletion
 // File: netlify-functions/delete-users.js
-// This function deletes users and all their associated data from Supabase
+//
+// POST { emails?: string[], user_ids?: string[], reason: string }
+// Each account goes through utils/account-deletion.js: audit row, delete
+// (payments are kept with the email stamped on them, marketing data is
+// scrubbed), then the Polar subscription is cancelled.
 
 const { createClient } = require('@supabase/supabase-js');
 const {
@@ -11,19 +15,19 @@ const {
   rateLimitExceededResponse,
   methodNotAllowedResponse,
 } = require('./utils/cors');
+const { authenticateAdmin } = require('./utils/admin-auth');
+const { deleteAccount } = require('./utils/account-deletion');
+const { withErrorReporting } = require('./utils/error-reporter');
 
-// Initialize Supabase client with service role key for admin access
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = supabaseUrl && supabaseServiceKey
   ? createClient(supabaseUrl, supabaseServiceKey)
   : null;
 
-// Superuser emails (comma-separated list from environment variable)
-const SUPERUSER_EMAILS = (process.env.SUPERUSER_EMAILS || '').split(',').map(email => email.trim().toLowerCase()).filter(Boolean);
-
-// Stricter rate limit for admin endpoints
 const ADMIN_RATE_LIMIT = 10;
+const MAX_ACCOUNTS_PER_REQUEST = 50;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function getDevelopmentErrorDetails(error) {
   if (process.env.NODE_ENV !== 'development' || !error?.message) {
@@ -53,79 +57,23 @@ async function fetchAllAuthUsers(authAdmin, { perPage = 1000, maxPages = 100 } =
   return users;
 }
 
-const LIVE_SUBSCRIPTION_STATUSES = new Set(['active', 'cancelled', 'canceled']);
-
-function getPolarApiBase() {
-  return process.env.POLAR_ENVIRONMENT === 'sandbox'
-    ? 'https://sandbox-api.polar.sh'
-    : 'https://api.polar.sh';
+function validateUserIds(value) {
+  if (value === undefined || value === null) return { value: [] };
+  if (!Array.isArray(value)) return { error: 'user_ids must be an array' };
+  const ids = [...new Set(value.map(id => String(id || '').trim().toLowerCase()))];
+  if (ids.some(id => !UUID_PATTERN.test(id))) return { error: 'user_ids must be UUIDs' };
+  return { value: ids };
 }
 
-/**
- * Revoke the profile's running Polar subscription. Returns ok when there is
- * nothing to cancel or Polar reports it is already gone.
- */
-async function revokePolarSubscription(profile, { fetchImpl = fetch } = {}) {
-  const subscriptionId = String(profile?.subscription_id || '').trim();
-  const status = String(profile?.subscription_status || '').toLowerCase();
+const OUTCOME_MESSAGES = {
+  deleted: 'Account deleted. Payment records were kept.',
+  not_found: 'User not found',
+  protected: 'Admin accounts cannot be deleted from the admin portal',
+};
 
-  if (!subscriptionId || !LIVE_SUBSCRIPTION_STATUSES.has(status)) {
-    return { ok: true, revoked: false };
-  }
-
-  const accessToken = process.env.POLAR_ACCESS_TOKEN;
-  if (!accessToken) {
-    return { ok: false, revoked: false, error: new Error('POLAR_ACCESS_TOKEN is not configured') };
-  }
-
-  try {
-    const response = await fetchImpl(
-      `${getPolarApiBase()}/v1/subscriptions/${encodeURIComponent(subscriptionId)}`,
-      {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
-        signal: AbortSignal.timeout(10000),
-      }
-    );
-
-    if (response.ok) return { ok: true, revoked: true };
-    if (response.status === 404) return { ok: true, revoked: false };
-
-    const body = await response.json().catch(() => ({}));
-    if (response.status === 403 && /AlreadyCanceled/i.test(String(body?.error || body?.type || ''))) {
-      return { ok: true, revoked: false };
-    }
-
-    return { ok: false, revoked: false, error: new Error(`Polar returned ${response.status}`) };
-  } catch (error) {
-    return { ok: false, revoked: false, error };
-  }
-}
-
-async function recordDeletionAudit(actor, deletedUserId, details) {
-  const { error } = await supabase
-    .from('audit_logs')
-    .insert({
-      actor_id: actor.id,
-      actor_email: actor.email || null,
-      action: 'admin.user_deleted',
-      resource_type: 'user',
-      resource_id: deletedUserId,
-      details,
-      severity: 'warning',
-    });
-
-  if (error) {
-    // The deletion already happened; report the missing audit row loudly.
-    console.error('Admin user deletion succeeded but the audit log insert failed');
-  }
-}
-
-exports.handler = async (event, context) => {
-  // Get secure CORS headers (origin-validated)
+async function handler(event) {
   const headers = getCorsHeaders(event.headers, ['POST', 'OPTIONS']);
 
-  // Handle preflight OPTIONS request
   const preflightResponse = handlePreflight(event);
   if (preflightResponse) return preflightResponse;
 
@@ -137,7 +85,6 @@ exports.handler = async (event, context) => {
     };
   }
 
-  // Stricter rate limiting for delete endpoints
   const clientIp = getClientIp(event);
   const rateLimit = await checkRateLimit(`admin-delete:${clientIp}`, ADMIN_RATE_LIMIT);
   if (!rateLimit.allowed) {
@@ -149,150 +96,104 @@ exports.handler = async (event, context) => {
   }
 
   try {
-    // Verify authentication
-    const authHeader = event.headers.authorization || event.headers.Authorization;
-    if (!authHeader) {
-      return {
-        statusCode: 401,
-        headers,
-        body: JSON.stringify({ error: 'Authorization header required' }),
-      };
-    }
+    const { user: admin, response } = await authenticateAdmin(event, { supabase, headers });
+    if (response) return response;
 
-    const token = authHeader.replace(/^Bearer\s+/i, '').trim();
-
-    // Validate JWT token and get user
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-
-    if (authError || !user) {
-      return {
-        statusCode: 401,
-        headers,
-        body: JSON.stringify({ error: 'Invalid or expired token' }),
-      };
-    }
-
-    // Check if user is a superuser
-    if (!SUPERUSER_EMAILS.includes(String(user.email || '').trim().toLowerCase())) {
-      return {
-        statusCode: 403,
-        headers,
-        body: JSON.stringify({ error: 'Access denied. Superuser privileges required.' }),
-      };
-    }
-
-    // Safe JSON parse with validation
     const { parseJsonBody, validateEmailArray, badRequest } = require('./utils/input-validator');
     const { data: requestBody, error: parseError } = parseJsonBody(event.body);
     if (parseError) return badRequest(headers, parseError);
 
-    const { value: emailsToDelete, error: emailsError } = validateEmailArray(
-      requestBody.emails,
-      { maxItems: 50 }
-    );
-    if (emailsError) return badRequest(headers, emailsError);
+    const reason = String(requestBody.reason || '').trim();
+    if (reason.length < 3 || reason.length > 500) {
+      return badRequest(headers, 'A reason (3-500 characters) is required');
+    }
+
+    const hasEmails = Array.isArray(requestBody.emails) && requestBody.emails.length > 0;
+    let emailsToDelete = [];
+    if (hasEmails) {
+      const { value, error: emailsError } = validateEmailArray(requestBody.emails, { maxItems: MAX_ACCOUNTS_PER_REQUEST });
+      if (emailsError) return badRequest(headers, emailsError);
+      emailsToDelete = value;
+    }
+
+    const { value: userIds, error: idsError } = validateUserIds(requestBody.user_ids);
+    if (idsError) return badRequest(headers, idsError);
+
+    if (emailsToDelete.length + userIds.length === 0) {
+      return badRequest(headers, 'Provide emails or user_ids');
+    }
+    if (emailsToDelete.length + userIds.length > MAX_ACCOUNTS_PER_REQUEST) {
+      return badRequest(headers, `At most ${MAX_ACCOUNTS_PER_REQUEST} accounts per request`);
+    }
+
+    // Resolve emails to auth user IDs (auth emails are unique; profile
+    // emails are not).
+    const targets = userIds.map(id => ({ label: id, userId: id }));
+    if (emailsToDelete.length > 0) {
+      let allUsers;
+      try {
+        allUsers = await fetchAllAuthUsers(supabase.auth.admin);
+      } catch (listError) {
+        console.error('Error listing users for admin deletion');
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({
+            error: 'Failed to list users',
+            ...getDevelopmentErrorDetails(listError),
+          }),
+        };
+      }
+
+      for (const email of emailsToDelete) {
+        const normalizedEmail = String(email || '').trim().toLowerCase();
+        const authUser = allUsers.find(u => String(u.email || '').trim().toLowerCase() === normalizedEmail);
+        targets.push({ label: email, userId: authUser?.id || null });
+      }
+    }
 
     const results = [];
     const errors = [];
 
-    // Get all users from auth
-    let allUsers;
-    try {
-      allUsers = await fetchAllAuthUsers(supabase.auth.admin);
-    } catch (listError) {
-      console.error('Error listing users:', listError);
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({
-          error: 'Failed to list users',
-          ...getDevelopmentErrorDetails(listError),
-        }),
-      };
-    }
+    for (const target of targets) {
+      if (!target.userId) {
+        results.push({ email: target.label, status: 'not_found', message: OUTCOME_MESSAGES.not_found });
+        continue;
+      }
 
-    // Process each email
-    for (const email of emailsToDelete) {
       try {
-        // Find user by email
-        const normalizedEmail = String(email || '').trim().toLowerCase();
-        const authUser = allUsers.find(u => String(u.email || '').trim().toLowerCase() === normalizedEmail);
-
-        if (!authUser) {
-          results.push({
-            email,
-            status: 'not_found',
-            message: 'User not found in auth.users'
-          });
-          continue;
-        }
-
-        const userId = authUser.id;
-
-        // Never delete an admin account (including the caller) from here.
-        if (userId === user.id || SUPERUSER_EMAILS.includes(normalizedEmail)) {
-          results.push({
-            email,
-            status: 'protected',
-            message: 'Admin accounts cannot be deleted from the admin portal'
-          });
-          continue;
-        }
-
-        const { data: profile, error: profileReadError } = await supabase
-          .from('profiles')
-          .select('subscription_id, subscription_plan, subscription_status')
-          .eq('id', userId)
-          .maybeSingle();
-
-        if (profileReadError) {
-          throw new Error(`Failed to read profile: ${profileReadError.message}`);
-        }
-
-        // Stop billing before the account disappears; otherwise Polar keeps
-        // charging a customer whose account no longer exists.
-        const subscriptionRevoke = await revokePolarSubscription(profile);
-        if (!subscriptionRevoke.ok) {
-          errors.push({
-            email,
-            error: 'The Polar subscription could not be cancelled, so the account was not deleted. Cancel it in Polar, then try again.',
-            ...getDevelopmentErrorDetails(subscriptionRevoke.error),
-          });
-          continue;
-        }
-
-        // Profiles, payments, usage logs, reservations and ledgers all cascade
-        // from the auth user, so this one call removes everything atomically.
-        const { error: deleteError } = await supabase.auth.admin.deleteUser(userId);
-
-        if (deleteError) {
-          console.error('Error deleting an auth user during an admin account deletion');
-          errors.push({
-            email,
-            error: 'Failed to delete user',
-            ...getDevelopmentErrorDetails(deleteError),
-          });
-          continue;
-        }
-
-        await recordDeletionAudit(user, userId, {
-          had_subscription: Boolean(profile?.subscription_id),
-          subscription_revoked: subscriptionRevoke.revoked,
-          subscription_plan: profile?.subscription_plan || null,
+        const outcome = await deleteAccount({
+          supabase,
+          userId: target.userId,
+          actor: admin,
+          actorType: 'admin',
+          reason,
+          event,
         });
 
-        results.push({
-          email,
-          status: 'deleted',
-          message: subscriptionRevoke.revoked
-            ? 'Subscription cancelled; user and all associated data deleted'
-            : 'User and all associated data deleted successfully'
-        });
-
+        if (outcome.ok || outcome.status === 'not_found' || outcome.status === 'protected') {
+          results.push({
+            email: outcome.email || target.label,
+            user_id: target.userId,
+            status: outcome.status,
+            subscription_cancellation: outcome.subscriptionCancellation,
+            message: outcome.status === 'deleted' && outcome.subscriptionCancellation === 'pending'
+              ? 'Account deleted. The Polar subscription cancellation failed and will be retried automatically; check Polar.'
+              : OUTCOME_MESSAGES[outcome.status] || outcome.message,
+          });
+        } else {
+          errors.push({
+            email: outcome.email || target.label,
+            user_id: target.userId,
+            code: outcome.code,
+            error: outcome.message,
+          });
+        }
       } catch (error) {
         console.error('Unexpected admin account-deletion error');
         errors.push({
-          email,
+          email: target.label,
+          user_id: target.userId,
           error: 'Failed to process user deletion',
           ...getDevelopmentErrorDetails(error),
         });
@@ -303,16 +204,15 @@ exports.handler = async (event, context) => {
       statusCode: 200,
       headers,
       body: JSON.stringify({
-        success: true,
-        message: `Processed ${emailsToDelete.length} user(s)`,
+        success: errors.length === 0,
+        message: `Processed ${targets.length} account(s)`,
         results,
-        errors: errors.length > 0 ? errors : undefined
+        errors: errors.length > 0 ? errors : undefined,
       }),
     };
-
   } catch (error) {
     const { reportError } = require('./utils/error-reporter');
-    reportError(error, { functionName: 'delete-users', ip: getClientIp(event) });
+    reportError(error, { functionName: 'delete-users' });
     return {
       statusCode: 500,
       headers,
@@ -322,10 +222,12 @@ exports.handler = async (event, context) => {
       }),
     };
   }
-};
+}
+
+exports.handler = withErrorReporting('delete-users', handler);
 
 exports._private = {
   getDevelopmentErrorDetails,
   fetchAllAuthUsers,
-  revokePolarSubscription,
+  validateUserIds,
 };

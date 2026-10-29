@@ -14,6 +14,45 @@
 
     debugLog('Alt Text Pro: admin.js loading...');
 
+    // Translated UI text comes from PHP (altTextAI.strings); the English
+    // fallback keeps the screen usable if a string is missing.
+    function t(key, fallback) {
+        var strings = window.altTextAI && window.altTextAI.strings;
+        return strings && typeof strings[key] === 'string' && strings[key] !== '' ? strings[key] : fallback;
+    }
+
+    // Fill %s / %d and numbered %1$s placeholders in order.
+    function sprintf(template) {
+        var args = Array.prototype.slice.call(arguments, 1);
+        var index = 0;
+        return String(template).replace(/%(?:(\d+)\$)?[sd]/g, function (match, position) {
+            var value = position ? args[parseInt(position, 10) - 1] : args[index++];
+            return value === undefined || value === null ? '' : String(value);
+        });
+    }
+
+    // Message of a failed AJAX response: the JSON error WordPress sent (for
+    // example a 403 permission error), or the fallback.
+    function ajaxErrorMessage(xhr, fallback) {
+        var json = xhr && xhr.responseJSON;
+        if (json && typeof json.data === 'string' && json.data) return json.data;
+        if (json && json.data && typeof json.data.message === 'string') return json.data.message;
+        return fallback;
+    }
+
+    // "Buy credits or upgrade" link to the pricing page.
+    function upgradeLink() {
+        return $('<a>', {
+            'class': 'atp-upgrade-link',
+            href: (window.altTextAI && altTextAI.pricingUrl) || 'https://www.alt-text.pro/#pricing',
+            target: '_blank',
+            rel: 'noopener noreferrer',
+            text: t('buyCredits', 'Buy credits or upgrade')
+        });
+    }
+
+    window.AltTextProI18n = { t: t, sprintf: sprintf, ajaxErrorMessage: ajaxErrorMessage, upgradeLink: upgradeLink };
+
     // Main Admin Object
     window.AltTextProAdmin = {
         connectPopup: null,
@@ -129,6 +168,9 @@
                 var val = $(this).val();
                 if (val === 'selected') {
                     $('#image-selection-sidebar').slideDown();
+                    if (window.bulkProcessor && !window.bulkProcessor.pickerLoaded) {
+                        window.bulkProcessor.loadImagePage(1);
+                    }
                 } else {
                     $('#image-selection-sidebar').slideUp();
                 }
@@ -142,19 +184,66 @@
                 AltTextProAdmin.updateSelectionCount();
             });
 
-            // Select all/deselect all images
+            // Select all/none on the visible page of the picker
             $(document).on('click', '#select-all-images', function () {
-                $('#image-list input[type="checkbox"]').prop('checked', true);
-                AltTextProAdmin.updateSelectionCount();
+                $('#image-list input[type="checkbox"]').prop('checked', true).trigger('change');
             });
 
             $(document).on('click', '#deselect-all-images', function () {
+                if (window.bulkProcessor) {
+                    window.bulkProcessor.selectedImages = {};
+                }
                 $('#image-list input[type="checkbox"]').prop('checked', false);
                 AltTextProAdmin.updateSelectionCount();
             });
 
-            // Individual image selection
-            $(document).on('change', '#image-list input[type="checkbox"]', this.updateSelectionCount);
+            // Individual image selection; kept across pages and searches
+            $(document).on('change', '#image-list input[type="checkbox"]', function () {
+                if (window.bulkProcessor) {
+                    var id = String($(this).val());
+                    if (this.checked) {
+                        window.bulkProcessor.selectedImages[id] = true;
+                    } else {
+                        delete window.bulkProcessor.selectedImages[id];
+                    }
+                }
+                AltTextProAdmin.updateSelectionCount();
+            });
+
+            // Picker search, filter and paging
+            var searchTimer = null;
+            $(document).on('input', '#image-search', function () {
+                clearTimeout(searchTimer);
+                searchTimer = setTimeout(function () {
+                    if (window.bulkProcessor) window.bulkProcessor.loadImagePage(1);
+                }, 350);
+            });
+            $(document).on('change', '#image-filter', function () {
+                if (window.bulkProcessor) window.bulkProcessor.loadImagePage(1);
+            });
+            $(document).on('click', '#image-page-prev, #image-page-next', function () {
+                if (!window.bulkProcessor) return;
+                var page = window.bulkProcessor.pickerPage + ($(this).attr('id') === 'image-page-next' ? 1 : -1);
+                window.bulkProcessor.loadImagePage(Math.max(1, page));
+            });
+
+            // Resume or stop a run found when the Bulk page loads
+            $(document).on('click', '#resume-bulk-process', function () {
+                if (window.bulkProcessor) window.bulkProcessor.resumeProcessing();
+            });
+            $(document).on('click', '#cancel-active-run', function () {
+                if (window.bulkProcessor) window.bulkProcessor.cancelActiveRun($(this));
+            });
+
+            // Leaving the page while a run is going pauses it
+            $(window).on('beforeunload', function (e) {
+                if (window.bulkProcessor && window.bulkProcessor.isProcessing) {
+                    var message = t('leaveWarning', 'A bulk run is in progress. Leaving this page pauses it; you can resume it from the Bulk page.');
+                    e.preventDefault();
+                    e.returnValue = message;
+                    return message;
+                }
+            });
         },
 
         // General UI event bindings
@@ -184,7 +273,7 @@
             debugLog('Alt Text Pro: Generating with context:', Boolean(context));
 
             if (!attachmentId) {
-                AltTextProAdmin.showError('Invalid attachment ID', $container);
+                AltTextProAdmin.showError(t('invalidAttachment', 'Invalid attachment ID'), $container);
                 return;
             }
 
@@ -205,12 +294,17 @@
                     if (response.success) {
                         AltTextProAdmin.showSuccess($container, response.data);
                     } else {
-                        AltTextProAdmin.showError(response.data || altTextAI.strings.error, $container);
+                        var data = response.data;
+                        var message = data && typeof data === 'object' ? data.message : data;
+                        AltTextProAdmin.showError(message || altTextAI.strings.error, $container);
+                        if (data && data.code === 'no_credits') {
+                            $container.find('.alt-text-pro-error').append(' ').append(upgradeLink());
+                        }
                     }
                 },
                 error: function (xhr, status, error) {
                     debugLog('Alt Text Pro AJAX Error:', status, error);
-                    AltTextProAdmin.showError(altTextAI.strings.error, $container);
+                    AltTextProAdmin.showError(ajaxErrorMessage(xhr, altTextAI.strings.error), $container);
                 },
                 complete: function () {
                     AltTextProAdmin.hideLoading($container);
@@ -234,12 +328,19 @@
                 'textarea[name="attachments[' + attachmentId + '][alt]"]';
             var $altField = $(fieldSelector).first();
             if (!$altField.length) {
-                $altField = $('#attachment_alt, #attachment-details-alt-text').first();
+                // Media modal and Media Library grid: the alt field of the
+                // attachment details panel this button sits in.
+                $altField = $container.closest('.attachment-details, .media-modal, .media-frame')
+                    .find('[data-setting="alt"] textarea, [data-setting="alt"] input, textarea[data-setting="alt"]').first();
+            }
+            if (!$altField.length) {
+                $altField = $('#attachment_alt, #attachment-details-alt-text, #attachment-details-two-column-alt-text').first();
             }
             if ($altField.length) {
+                // In the media modal the change event saves the alt text.
                 $altField.val(altText).trigger('input').trigger('change');
             } else {
-                AltTextProAdmin.showNotification('The WordPress alt-text field could not be found. Copy the draft and paste it manually.', 'error');
+                AltTextProAdmin.showNotification(t('altFieldMissing', 'The WordPress alt-text field could not be found. Copy the draft and paste it manually.'), 'error');
                 return;
             }
 
@@ -249,7 +350,7 @@
             // Hide the success message
             $container.find('.alt-text-pro-success').slideUp();
 
-            AltTextProAdmin.showNotification('Draft placed in the WordPress alt-text field. Save or update the image to keep it.', 'success');
+            AltTextProAdmin.showNotification(t('draftApplied', 'Draft placed in the WordPress alt-text field. Save or update the image to keep it.'), 'success');
         },
 
         // Test API connection
@@ -263,14 +364,21 @@
             var hasStoredKey = String($input.data('has-key')) === '1';
             var useSavedKey = !apiKey && hasStoredKey;
 
+            function notice(type, message) {
+                return $('<div>').addClass('notice notice-' + type).append($('<p>').text(message));
+            }
+
             if (!apiKey && !useSavedKey) {
-                $result.html('<div class="notice notice-error"><p>Please enter an API key first.</p></div>');
+                $result.empty().append(notice('error', t('enterKeyFirst', 'Please enter an API key first.')));
                 return;
             }
 
             var originalHtml = $button.html();
-            $button.html('<span class="dashicons dashicons-update rotating" aria-hidden="true"></span><span>Testing...</span>').prop('disabled', true);
-            $result.html('<div class="notice notice-info"><p>' + (useSavedKey ? 'Testing saved connection...' : 'Testing connection...') + '</p></div>');
+            $button.empty()
+                .append('<span class="dashicons dashicons-update rotating" aria-hidden="true"></span>')
+                .append($('<span>').text(t('testing', 'Testing...')))
+                .prop('disabled', true);
+            $result.empty().append(notice('info', useSavedKey ? t('testingSaved', 'Testing saved connection...') : t('testingConnection', 'Testing connection...')));
 
             $.ajax({
                 url: altTextAI.ajaxUrl,
@@ -291,17 +399,21 @@
                         if (response.data && response.data.user_info) {
                             var userInfo = response.data.user_info;
                             $('<br>').appendTo($message);
-                            $('<small>').text('Plan: ' + (userInfo.plan || '') + ' | Credits: ' + (userInfo.credits_remaining !== undefined && userInfo.credits_remaining !== null ? userInfo.credits_remaining : '')).appendTo($message);
+                            $('<small>').text(sprintf(
+                                t('planCredits', 'Plan: %1$s | Credits: %2$s'),
+                                userInfo.plan || '',
+                                userInfo.credits_remaining !== undefined && userInfo.credits_remaining !== null ? userInfo.credits_remaining : ''
+                            )).appendTo($message);
                         }
                     } else {
                         $notice.addClass('notice-error');
-                        $message.text(typeof response.data === 'string' ? response.data : 'Connection test failed');
+                        $message.text(typeof response.data === 'string' ? response.data : t('connectionTestFailed', 'Connection test failed'));
                     }
 
                     $result.empty().append($notice.append($message));
                 },
-                error: function () {
-                    $result.html('<div class="notice notice-error"><p>Connection test failed</p></div>');
+                error: function (xhr) {
+                    $result.empty().append(notice('error', ajaxErrorMessage(xhr, t('connectionTestFailed', 'Connection test failed'))));
                 },
                 complete: function () {
                     $button.html(originalHtml).prop('disabled', false);
@@ -322,7 +434,7 @@
 
             if (!AltTextProAdmin.validateAPIKeyFormat(apiKey)) {
                 e.preventDefault();
-                AltTextProAdmin.showNotification('Invalid API key format. API keys should start with "alt_" or "altai_".', 'error');
+                AltTextProAdmin.showNotification(t('onboardingInvalidFormat', 'Invalid API key format. API keys should start with "alt_" or "altai_".'), 'error');
                 $input.focus();
                 return false;
             }
@@ -351,12 +463,18 @@
 
         // Update selection count for bulk processing
         updateSelectionCount: function () {
-            var selectedCount = $('#image-list input[type="checkbox"]:checked').length;
-            $('.selection-count').text(selectedCount > 0 ? selectedCount + ' selected' : '');
+            var selectedCount = window.bulkProcessor && window.bulkProcessor.selectedImages
+                ? Object.keys(window.bulkProcessor.selectedImages).length
+                : $('#image-list input[type="checkbox"]:checked').length;
+            $('.selection-count').text(selectedCount > 0 ? sprintf(t('selectedCount', '%d selected'), selectedCount) : '');
 
             // Enable/disable start button based on selection
             var processType = $('input[name="process_type"]:checked').val();
-            if (processType === 'selected') {
+            // Out of credits or another run in progress: Start stays off.
+            var blocked = $('#start-bulk-process').data('blocked') === 1 || $('#start-bulk-process').data('blocked') === '1';
+            if (blocked) {
+                $('#start-bulk-process').prop('disabled', true).css('opacity', '0.5');
+            } else if (processType === 'selected') {
                 $('#start-bulk-process').prop('disabled', selectedCount === 0).css('opacity', selectedCount === 0 ? '0.5' : '1');
             } else {
                 $('#start-bulk-process').prop('disabled', false).css('opacity', '1');
@@ -418,7 +536,7 @@
 
             var $notification = $('<div class="atp-ui alt-text-pro-notification notice notice-' + type + '" role="alert">')
                 .append($('<p>').text(message))
-                .append($('<button type="button" class="notice-dismiss"><span class="screen-reader-text">Dismiss this notice.</span></button>'))
+                .append($('<button type="button" class="notice-dismiss">').append($('<span class="screen-reader-text">').text(t('dismissNotice', 'Dismiss this notice.'))))
                 .hide();
 
             $('body').append($notification);
@@ -522,8 +640,22 @@
         // Close modal dialog
         closeModal: function (e) {
             if ($(e.target).closest('.close-modal').length) {
+                // Closing the onboarding modal ("I'll do this later" or the
+                // close button) is remembered so it stops opening by itself.
+                if ($(e.target).closest('#alt-text-pro-onboarding-modal').length) {
+                    AltTextProAdmin.dismissOnboarding();
+                }
                 AltTextProAdmin.closeAllModals();
             }
+        },
+
+        dismissOnboarding: function () {
+            if (!altTextAI.onboarding || !altTextAI.onboarding.show) return;
+            altTextAI.onboarding.show = false;
+            $.post(altTextAI.ajaxUrl, {
+                action: 'alt_text_pro_dismiss_onboarding',
+                nonce: altTextAI.nonce
+            });
         },
 
         closeAllModals: function () {
@@ -583,17 +715,15 @@
             $button.prop('disabled', !!isLoading).toggleClass('is-loading', !!isLoading);
 
             if (isLoading) {
-                $button.html(
-                    '<span>Connecting...</span>'
-                    + '<span class="dashicons dashicons-update" aria-hidden="true"></span>'
-                );
+                $button.empty()
+                    .append($('<span>').text(t('connecting', 'Connecting...')))
+                    .append('<span class="dashicons dashicons-update" aria-hidden="true"></span>');
                 return;
             }
 
-            $button.html(
-                '<span>Connect Account</span>'
-                + '<span class="dashicons dashicons-arrow-right-alt2" aria-hidden="true"></span>'
-            );
+            $button.empty()
+                .append($('<span>').text(t('onboardingCta', 'Connect Account')))
+                .append('<span class="dashicons dashicons-arrow-right-alt2" aria-hidden="true"></span>');
         },
 
         setAutoConnectStatus: function (message, type, iconClass) {
@@ -621,7 +751,7 @@
                 return;
             }
 
-            AltTextProAdmin.setOnboardingMessage(altTextAI.strings.generating || 'Validating...', '');
+            AltTextProAdmin.setOnboardingMessage(t('validating', 'Validating...'), '');
 
             $.ajax({
                 url: altTextAI.ajaxUrl,
@@ -633,7 +763,12 @@
                 },
                 success: function (response) {
                     if (response.success) {
-                        AltTextProAdmin.setOnboardingMessage(altTextAI.strings.onboardingSaved || 'API key saved successfully!', 'success');
+                        AltTextProAdmin.setOnboardingMessage(
+                            response.data && response.data.verified === false && response.data.message
+                                ? response.data.message
+                                : t('onboardingSaved', 'API key saved successfully!'),
+                            'success'
+                        );
                         // Mirror into settings field if present
                         $('#api_key').val(apiKey);
                         altTextAI.onboarding.show = false;
@@ -645,8 +780,8 @@
                         AltTextProAdmin.setOnboardingMessage(response.data || altTextAI.strings.invalidKey, 'error');
                     }
                 },
-                error: function () {
-                    AltTextProAdmin.setOnboardingMessage(altTextAI.strings.connectionTestFailed || 'Validation failed.', 'error');
+                error: function (xhr) {
+                    AltTextProAdmin.setOnboardingMessage(ajaxErrorMessage(xhr, t('connectionTestFailed', 'Validation failed.')), 'error');
                 }
             });
         },
@@ -687,7 +822,7 @@
             // Generate a cryptographically random state for CSRF protection.
             if (!window.crypto || typeof window.crypto.getRandomValues !== 'function') {
                 AltTextProAdmin.setAutoConnectStatus(
-                    'Secure connection is unavailable in this browser. Use manual API key entry.',
+                    t('secureUnavailable', 'Secure connection is unavailable in this browser. Use manual API key entry.'),
                     'error',
                     'dashicons-warning'
                 );
@@ -712,7 +847,7 @@
             // Update button state
             AltTextProAdmin.setAutoConnectButtonState(true);
             AltTextProAdmin.setAutoConnectStatus(
-                'Waiting for you to sign in...',
+                t('waitingSignIn', 'Waiting for you to sign in...'),
                 '',
                 'dashicons-clock'
             );
@@ -745,7 +880,7 @@
                 sessionStorage.removeItem('alt_text_pro_connect_state');
                 AltTextProAdmin.setAutoConnectButtonState(false);
                 AltTextProAdmin.setAutoConnectStatus(
-                    'Your browser blocked the sign-in window. Allow popups or use manual entry.',
+                    t('popupBlocked', 'Your browser blocked the sign-in window. Allow popups or use manual entry.'),
                     'error',
                     'dashicons-warning'
                 );
@@ -762,7 +897,7 @@
                     var storedState = sessionStorage.getItem('alt_text_pro_connect_state');
                     if (storedState) {
                         AltTextProAdmin.setAutoConnectStatus(
-                            'Sign-in window closed. Try again or use manual entry.',
+                            t('popupClosed', 'Sign-in window closed. Try again or use manual entry.'),
                             '',
                             'dashicons-info-outline'
                         );
@@ -798,7 +933,7 @@
             // Show connecting status
             AltTextProAdmin.setAutoConnectButtonState(true);
             AltTextProAdmin.setAutoConnectStatus(
-                'Account connected. Saving your key...',
+                t('savingKey', 'Account connected. Saving your key...'),
                 '',
                 'dashicons-update'
             );
@@ -816,7 +951,7 @@
                     if (response.success) {
                         AltTextProAdmin.sendConnectAcknowledgement(ackContext, true);
                         AltTextProAdmin.setAutoConnectStatus(
-                            'Connected successfully!',
+                            t('connectedSuccess', 'Connected successfully!'),
                             'success',
                             'dashicons-yes-alt'
                         );
@@ -825,7 +960,12 @@
                         $('#onboarding_api_key').val(apiKey);
                         altTextAI.onboarding.show = false;
 
-                        AltTextProAdmin.showNotification('Connected successfully! Your API key has been saved.', 'success');
+                        AltTextProAdmin.showNotification(
+                            response.data && response.data.verified === false && response.data.message
+                                ? response.data.message
+                                : t('connectedSaved', 'Connected successfully! Your API key has been saved.'),
+                            'success'
+                        );
 
                         setTimeout(function () {
                             AltTextProAdmin.closeAllModals();
@@ -836,24 +976,24 @@
                         AltTextProAdmin.sendConnectAcknowledgement(
                             ackContext,
                             false,
-                            response.data || 'WordPress could not save the API key.'
+                            response.data || t('saveKeyFailed', 'WordPress could not save the API key.')
                         );
                         AltTextProAdmin.setAutoConnectStatus(
-                            response.data || 'Invalid API key',
+                            response.data || t('invalidKey', 'Invalid API key'),
                             'error',
                             'dashicons-warning'
                         );
                     }
                 },
-                error: function () {
+                error: function (xhr) {
                     AltTextProAdmin.setAutoConnectButtonState(false);
                     AltTextProAdmin.sendConnectAcknowledgement(
                         ackContext,
                         false,
-                        'WordPress could not save the API key.'
+                        t('saveKeyFailed', 'WordPress could not save the API key.')
                     );
                     AltTextProAdmin.setAutoConnectStatus(
-                        'Failed to save. Please try manual entry.',
+                        ajaxErrorMessage(xhr, t('saveFailedManual', 'Failed to save. Please try manual entry.')),
                         'error',
                         'dashicons-warning'
                     );
@@ -925,9 +1065,166 @@
         // impose a provider-agnostic 15-second pause after every successful image.
         // Provider 429 responses still supply the longer delay when it is needed.
         batchDelayMs: 750,
+        // "Selected" picker: chosen IDs (kept across pages) and current page.
+        selectedImages: {},
+        pickerPage: 1,
+        pickerLoaded: false,
+        pickerRequest: null,
 
         init: function () {
             debugLog('Alt Text Pro: Initializing bulk processor');
+        },
+
+        isTerminalStatus: function (status) {
+            return status === 'completed' ||
+                status === 'cancelled' ||
+                status === 'error' ||
+                status === 'stopped_no_credits' ||
+                status === 'stopped_error';
+        },
+
+        // Pick up the run this user started before the page was reloaded.
+        resumeProcessing: function () {
+            var run = window.altTextAI && altTextAI.bulk;
+            if (this.isProcessing || !run || !run.is_owner || !run.process_id) return;
+
+            this.processId = run.process_id;
+            this.isProcessing = true;
+            this.cancelRequested = false;
+            this.pendingCancel = false;
+            this.finishedProcessId = null;
+            this.pendingBatchRequests = [];
+            this.processingBatches = {};
+            this.clearScheduledBatch();
+
+            $('#active-run-card').hide();
+            // Start was only blocked by this run; allow a new run afterwards.
+            var $start = $('#start-bulk-process');
+            if ($start.attr('data-blocked-reason') === 'run') {
+                $start.attr('data-blocked', '0').data('blocked', 0).prop('disabled', false).css('opacity', '1');
+            }
+            $start.hide();
+            $('#cancel-bulk-process').attr('style', 'display: inline-flex !important;').show();
+            $('#progress-card').slideDown();
+            $('#results-card').hide();
+            $('#process-progress-container, #bulk-current-task, .bulk-progress-stats, .bulk-stop-hint').show();
+            $('#process-summary-container').hide();
+            $('#progress-status').text(t('initializing', 'Initializing...')).removeClass('success error').addClass('warning');
+            $('#progress-log').empty().append($('<div>').text(t('resumeRun', 'Resuming your bulk run...')));
+            this.updateLiveTask(null, t('readyNext', 'Ready to start after the latest update.'), t('queued', 'Queued'));
+
+            // The run was being stopped when the page was left. It will never
+            // schedule another image, so finish the stop instead of polling
+            // it forever.
+            if (run.status === 'cancelling') {
+                this.isProcessing = false;
+                this.cancelRequested = true;
+                this.pendingCancel = true;
+                $('#cancel-bulk-process').prop('disabled', true);
+                this.startStatusPolling();
+                this.sendCancelRequest();
+                return;
+            }
+
+            this.startStatusPolling();
+        },
+
+        // Stop a run found on page load. Another administrator's run is
+        // referenced by an opaque value, never by its process token.
+        cancelActiveRun: function ($button) {
+            var run = window.altTextAI && altTextAI.bulk;
+            if (!run) return;
+
+            var question = run.is_owner
+                ? t('cancelOwnConfirm', 'Stop this bulk run? Images already done keep their alt text.')
+                : sprintf(t('cancelOtherConfirm', 'Stop the bulk run started by %s? Images already done keep their alt text.'), run.started_by || '');
+            if (!window.confirm(question)) return;
+
+            $button.prop('disabled', true);
+            var data = { action: 'alt_text_pro_bulk_cancel', nonce: altTextAI.nonce };
+            if (run.is_owner && run.process_id) {
+                data.process_id = run.process_id;
+            } else {
+                data.cancel_ref = run.cancel_ref || '';
+            }
+
+            $.post(altTextAI.ajaxUrl, data).done(function (response) {
+                if (response && response.success) {
+                    AltTextProAdmin.showNotification(t('runCancelled', 'The bulk run was stopped.'), 'success');
+                    setTimeout(function () { window.location.reload(); }, 800);
+                } else {
+                    $button.prop('disabled', false);
+                    AltTextProAdmin.showNotification((response && response.data) || t('error', 'Something went wrong.'), 'error');
+                }
+            }).fail(function (xhr) {
+                $button.prop('disabled', false);
+                AltTextProAdmin.showNotification(ajaxErrorMessage(xhr, t('error', 'Something went wrong.')), 'error');
+            });
+        },
+
+        // "Selected" picker: one page of images, searchable, with or without
+        // alt text, so images can be chosen for regeneration.
+        loadImagePage: function (page) {
+            var self = this;
+            var $list = $('#image-list');
+            if (!$list.length) return;
+
+            if (this.pickerRequest) {
+                this.pickerRequest.abort();
+            }
+
+            this.pickerLoaded = true;
+            $list.empty().append($('<p class="atp-muted">').text(t('loadingImages', 'Loading images...')));
+
+            this.pickerRequest = $.post(altTextAI.ajaxUrl, {
+                action: 'alt_text_pro_bulk_list_images',
+                nonce: altTextAI.nonce,
+                page: page,
+                search: $('#image-search').val() || '',
+                filter: $('#image-filter').val() || 'missing'
+            }).done(function (response) {
+                if (!response || !response.success) {
+                    $list.empty().append($('<p class="atp-muted">').text((response && response.data) || t('loadImagesFailed', 'Images could not be loaded.')));
+                    return;
+                }
+
+                var data = response.data || {};
+                self.pickerPage = data.page || 1;
+                $list.empty();
+
+                if (!data.images || !data.images.length) {
+                    $list.append($('<p class="atp-muted">').text(t('noImagesFound', 'No images match.')));
+                }
+
+                $.each(data.images || [], function (index, image) {
+                    var id = String(image.id);
+                    var $row = $('<label class="atp-image-row">');
+                    $('<input type="checkbox" name="selected_images[]">')
+                        .val(id)
+                        .prop('checked', !!self.selectedImages[id])
+                        .appendTo($row);
+                    $('<img class="atp-thumb" alt="">').attr('src', image.thumb || '').appendTo($row);
+                    var $text = $('<span class="atp-image-name">').text(image.title || '');
+                    $('<small class="atp-image-alt">')
+                        .toggleClass('is-missing', !image.has_alt)
+                        .text(image.has_alt ? image.alt : t('missingAlt', 'Missing alt text'))
+                        .appendTo($text);
+                    $text.appendTo($row);
+                    $list.append($row);
+                });
+
+                var totalPages = data.total_pages || 1;
+                $('#image-page-label').text(sprintf(t('pageOf', 'Page %1$d of %2$d'), self.pickerPage, totalPages));
+                $('#image-page-prev').prop('disabled', self.pickerPage <= 1);
+                $('#image-page-next').prop('disabled', self.pickerPage >= totalPages);
+                $('#image-pagination').toggle(totalPages > 1);
+                AltTextProAdmin.updateSelectionCount();
+            }).fail(function (xhr, status) {
+                if (status === 'abort') return;
+                $list.empty().append($('<p class="atp-muted">').text(ajaxErrorMessage(xhr, t('loadImagesFailed', 'Images could not be loaded.'))));
+            }).always(function () {
+                self.pickerRequest = null;
+            });
         },
 
         startProcessing: function () {
@@ -940,12 +1237,10 @@
             var batchSize = 1;
 
             if (processType === 'selected') {
-                $('input[name="selected_images[]"]:checked').each(function () {
-                    selectedImages.push($(this).val());
-                });
+                selectedImages = Object.keys(this.selectedImages);
 
                 if (selectedImages.length === 0) {
-                    alert('Please select at least one image.');
+                    alert(t('pleaseSelectImage', 'Please select at least one image.'));
                     return;
                 }
             }
@@ -956,6 +1251,7 @@
             this.cancelRequested = false;
             this.pendingCancel = false;
             this.processId = null;
+            this.finishedProcessId = null;
             this.cancelRequest = null;
             this.pendingBatchRequests = [];
             this.processingBatches = {};
@@ -966,15 +1262,15 @@
             $('#cancel-bulk-process').attr('style', 'display: inline-flex !important;').show();
             $('#progress-card').slideDown();
             $('#results-card').hide();
-            $('#progress-status').text('Initializing...').removeClass('success error').addClass('warning');
+            $('#progress-status').text(t('initializing', 'Initializing...')).removeClass('success error').addClass('warning');
             $('#progress-fill').css('width', '0%');
             $('#progress-text').text('0%');
             $('#processed-count').text('0 / 0');
             $('#processed-stat-count, #successful-count, #error-count, #remaining-stat-count, #live-remaining-count').text('0');
             $('#process-progress-container, #bulk-current-task, .bulk-progress-stats, .bulk-stop-hint').show();
             $('#process-summary-container').hide();
-            this.updateLiveTask(null, 'The first image will begin shortly.', 'Preparing');
-            $('#progress-log').empty().append('<div>Starting bulk optimization...</div>');
+            this.updateLiveTask(null, t('firstImageSoon', 'The first image will begin shortly.'), t('preparing', 'Preparing'));
+            $('#progress-log').empty().append($('<div>').text(t('startingBulk', 'Starting bulk optimization...')));
 
             this.startRequest = $.ajax({
                 url: altTextAI.ajaxUrl,
@@ -997,7 +1293,7 @@
 
                         $('#processed-count').text('0 / ' + processableTotal);
                         $('#remaining-stat-count, #live-remaining-count').text(processableTotal);
-                        self.updateLiveTask(1, 'Waiting to begin the first image.', 'Queued');
+                        self.updateLiveTask(1, t('waitingFirst', 'Waiting to begin the first image.'), t('queued', 'Queued'));
                         self.updateProcessLimitNote({
                             queue_total_images: queueTotal,
                             processable_images: processableTotal,
@@ -1007,12 +1303,12 @@
                         });
 
                         $('#progress-log').append(
-                            $('<div>').text('Initialized process #' + String(self.processId || '') + ' (up to ' + processableTotal + ' images can run with available plan credits)')
+                            $('<div>').text(sprintf(t('initializedProcess', 'Run started: up to %d images can be processed with the available credits.'), processableTotal))
                         );
 
                         if (response.data.queue_capped) {
                             $('#progress-log').append(
-                                $('<div>').text('This run includes the newest ' + String(response.data.queue_cap || queueTotal) + ' images. Start another run when it finishes to continue with older images.')
+                                $('<div>').text(sprintf(t('queueCapped', 'This run includes the newest %d images. Start another run when it finishes to continue with older images.'), response.data.queue_cap || queueTotal))
                             );
                         }
 
@@ -1028,15 +1324,20 @@
 
                         self.startStatusPolling();
                     } else {
-                        self.showError(response.data || 'Failed to start bulk process');
+                        var data = response.data;
                         self.resetUI();
+                        $('#progress-card').show();
+                        $('#process-progress-container, #bulk-current-task, .bulk-progress-stats, .bulk-stop-hint').hide();
+                        self.showError(data && typeof data === 'object' ? data.message : (data || t('startFailed', 'Failed to start bulk process')), data && data.code);
                     }
                 },
                 error: function (xhr, status, error) {
                     if (status !== 'abort') {
                         console.error('Alt Text Pro: Bulk start error', error);
-                        self.showError('Failed to connect to server');
                         self.resetUI();
+                        $('#progress-card').show();
+                        $('#process-progress-container, #bulk-current-task, .bulk-progress-stats, .bulk-stop-hint').hide();
+                        self.showError(ajaxErrorMessage(xhr, t('serverUnreachable', 'Failed to connect to server')));
                     }
                 }
             });
@@ -1055,8 +1356,8 @@
             // Aborting only hides its response; PHP and the AI request continue,
             // which previously made the displayed result lag one credit behind.
             $('#cancel-bulk-process').prop('disabled', true);
-            $('#progress-status').text('Stopping after current image...').removeClass('success error').addClass('warning');
-            this.updateLiveTask(null, 'Finishing the current image before stopping.', 'Stopping');
+            $('#progress-status').text(t('stoppingAfterCurrent', 'Stopping after current image...')).removeClass('success error').addClass('warning');
+            this.updateLiveTask(null, t('finishingCurrent', 'Finishing the current image before stopping.'), t('stopping', 'Stopping'));
 
             if (!this.processId) {
                 return;
@@ -1069,14 +1370,14 @@
             var self = this;
             if (!this.processId) {
                 this.resetUI();
-                $('#progress-status').text('Cancelled').removeClass('warning success').addClass('error');
+                $('#progress-status').text(t('cancelled', 'Cancelled')).removeClass('warning success').addClass('error');
                 return;
             }
 
             if (this.cancelRequest) return;
 
-            $('#progress-status').text('Stopping after current image...').removeClass('success error').addClass('warning');
-            this.updateLiveTask(null, 'Finishing the current image before stopping.', 'Stopping');
+            $('#progress-status').text(t('stoppingAfterCurrent', 'Stopping after current image...')).removeClass('success error').addClass('warning');
+            this.updateLiveTask(null, t('finishingCurrent', 'Finishing the current image before stopping.'), t('stopping', 'Stopping'));
 
             this.cancelRequest = $.ajax({
                 url: altTextAI.ajaxUrl,
@@ -1095,17 +1396,17 @@
                         // browser request. Wait for it to return so any charged
                         // result is included in the final WordPress count.
                         if (data.status === 'cancelling' || self.pendingBatchRequests.length > 0) {
-                            $('#progress-status').text('Stopping after current image...').removeClass('success error').addClass('warning');
+                            $('#progress-status').text(t('stoppingAfterCurrent', 'Stopping after current image...')).removeClass('success error').addClass('warning');
                             return;
                         }
 
                         self.finishProcess(data);
                     } else {
-                        $('#progress-status').text('Unable to stop yet—retrying...').removeClass('success error').addClass('warning');
+                        $('#progress-status').text(t('unableToStop', 'Unable to stop yet, retrying...')).removeClass('success error').addClass('warning');
                     }
                 },
                 error: function () {
-                    $('#progress-status').text('Unable to stop yet—retrying...').removeClass('success error').addClass('warning');
+                    $('#progress-status').text(t('unableToStop', 'Unable to stop yet, retrying...')).removeClass('success error').addClass('warning');
                 },
                 complete: function () {
                     self.cancelRequest = null;
@@ -1139,16 +1440,13 @@
 
                         if (self.pendingCancel) {
                             var cancelStatus = response.data.status;
-                            var cancelFinished = cancelStatus === 'completed' ||
-                                cancelStatus === 'cancelled' ||
-                                cancelStatus === 'error' ||
-                                cancelStatus === 'stopped_no_credits';
+                            var cancelFinished = self.isTerminalStatus(cancelStatus);
 
                             if (cancelFinished && self.pendingBatchRequests.length === 0) {
                                 self.finishProcess(response.data);
                             } else {
-                                $('#progress-status').text('Stopping after current image...').removeClass('success error').addClass('warning');
-                                self.updateLiveTask(null, 'Finishing the current image before stopping.', 'Stopping');
+                                $('#progress-status').text(t('stoppingAfterCurrent', 'Stopping after current image...')).removeClass('success error').addClass('warning');
+                                self.updateLiveTask(null, t('finishingCurrent', 'Finishing the current image before stopping.'), t('stopping', 'Stopping'));
                                 if (cancelStatus === 'cancelling' && self.pendingBatchRequests.length === 0) {
                                     self.sendCancelRequest();
                                 }
@@ -1156,7 +1454,18 @@
                             return;
                         }
 
-                        if (response.data.status === 'completed' || response.data.status === 'cancelled' || response.data.status === 'error' || response.data.status === 'stopped_no_credits') {
+                        // Stopped elsewhere (another tab or an administrator):
+                        // follow the stop instead of waiting for a next image.
+                        if (response.data.status === 'cancelling') {
+                            self.isProcessing = false;
+                            self.cancelRequested = true;
+                            self.pendingCancel = true;
+                            self.clearScheduledBatch();
+                            $('#cancel-bulk-process').prop('disabled', true);
+                            return;
+                        }
+
+                        if (self.isTerminalStatus(response.data.status)) {
                             self.finishProcess(response.data);
                             return;
                         }
@@ -1165,6 +1474,9 @@
                         if (response.data.needs_next_batch && response.data.next_batch_offset !== null) {
                             self.scheduleNextBatch(response.data.next_batch_offset, response.data.retry_after_seconds);
                         }
+                    } else if (self.pendingCancel && self.pendingBatchRequests.length === 0) {
+                        // The stopped run's saved state is already gone.
+                        self.finishProcess({ status: 'cancelled' });
                     }
                 }
             });
@@ -1179,10 +1491,10 @@
             var delayMs = this.batchDelayMs;
             if (retryAfterSeconds) {
                 delayMs = Math.max(delayMs, parseInt(retryAfterSeconds, 10) * 1000);
-                $('#progress-status').text('Waiting for AI rate limit reset...');
-                this.updateLiveTask(offset + 1, 'Waiting for the AI rate limit to reset.', 'Waiting');
+                $('#progress-status').text(t('waitingRateLimit', 'Waiting for the service before retrying...'));
+                this.updateLiveTask(offset + 1, t('waitingRateLimitTask', 'Waiting before retrying this image.'), t('waiting', 'Waiting'));
             } else {
-                this.updateLiveTask(offset + 1, 'Ready to start after the latest update.', 'Queued');
+                this.updateLiveTask(offset + 1, t('readyNext', 'Ready to start after the latest update.'), t('queued', 'Queued'));
             }
 
             this.clearScheduledBatch();
@@ -1213,8 +1525,8 @@
             this.processingBatches[offset] = true;
 
             debugLog('Alt Text Pro: Triggering batch at offset ' + offset);
-            $('#progress-status').text('Processing image ' + (parseInt(offset, 10) + 1) + '...').removeClass('success error').addClass('warning');
-            this.updateLiveTask(parseInt(offset, 10) + 1, 'Alt Text Pro AI is analysing this image.', 'Generating');
+            $('#progress-status').text(sprintf(t('processingImage', 'Processing image %d...'), parseInt(offset, 10) + 1)).removeClass('success error').addClass('warning');
+            this.updateLiveTask(parseInt(offset, 10) + 1, t('analysing', 'Alt Text Pro AI is analysing this image.'), t('generatingState', 'Generating'));
 
             var batchReq = $.ajax({
                 url: altTextAI.ajaxUrl,
@@ -1241,17 +1553,17 @@
 
                         if (self.pendingCancel) {
                             var cancelStatus = response.data.status;
-                            if (cancelStatus === 'completed' || cancelStatus === 'cancelled' || cancelStatus === 'error' || cancelStatus === 'stopped_no_credits') {
+                            if (self.isTerminalStatus(cancelStatus)) {
                                 self.finishProcess(response.data);
                             } else {
-                                $('#progress-status').text('Stopping after current image...').removeClass('success error').addClass('warning');
-                                self.updateLiveTask(null, 'Finishing the current image before stopping.', 'Stopping');
+                                $('#progress-status').text(t('stoppingAfterCurrent', 'Stopping after current image...')).removeClass('success error').addClass('warning');
+                                self.updateLiveTask(null, t('finishingCurrent', 'Finishing the current image before stopping.'), t('stopping', 'Stopping'));
                                 self.sendCancelRequest();
                             }
                             return;
                         }
 
-                        if (response.data.status === 'completed' || response.data.status === 'cancelled' || response.data.status === 'error' || response.data.status === 'stopped_no_credits') {
+                        if (self.isTerminalStatus(response.data.status)) {
                             self.finishProcess(response.data);
                             return;
                         }
@@ -1260,7 +1572,7 @@
                             self.scheduleNextBatch(response.data.next_batch_offset, response.data.retry_after_seconds);
                         }
                     } else {
-                        self.handleBatchRequestFailure('Bulk request failed. Please try again.');
+                        self.handleBatchRequestFailure(response && typeof response.data === 'string' ? response.data : t('bulkRequestFailed', 'Bulk request failed. Please try again.'));
                     }
                 },
                 error: function (xhr, textStatus) {
@@ -1268,8 +1580,8 @@
                     if (idx > -1) self.pendingBatchRequests.splice(idx, 1);
                     delete self.processingBatches[offset];
                     if (self.pendingCancel) {
-                        $('#progress-status').text('Stopping after current image...').removeClass('success error').addClass('warning');
-                        self.updateLiveTask(null, 'Finishing the current image before stopping.', 'Stopping');
+                        $('#progress-status').text(t('stoppingAfterCurrent', 'Stopping after current image...')).removeClass('success error').addClass('warning');
+                        self.updateLiveTask(null, t('finishingCurrent', 'Finishing the current image before stopping.'), t('stopping', 'Stopping'));
                         self.sendCancelRequest();
                         return;
                     }
@@ -1286,8 +1598,8 @@
                     }
 
                     var failureMessage = textStatus === 'timeout'
-                        ? 'Bulk request timed out. Please try again.'
-                        : 'Bulk request failed. Please try again.';
+                        ? t('bulkRequestTimeout', 'Bulk request timed out. Please try again.')
+                        : ajaxErrorMessage(xhr, t('bulkRequestFailed', 'Bulk request failed. Please try again.'));
                     self.handleBatchRequestFailure(failureMessage);
                 },
                 complete: function () {
@@ -1305,15 +1617,15 @@
             var retryAttempt = attempt || 0;
             var maxAttempts = 45;
             var failureMessage = failureType === 'too_large'
-                ? 'Image too large to process.'
-                : 'Image could not be processed.';
+                ? t('imageTooLarge', 'Image too large to process.')
+                : t('imageNotProcessed', 'Image could not be processed.');
 
             if (this.cancelRequested || this.pendingCancel || !this.isProcessing || !this.processId) return;
             if (this.processingBatches[offset]) return;
 
             this.processingBatches[offset] = true;
-            $('#progress-status').text('Skipping failed image...').removeClass('success error').addClass('warning');
-            this.updateLiveTask(parseInt(offset, 10) + 1, 'Recording the failed image and continuing.', 'Skipping');
+            $('#progress-status').text(t('skippingFailed', 'Skipping failed image...')).removeClass('success error').addClass('warning');
+            this.updateLiveTask(parseInt(offset, 10) + 1, t('recordingFailed', 'Recording the failed image and continuing.'), t('skipping', 'Skipping'));
 
             var skipReq = $.ajax({
                 url: altTextAI.ajaxUrl,
@@ -1351,7 +1663,7 @@
                 }
                 self.updateProgress(response.data);
 
-                if (response.data.status === 'completed' || response.data.status === 'cancelled' || response.data.status === 'error' || response.data.status === 'stopped_no_credits') {
+                if (self.isTerminalStatus(response.data.status)) {
                     self.finishProcess(response.data);
                     return;
                 }
@@ -1393,7 +1705,7 @@
             }
 
             this.appendBatchResults([{
-                filename: 'Bulk processing',
+                filename: t('bulkProcessingLabel', 'Bulk processing'),
                 status: 'error',
                 error: message
             }]);
@@ -1428,16 +1740,16 @@
             this.updateProcessLimitNote(data);
 
             if (data.retry_after_seconds) {
-                $('#progress-status').text('Waiting for AI rate limit reset...');
-                this.updateLiveTask(null, 'Waiting for the AI rate limit to reset.', 'Waiting');
+                $('#progress-status').text(t('waitingRateLimit', 'Waiting for the service before retrying...'));
+                this.updateLiveTask(null, t('waitingRateLimitTask', 'Waiting before retrying this image.'), t('waiting', 'Waiting'));
                 return;
             }
         },
 
         updateLiveTask: function (position, stage, state) {
-            $('#active-image-position').text(position ? 'Image ' + position : 'Processing update');
+            $('#active-image-position').text(position ? sprintf(t('imageN', 'Image %d'), position) : t('processingUpdate', 'Processing update'));
             $('#active-image-stage').text(stage || '');
-            $('#active-image-state').text(state || 'Working');
+            $('#active-image-state').text(state || t('working', 'Working'));
         },
 
         appendBatchResults: function (results) {
@@ -1449,29 +1761,29 @@
             results.forEach(function (result) {
                 var icon = 'dashicons-yes';
                 var statusClass = 'success';
-                var statusText = 'Success';
+                var statusText = t('statusSuccess', 'Success');
 
                 if (result.status === 'error') {
                     icon = 'dashicons-no-alt';
                     statusClass = 'error';
-                    statusText = 'Failed';
+                    statusText = t('statusFailed', 'Failed');
                 } else if (result.status === 'retrying') {
                     icon = 'dashicons-clock';
                     statusClass = 'skipped';
-                    statusText = 'Waiting to retry';
+                    statusText = t('statusRetrying', 'Waiting to retry');
                 } else if (result.status === 'skipped') {
                     icon = 'dashicons-warning';
                     statusClass = 'skipped';
-                    statusText = 'Skipped';
+                    statusText = t('statusSkipped', 'Skipped');
                 } else if (result.status === 'cancelled') {
                     icon = 'dashicons-controls-pause';
                     statusClass = 'skipped';
-                    statusText = 'Stopped before generation';
+                    statusText = t('statusStoppedBefore', 'Stopped before generation');
                 }
 
                 var filename = result.filename || '';
                 var $item = $('<div>').addClass('log-item ' + statusClass);
-                $('<span>').addClass('dashicons ' + icon).appendTo($item);
+                $('<span>').addClass('dashicons ' + icon).attr('title', statusText).appendTo($item);
                 $('<span>').addClass('log-filename').attr('title', filename).text(filename).appendTo($item);
 
                 if ((result.status === 'error' || result.status === 'retrying') && result.error) {
@@ -1515,33 +1827,49 @@
             var errors = data.error_count !== undefined ? data.error_count : (data.errors ? data.errors.length : 0);
 
             if (data.success || data.status === 'completed') {
-                $('#progress-status').text('Completed').removeClass('warning error').addClass('success');
-                this.updateLiveTask(null, 'Every scheduled image has finished.', 'Complete');
-                $('#progress-log').append('<div class="atp-log-line is-success">Bulk optimization completed!</div>');
+                $('#progress-status').text(t('completedLabel', 'Completed')).removeClass('warning error').addClass('success');
+                this.updateLiveTask(null, t('everyImageFinished', 'Every scheduled image has finished.'), t('completedLabel', 'Complete'));
+                $('#progress-log').append($('<div class="atp-log-line is-success">').text(t('bulkCompleted', 'Bulk optimization completed!')));
             } else if (data.status === 'cancelled') {
-                $('#progress-status').text('Cancelled').removeClass('warning success').addClass('error');
+                $('#progress-status').text(t('cancelled', 'Cancelled')).removeClass('warning success').addClass('error');
 
                 $('#process-summary-container').show();
-                $('#process-summary-text').text('Process Cancelled');
-                $('#process-summary-details').text('Processed ' + processed + ' images (' + successful + ' successful, ' + errors + ' errors) before stopping.');
-                this.updateLiveTask(null, 'No additional images will start. Any active image is included above.', 'Stopped');
-                $('#progress-log').append('<div class="atp-log-line is-error is-strong">Bulk optimization cancelled by user.</div>');
+                $('#process-summary-text').text(t('processCancelled', 'Process Cancelled'));
+                $('#process-summary-details').text(sprintf(t('cancelledSummary', 'Processed %1$d images (%2$d successful, %3$d errors) before stopping.'), processed, successful, errors));
+                this.updateLiveTask(null, t('noMoreImages', 'No additional images will start. Any active image is included above.'), t('stopped', 'Stopped'));
+                $('#progress-log').append($('<div class="atp-log-line is-error is-strong">').text(t('cancelledByUser', 'Bulk optimization cancelled by user.')));
             } else if (data.status === 'stopped_no_credits') {
-                $('#progress-status').text('Credits Exhausted').removeClass('warning success').addClass('error');
+                $('#progress-status').text(t('creditsExhausted', 'Credits Exhausted')).removeClass('warning success').addClass('error');
                 $('#process-summary-container').show();
-                $('#process-summary-text').text('Credits Used Up');
-                $('#process-summary-details').text(data.stopped_reason || ('Processed ' + processed + ' images before available credits ran out.'));
-                this.updateLiveTask(null, (altTextAI.strings && altTextAI.strings.noCreditsStopped) || 'The run stopped because there are no credits remaining. Buy a credit pack or upgrade your plan at alt-text.pro.', 'Stopped');
-                $('#progress-log').append('<div class="atp-log-line is-error is-strong">Bulk optimization stopped because the account ran out of credits.</div>');
+                $('#process-summary-text').text(t('creditsUsedUp', 'Credits Used Up'));
+                $('#process-summary-details')
+                    .text(data.stopped_reason || sprintf(t('creditsRanOutSummary', 'Processed %d images before available credits ran out.'), processed))
+                    .append(' ')
+                    .append(upgradeLink());
+                this.updateLiveTask(null, t('noCreditsStopped', 'The run stopped because there are no credits remaining. Buy a credit pack or upgrade your plan at alt-text.pro.'), t('stopped', 'Stopped'));
+                $('#progress-log').append($('<div class="atp-log-line is-error is-strong">').text(t('ranOutLog', 'Bulk optimization stopped because the account ran out of credits.')));
+            } else if (data.status === 'stopped_error') {
+                // Invalid key, suspended account or a service that keeps
+                // failing: nothing else in the queue could succeed.
+                var suspended = data.stopped_code === 'account_suspended';
+                $('#progress-status').text(suspended ? t('accountSuspendedTitle', 'Account suspended') : t('runStoppedTitle', 'Run stopped')).removeClass('warning success').addClass('error');
+                $('#process-summary-container').show();
+                $('#process-summary-text').text(suspended ? t('accountSuspendedTitle', 'Account suspended') : t('runStoppedTitle', 'Run stopped'));
+                $('#process-summary-details').text(data.stopped_reason || t('stoppedAccount', 'Bulk processing stopped because of an account or service problem.'));
+                this.updateLiveTask(null, data.stopped_reason || t('stoppedAccount', 'Bulk processing stopped because of an account or service problem.'), t('stopped', 'Stopped'));
+                $('#progress-log').append($('<div class="atp-log-line is-error is-strong">').text(data.stopped_reason || t('stoppedAccount', 'Bulk processing stopped because of an account or service problem.')));
+                if (window.AltTextProAdmin && typeof window.AltTextProAdmin.showNotification === 'function') {
+                    window.AltTextProAdmin.showNotification(data.stopped_reason || t('stoppedAccount', 'Bulk processing stopped because of an account or service problem.'), 'error');
+                }
             } else {
-                $('#progress-status').text('Error').removeClass('warning success').addClass('error');
-                this.updateLiveTask(null, 'The run ended before all scheduled images completed.', 'Needs attention');
-                $('#progress-log').append('<div class="atp-log-line is-error">Process ended with errors or was interrupted.</div>');
+                $('#progress-status').text(t('errorLabel', 'Error')).removeClass('warning success').addClass('error');
+                this.updateLiveTask(null, t('endedEarly', 'The run ended before all scheduled images completed.'), t('needsAttentionState', 'Needs attention'));
+                $('#progress-log').append($('<div class="atp-log-line is-error">').text(t('endedWithErrors', 'Process ended with errors or was interrupted.')));
 
                 if (window.AltTextProAdmin && typeof window.AltTextProAdmin.showNotification === 'function') {
                     var attentionMessage = errors > 0
-                        ? errors + (errors === 1 ? ' image needs attention. Review the activity list for details.' : ' images need attention. Review the activity list for details.')
-                        : 'Bulk processing needs attention. Review the activity list for details.';
+                        ? sprintf(errors === 1 ? t('oneImageAttention', '%d image needs attention. Review the activity list for details.') : t('manyImagesAttention', '%d images need attention. Review the activity list for details.'), errors)
+                        : t('bulkAttention', 'Bulk processing needs attention. Review the activity list for details.');
                     window.AltTextProAdmin.showNotification(attentionMessage, 'warning');
                 }
             }
@@ -1565,10 +1893,12 @@
             }
         },
 
-        showError: function (msg) {
-            $('#progress-log').append(
-                $('<div>').addClass('atp-log-line is-error').text('Error: ' + String(msg || ''))
-            );
+        showError: function (msg, code) {
+            var $line = $('<div>').addClass('atp-log-line is-error').text(sprintf(t('errorPrefix', 'Error: %s'), String(msg || '')));
+            if (code === 'no_credits') {
+                $line.append(' ').append(upgradeLink());
+            }
+            $('#progress-log').append($line);
         },
 
         updateProcessLimitNote: function (data) {
@@ -1584,15 +1914,16 @@
 
             var planAllowance = data && data.plan_allowance !== undefined ? parseInt(data.plan_allowance, 10) : NaN;
             var planCreditsUsed = data && data.plan_credits_used_at_start !== undefined ? parseInt(data.plan_credits_used_at_start, 10) : NaN;
-            var note = 'This run can process up to ' + processableTotal + ' images with available plan credits';
+            var note;
             if (Number.isFinite(planAllowance) && Number.isFinite(planCreditsUsed)) {
-                note += ' (' + planCreditsUsed + ' used of ' + planAllowance + ')';
+                note = sprintf(t('limitNoteUsed', 'This run can process up to %1$d images with available plan credits (%2$d used of %3$d).'), processableTotal, planCreditsUsed, planAllowance);
             } else if (Number.isFinite(creditsRemaining)) {
-                note += ' (' + creditsRemaining + ' credits at start)';
+                note = sprintf(t('limitNoteCredits', 'This run can process up to %1$d images with available plan credits (%2$d credits at start).'), processableTotal, creditsRemaining);
+            } else {
+                note = sprintf(t('limitNote', 'This run can process up to %d images with available plan credits.'), processableTotal);
             }
-            note += '.';
 
-            $('#process-limit-note').text(note).show();
+            $('#process-limit-note').empty().text(note).append(' ').append(upgradeLink()).show();
         }
     };
 

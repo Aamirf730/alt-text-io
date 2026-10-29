@@ -1,5 +1,5 @@
 const SITE_URL = 'https://www.alt-text.pro';
-const { getLifecycleUnsubscribeUrl } = require('./lifecycle-unsubscribe');
+const { getLifecycleUnsubscribeUrl, getListUnsubscribeHeaders } = require('./lifecycle-unsubscribe');
 const { fetchAllRows } = require('./paginated-query');
 
 const LIFECYCLE_RULES = [
@@ -294,8 +294,7 @@ function filterCandidatesByAuthUsers(candidates, authUsers) {
   });
 }
 
-function renderLifecycleEmail(candidate) {
-  const unsubscribeUrl = getLifecycleUnsubscribeUrl(candidate);
+function renderLifecycleEmail(candidate, { unsubscribeUrl = getLifecycleUnsubscribeUrl(candidate) } = {}) {
   const unsubscribeHtml = unsubscribeUrl
     ? `<p style="margin:20px 0 0;font-size:12px;line-height:1.6;color:#6B6B73;">Prefer not to receive these emails? <a href="${unsubscribeUrl}" style="color:#3F3F46;text-decoration:underline;">Unsubscribe</a>.</p>`
     : '';
@@ -334,6 +333,23 @@ function renderLifecycleEmail(candidate) {
   return { html, text };
 }
 
+/**
+ * Full nodemailer options for one lifecycle email, including the
+ * List-Unsubscribe / List-Unsubscribe-Post (RFC 8058 one-click) headers.
+ */
+function buildLifecycleMailOptions(candidate, { from, supportEmail } = {}) {
+  const unsubscribeUrl = getLifecycleUnsubscribeUrl(candidate);
+  const { html, text } = renderLifecycleEmail(candidate, { unsubscribeUrl });
+  return {
+    from,
+    to: candidate.user_email,
+    subject: candidate.subject,
+    text,
+    html,
+    headers: getListUnsubscribeHeaders(unsubscribeUrl, supportEmail),
+  };
+}
+
 // Only these events drive lifecycle rules. Page views make up most of the
 // table, so leaving them out keeps the read small.
 const LIFECYCLE_EVENT_NAMES = [...new Set(
@@ -348,7 +364,7 @@ async function fetchRecentMarketingEvents(supabase, { days = 30 } = {}) {
   return fetchAllRows(
     (from, to) => supabase
       .from('marketing_events')
-      .select('id,event_name,source,anonymous_id,user_id,user_email,properties,page_path,referrer,occurred_at,created_at')
+      .select('id,event_name,source,anonymous_id,user_id,user_email,properties,occurred_at,created_at')
       .gte('occurred_at', startAt.toISOString())
       .in('event_name', LIFECYCLE_EVENT_NAMES)
       .order('occurred_at', { ascending: true })
@@ -358,28 +374,53 @@ async function fetchRecentMarketingEvents(supabase, { days = 30 } = {}) {
   );
 }
 
-async function fetchLifecycleUsageCounts(supabase) {
-  const rows = await fetchAllRows(
+// PostgREST filters travel in the URL, so long ID lists are split.
+const USAGE_ID_CHUNK_SIZE = 150;
+
+/**
+ * Usage counts by user ID. With userIds, only those users are read (the
+ * scheduled run passes the users its connect rule needs); without, every row.
+ */
+async function fetchLifecycleUsageCounts(supabase, userIds = null) {
+  const usageCountsByUserId = new Map();
+  const addRows = (rows) => {
+    for (const row of rows || []) {
+      if (row?.user_id) {
+        usageCountsByUserId.set(String(row.user_id), Number(row.total_usage_count || 0));
+      }
+    }
+  };
+
+  if (Array.isArray(userIds)) {
+    const ids = [...new Set(userIds.filter(Boolean).map(String))];
+    for (let index = 0; index < ids.length; index += USAGE_ID_CHUNK_SIZE) {
+      const { data, error } = await supabase
+        .from('user_usage_stats')
+        .select('user_id,total_usage_count')
+        .in('user_id', ids.slice(index, index + USAGE_ID_CHUNK_SIZE));
+      if (error) throw new Error(`Failed to fetch lifecycle usage counts: ${error.message}`);
+      addRows(data);
+    }
+    return usageCountsByUserId;
+  }
+
+  addRows(await fetchAllRows(
     (from, to) => supabase
       .from('user_usage_stats')
       .select('user_id,total_usage_count')
       .order('user_id', { ascending: true })
       .range(from, to),
     { label: 'lifecycle usage counts' }
-  );
-
-  const usageCountsByUserId = new Map();
-  for (const row of rows) {
-    if (row?.user_id) {
-      usageCountsByUserId.set(String(row.user_id), Number(row.total_usage_count || 0));
-    }
-  }
+  ));
   return usageCountsByUserId;
 }
 
 module.exports = {
+  LIFECYCLE_EVENT_NAMES,
+  LIFECYCLE_PRIORITY,
   LIFECYCLE_RULES,
   buildLifecycleActors,
+  buildLifecycleMailOptions,
   buildLifecycleCandidates,
   fetchAuthUsers,
   fetchLifecycleUsageCounts,

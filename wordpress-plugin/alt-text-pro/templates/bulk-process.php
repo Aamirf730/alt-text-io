@@ -36,16 +36,76 @@ if (!defined('ABSPATH')) {
         </div>
     <?php else: ?>
 
+        <?php
+        $bulk_display_credits_remaining = $monthly_credits_remaining !== null ? $monthly_credits_remaining : $credits_remaining;
+        $bulk_display_monthly_limit = $monthly_credit_limit !== null ? $monthly_credit_limit : $monthly_credit_allowance;
+        $alt_text_pro_out_of_credits = $bulk_display_credits_remaining !== null && $bulk_display_credits_remaining <= 0;
+        $alt_text_pro_account_blocked = in_array($usage_error_code ?? '', array('account_suspended', 'invalid_api_key', 'account_not_found', 'forbidden'), true);
+        $alt_text_pro_run_active = !empty($active_run);
+        // A run that is already stopping cannot be resumed, only stopped.
+        $alt_text_pro_run_resumable = $alt_text_pro_run_active
+            && !empty($active_run['is_owner'])
+            && ($active_run['status'] ?? '') !== 'cancelling';
+        $alt_text_pro_start_blocked = $alt_text_pro_out_of_credits || $alt_text_pro_account_blocked || $alt_text_pro_run_active;
+        ?>
+
+        <?php if ($alt_text_pro_run_active): ?>
+            <!-- A run is still going: resume it (its owner) or stop it (an administrator). -->
+            <div class="alt-text-pro-card is-warning" id="active-run-card">
+                <div class="atp-callout">
+                    <span class="atp-icon-chip is-warning" aria-hidden="true"><span class="dashicons dashicons-update"></span></span>
+                    <div class="atp-callout-body">
+                        <h3>
+                            <?php
+                            echo esc_html(!empty($active_run['is_owner'])
+                                ? __('Your bulk run is still in progress', 'alt-text-pro')
+                                : sprintf(
+                                    /* translators: %s: name of the user who started the run */
+                                    __('A bulk run started by %s is in progress', 'alt-text-pro'),
+                                    $active_run['started_by'] !== '' ? $active_run['started_by'] : __('another user', 'alt-text-pro')
+                                ));
+                            ?>
+                        </h3>
+                        <p>
+                            <?php
+                            echo esc_html(sprintf(
+                                /* translators: 1: images processed, 2: images in the run */
+                                __('%1$s of %2$s images processed. Only one bulk run can be active on a site.', 'alt-text-pro'),
+                                number_format_i18n(intval($active_run['processed'])),
+                                number_format_i18n(intval($active_run['processable_images']))
+                            ));
+                            ?>
+                            <?php if ($alt_text_pro_run_resumable): ?>
+                                <?php esc_html_e('Resume it here, or stop it to start a different run.', 'alt-text-pro'); ?>
+                            <?php elseif (!empty($active_run['is_owner'])): ?>
+                                <?php esc_html_e('It is stopping after its last image. Stop it to finish.', 'alt-text-pro'); ?>
+                            <?php endif; ?>
+                        </p>
+                    </div>
+                    <div class="atp-actions">
+                        <?php if ($alt_text_pro_run_resumable): ?>
+                            <button type="button" class="button-primary-custom" id="resume-bulk-process">
+                                <span class="dashicons dashicons-controls-play" aria-hidden="true"></span>
+                                <span><?php esc_html_e('Resume run', 'alt-text-pro'); ?></span>
+                            </button>
+                        <?php endif; ?>
+                        <?php if (!empty($active_run['can_cancel'])): ?>
+                            <button type="button" class="button-secondary-custom atp-btn-danger" id="cancel-active-run">
+                                <span class="dashicons dashicons-controls-pause" aria-hidden="true"></span>
+                                <span><?php esc_html_e('Stop run', 'alt-text-pro'); ?></span>
+                            </button>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+        <?php endif; ?>
+
         <div class="alt-text-pro-card">
             <div class="card-header">
                 <h3><?php esc_html_e('Bulk Generation', 'alt-text-pro'); ?></h3>
             </div>
             <div class="card-content">
                 <form id="bulk-process-form">
-                    <?php
-                    $bulk_display_credits_remaining = $monthly_credits_remaining !== null ? $monthly_credits_remaining : $credits_remaining;
-                    $bulk_display_monthly_limit = $monthly_credit_limit !== null ? $monthly_credit_limit : $monthly_credit_allowance;
-                    ?>
                     <?php if ($bulk_display_credits_remaining !== null): ?>
                         <div class="atp-info-box">
                             <span class="dashicons dashicons-chart-pie" aria-hidden="true"></span>
@@ -73,6 +133,26 @@ if (!defined('ABSPATH')) {
                                 ?>
                             <?php endif; ?>
                             </span>
+                            <a href="<?php echo esc_url(ALT_TEXT_PRO_PRICING_URL); ?>" target="_blank" rel="noopener noreferrer" class="atp-upgrade-link">
+                                <?php esc_html_e('Buy credits or upgrade', 'alt-text-pro'); ?>
+                            </a>
+                        </div>
+                    <?php endif; ?>
+
+                    <?php if ($alt_text_pro_out_of_credits): ?>
+                        <div class="atp-info-box is-error" role="alert">
+                            <span class="dashicons dashicons-warning" aria-hidden="true"></span>
+                            <span>
+                                <?php esc_html_e('You have no credits left, so bulk processing cannot start. Buy a credit pack or upgrade your plan, then reload this page.', 'alt-text-pro'); ?>
+                                <a href="<?php echo esc_url(ALT_TEXT_PRO_PRICING_URL); ?>" target="_blank" rel="noopener noreferrer" class="atp-upgrade-link">
+                                    <?php esc_html_e('Buy credits or upgrade', 'alt-text-pro'); ?>
+                                </a>
+                            </span>
+                        </div>
+                    <?php elseif ($alt_text_pro_account_blocked): ?>
+                        <div class="atp-info-box is-error" role="alert">
+                            <span class="dashicons dashicons-warning" aria-hidden="true"></span>
+                            <span><?php echo esc_html($usage_error); ?></span>
                         </div>
                     <?php endif; ?>
 
@@ -108,8 +188,19 @@ if (!defined('ABSPATH')) {
                         </label>
                     </div>
 
+                    <p class="description atp-help">
+                        <?php
+                        echo esc_html(AltTextPro_Settings::is_enabled('email_bulk_complete')
+                            ? __('You will get an email when the run finishes. You can turn this off in Settings.', 'alt-text-pro')
+                            : __('Completion emails are off. You can turn them on in Settings.', 'alt-text-pro'));
+                        ?>
+                    </p>
+
                     <div class="atp-actions">
                         <button type="button" id="start-bulk-process" class="button-primary-custom"
+                            data-blocked="<?php echo esc_attr($alt_text_pro_start_blocked ? '1' : '0'); ?>"
+                            data-blocked-reason="<?php echo esc_attr(($alt_text_pro_run_active && !$alt_text_pro_out_of_credits && !$alt_text_pro_account_blocked) ? 'run' : ''); ?>"
+                            <?php disabled($alt_text_pro_start_blocked); ?>
                             onclick="if(typeof bulkProcessor !== 'undefined' && bulkProcessor.startProcessing) { bulkProcessor.startProcessing(); return false; } else { console.error('Alt Text Pro: bulkProcessor not available'); return false; }">
                             <span class="dashicons dashicons-controls-play" aria-hidden="true"></span>
                             <span><?php esc_html_e('Start Processing', 'alt-text-pro'); ?></span>
@@ -229,13 +320,14 @@ if (!defined('ABSPATH')) {
             </div>
         </div>
 
-        <!-- Image Selection Sidebar (Hidden by default) -->
+        <!-- Image Selection Sidebar (Hidden by default). Loaded page by page
+             so any image can be found and regenerated. -->
         <div class="alt-text-pro-card" id="image-selection-sidebar" style="display: none;">
             <div class="card-header">
                 <h3><?php esc_html_e('Select Images', 'alt-text-pro'); ?></h3>
                 <div class="atp-actions">
                     <button type="button" class="button-secondary-custom atp-btn-sm" id="select-all-images">
-                        <?php esc_html_e('All', 'alt-text-pro'); ?>
+                        <?php esc_html_e('All on this page', 'alt-text-pro'); ?>
                     </button>
                     <button type="button" class="button-secondary-custom atp-btn-sm" id="deselect-all-images">
                         <?php esc_html_e('None', 'alt-text-pro'); ?>
@@ -243,36 +335,32 @@ if (!defined('ABSPATH')) {
                 </div>
             </div>
             <div class="card-content">
-                <div id="image-list" class="atp-image-list">
-                    <?php if (!empty($images_without_alt)): ?>
-                        <?php foreach (array_slice($images_without_alt, 0, 50) as $alt_text_pro_image):
-                            $alt_text_pro_image_url = wp_get_attachment_image_url($alt_text_pro_image->ID, 'thumbnail');
-                            ?>
-                            <label class="atp-image-row">
-                                <input type="checkbox" name="selected_images[]"
-                                    value="<?php echo esc_attr($alt_text_pro_image->ID); ?>">
-                                <img src="<?php echo esc_url($alt_text_pro_image_url ?: ''); ?>" class="atp-thumb" alt="">
-                                <span class="atp-image-name">
-                                    <?php echo esc_html($alt_text_pro_image->post_title ?: 'Image #' . $alt_text_pro_image->ID); ?>
-                                </span>
-                            </label>
-                        <?php endforeach; ?>
-
-                        <?php if (count($images_without_alt) > 50): ?>
-                            <div class="atp-image-more">
-                                <small><?php
-                                printf(
-                                    // translators: %d: Number of additional images
-                                    esc_html__('%1$d more images...', 'alt-text-pro'),
-                                    count($images_without_alt) - 50
-                                ); ?></small>
-                            </div>
-                        <?php endif; ?>
-                    <?php else: ?>
-                        <p class="atp-muted">
-                            <?php esc_html_e('No images found without alt text.', 'alt-text-pro'); ?>
-                        </p>
-                    <?php endif; ?>
+                <div class="atp-image-picker-controls">
+                    <label class="screen-reader-text" for="image-search"><?php esc_html_e('Search images', 'alt-text-pro'); ?></label>
+                    <input type="search" id="image-search" class="atp-input-sm" placeholder="<?php esc_attr_e('Search title or alt text...', 'alt-text-pro'); ?>">
+                    <label class="screen-reader-text" for="image-filter"><?php esc_html_e('Show', 'alt-text-pro'); ?></label>
+                    <select id="image-filter">
+                        <option value="missing"><?php esc_html_e('Missing alt text', 'alt-text-pro'); ?></option>
+                        <option value="has_alt"><?php esc_html_e('Has alt text', 'alt-text-pro'); ?></option>
+                        <option value="all"><?php esc_html_e('All images', 'alt-text-pro'); ?></option>
+                    </select>
+                </div>
+                <p class="description atp-help">
+                    <?php esc_html_e('Selected images are regenerated even if they already have alt text. Your selection is kept when you search or change page.', 'alt-text-pro'); ?>
+                </p>
+                <div id="image-list" class="atp-image-list" aria-live="polite"></div>
+                <div class="atp-pagination" id="image-pagination" style="display: none;">
+                    <div id="image-page-label"></div>
+                    <div class="atp-actions">
+                        <button type="button" class="button-secondary-custom atp-btn-sm" id="image-page-prev">
+                            <span class="dashicons dashicons-arrow-left-alt2" aria-hidden="true"></span>
+                            <span><?php esc_html_e('Prev', 'alt-text-pro'); ?></span>
+                        </button>
+                        <button type="button" class="button-secondary-custom atp-btn-sm" id="image-page-next">
+                            <span><?php esc_html_e('Next', 'alt-text-pro'); ?></span>
+                            <span class="dashicons dashicons-arrow-right-alt2" aria-hidden="true"></span>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

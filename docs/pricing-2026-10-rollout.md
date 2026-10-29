@@ -26,7 +26,7 @@ Retired from sale: Pro (`tier3`, $14 / 2,000) and the old `pay_as_go` row. Both 
 - **Price:** Polar keeps each existing subscription on the product it was bought with. The old products are archived, not deleted, so renewals keep charging the old price.
 - **Credits:** before the catalogue changes, the migration copies each paid subscriber's current plan credits into `profiles.monthly_credit_allowance` when it is not already set. Every credit check prefers that pinned value. The webhook keeps it while the Polar subscription ID and product ID stay the same (`resolveMonthlyAllowance` in `frontend-next/src/app/api/webhooks/polar/route.ts`).
 - **Switching plans:** a subscriber who changes product or starts a new subscription moves to the new catalogue allowance.
-- **Plan labels:** the dashboard shows legacy Lite and Standard subscribers as Starter and Growth because the plan IDs are shared; their price and credits are unchanged.
+- **Plan labels:** a subscriber whose pinned allowance differs from the current catalogue keeps the legacy name: `tier1` shows as Lite, `tier2` as Standard, `tier3` as Pro (`getPlanDisplayName` in `frontend-next/src/lib/pricing-catalog.ts` and `netlify-functions/utils/subscription-plans.js`). Only a subscriber on the current allowance (or with none pinned) sees Starter, Growth or Agency. Price and credits are unchanged either way. The WordPress plugin still labels `tier1`/`tier2` as Lite/Standard for everyone (see "Not changed").
 
 ## Polar products to create
 
@@ -114,6 +114,41 @@ Each step touching production needs its own go-ahead.
 - Lifecycle email sends: 8 in total, the latest on 2026-08-14, which matches the scheduler having been refused since then.
 - Marketing events in the last 30 days: 169, all `page_viewed`. No sign-up, checkout or purchase events were recorded in that period.
 - Largest usage history for one account: 6,840 rows. No unsubscribed profiles.
+
+## Billing fixes from the 2026-10-29 flow audit
+
+Prepared locally on branch `fix/flow-audit-2026-10`. Nothing has been applied to production.
+
+### Migrations (apply in order, before deploying the code)
+
+| Migration | What it does |
+|---|---|
+| `20261029110000_billing_lifecycle_refunds_and_reconciliation.sql` | Allows `subscription_status = 'past_due'`; adds `payment_reconciliation.resolved_by`; adds `marketing_events.dedupe_key` with a unique index; adds `payment_refunds` and `record_payment_refund()`; adds `find_billing_user_ids_by_email()`; `activate_subscription_profile()` keeps an existing `polar_customer_id`. |
+| `20261029110100_count_plan_usage_by_credit_source.sql` | Adds `usage_logs.credit_source`; `finalize_credit_reservation()` writes it; `reserve_credit()` and `change_subscription_plan()` count only plan-source usage this cycle. Older rows are NULL and count as plan usage (conservative: never grants credits already spent). |
+| `20261029110200_annual_drip_twelve_allowances.sql` | `renew_paid_monthly_credits()` refills annual plans in months 1–11 of the paid period only, so a year has exactly 12 allowances (activation or renewal, plus 11 refills). |
+
+The new webhook code calls `record_payment_refund` and upserts on `marketing_events.dedupe_key`, so refund and cancel/revoke webhooks fail (and Polar retries) until the first migration is applied. The email fallback works without its function (bounded profile lookup).
+
+`supabase/migrations/migration-chain.test.js` still asserts that `20261024140000_…` is the last migration; it needs updating to the newest file.
+
+### Behaviour changes
+
+- **Free accounts no longer become `cancelled`.** A profile with no stored subscription ID never matches an event's subscription. `subscription.canceled`, `uncanceled` and `updated` are ignored for Free profiles; only `subscription.active` binds a new subscription. A paid profile with no stored subscription ID is matched only when its stored Polar product is the event's product; otherwise the event goes to `payment_reconciliation` (`subscription_not_bound`).
+- **Refunds.** `order.refunded` records Polar's cumulative totals and never changes access. `refund.created`/`refund.updated` record each refund by ID and revoke benefits only for a succeeded refund with "revoke benefits" that makes the order fully refunded (refunded amount reaches the pre-tax amount, Polar's own rule). Partial refunds keep `partially_refunded` and revoke nothing, including for credit packs (no proportional clawback). **Check that Polar sends `refund.created` and `refund.updated` to the webhook**, since they are now the only refund events that revoke access.
+- **Past due.** `subscription.updated` with `past_due` or `unpaid` sets `subscription_status = 'past_due'`. The plan stays until Polar sends `active` (back to `active`) or `revoked` (Free). No annual refill runs while past due. Checkout still blocks a second subscription, and packs stay purchasable.
+- **Email fallback** only matches confirmed Auth users, prefers the Auth email over the profile email, and queues the event (`ambiguous_email_match`) when several accounts match. The paginated scan of every Auth user is gone.
+- **Duplicate marketing events** for cancel, uncancel, revoke and refunds are deduplicated by `dedupe_key`.
+- **Customer portal** opens for any signed-in user with a Polar customer: the stored `polar_customer_id`, or the Polar customer whose external ID is the user ID (then stored). Otherwise it returns `404 {"error":"no_billing_account"}`.
+- **`/payment-success`** waits until `/api/checkout-status` reports `account_updated: true`, then goes to `/dashboard?checkout=success` (or `/dashboard?checkout=pending` after about 30 seconds).
+- **`get-subscription`** reports credits like `get-usage`: plan allowance left plus bonus and purchased credits.
+
+### Unmatched payments
+
+`POST /api/admin/reconcile-payment` with `Authorization: Bearer <Supabase access token>` and `{"reconciliation_id", "user_id"}` replays a `payment_reconciliation` row through the webhook handlers for that user, marks it resolved and writes an `audit_logs` row. Admin means an email in `SUPERUSER_EMAILS` with a confirmed address; the variable must be available to the Next.js runtime as well as the functions. Already-resolved rows return 409.
+
+### Production data repair (needs approval)
+
+`scripts/ops/repair-free-cancelled-profiles.js` lists Free + `cancelled` profiles (2 on 2026-10-24) as a dry run. With `--apply` it sets them to `active`, which makes them eligible for the next daily free renewal. Run it after the webhook fix is deployed, so a late event cannot undo it.
 
 ## Rollback
 

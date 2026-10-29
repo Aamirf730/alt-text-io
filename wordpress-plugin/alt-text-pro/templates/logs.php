@@ -51,9 +51,20 @@ if (!defined('ABSPATH')) {
         <div class="card-header">
             <h3><?php esc_html_e('Generation History', 'alt-text-pro'); ?></h3>
             <div class="atp-actions">
-                <label class="screen-reader-text" for="search-logs"><?php esc_html_e('Search alt text', 'alt-text-pro'); ?></label>
-                <input type="search" id="search-logs" class="atp-input-sm" placeholder="<?php esc_attr_e('Search...', 'alt-text-pro'); ?>">
-                <a href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=alt_text_pro_export_logs'), 'alt_text_pro_export_logs')); ?>"
+                <!-- Searches the whole history on the server. -->
+                <form method="get" action="<?php echo esc_url(admin_url('admin.php')); ?>" class="atp-actions" role="search">
+                    <input type="hidden" name="page" value="alt-text-pro-logs">
+                    <label class="screen-reader-text" for="search-logs"><?php esc_html_e('Search alt text', 'alt-text-pro'); ?></label>
+                    <input type="search" id="search-logs" name="s" class="atp-input-sm" value="<?php echo esc_attr($search); ?>" placeholder="<?php esc_attr_e('Search alt text or image...', 'alt-text-pro'); ?>">
+                    <button type="submit" class="button-secondary-custom atp-btn-sm">
+                        <span class="dashicons dashicons-search" aria-hidden="true"></span>
+                        <span><?php esc_html_e('Search', 'alt-text-pro'); ?></span>
+                    </button>
+                    <?php if ($search !== ''): ?>
+                        <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-pro-logs')); ?>" class="atp-btn atp-btn-ghost atp-btn-sm"><?php esc_html_e('Clear', 'alt-text-pro'); ?></a>
+                    <?php endif; ?>
+                </form>
+                <a href="<?php echo esc_url(wp_nonce_url(add_query_arg($search !== '' ? array('s' => rawurlencode($search)) : array(), admin_url('admin-post.php?action=alt_text_pro_export_logs')), 'alt_text_pro_export_logs')); ?>"
                     class="button-secondary-custom atp-btn-sm" id="export-logs"
                     title="<?php esc_attr_e('Download the generation history as CSV. When you search, only matching entries are exported.', 'alt-text-pro'); ?>">
                     <span class="dashicons dashicons-download" aria-hidden="true"></span>
@@ -137,11 +148,14 @@ if (!defined('ABSPATH')) {
                     <div class="atp-actions">
                         <?php
                         $alt_text_pro_base_url = admin_url('admin.php?page=alt-text-pro-logs');
+                        if ($search !== '') {
+                            $alt_text_pro_base_url = add_query_arg('s', rawurlencode($search), $alt_text_pro_base_url);
+                        }
                         if ($current_page > 1) {
-                            echo '<a href="' . esc_url($alt_text_pro_base_url . '&paged=' . ($current_page - 1)) . '" class="button-secondary-custom atp-btn-sm"><span class="dashicons dashicons-arrow-left-alt2" aria-hidden="true"></span><span>' . esc_html__('Prev', 'alt-text-pro') . '</span></a>';
+                            echo '<a href="' . esc_url(add_query_arg('paged', $current_page - 1, $alt_text_pro_base_url)) . '" class="button-secondary-custom atp-btn-sm"><span class="dashicons dashicons-arrow-left-alt2" aria-hidden="true"></span><span>' . esc_html__('Prev', 'alt-text-pro') . '</span></a>';
                         }
                         if ($current_page < $total_pages) {
-                            echo '<a href="' . esc_url($alt_text_pro_base_url . '&paged=' . ($current_page + 1)) . '" class="button-secondary-custom atp-btn-sm"><span>' . esc_html__('Next', 'alt-text-pro') . '</span><span class="dashicons dashicons-arrow-right-alt2" aria-hidden="true"></span></a>';
+                            echo '<a href="' . esc_url(add_query_arg('paged', $current_page + 1, $alt_text_pro_base_url)) . '" class="button-secondary-custom atp-btn-sm"><span>' . esc_html__('Next', 'alt-text-pro') . '</span><span class="dashicons dashicons-arrow-right-alt2" aria-hidden="true"></span></a>';
                         }
                         ?>
                     </div>
@@ -151,7 +165,7 @@ if (!defined('ABSPATH')) {
         <?php else: ?>
             <div class="atp-empty-state">
                 <span class="atp-icon-chip is-lg" aria-hidden="true"><span class="dashicons dashicons-list-view"></span></span>
-                <h3><?php esc_html_e('No logs found', 'alt-text-pro'); ?></h3>
+                <h3><?php echo esc_html($search !== '' ? __('No entries match your search', 'alt-text-pro') : __('No logs found', 'alt-text-pro')); ?></h3>
                 <p>
                     <?php esc_html_e('Start generating alt-text to see history here.', 'alt-text-pro'); ?></p>
                 <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-pro-bulk')); ?>"

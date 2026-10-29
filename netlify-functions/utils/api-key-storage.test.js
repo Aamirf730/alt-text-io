@@ -23,6 +23,13 @@ describe('M5 API-key storage wiring', () => {
     expect(endpointSource).toContain("Buffer.from(event.body, 'base64')");
   });
 
+  it('refuses to hand a key to a suspended account', () => {
+    expect(endpointSource).toContain(".select('blocked_at')");
+    expect(endpointSource).toContain("error: 'account_suspended'");
+    expect(endpointSource.indexOf("error: 'account_suspended'"))
+      .toBeLessThan(endpointSource.indexOf(".rpc('issue_api_key'"));
+  });
+
   it('validates through the hash and keeps legacy migration explicit', () => {
     expect(validatorSource).toContain(".eq('api_key_hash', apiKeyHash)");
     expect(validatorSource).toContain('encryptApiKey(apiKey)');
@@ -31,7 +38,7 @@ describe('M5 API-key storage wiring', () => {
   });
 
   it('uses one API-key validator and does not log generated customer content', () => {
-    expect(authValidateSource).toContain('const validatedUser = await validateApiKey(token)');
+    expect(authValidateSource).toContain('const validation = await validateApiKeyResult(token)');
     expect(authValidateSource).toContain('const AUTH_USER_REQUEST_TIMEOUT_MS = 5000');
     expect(authValidateSource).toContain('signal: AbortSignal.timeout(AUTH_USER_REQUEST_TIMEOUT_MS)');
     expect(authValidateSource).not.toContain(".rpc('validate_api_key'");

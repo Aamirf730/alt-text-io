@@ -3,15 +3,18 @@
 import React, { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Image from "next/image";
-import { supabase } from "@/lib/supabase";
+import Link from "next/link";
+import type { Session } from "@supabase/supabase-js";
+import { getAccessToken, supabase } from "@/lib/supabase";
 import { getApiBase } from "@/lib/utils";
 import { trackMarketingEvent } from "@/lib/analytics";
+import { EXISTING_ACCOUNT_MESSAGE, isExistingAccountSignUp } from "@/lib/auth-redirect";
 import { toast } from "sonner";
 import GoogleIdentityButton from "@/components/GoogleIdentityButton";
 import "./connect-states.css";
 import {
     Key, Eye, EyeOff, CheckCircle, Loader2, ArrowRight,
-    Shield, Zap, AlertTriangle, Copy
+    Shield, Zap, AlertTriangle, Copy, Mail, RefreshCw, LayoutDashboard
 } from "lucide-react";
 
 type CallbackTarget = {
@@ -19,37 +22,16 @@ type CallbackTarget = {
     host: string;
 };
 
+// "send" delivers the key to the WordPress opener; "manual" shows it for copying.
+type KeyDeliveryMode = "send" | "manual";
+
 const CONNECT_ACK_MINIMUM_VERSION = [1, 7, 11] as const;
-const PENDING_SIGNUP_KEY = "alt_text_pro_pending_signup";
-const PENDING_SIGNUP_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+// While a new account waits for email confirmation, check for a session this
+// often. The confirmation link usually opens in another tab, which shares
+// localStorage with this popup.
+const CONFIRMATION_POLL_INTERVAL_MS = 3000;
 
-function rememberPendingSignup(emailAddress: string) {
-    if (typeof window === "undefined") return;
-
-    window.localStorage.setItem(PENDING_SIGNUP_KEY, JSON.stringify({
-        email: emailAddress.trim().toLowerCase(),
-        createdAt: Date.now(),
-    }));
-}
-
-function consumePendingSignup(emailAddress: string) {
-    if (typeof window === "undefined") return false;
-
-    const raw = window.localStorage.getItem(PENDING_SIGNUP_KEY);
-    window.localStorage.removeItem(PENDING_SIGNUP_KEY);
-    if (!raw) return false;
-
-    try {
-        const pending = JSON.parse(raw);
-        const isRecent = Number.isFinite(pending.createdAt)
-            && Date.now() - pending.createdAt <= PENDING_SIGNUP_MAX_AGE_MS;
-        const isSameAccount = typeof pending.email === "string"
-            && pending.email === emailAddress.trim().toLowerCase();
-        return isRecent && isSameAccount;
-    } catch {
-        return false;
-    }
-}
+class KeyRotationRequiredError extends Error {}
 
 function hasWordPressConnectContext(queryCallbackUrl: string, querySource: string) {
     if (queryCallbackUrl || querySource === "wordpress_plugin") return true;
@@ -59,6 +41,16 @@ function hasWordPressConnectContext(queryCallbackUrl: string, querySource: strin
         window.sessionStorage.getItem("alt_text_pro_callback")
         || window.sessionStorage.getItem("alt_text_pro_source") === "wordpress_plugin"
     );
+}
+
+/** True when this window was opened by a WordPress page that is still open. */
+function hasLiveOpener() {
+    if (typeof window === "undefined") return false;
+    try {
+        return Boolean(window.opener && !window.opener.closed);
+    } catch {
+        return false;
+    }
 }
 
 const pluginSupportsConnectAcknowledgement = (version: string) => {
@@ -126,14 +118,24 @@ function ConnectPageContent() {
     // Shown after sign-up, or when sign-in fails because the email is unconfirmed.
     const [canResendConfirmation, setCanResendConfirmation] = useState(false);
     const [statusMessage, setStatusMessage] = useState("Connecting your account...");
-    const [hasCallbackTarget, setHasCallbackTarget] = useState(Boolean(queryCallbackUrl));
     const [callbackTarget, setCallbackTarget] = useState<CallbackTarget | null>(null);
     const [pendingAccessToken, setPendingAccessToken] = useState("");
     const [isAwaitingConfirmation, setIsAwaitingConfirmation] = useState(false);
     const [manualApiKey, setManualApiKey] = useState("");
     const [isApiKeyCopied, setIsApiKeyCopied] = useState(false);
     const [isManualApiKeyVisible, setIsManualApiKeyVisible] = useState(false);
-    const [signupRedirectUrl, setSignupRedirectUrl] = useState("");
+    // Email address of a new account waiting for its confirmation link.
+    const [pendingSignupEmail, setPendingSignupEmail] = useState("");
+    // The account was confirmed in a tab with no WordPress opener.
+    const [isDetachedFromWordPress, setIsDetachedFromWordPress] = useState(false);
+    // A signed-in visit without a WordPress callback (direct visit or after cancel).
+    const [hasNoConnectRequest, setHasNoConnectRequest] = useState(false);
+    const [connectionCancelled, setConnectionCancelled] = useState(false);
+    // get-api-key answered 409 api_key_rotation_required.
+    const [rotationMode, setRotationMode] = useState<KeyDeliveryMode | null>(null);
+    const [rotationMessage, setRotationMessage] = useState("");
+    const handoffStartedRef = useRef(false);
+    const connectStartedTrackedRef = useRef(false);
 
     useEffect(() => {
         if (typeof window === "undefined") {
@@ -143,18 +145,10 @@ function ConnectPageContent() {
         const validCallbackUrl = queryCallbackUrl && getCallbackTarget(queryCallbackUrl)
             ? queryCallbackUrl
             : "";
-        const redirectUrl = new URL("/connect", window.location.origin);
-        if (validCallbackUrl) redirectUrl.searchParams.set("callback_url", validCallbackUrl);
-        if (queryState) redirectUrl.searchParams.set("state", queryState);
-        if (querySource) redirectUrl.searchParams.set("source", querySource);
-        if (queryPluginVersion) redirectUrl.searchParams.set("plugin_version", queryPluginVersion);
-        setSignupRedirectUrl(redirectUrl.toString());
 
         if (validCallbackUrl) {
-            setHasCallbackTarget(true);
             sessionStorage.setItem("alt_text_pro_callback", validCallbackUrl);
         } else if (queryCallbackUrl) {
-            setHasCallbackTarget(false);
             sessionStorage.removeItem("alt_text_pro_callback");
             setError("Invalid callback destination. Please start the connection again from your WordPress plugin.");
         }
@@ -177,6 +171,9 @@ function ConnectPageContent() {
     }, [queryCallbackUrl, queryState, querySource, queryPluginVersion]);
 
     useEffect(() => {
+        // Clearing the address bar re-renders with empty params; count the visit once.
+        if (connectStartedTrackedRef.current) return;
+        connectStartedTrackedRef.current = true;
         trackMarketingEvent("connect_started", {
             source: "wordpress_connect",
             properties: {
@@ -224,6 +221,20 @@ function ConnectPageContent() {
         };
     };
 
+    // The confirmation email links back to /connect with the same WordPress
+    // context, so the confirmation tab knows which site it belongs to. Built
+    // when needed because the address bar has already been cleared.
+    const buildSignupRedirectUrl = () => {
+        const { callbackUrl, state, source, pluginVersion } = resolveConnectContext();
+        const redirectUrl = new URL("/connect", window.location.origin);
+        const validCallbackUrl = callbackUrl && getCallbackTarget(callbackUrl) ? callbackUrl : "";
+        if (validCallbackUrl) redirectUrl.searchParams.set("callback_url", validCallbackUrl);
+        if (state) redirectUrl.searchParams.set("state", state);
+        if (source) redirectUrl.searchParams.set("source", source);
+        if (pluginVersion) redirectUrl.searchParams.set("plugin_version", pluginVersion);
+        return redirectUrl.toString();
+    };
+
     const clearConnectContext = () => {
         if (typeof window === "undefined") {
             return;
@@ -235,14 +246,22 @@ function ConnectPageContent() {
         sessionStorage.removeItem("alt_text_pro_plugin_version");
     };
 
+    const resetResultStates = () => {
+        setIsAwaitingConfirmation(false);
+        setIsDetachedFromWordPress(false);
+        setHasNoConnectRequest(false);
+        setConnectionCancelled(false);
+        setRotationMode(null);
+        setRotationMessage("");
+    };
+
     const showManualRecovery = (apiKey: string, message: string) => {
         clearConnectContext();
+        resetResultStates();
         setManualApiKey(apiKey);
         setIsApiKeyCopied(false);
         setIsManualApiKeyVisible(false);
-        setIsAwaitingConfirmation(false);
         setCallbackTarget(null);
-        setHasCallbackTarget(false);
         setConnected(false);
         setIsConnecting(false);
         setError("");
@@ -354,7 +373,11 @@ function ConnectPageContent() {
         }
     });
 
+    // Decide what a signed-in visitor sees. A key is only ever fetched after
+    // the visitor confirms the WordPress site (or asks to copy it manually).
     const prepareAuthenticatedConnection = async (accessToken: string) => {
+        setPendingSignupEmail("");
+        resetResultStates();
         const { callbackUrl } = resolveConnectContext();
         const target = getCallbackTarget(callbackUrl);
 
@@ -364,34 +387,81 @@ function ConnectPageContent() {
             return;
         }
 
-        if (target) {
-            setCallbackTarget(target);
-            setPendingAccessToken(accessToken);
-            setHasCallbackTarget(true);
-            setStatusMessage(`Your account is ready. Confirm that ${target.host} is your WordPress site.`);
-            setIsAwaitingConfirmation(true);
+        if (!target) {
+            // Direct visit: no WordPress site is waiting, so nothing is sent
+            // and no connection is recorded.
+            setHasNoConnectRequest(true);
             return;
         }
 
-        await fetchKeyAndRedirect(accessToken);
+        setCallbackTarget(target);
+        setPendingAccessToken(accessToken);
+
+        if (!hasLiveOpener()) {
+            // Typically the tab opened from the confirmation email. The
+            // WordPress popup picks up the new session and finishes there.
+            setIsDetachedFromWordPress(true);
+            return;
+        }
+
+        setStatusMessage(`Your account is ready. Confirm that ${target.host} is your WordPress site.`);
+        setIsAwaitingConfirmation(true);
     };
 
+    const continueWithSession = async (session: Session) => {
+        if (handoffStartedRef.current) return;
+        handoffStartedRef.current = true;
+        setUser(session.user);
+        authenticatedEmailRef.current = session.user.email || null;
+        setError("");
+        await prepareAuthenticatedConnection(session.access_token);
+    };
+    const continueWithSessionRef = useRef(continueWithSession);
+    useEffect(() => {
+        continueWithSessionRef.current = continueWithSession;
+    });
+
     const confirmConnection = async () => {
-        if (!pendingAccessToken || !callbackTarget) {
+        if (!callbackTarget) {
             return;
         }
 
         setIsAwaitingConfirmation(false);
-        await fetchKeyAndRedirect(pendingAccessToken);
+        await deliverApiKey("send");
     };
 
     const cancelConnection = () => {
         clearConnectContext();
+        resetResultStates();
         setPendingAccessToken("");
         setCallbackTarget(null);
-        setIsAwaitingConfirmation(false);
-        setHasCallbackTarget(false);
-        setError("Connection cancelled. No API key was sent.");
+        setIsConnecting(false);
+        setError("");
+        setConnectionCancelled(true);
+    };
+
+    // Sign out here only; the WordPress context stays so the next account can connect.
+    const switchAccount = async () => {
+        setIsLoading(true);
+        try {
+            const { error: signOutError } = await supabase.auth.signOut({ scope: "local" });
+            if (signOutError) {
+                setError(signOutError.message);
+                return;
+            }
+            resetResultStates();
+            handoffStartedRef.current = false;
+            setUser(null);
+            authenticatedEmailRef.current = null;
+            setPendingAccessToken("");
+            setPassword("");
+            setIsLogin(true);
+            setError("");
+        } catch {
+            setError("Could not sign out. Please try again.");
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     const copyManualApiKey = async () => {
@@ -409,13 +479,7 @@ function ConnectPageContent() {
             try {
                 const { data: { session } } = await supabase.auth.getSession();
                 if (session?.user) {
-                    setUser(session.user);
-                    authenticatedEmailRef.current = session.user.email || null;
-                    // Clear a pending signup marker left by the email-confirmation
-                    // flow, but do not treat a routine authenticated visit as a
-                    // new signup.
-                    consumePendingSignup(session.user.email || "");
-                    await prepareAuthenticatedConnection(session.access_token);
+                    await continueWithSessionRef.current(session);
                 }
             } catch (err) {
                 console.error("Auth check error:", err);
@@ -424,118 +488,182 @@ function ConnectPageContent() {
             }
         };
         checkAuth();
-        // Auth bootstrap intentionally runs once for the initial connect context.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // Fetch the API key and deliver it only to the verified opener window.
-    const fetchKeyAndRedirect = async (accessToken: string) => {
+    // After an email sign-up, continue as soon as the account is confirmed.
+    // The confirmation link normally opens in a new tab; Supabase shares the
+    // new session through localStorage, announced by onAuthStateChange and
+    // picked up by the poll if the broadcast is missed.
+    useEffect(() => {
+        if (!pendingSignupEmail) return;
+        let active = true;
+
+        const continueIfSignedIn = (session: Session | null) => {
+            if (!active || !session?.user) return;
+            void continueWithSessionRef.current(session);
+        };
+
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+            if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION") {
+                // Supabase must not be awaited inside its own callback.
+                window.setTimeout(() => continueIfSignedIn(session), 0);
+            }
+        });
+
+        const pollTimer = window.setInterval(async () => {
+            try {
+                const { data: { session } } = await supabase.auth.getSession();
+                continueIfSignedIn(session);
+            } catch {
+                // Keep waiting; the next poll or the auth event will retry.
+            }
+        }, CONFIRMATION_POLL_INTERVAL_MS);
+
+        return () => {
+            active = false;
+            subscription.unsubscribe();
+            window.clearInterval(pollTimer);
+        };
+    }, [pendingSignupEmail]);
+
+    const requestApiKey = async (rotate: boolean) => {
+        const accessToken = (await getAccessToken()) || pendingAccessToken;
+        if (!accessToken) {
+            throw new Error("Your session expired. Sign in again to continue.");
+        }
+
+        const response = await fetch(`${getApiBase()}/get-api-key`, {
+            method: rotate ? "POST" : "GET",
+            headers: {
+                Authorization: `Bearer ${accessToken}`,
+                "Content-Type": "application/json",
+            },
+            ...(rotate ? { body: JSON.stringify({ rotate: true }) } : {}),
+        });
+        const data = await response.json().catch(() => ({}));
+
+        if (response.status === 409 && data.code === "api_key_rotation_required") {
+            throw new KeyRotationRequiredError(
+                data.error || "Your stored API key could not be recovered. Generate a new key to continue.",
+            );
+        }
+
+        if (response.status === 401) {
+            throw new Error("Your session expired. Sign in again to continue.");
+        }
+
+        if (!response.ok || !data.success || !data.api_key) {
+            throw new Error(data.error || "Failed to fetch API key");
+        }
+
+        return { apiKey: String(data.api_key), userId: data.user_id as string | undefined };
+    };
+
+    // Fetch the API key and deliver it only to the verified opener window,
+    // or show it for manual copying.
+    const deliverApiKey = async (mode: KeyDeliveryMode, rotate = false) => {
         setIsConnecting(true);
         setError("");
-        setStatusMessage("Connecting your account...");
+        setRotationMode(null);
+        setStatusMessage(rotate ? "Generating a new API key..." : "Connecting your account...");
 
         try {
             const { callbackUrl, state, source, pluginVersion } = resolveConnectContext();
             const requiresConnectAcknowledgement = pluginSupportsConnectAcknowledgement(pluginVersion);
             const target = getCallbackTarget(callbackUrl);
-            if (callbackUrl && !target) {
-                throw new Error("Invalid callback destination. Please start the connection again from your WordPress plugin.");
-            }
-            setHasCallbackTarget(Boolean(target));
-            const apiBase = getApiBase();
-            const response = await fetch(`${apiBase}/get-api-key`, {
-                method: "GET",
-                headers: {
-                    Authorization: `Bearer ${accessToken}`,
-                    "Content-Type": "application/json",
-                },
-            });
-
-            if (!response.ok) {
-                throw new Error("Failed to fetch API key");
+            if (mode === "send" && !target) {
+                throw new Error("This connection request is no longer active. Start the connection again from your WordPress plugin.");
             }
 
-            const data = await response.json();
+            let key: { apiKey: string; userId?: string };
+            try {
+                key = await requestApiKey(rotate);
+            } catch (keyError) {
+                if (keyError instanceof KeyRotationRequiredError) {
+                    setRotationMessage(keyError.message);
+                    setRotationMode(mode);
+                    setIsConnecting(false);
+                    return;
+                }
+                throw keyError;
+            }
 
-            if (data.success && data.api_key) {
-                if (target && (!window.opener || window.opener.closed)) {
+            if (mode === "manual") {
+                showManualRecovery(
+                    key.apiKey,
+                    "This tab can't hand the key to WordPress automatically. Copy it and paste it into the plugin settings.",
+                );
+                return;
+            }
+
+            if (!target || !hasLiveOpener()) {
+                showManualRecovery(
+                    key.apiKey,
+                    "The WordPress window closed before the key could be sent. Copy the key below to finish.",
+                );
+                return;
+            }
+
+            setStatusMessage("Sending your API key back to WordPress...");
+
+            const requestId = createConnectRequestId();
+            if (requiresConnectAcknowledgement) {
+                try {
+                    // Newer plugins acknowledge only after saving the key.
+                    await sendKeyAndWaitForAcknowledgement(target, key.apiKey, state, requestId);
+                } catch (deliveryError) {
+                    console.error("Connect acknowledgement failed", deliveryError);
                     showManualRecovery(
-                        data.api_key,
-                        "The WordPress window closed before the connection could be confirmed.",
+                        key.apiKey,
+                        "We could not confirm that WordPress saved your key. You can copy it below and finish manually.",
                     );
                     return;
                 }
-
-                setStatusMessage(
-                    target
-                        ? "Sending your API key back to WordPress..."
-                        : "Your API key is ready."
+            } else if (!sendKeyToOpener(target, key.apiKey, state, requestId)) {
+                // Older plugins do not send acknowledgements, so retain
+                // the legacy post-and-assume-success behavior for them.
+                showManualRecovery(
+                    key.apiKey,
+                    "The WordPress window closed before the key could be sent. Copy the key below to finish.",
                 );
-
-                if (target) {
-                    const requestId = createConnectRequestId();
-                    if (requiresConnectAcknowledgement) {
-                        try {
-                            // Newer plugins acknowledge only after saving the key.
-                            await sendKeyAndWaitForAcknowledgement(target, data.api_key, state, requestId);
-                        } catch (deliveryError) {
-                            console.error("Connect acknowledgement failed", deliveryError);
-                            showManualRecovery(
-                                data.api_key,
-                                "We could not confirm that WordPress saved your key. You can copy it below and finish manually.",
-                            );
-                            return;
-                        }
-                    } else if (!sendKeyToOpener(target, data.api_key, state, requestId)) {
-                        // Older plugins do not send acknowledgements, so retain
-                        // the legacy post-and-assume-success behavior for them.
-                        showManualRecovery(
-                            data.api_key,
-                            "The WordPress window closed before the connection could be confirmed.",
-                        );
-                        return;
-                    }
-                }
-
-                setConnected(true);
-
-                clearConnectContext();
-
-                trackMarketingEvent("connect_completed", {
-                    source: "wordpress_connect",
-                    userId: data.user_id,
-                    userEmail: authenticatedEmailRef.current,
-                    properties: {
-                        has_callback: Boolean(callbackUrl),
-                        source: source || "direct",
-                        plugin_version: pluginVersion || undefined,
-                    },
-                });
-
-                if (target) {
-                    setStatusMessage(
-                        requiresConnectAcknowledgement
-                            ? "Connected. WordPress confirmed the key was saved. Closing this window..."
-                            : "Key sent to WordPress. Closing this window..."
-                    );
-                    setTimeout(() => {
-                        try {
-                            window.close();
-                        } catch (closeError) {
-                            console.error("window.close failed", closeError);
-                        }
-                    }, 1500);
-                } else {
-                    // Direct visits do not deliver the key to an opener.
-                    setIsConnecting(false);
-                }
-            } else {
-                throw new Error("No API key returned");
+                return;
             }
+
+            setConnected(true);
+
+            clearConnectContext();
+
+            trackMarketingEvent("connect_completed", {
+                source: "wordpress_connect",
+                userId: key.userId,
+                userEmail: authenticatedEmailRef.current,
+                properties: {
+                    has_callback: true,
+                    source: source || "direct",
+                    plugin_version: pluginVersion || undefined,
+                },
+            });
+
+            setStatusMessage(
+                requiresConnectAcknowledgement
+                    ? "Connected. WordPress confirmed the key was saved. Closing this window..."
+                    : "Key sent to WordPress. Closing this window..."
+            );
+            setTimeout(() => {
+                try {
+                    window.close();
+                } catch (closeError) {
+                    console.error("window.close failed", closeError);
+                }
+            }, 1500);
         } catch (err: any) {
             console.error("Connect error:", err);
             setError(err.message || "Failed to connect. Please try again.");
             setIsConnecting(false);
+            if (mode === "send" && callbackTarget && hasLiveOpener()) {
+                // Let the visitor retry from the confirm screen.
+                setIsAwaitingConfirmation(true);
+            }
         }
     };
 
@@ -565,7 +693,7 @@ function ConnectPageContent() {
     };
 
     const handleResendConfirmation = async () => {
-        const normalizedEmail = email.trim();
+        const normalizedEmail = (pendingSignupEmail || email).trim();
         if (!normalizedEmail) {
             setError("Enter your email address first.");
             return;
@@ -577,18 +705,66 @@ function ConnectPageContent() {
             const { error: resendError } = await supabase.auth.resend({
                 type: "signup",
                 email: normalizedEmail,
-                options: { emailRedirectTo: signupRedirectUrl || window.location.href },
+                options: { emailRedirectTo: buildSignupRedirectUrl() },
             });
             if (resendError) {
                 setError(resendError.message);
                 return;
             }
-            toast.success("We sent a new confirmation email. Confirm it, then come back here.");
+            toast.success("We sent a new confirmation email. Open the link in it and this window will continue.");
         } catch {
             setError("Could not resend the confirmation email. Please try again.");
         } finally {
             setIsLoading(false);
         }
+    };
+
+    // "I've confirmed — continue": use a shared session if there is one,
+    // otherwise sign in with the password just entered (confirmation may
+    // have happened in another browser or on a phone).
+    const handleConfirmedContinue = async () => {
+        setIsLoading(true);
+        setError("");
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.user) {
+                await continueWithSession(session);
+                return;
+            }
+
+            if (!password) {
+                setPendingSignupEmail("");
+                setIsLogin(true);
+                setError("Sign in with your new account to continue.");
+                return;
+            }
+
+            const result = await supabase.auth.signInWithPassword({
+                email: pendingSignupEmail || email,
+                password,
+            });
+            if (result.error) {
+                setError(
+                    /email not confirmed/i.test(result.error.message)
+                        ? `We haven't seen your confirmation yet. Open the link we sent to ${pendingSignupEmail || email}, then try again.`
+                        : result.error.message,
+                );
+                return;
+            }
+            if (result.data.session) {
+                await continueWithSession(result.data.session);
+            }
+        } catch {
+            setError("Could not check your confirmation. Please try again.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const leaveConfirmationWait = () => {
+        setPendingSignupEmail("");
+        setIsLogin(true);
+        setError("");
     };
 
     // Handle email/password authentication
@@ -612,11 +788,7 @@ function ConnectPageContent() {
                     email,
                     password,
                     options: {
-                        emailRedirectTo: signupRedirectUrl || window.location.href,
-                        data: {
-                            subscription_plan: "free",
-                            credits_remaining: 165,
-                        },
+                        emailRedirectTo: buildSignupRedirectUrl(),
                     },
                 });
             }
@@ -625,15 +797,17 @@ function ConnectPageContent() {
                 setError(result.error.message);
                 setCanResendConfirmation(isLogin && /email not confirmed/i.test(result.error.message));
             } else if (result.data.user) {
-                if (!isLogin && !result.data.session) {
-                    rememberPendingSignup(result.data.user.email || "");
+                if (!isLogin && isExistingAccountSignUp(result.data.user, Boolean(result.data.session))) {
+                    // Supabase sends no email for an existing address.
+                    setIsLogin(true);
+                    setCanResendConfirmation(false);
+                    setError(EXISTING_ACCOUNT_MESSAGE);
+                } else if (!isLogin && !result.data.session) {
+                    // Sign up — wait here for the email confirmation.
+                    handoffStartedRef.current = false;
                     setCanResendConfirmation(true);
-
-                    // Sign up — needs email confirmation
                     setError("");
-                    toast.success(
-                        "Account created! Please check your email to confirm, then come back here."
-                    );
+                    setPendingSignupEmail(result.data.user.email || email.trim());
                 } else {
                     if (!isLogin) {
                         trackMarketingEvent("signup_created", {
@@ -648,15 +822,14 @@ function ConnectPageContent() {
                     }
 
                     // Logged in — require destination confirmation before fetching the API key.
-                    setUser(result.data.user);
-                    authenticatedEmailRef.current = result.data.user.email || null;
                     const session = result.data.session;
                     if (session) {
-                        await prepareAuthenticatedConnection(session.access_token);
+                        handoffStartedRef.current = false;
+                        await continueWithSession(session);
                     }
                 }
             }
-        } catch (err: any) {
+        } catch {
             setError("Authentication failed. Please try again.");
         } finally {
             setIsLoading(false);
@@ -670,8 +843,6 @@ function ConnectPageContent() {
             throw new Error("Google sign-in completed without a usable session.");
         }
 
-        setUser(session.user);
-        authenticatedEmailRef.current = session.user.email || null;
         if (hasWordPressConnectContext(queryCallbackUrl, querySource)) {
             trackMarketingEvent("signup_created", {
                 source: "wordpress_connect",
@@ -681,8 +852,27 @@ function ConnectPageContent() {
                 },
             });
         }
-        await prepareAuthenticatedConnection(session.access_token);
+        handoffStartedRef.current = false;
+        await continueWithSession(session);
     };
+
+    const accountEmail: string = user?.email || authenticatedEmailRef.current || "";
+
+    const errorBanner = error ? (
+        <div className="connect-error" role="alert">
+            <AlertTriangle size={16} />
+            <span>{error}</span>
+        </div>
+    ) : null;
+
+    const signedInAccountRow = accountEmail ? (
+        <div className="connect-account">
+            <div className="connect-account-text">
+                <p className="connect-account-label">Signed in as</p>
+                <p className="connect-account-email">{accountEmail}</p>
+            </div>
+        </div>
+    ) : null;
 
     // Loading state while checking auth
     if (isCheckingAuth) {
@@ -692,36 +882,6 @@ function ConnectPageContent() {
                     <div className="connect-loading">
                         <Loader2 className="animate-spin" size={40} />
                         <p>Checking your account...</p>
-                    </div>
-                </div>
-            </main>
-        );
-    }
-
-    if (isAwaitingConfirmation && callbackTarget) {
-        return (
-            <main className="connect-page">
-                <div className="connect-card">
-                    <div className="connect-confirmation">
-                        <Shield size={52} className="confirmation-icon" />
-                        <h2>Confirm WordPress connection</h2>
-                        <p>Your account is signed in. Send your API key to this WordPress site?</p>
-                        <div className="confirmation-target">{callbackTarget.host}</div>
-                        <p className="confirmation-note">
-                            Continue only if you recognize this site. The key will be sent only to this site and will not be placed in a URL.
-                        </p>
-                        {error && (
-                            <div className="connect-error">
-                                <AlertTriangle size={16} />
-                                <span>{error}</span>
-                            </div>
-                        )}
-                        <button type="button" className="connect-submit-btn" onClick={confirmConnection}>
-                            Send API Key to {callbackTarget.host}
-                        </button>
-                        <button type="button" className="connect-cancel-btn" onClick={cancelConnection}>
-                            Cancel
-                        </button>
                     </div>
                 </div>
             </main>
@@ -775,12 +935,7 @@ function ConnectPageContent() {
                                 <span>{isApiKeyCopied ? "Copied" : "Copy key"}</span>
                             </button>
                         </div>
-                        {error && (
-                            <div className="connect-error">
-                                <AlertTriangle size={16} />
-                                <span>{error}</span>
-                            </div>
-                        )}
+                        {errorBanner}
                         <ol className="recovery-steps" aria-label="Manual connection steps">
                             <li><span>1</span><p>Return to your WordPress admin.</p></li>
                             <li><span>2</span><p>Open <strong>Alt Text Pro → Settings</strong>.</p></li>
@@ -799,7 +954,7 @@ function ConnectPageContent() {
         );
     }
 
-    // Connected successfully
+    // Connected successfully (only reachable after a key was delivered to WordPress)
     if (connected) {
         return (
             <main className="connect-page">
@@ -807,11 +962,7 @@ function ConnectPageContent() {
                     <div className="connect-success">
                         <CheckCircle size={64} className="success-icon" />
                         <h2>Connected!</h2>
-                        <p>
-                            {hasCallbackTarget
-                                ? statusMessage
-                                : "Your API key is ready. You can close this window."}
-                        </p>
+                        <p>{statusMessage}</p>
                     </div>
                 </div>
             </main>
@@ -826,6 +977,208 @@ function ConnectPageContent() {
                     <div className="connect-loading">
                         <Loader2 className="animate-spin" size={40} />
                         <p>{statusMessage}</p>
+                    </div>
+                </div>
+            </main>
+        );
+    }
+
+    if (rotationMode) {
+        return (
+            <main className="connect-page">
+                <div className="connect-card">
+                    <div className="connect-confirmation">
+                        <RefreshCw size={52} className="confirmation-icon" />
+                        <h2>Your API key needs to be replaced</h2>
+                        <p>{rotationMessage}</p>
+                        <div className="connect-warning" role="note">
+                            <AlertTriangle size={16} aria-hidden="true" />
+                            <span>
+                                Generating a new key stops the old one immediately. Every other WordPress site that
+                                uses the old key is disconnected until you reconnect it.
+                            </span>
+                        </div>
+                        {errorBanner}
+                        <button
+                            type="button"
+                            className="connect-submit-btn"
+                            onClick={() => void deliverApiKey(rotationMode, true)}
+                        >
+                            {rotationMode === "send" && callbackTarget
+                                ? `Generate new key and connect ${callbackTarget.host}`
+                                : "Generate new key"}
+                        </button>
+                        <button type="button" className="connect-cancel-btn" onClick={cancelConnection}>
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            </main>
+        );
+    }
+
+    if (pendingSignupEmail) {
+        return (
+            <main className="connect-page">
+                <div className="connect-card">
+                    <div className="connect-confirmation" aria-live="polite">
+                        <Mail size={52} className="confirmation-icon" />
+                        <h2>Confirm your email</h2>
+                        <p>We sent a confirmation link to</p>
+                        <div className="connect-waiting-email">{pendingSignupEmail}</div>
+                        <p className="connect-waiting-status" role="status">
+                            <Loader2 className="animate-spin" size={16} aria-hidden="true" />
+                            Waiting for you to confirm your email…
+                        </p>
+                        <p>
+                            Open the link in the email. This window continues on its own once your
+                            email is confirmed, so keep it open.
+                        </p>
+                        <div className="connect-actions">
+                            {errorBanner}
+                            <button
+                                type="button"
+                                className="connect-submit-btn"
+                                onClick={() => void handleConfirmedContinue()}
+                                disabled={isLoading}
+                            >
+                                I&apos;ve confirmed — continue
+                                <ArrowRight size={18} />
+                            </button>
+                            <button
+                                type="button"
+                                className="connect-secondary-btn"
+                                onClick={() => void handleResendConfirmation()}
+                                disabled={isLoading}
+                            >
+                                Resend confirmation email
+                            </button>
+                        </div>
+                        <button type="button" className="connect-cancel-btn" onClick={leaveConfirmationWait}>
+                            Use a different email
+                        </button>
+                    </div>
+                </div>
+            </main>
+        );
+    }
+
+    if (isAwaitingConfirmation && callbackTarget) {
+        return (
+            <main className="connect-page">
+                <div className="connect-card">
+                    <div className="connect-confirmation">
+                        <Shield size={52} className="confirmation-icon" />
+                        <h2>Confirm WordPress connection</h2>
+                        <p>Send your API key to this WordPress site?</p>
+                        <div className="confirmation-target">{callbackTarget.host}</div>
+                        <p className="confirmation-note">
+                            Continue only if you recognize this site. The key will be sent only to this site and will not be placed in a URL.
+                        </p>
+                        {errorBanner}
+                        <button type="button" className="connect-submit-btn" onClick={confirmConnection}>
+                            Send API Key to {callbackTarget.host}
+                        </button>
+                        <button type="button" className="connect-cancel-btn" onClick={cancelConnection}>
+                            Cancel
+                        </button>
+                        {signedInAccountRow}
+                        <button
+                            type="button"
+                            className="connect-cancel-btn"
+                            onClick={() => void switchAccount()}
+                            disabled={isLoading}
+                        >
+                            Use a different account
+                        </button>
+                    </div>
+                </div>
+            </main>
+        );
+    }
+
+    if (isDetachedFromWordPress && callbackTarget) {
+        return (
+            <main className="connect-page">
+                <div className="connect-card">
+                    <div className="connect-confirmation">
+                        <CheckCircle size={52} className="confirmation-icon" />
+                        <h2>Return to the WordPress connection window to finish</h2>
+                        <p>
+                            Your account is ready. Go back to the Alt Text Pro window you opened from
+                            WordPress. It continues on its own and asks you to confirm this site:
+                        </p>
+                        <div className="confirmation-target">{callbackTarget.host}</div>
+                        <p className="confirmation-note">You can close this tab.</p>
+                        {errorBanner}
+                        <button type="button" className="connect-submit-btn" onClick={() => window.close()}>
+                            Close this tab
+                        </button>
+                        <button
+                            type="button"
+                            className="connect-cancel-btn"
+                            onClick={() => void deliverApiKey("manual")}
+                        >
+                            Closed that window? Show my API key to paste instead
+                        </button>
+                        {signedInAccountRow}
+                    </div>
+                </div>
+            </main>
+        );
+    }
+
+    if (connectionCancelled) {
+        return (
+            <main className="connect-page">
+                <div className="connect-card">
+                    <div className="connect-confirmation">
+                        <Shield size={52} className="confirmation-icon" />
+                        <h2>Connection cancelled</h2>
+                        <p>No API key was sent. To connect a site, start again from the Alt Text Pro plugin in WordPress.</p>
+                        <div className="connect-actions">
+                            <button type="button" className="connect-submit-btn" onClick={() => window.close()}>
+                                Close this window
+                            </button>
+                            <Link href="/dashboard" className="connect-secondary-btn">
+                                <LayoutDashboard size={18} aria-hidden="true" />
+                                Open dashboard
+                            </Link>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        );
+    }
+
+    if (hasNoConnectRequest && user) {
+        return (
+            <main className="connect-page">
+                <div className="connect-card">
+                    <div className="connect-confirmation">
+                        <Key size={52} className="confirmation-icon" />
+                        <h2>No WordPress site is waiting</h2>
+                        <p>
+                            This page connects a site when you open it from the Alt Text Pro plugin. In WordPress,
+                            go to <strong>Alt Text Pro</strong> and choose <strong>Connect</strong>. Your API key is
+                            also in your dashboard if you prefer to paste it.
+                        </p>
+                        {signedInAccountRow}
+                        {errorBanner}
+                        <div className="connect-actions">
+                            <Link href="/dashboard#settings" className="connect-submit-btn">
+                                <LayoutDashboard size={18} aria-hidden="true" />
+                                Open dashboard
+                            </Link>
+                            <button
+                                type="button"
+                                className="connect-secondary-btn"
+                                onClick={() => void switchAccount()}
+                                disabled={isLoading}
+                            >
+                                Use a different account
+                            </button>
+                        </div>
                     </div>
                 </div>
             </main>

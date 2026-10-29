@@ -18,6 +18,7 @@ import {
     Sparkles,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { EXISTING_ACCOUNT_MESSAGE, isExistingAccountSignUp } from "@/lib/auth-redirect";
 import GoogleIdentityButton from "@/components/GoogleIdentityButton";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -49,6 +50,8 @@ export default function CustomerOfferPage() {
     const [showPassword, setShowPassword] = useState(false);
     const [isAuthenticating, setIsAuthenticating] = useState(false);
     const [authMessage, setAuthMessage] = useState("");
+    // Email waiting for confirmation; enables the resend link.
+    const [pendingConfirmationEmail, setPendingConfirmationEmail] = useState("");
 
     useEffect(() => {
         let mounted = true;
@@ -94,7 +97,12 @@ export default function CustomerOfferPage() {
                     email,
                     password,
                 });
-                if (error) throw error;
+                if (error) {
+                    if (/email not confirmed/i.test(error.message)) {
+                        setPendingConfirmationEmail(email.trim());
+                    }
+                    throw error;
+                }
                 if (data.user?.email) {
                     setUser({ id: data.user.id, email: data.user.email });
                 }
@@ -108,7 +116,12 @@ export default function CustomerOfferPage() {
                 });
                 if (error) throw error;
 
-                if (!data.session) {
+                if (isExistingAccountSignUp(data.user, Boolean(data.session))) {
+                    // Supabase sends no email for an address that already has an account.
+                    setIsLogin(true);
+                    setAuthMessage(EXISTING_ACCOUNT_MESSAGE);
+                } else if (!data.session) {
+                    setPendingConfirmationEmail(email.trim());
                     setAuthMessage(
                         "Check your inbox and confirm your email, then return to this page to claim your credits."
                     );
@@ -120,6 +133,57 @@ export default function CustomerOfferPage() {
             setAuthMessage(
                 error instanceof Error ? error.message : "Authentication failed. Please try again."
             );
+        } finally {
+            setIsAuthenticating(false);
+        }
+    };
+
+    const handleForgotPassword = async () => {
+        const normalizedEmail = email.trim();
+        if (!normalizedEmail) {
+            setAuthMessage("Enter your email address first, then choose Forgot password.");
+            return;
+        }
+
+        setIsAuthenticating(true);
+        setAuthMessage("");
+        try {
+            const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+                redirectTo: `${window.location.origin}/reset-password`,
+            });
+            setAuthMessage(
+                error
+                    ? error.message
+                    : "If an account exists for that email, a reset link is on its way. Set a new password, then come back here to claim."
+            );
+        } catch {
+            setAuthMessage("Could not send the password reset email. Please try again.");
+        } finally {
+            setIsAuthenticating(false);
+        }
+    };
+
+    const handleResendConfirmation = async () => {
+        const normalizedEmail = (pendingConfirmationEmail || email).trim();
+        if (!normalizedEmail) {
+            setAuthMessage("Enter your email address first.");
+            return;
+        }
+
+        setIsAuthenticating(true);
+        try {
+            const { error } = await supabase.auth.resend({
+                type: "signup",
+                email: normalizedEmail,
+                options: { emailRedirectTo: `${window.location.origin}/customer-offer` },
+            });
+            setAuthMessage(
+                error
+                    ? error.message
+                    : "We sent a new confirmation email. Confirm it, then return to this page to claim your credits."
+            );
+        } catch {
+            setAuthMessage("Could not resend the confirmation email. Please try again.");
         } finally {
             setIsAuthenticating(false);
         }
@@ -406,6 +470,31 @@ export default function CustomerOfferPage() {
                                                 </button>
                                             </span>
                                         </label>
+
+                                        {(isLogin || pendingConfirmationEmail) && (
+                                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                                {isLogin && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => void handleForgotPassword()}
+                                                        disabled={isAuthenticating}
+                                                        className={cn(buttonVariants({ variant: "link" }), "text-sm")}
+                                                    >
+                                                        Forgot password?
+                                                    </button>
+                                                )}
+                                                {pendingConfirmationEmail && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => void handleResendConfirmation()}
+                                                        disabled={isAuthenticating}
+                                                        className={cn(buttonVariants({ variant: "link" }), "text-sm")}
+                                                    >
+                                                        Resend confirmation email
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )}
 
                                         {authMessage && (
                                             <div role="status" className="rounded-xl border border-line-strong bg-yellow-tint p-4 text-sm leading-6 text-ink">

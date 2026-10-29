@@ -5,17 +5,28 @@ import { useRouter } from "next/navigation";
 import { getAccessToken, supabase } from '@/lib/supabase';
 import { getApiBase } from '@/lib/utils';
 import { toast } from "sonner";
-import { Activity, BarChart3, Mail, Plug, RefreshCw, Search, TrendingDown, Users, X } from "lucide-react";
+import { Activity, BarChart3, ClipboardList, CreditCard, Mail, Plug, RefreshCw, Search, TrendingDown, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import UserDetailModal from "./UserDetailModal";
+import UnmatchedPaymentsTab from "./UnmatchedPaymentsTab";
+import AuditLogTab from "./AuditLogTab";
+import { statusBadgeClass, statusLabel } from "./admin-api";
+
+const USERS_PAGE_SIZE = 50;
+
+type UserQuery = { q: string; plan: string; status: string; offset: number };
 
 // Admin Dashboard Component
 export default function AdminDashboard() {
     const [user, setUser] = useState<any>(null);
     const [users, setUsers] = useState<any[]>([]);
+    const [usersTotal, setUsersTotal] = useState(0);
+    const [usersOffset, setUsersOffset] = useState(0);
+    const [isLoadingUsers, setIsLoadingUsers] = useState(false);
     const [stats, setStats] = useState<any>(null);
     const [funnelReport, setFunnelReport] = useState<any>(null);
     const [lifecycleReport, setLifecycleReport] = useState<any>(null);
@@ -23,6 +34,7 @@ export default function AdminDashboard() {
     const [isLoadingFunnel, setIsLoadingFunnel] = useState(false);
     const [isLoadingLifecycle, setIsLoadingLifecycle] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
+    const [lifecycleSearch, setLifecycleSearch] = useState("");
     const [filterPlan, setFilterPlan] = useState("all");
     const [filterStatus, setFilterStatus] = useState("all");
     const [funnelDays, setFunnelDays] = useState("7");
@@ -32,11 +44,25 @@ export default function AdminDashboard() {
     const [selectedUser, setSelectedUser] = useState<any>(null);
     const router = useRouter();
 
-    const loadUsers = useCallback(async (token: string) => {
+    // Search, filters and paging run server-side (admin_list_users); only
+    // the newest request may update the table.
+    const usersRequestRef = useRef(0);
+    const loadUsers = useCallback(async (token: string, query: UserQuery) => {
+        const requestId = ++usersRequestRef.current;
         try {
+            setIsLoadingUsers(true);
             const apiBase = getApiBase();
+            const params = new URLSearchParams({
+                limit: String(USERS_PAGE_SIZE),
+                offset: String(query.offset),
+                plan: query.plan,
+                status: query.status,
+                // Aggregate stats only with the first page.
+                stats: query.offset === 0 ? "1" : "0",
+            });
+            if (query.q.trim()) params.set("q", query.q.trim());
 
-            const response = await fetch(`${apiBase}/admin-get-users`, {
+            const response = await fetch(`${apiBase}/admin-get-users?${params.toString()}`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`
@@ -55,15 +81,20 @@ export default function AdminDashboard() {
             }
 
             const result = await response.json();
+            if (requestId !== usersRequestRef.current) return;
             if (result.success && result.data) {
                 setUsers(result.data.users || []);
-                setStats(result.data.stats || null);
+                setUsersTotal(Number(result.data.total || 0));
+                setUsersOffset(query.offset);
+                if (result.data.stats) setStats(result.data.stats);
             } else {
                 throw new Error('Invalid API response format');
             }
         } catch (error) {
             console.error("Error loading users:", error);
             toast.error("Failed to load users. Please try again.");
+        } finally {
+            if (requestId === usersRequestRef.current) setIsLoadingUsers(false);
         }
     }, [router]);
 
@@ -168,7 +199,7 @@ export default function AdminDashboard() {
                 });
 
                 await Promise.all([
-                    loadUsers(session.access_token),
+                    loadUsers(session.access_token, { q: "", plan: "all", status: "all", offset: 0 }),
                     loadFunnel(session.access_token, "7"),
                     loadLifecycle(session.access_token, "30"),
                 ]);
@@ -201,12 +232,34 @@ export default function AdminDashboard() {
 
         setIsLoading(true);
         await Promise.all([
-            loadUsers(accessToken),
+            loadUsers(accessToken, { q: searchTerm, plan: filterPlan, status: filterStatus, offset: usersOffset }),
             loadFunnel(accessToken, funnelDays),
             loadLifecycle(accessToken, lifecycleDays),
         ]);
         setIsLoading(false);
         toast.success("Admin data refreshed");
+    };
+
+    const reloadUsers = async (overrides: Partial<UserQuery> = {}) => {
+        const accessToken = await requireAccessToken();
+        if (!accessToken) return;
+        await loadUsers(accessToken, {
+            q: searchTerm,
+            plan: filterPlan,
+            status: filterStatus,
+            offset: 0,
+            ...overrides,
+        });
+    };
+
+    // Debounce typing in the search box; plan and status apply at once.
+    const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const handleSearchChange = (value: string) => {
+        setSearchTerm(value);
+        if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+        searchTimerRef.current = setTimeout(() => {
+            void reloadUsers({ q: value, offset: 0 });
+        }, 400);
     };
 
     const handleFunnelDaysChange = async (days: string) => {
@@ -295,22 +348,10 @@ export default function AdminDashboard() {
         }
     };
 
-    const filteredUsers = users.filter(user => {
-        const matchesSearch =
-            user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            user.id?.toLowerCase().includes(searchTerm.toLowerCase());
-        // Older accounts may store the plan under its pre-tier name.
-        const planAliases: Record<string, string> = { lite: "tier1", standard: "tier2", pro: "tier3", agency: "tier4" };
-        const normalizedPlan = planAliases[user.subscription_plan] || user.subscription_plan;
-        const matchesPlan = filterPlan === "all" || normalizedPlan === filterPlan;
-        const matchesStatus = filterStatus === "all" || user.subscription_status === filterStatus;
-        return matchesSearch && matchesPlan && matchesStatus;
-    });
-
     const filteredLifecycleUsers = (lifecycleReport?.users || []).filter((row: any) => {
         const matchesSearch =
-            row.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            row.user_id?.toLowerCase().includes(searchTerm.toLowerCase());
+            row.email?.toLowerCase().includes(lifecycleSearch.toLowerCase()) ||
+            row.user_id?.toLowerCase().includes(lifecycleSearch.toLowerCase());
         const matchesStatus = lifecycleFilter === "all" || row.follow_up_status === lifecycleFilter;
         return matchesSearch && matchesStatus;
     });
@@ -340,6 +381,21 @@ export default function AdminDashboard() {
     const formatPercent = (value: number | null | undefined) => {
         if (value === null || value === undefined || Number.isNaN(value)) return "N/A";
         return `${Math.round(value * 1000) / 10}%`;
+    };
+
+    const formatSigned = (value: number | null | undefined) => {
+        const number = Number(value || 0);
+        return number > 0 ? `+${formatNumber(number)}` : formatNumber(number);
+    };
+
+    // Change in unique actors against the previous period of equal length.
+    const formatStageChange = (key: string) => {
+        const change = funnelReport?.comparison?.stages?.find((stage: any) => stage.key === key);
+        if (!change) return "N/A";
+        const delta = formatSigned(change.unique_actors_delta);
+        return change.unique_actors_change === null || change.unique_actors_change === undefined
+            ? `${delta} (new)`
+            : `${delta} (${change.unique_actors_change > 0 ? "+" : ""}${formatPercent(change.unique_actors_change)})`;
     };
 
     const purchaseStage = funnelReport?.stages?.find((stage: any) => stage.key === "purchase_completed");
@@ -404,18 +460,32 @@ export default function AdminDashboard() {
                             <Mail className="h-4 w-4" />
                             Lifecycle
                         </TabsTrigger>
+                        <TabsTrigger value="payments" className="gap-2 px-4">
+                            <CreditCard className="h-4 w-4" />
+                            Unmatched payments
+                            {Number(stats?.unresolved_reconciliations || 0) > 0 && (
+                                <Badge className="border-red-200 bg-red-50 text-error">{stats.unresolved_reconciliations}</Badge>
+                            )}
+                        </TabsTrigger>
+                        <TabsTrigger value="audit" className="gap-2 px-4">
+                            <ClipboardList className="h-4 w-4" />
+                            Audit log
+                        </TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="users" className="space-y-6">
                 {/* Statistics Cards */}
                 {stats && (
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                         <Card>
                             <CardHeader className="pb-3">
                                 <CardTitle className="text-sm font-medium text-ink-muted">Total Users</CardTitle>
                             </CardHeader>
                             <CardContent className="mt-auto">
-                                <div className="text-3xl font-bold text-ink">{users.length}</div>
+                                <div className="text-3xl font-bold text-ink">{formatNumber(stats.total_users)}</div>
+                                {Number(stats.blocked_users || 0) > 0 && (
+                                    <div className="text-xs text-error mt-1">{formatNumber(stats.blocked_users)} suspended</div>
+                                )}
                             </CardContent>
                         </Card>
                         <Card>
@@ -424,6 +494,20 @@ export default function AdminDashboard() {
                             </CardHeader>
                             <CardContent className="mt-auto">
                                 <div className="text-3xl font-bold text-ink">{formatCurrency(stats.total_revenue)}</div>
+                                <div className="text-xs text-ink-muted mt-1">All time, deleted accounts included</div>
+                            </CardContent>
+                        </Card>
+                        <Card>
+                            <CardHeader className="pb-3">
+                                <CardTitle className="text-sm font-medium text-ink-muted">MRR / ARR</CardTitle>
+                            </CardHeader>
+                            <CardContent className="mt-auto">
+                                <div className="text-3xl font-bold text-ink">{formatCurrency(stats.mrr)}</div>
+                                <div className="text-xs text-ink-muted mt-1">
+                                    ARR {formatCurrency(stats.arr)}
+                                    {Number(stats.past_due_mrr || 0) > 0 ? ` · ${formatCurrency(stats.past_due_mrr)} past due` : ""}
+                                    {Number(stats.cancelling_mrr || 0) > 0 ? ` · ${formatCurrency(stats.cancelling_mrr)} cancelling` : ""}
+                                </div>
                             </CardContent>
                         </Card>
                         <Card>
@@ -431,7 +515,11 @@ export default function AdminDashboard() {
                                 <CardTitle className="text-sm font-medium text-ink-muted">Paying Subscribers</CardTitle>
                             </CardHeader>
                             <CardContent className="mt-auto">
-                                <div className="text-3xl font-bold text-ink">{stats.active_users}</div>
+                                <div className="text-3xl font-bold text-ink">{formatNumber(stats.active_subscriptions)}</div>
+                                <div className="text-xs text-ink-muted mt-1">
+                                    {Number(stats.past_due_subscriptions || 0) > 0 ? `${formatNumber(stats.past_due_subscriptions)} past due · ` : ""}
+                                    {formatNumber(stats.active_users)} incl. cancelling
+                                </div>
                             </CardContent>
                         </Card>
                         <Card>
@@ -439,37 +527,83 @@ export default function AdminDashboard() {
                                 <CardTitle className="text-sm font-medium text-ink-muted">Total Credits Used</CardTitle>
                             </CardHeader>
                             <CardContent className="mt-auto">
-                                <div className="text-3xl font-bold text-ink">{stats.total_credits_used.toLocaleString()}</div>
+                                <div className="text-3xl font-bold text-ink">{formatNumber(stats.total_credits_used)}</div>
+                            </CardContent>
+                        </Card>
+                        <Card>
+                            <CardHeader className="pb-3">
+                                <CardTitle className="text-sm font-medium text-ink-muted">Connected Sites</CardTitle>
+                            </CardHeader>
+                            <CardContent className="mt-auto">
+                                <div className="text-3xl font-bold text-ink">{formatNumber(stats.connected_sites)}</div>
+                                <div className="text-xs text-ink-muted mt-1">{formatNumber(stats.users_with_sites)} accounts</div>
+                            </CardContent>
+                        </Card>
+                        <Card>
+                            <CardHeader className="pb-3">
+                                <CardTitle className="text-sm font-medium text-ink-muted">Unmatched Payments</CardTitle>
+                            </CardHeader>
+                            <CardContent className="mt-auto">
+                                <div className={`text-3xl font-bold ${Number(stats.unresolved_reconciliations || 0) > 0 ? "text-error" : "text-ink"}`}>
+                                    {formatNumber(stats.unresolved_reconciliations)}
+                                </div>
+                                {Number(stats.pending_subscription_cancellations || 0) > 0 && (
+                                    <div className="text-xs text-error mt-1">
+                                        {formatNumber(stats.pending_subscription_cancellations)} Polar cancellation(s) pending after deletion
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+                        <Card>
+                            <CardHeader className="pb-3">
+                                <CardTitle className="text-sm font-medium text-ink-muted">Plugin Versions (active sites)</CardTitle>
+                            </CardHeader>
+                            <CardContent className="mt-auto space-y-1">
+                                {(stats.plugin_versions || []).length === 0 ? (
+                                    <div className="text-sm text-ink-muted">No sites recorded yet</div>
+                                ) : (
+                                    (stats.plugin_versions || []).slice(0, 5).map((row: any) => (
+                                        <div key={row.version} className="flex justify-between text-sm">
+                                            <span className="text-ink">{row.version === "unknown" ? "Unknown" : `v${row.version}`}</span>
+                                            <span className="font-medium">{formatNumber(row.sites)}</span>
+                                        </div>
+                                    ))
+                                )}
                             </CardContent>
                         </Card>
                     </div>
                 )}
 
                 {/* Filters */}
-                <Card className="mb-6">
+                <Card>
                     <CardHeader>
-                        <CardTitle>Filters</CardTitle>
+                        <CardTitle>Find users</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
-                                <label className="text-sm font-medium text-ink mb-2 block">Search</label>
+                                <label htmlFor="admin-user-search" className="text-sm font-medium text-ink mb-2 block">Search</label>
                                 <div className="relative">
                                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-ink-muted" />
                                     <Input
+                                        id="admin-user-search"
                                         type="text"
-                                        placeholder="Search by email or ID..."
+                                        placeholder="Email, user ID, site URL, Polar customer or subscription ID"
                                         value={searchTerm}
-                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        onChange={(e) => handleSearchChange(e.target.value)}
                                         className="pl-10"
                                     />
                                 </div>
                             </div>
                             <div>
-                                <label className="text-sm font-medium text-ink mb-2 block">Plan</label>
+                                <label htmlFor="admin-plan-filter" className="text-sm font-medium text-ink mb-2 block">Plan</label>
                                 <select
+                                    id="admin-plan-filter"
                                     value={filterPlan}
-                                    onChange={(e) => setFilterPlan(e.target.value)}
+                                    onChange={(e) => {
+                                        setFilterPlan(e.target.value);
+                                        void reloadUsers({ plan: e.target.value });
+                                    }}
                                     className="h-11 w-full rounded-xl border border-line-strong bg-white px-3 text-sm text-ink focus-visible:border-yellow-strong"
                                 >
                                     <option value="all">All Plans</option>
@@ -482,14 +616,19 @@ export default function AdminDashboard() {
                                 </select>
                             </div>
                             <div>
-                                <label className="text-sm font-medium text-ink mb-2 block">Status</label>
+                                <label htmlFor="admin-status-filter" className="text-sm font-medium text-ink mb-2 block">Status</label>
                                 <select
+                                    id="admin-status-filter"
                                     value={filterStatus}
-                                    onChange={(e) => setFilterStatus(e.target.value)}
+                                    onChange={(e) => {
+                                        setFilterStatus(e.target.value);
+                                        void reloadUsers({ status: e.target.value });
+                                    }}
                                     className="h-11 w-full rounded-xl border border-line-strong bg-white px-3 text-sm text-ink focus-visible:border-yellow-strong"
                                 >
                                     <option value="all">All Statuses</option>
                                     <option value="active">Active</option>
+                                    <option value="past_due">Past due</option>
                                     <option value="cancelled">Cancelled</option>
                                     <option value="expired">Expired</option>
                                     <option value="pending">Pending</option>
@@ -502,7 +641,9 @@ export default function AdminDashboard() {
                 {/* Users Table */}
                 <Card>
                     <CardHeader>
-                        <CardTitle>Users ({filteredUsers.length})</CardTitle>
+                        <CardTitle>
+                            Users ({formatNumber(usersTotal)}){isLoadingUsers ? " · loading..." : ""}
+                        </CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="overflow-x-auto">
@@ -512,7 +653,7 @@ export default function AdminDashboard() {
                                         <th className="text-left py-3 px-4 font-semibold text-ink">Email</th>
                                         <th className="text-left py-3 px-4 font-semibold text-ink">Plan</th>
                                         <th className="text-left py-3 px-4 font-semibold text-ink">Status</th>
-                                        <th className="text-left py-3 px-4 font-semibold text-ink">Plugin Ver.</th>
+                                        <th className="text-left py-3 px-4 font-semibold text-ink">Plugin</th>
                                         <th className="text-left py-3 px-4 font-semibold text-ink">Credits</th>
                                         <th className="text-left py-3 px-4 font-semibold text-ink">Processed</th>
                                         <th className="text-left py-3 px-4 font-semibold text-ink">Total Paid</th>
@@ -521,18 +662,21 @@ export default function AdminDashboard() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {filteredUsers.length === 0 ? (
+                                    {users.length === 0 ? (
                                         <tr>
                                             <td colSpan={9} className="text-center py-8 text-ink-muted">
-                                                No users found
+                                                {isLoadingUsers ? "Loading..." : "No users found"}
                                             </td>
                                         </tr>
                                     ) : (
-                                        filteredUsers.map((userData) => (
+                                        users.map((userData) => (
                                             <tr key={userData.id} className="border-b border-line hover:bg-yellow-tint">
                                                 <td className="py-3 px-4">
                                                     <div className="font-medium text-ink">{userData.email}</div>
                                                     <div className="text-xs text-ink-muted font-mono">{userData.id.substring(0, 8)}...</div>
+                                                    {userData.blocked_at && (
+                                                        <Badge className="mt-1 border-red-200 bg-red-50 text-error">Suspended</Badge>
+                                                    )}
                                                 </td>
                                                 <td className="py-3 px-4">
                                                     <Badge>
@@ -540,16 +684,8 @@ export default function AdminDashboard() {
                                                     </Badge>
                                                 </td>
                                                 <td className="py-3 px-4">
-                                                    <Badge
-                                                        className={
-                                                            userData.subscription_status === "active"
-                                                                ? "border-green-200 bg-green-50 text-success"
-                                                                : userData.subscription_status === "cancelled"
-                                                                    ? "border-red-200 bg-red-50 text-error"
-                                                                    : "border-line bg-yellow-tint text-ink"
-                                                        }
-                                                    >
-                                                        {userData.subscription_status || "active"}
+                                                    <Badge className={statusBadgeClass(userData.subscription_status)}>
+                                                        {statusLabel(userData.subscription_status)}
                                                     </Badge>
                                                 </td>
                                                 <td className="py-3 px-4">
@@ -557,19 +693,21 @@ export default function AdminDashboard() {
                                                         {userData.latest_plugin_version ? `v${userData.latest_plugin_version}` : "--"}
                                                     </div>
                                                     <div className="text-xs text-ink-muted">
-                                                        {userData.plugin_connected_at ? formatDate(userData.plugin_connected_at) : "Not tracked yet"}
+                                                        {Number(userData.connected_sites || 0) > 0
+                                                            ? `${userData.connected_sites} site(s) · ${formatDate(userData.plugin_last_seen_at)}`
+                                                            : "No sites"}
                                                     </div>
                                                 </td>
                                                 <td className="py-3 px-4">
-                                                    <div className="font-semibold">{userData.credits_remaining || 0}</div>
+                                                    <div className="font-semibold">{formatNumber(userData.credits_remaining)}</div>
                                                     <div className="text-xs text-ink-muted">
-                                                        Used: {userData.total_credits_used || 0}
+                                                        Used: {formatNumber(userData.total_credits_used)}
                                                     </div>
                                                 </td>
                                                 <td className="py-3 px-4">
-                                                    <div className="font-semibold">{userData.total_processed || 0}</div>
+                                                    <div className="font-semibold">{formatNumber(userData.total_processed)}</div>
                                                     <div className="text-xs text-ink-muted">
-                                                        Logs: {userData.total_usage_count || 0}
+                                                        Logs: {formatNumber(userData.total_usage_count)}
                                                     </div>
                                                 </td>
                                                 <td className="py-3 px-4">
@@ -589,7 +727,7 @@ export default function AdminDashboard() {
                                                         size="sm"
                                                         onClick={() => setSelectedUser(userData)}
                                                     >
-                                                        View Details
+                                                        Manage
                                                     </Button>
                                                 </td>
                                             </tr>
@@ -597,6 +735,31 @@ export default function AdminDashboard() {
                                     )}
                                 </tbody>
                             </table>
+                        </div>
+                        <div className="flex flex-wrap justify-between items-center gap-3 mt-4">
+                            <span className="text-sm text-ink-muted">
+                                {usersTotal === 0
+                                    ? "0 users"
+                                    : `${usersOffset + 1}–${Math.min(usersOffset + users.length, usersTotal)} of ${formatNumber(usersTotal)}`}
+                            </span>
+                            <div className="flex gap-2">
+                                <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    disabled={isLoadingUsers || usersOffset === 0}
+                                    onClick={() => void reloadUsers({ offset: Math.max(0, usersOffset - USERS_PAGE_SIZE) })}
+                                >
+                                    Previous
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    disabled={isLoadingUsers || usersOffset + USERS_PAGE_SIZE >= usersTotal}
+                                    onClick={() => void reloadUsers({ offset: usersOffset + USERS_PAGE_SIZE })}
+                                >
+                                    Next
+                                </Button>
+                            </div>
                         </div>
                     </CardContent>
                 </Card>
@@ -642,6 +805,9 @@ export default function AdminDashboard() {
                                     <div className="text-3xl font-bold text-ink">
                                         {formatNumber(funnelReport?.totals?.events)}
                                     </div>
+                                    {funnelReport?.comparison && (
+                                        <div className="text-xs text-ink-muted mt-1">{formatSigned(funnelReport.comparison.totals?.events_delta)} vs previous period</div>
+                                    )}
                                 </CardContent>
                             </Card>
                             <Card>
@@ -652,6 +818,9 @@ export default function AdminDashboard() {
                                     <div className="text-3xl font-bold text-ink">
                                         {formatNumber(funnelReport?.totals?.unique_actors)}
                                     </div>
+                                    {funnelReport?.comparison && (
+                                        <div className="text-xs text-ink-muted mt-1">{formatSigned(funnelReport.comparison.totals?.unique_actors_delta)} vs previous period</div>
+                                    )}
                                 </CardContent>
                             </Card>
                             <Card>
@@ -690,8 +859,9 @@ export default function AdminDashboard() {
                                             <tr className="border-b border-line bg-yellow-tint">
                                                 <th className="text-left py-3 px-4 font-semibold text-ink">Stage</th>
                                                 <th className="text-right py-3 px-4 font-semibold text-ink">Actors</th>
+                                                <th className="text-right py-3 px-4 font-semibold text-ink">vs Previous Period</th>
                                                 <th className="text-right py-3 px-4 font-semibold text-ink">Events</th>
-                                                <th className="text-right py-3 px-4 font-semibold text-ink">From Previous</th>
+                                                <th className="text-right py-3 px-4 font-semibold text-ink">From Previous Stage</th>
                                                 <th className="text-right py-3 px-4 font-semibold text-ink">From Start</th>
                                             </tr>
                                         </thead>
@@ -700,6 +870,7 @@ export default function AdminDashboard() {
                                                 <tr key={stage.key} className="border-b border-line hover:bg-yellow-tint">
                                                     <td className="py-3 px-4 font-medium text-ink">{stage.label}</td>
                                                     <td className="py-3 px-4 text-right">{formatNumber(stage.unique_actors)}</td>
+                                                    <td className="py-3 px-4 text-right">{formatStageChange(stage.key)}</td>
                                                     <td className="py-3 px-4 text-right">{formatNumber(stage.events)}</td>
                                                     <td className="py-3 px-4 text-right">{formatPercent(stage.conversion_from_previous)}</td>
                                                     <td className="py-3 px-4 text-right">{formatPercent(stage.conversion_from_start)}</td>
@@ -817,6 +988,14 @@ export default function AdminDashboard() {
                                 </p>
                             </div>
                             <div className="flex flex-wrap items-center gap-3">
+                                <Input
+                                    type="text"
+                                    aria-label="Filter lifecycle users by email or ID"
+                                    placeholder="Filter by email or ID"
+                                    value={lifecycleSearch}
+                                    onChange={(event) => setLifecycleSearch(event.target.value)}
+                                    className="w-56"
+                                />
                                 <select
                                     value={lifecycleDays}
                                     onChange={(event) => handleLifecycleDaysChange(event.target.value)}
@@ -981,7 +1160,7 @@ export default function AdminDashboard() {
                                                         </td>
                                                         <td className="py-3 px-4">
                                                             <Badge>{row.plan}</Badge>
-                                                            <div className="text-xs text-ink-muted mt-1">{row.status}</div>
+                                                            <div className="text-xs text-ink-muted mt-1">{statusLabel(row.status)}</div>
                                                         </td>
                                                         <td className="py-3 px-4">
                                                             {row.plugin_connected_at ? (
@@ -1077,164 +1256,24 @@ export default function AdminDashboard() {
                             </CardContent>
                         </Card>
                     </TabsContent>
+
+                    <TabsContent value="payments" className="space-y-6">
+                        <UnmatchedPaymentsTab onResolved={() => void reloadUsers({ offset: usersOffset })} />
+                    </TabsContent>
+
+                    <TabsContent value="audit" className="space-y-6">
+                        <AuditLogTab />
+                    </TabsContent>
                 </Tabs>
             </div>
 
-            {/* User Details Modal */}
             {selectedUser && (
-                <div className="fixed inset-0 bg-ink/40 backdrop-blur-sm flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-label="User details">
-                    <Card className="max-w-2xl w-full max-h-[90vh] overflow-y-auto bg-white shadow-notebook-lg">
-                        <CardHeader>
-                            <div className="flex justify-between items-center">
-                                <CardTitle>User Details</CardTitle>
-                                <Button
-                                    variant="secondary"
-                                    size="icon-sm"
-                                    aria-label="Close"
-                                    onClick={() => setSelectedUser(null)}
-                                >
-                                    <X />
-                                </Button>
-                            </div>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div>
-                                <label className="text-sm font-medium text-ink">Email</label>
-                                <p className="text-ink">{selectedUser.email}</p>
-                            </div>
-                            <div>
-                                <label className="text-sm font-medium text-ink">User ID</label>
-                                <p className="text-ink font-mono text-sm">{selectedUser.id}</p>
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="text-sm font-medium text-ink">Subscription Plan</label>
-                                    <p className="text-ink">
-                                        <Badge>
-                                            {selectedUser.subscription_plan || "free"}
-                                        </Badge>
-                                    </p>
-                                </div>
-                                <div>
-                                    <label className="text-sm font-medium text-ink">Subscription Status</label>
-                                    <p className="text-ink">
-                                        <Badge
-                                            className={
-                                                selectedUser.subscription_status === "active"
-                                                    ? "border-green-200 bg-green-50 text-success"
-                                                    : "border-red-200 bg-red-50 text-error"
-                                            }
-                                        >
-                                            {selectedUser.subscription_status || "active"}
-                                        </Badge>
-                                    </p>
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="text-sm font-medium text-ink">Credits Remaining</label>
-                                    <p className="text-2xl font-bold text-ink">{selectedUser.credits_remaining || 0}</p>
-                                </div>
-                                <div>
-                                    <label className="text-sm font-medium text-ink">Total Processed</label>
-                                    <p className="text-2xl font-bold text-ink">{selectedUser.total_processed || 0}</p>
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="text-sm font-medium text-ink">Total Credits Used</label>
-                                    <p className="text-ink">{selectedUser.total_credits_used || 0}</p>
-                                </div>
-                                <div>
-                                    <label className="text-sm font-medium text-ink">Total Usage Count</label>
-                                    <p className="text-ink">{selectedUser.total_usage_count || 0}</p>
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="text-sm font-medium text-ink">Last Seen Plugin Version</label>
-                                    <p className="text-ink">{selectedUser.latest_plugin_version ? `v${selectedUser.latest_plugin_version}` : "Not tracked yet"}</p>
-                                </div>
-                                <div>
-                                    <label className="text-sm font-medium text-ink">Plugin Connected</label>
-                                    <p className="text-ink">
-                                        {selectedUser.plugin_connected_at
-                                            ? `${formatDate(selectedUser.plugin_connected_at)}${selectedUser.plugin_connection_source ? ` (${selectedUser.plugin_connection_source})` : ""}`
-                                            : "Not tracked yet"}
-                                    </p>
-                                </div>
-                            </div>
-                            <div>
-                                <label className="text-sm font-medium text-ink">Total Paid</label>
-                                <p className="text-2xl font-bold text-ink">
-                                    {formatCurrency(selectedUser.total_paid || 0)}
-                                </p>
-                                <p className="text-sm text-ink-muted">
-                                    {selectedUser.payment_count || 0} payment(s)
-                                </p>
-                            </div>
-                            {selectedUser.latest_payment && (
-                                <div>
-                                    <label className="text-sm font-medium text-ink">Latest Payment</label>
-                                    <div className="bg-yellow-tint border border-line p-4 rounded-xl">
-                                        <p className="text-sm">
-                                            <span className="font-semibold">Amount:</span> {formatCurrency(selectedUser.latest_payment.amount)}
-                                        </p>
-                                        <p className="text-sm">
-                                            <span className="font-semibold">Status:</span> {selectedUser.latest_payment.status}
-                                        </p>
-                                        <p className="text-sm">
-                                            <span className="font-semibold">Plan:</span> {selectedUser.latest_payment.plan_id}
-                                        </p>
-                                        {selectedUser.latest_payment.product_name && (
-                                            <p className="text-sm">
-                                                <span className="font-semibold">Product:</span> {selectedUser.latest_payment.product_name}
-                                            </p>
-                                        )}
-                                        {selectedUser.latest_payment.discount_code && (
-                                            <p className="text-sm">
-                                                <span className="font-semibold">Coupon:</span> {selectedUser.latest_payment.discount_code}
-                                                {selectedUser.latest_payment.discount_name ? ` (${selectedUser.latest_payment.discount_name})` : ""}
-                                                {selectedUser.latest_payment.discount_amount ? ` - ${formatCurrency(selectedUser.latest_payment.discount_amount)}` : ""}
-                                            </p>
-                                        )}
-                                        <p className="text-sm">
-                                            <span className="font-semibold">Date:</span> {formatDate(selectedUser.latest_payment.created_at)}
-                                        </p>
-                                    </div>
-                                </div>
-                            )}
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="text-sm font-medium text-ink">Created At</label>
-                                    <p className="text-ink">{formatDate(selectedUser.created_at)}</p>
-                                </div>
-                                <div>
-                                    <label className="text-sm font-medium text-ink">Updated At</label>
-                                    <p className="text-ink">{formatDate(selectedUser.updated_at)}</p>
-                                </div>
-                            </div>
-                            {selectedUser.next_billing_date && (
-                                <div>
-                                    <label className="text-sm font-medium text-ink">Next Billing Date</label>
-                                    <p className="text-ink">{formatDate(selectedUser.next_billing_date)}</p>
-                                </div>
-                            )}
-                            {selectedUser.expires_at && (
-                                <div>
-                                    <label className="text-sm font-medium text-ink">Expires At</label>
-                                    <p className="text-ink">{formatDate(selectedUser.expires_at)}</p>
-                                </div>
-                            )}
-                            {selectedUser.subscription_id && (
-                                <div>
-                                    <label className="text-sm font-medium text-ink">Subscription ID</label>
-                                    <p className="text-ink font-mono text-sm">{selectedUser.subscription_id}</p>
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
-                </div>
+                <UserDetailModal
+                    userId={selectedUser.id}
+                    listRow={selectedUser}
+                    onClose={() => setSelectedUser(null)}
+                    onChanged={() => void reloadUsers({ offset: usersOffset })}
+                />
             )}
         </main>
     );

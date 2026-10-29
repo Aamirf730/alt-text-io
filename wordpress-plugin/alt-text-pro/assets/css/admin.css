@@ -2358,3 +2358,65 @@
 .column-alt_text_pro .atp-post-status.atp-post-warning {
     color: var(--atp-warning);
 }
+
+/* 1.7.28: buy-credits links, account and credit warnings, image picker */
+.atp-ui .atp-upgrade-link,
+.atp-upgrade-link {
+    color: var(--atp-ink);
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.atp-ui .atp-upgrade-link.is-urgent {
+    color: var(--atp-error);
+}
+
+.atp-info-box .atp-upgrade-link {
+    margin-left: auto;
+    white-space: nowrap;
+}
+
+.atp-info-box.is-error {
+    border-color: var(--atp-error-line);
+    background: var(--atp-error-bg);
+    color: var(--atp-error);
+}
+
+.atp-ui .stat-footer {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+}
+
+.atp-image-picker-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.atp-image-picker-controls input[type="search"] {
+    flex: 1 1 200px;
+}
+
+.atp-image-name .atp-image-alt {
+    display: block;
+    overflow: hidden;
+    color: var(--atp-ink-muted);
+    font-size: 12px;
+    text-overflow: ellipsis;
+}
+
+.atp-image-name .atp-image-alt.is-missing {
+    color: var(--atp-warning);
+}
+
+#image-pagination {
+    margin-top: 12px;
+}
+
+.alt-text-pro-media-field .alt-text-pro-error .atp-upgrade-link {
+    display: inline-block;
+    margin-top: 4px;
+}

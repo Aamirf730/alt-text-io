@@ -33,16 +33,77 @@ class AltTextPro_Bulk_Processor
     // Upper bound of saved runs one cleanup pass inspects.
     private const CLEANUP_BATCH = 200;
 
+    // Statuses after which a run never processes another image.
+    private const TERMINAL_STATUSES = array('completed', 'cancelled', 'cancelling', 'stopped_no_credits', 'stopped_error');
+
+    // Images per page in the "Selected" picker.
+    private const SELECTION_PAGE_SIZE = 40;
+
     /**
      * Constructor
      */
-    public function __construct()
+    public function __construct($register_hooks = true)
     {
+        // Helper instances (see get_active_run_for_page()) must not register
+        // the AJAX handlers a second time.
+        if (!$register_hooks) {
+            return;
+        }
+
         add_action('wp_ajax_alt_text_pro_bulk_start', array($this, 'ajax_start_bulk_process'));
         add_action('wp_ajax_alt_text_pro_bulk_status', array($this, 'ajax_get_bulk_status'));
         add_action('wp_ajax_alt_text_pro_bulk_process_batch', array($this, 'ajax_process_batch'));
         add_action('wp_ajax_alt_text_pro_bulk_skip_failed_image', array($this, 'ajax_skip_failed_image'));
         add_action('wp_ajax_alt_text_pro_bulk_cancel', array($this, 'ajax_cancel_bulk_process'));
+        add_action('wp_ajax_alt_text_pro_bulk_list_images', array($this, 'ajax_list_images'));
+    }
+
+    /**
+     * The site's live bulk run for the Bulk page: lets the user who started
+     * it resume after a reload, and lets other administrators see and
+     * cancel it. Null when no run is going.
+     *
+     * @return array|null
+     */
+    public static function get_active_run_for_page()
+    {
+        $processor = new self(false);
+        $marker = $processor->get_live_active_run();
+        if (!$marker) {
+            return null;
+        }
+
+        $process_id = (string) $marker['process_id'];
+        $process_data = $processor->get_bulk_process_data($process_id, true, true);
+        if (!is_array($process_data)) {
+            return null;
+        }
+
+        $owner_id = intval($process_data['user_id'] ?? 0);
+        $is_owner = $owner_id === get_current_user_id();
+        $owner = get_userdata($owner_id);
+
+        return array(
+            // Only the user who started the run gets its token back.
+            'process_id' => $is_owner ? $process_id : '',
+            'is_owner' => $is_owner,
+            'can_cancel' => $is_owner || current_user_can('manage_options'),
+            'cancel_ref' => current_user_can('manage_options') || $is_owner ? self::get_cancel_reference($process_id) : '',
+            'started_by' => $owner ? $owner->display_name : '',
+            'started_at' => (string) ($process_data['started_at'] ?? ''),
+            'status' => (string) ($process_data['status'] ?? 'running'),
+            'processed' => intval($process_data['processed'] ?? 0),
+            'processable_images' => intval($process_data['processable_images'] ?? count($process_data['images'] ?? array())),
+        );
+    }
+
+    /**
+     * Opaque reference another administrator uses to cancel a run without
+     * receiving its process token.
+     */
+    private static function get_cancel_reference($process_id)
+    {
+        return hash_hmac('sha256', (string) $process_id, wp_salt('nonce'));
     }
 
     /**
@@ -53,7 +114,7 @@ class AltTextPro_Bulk_Processor
         check_ajax_referer('alt_text_pro_nonce', 'nonce');
 
         if (!current_user_can('upload_files')) {
-            wp_die(esc_html__('You do not have permission to perform this action.', 'alt-text-pro'));
+            AltTextPro::send_permission_error();
         }
 
         // Keep each AJAX batch to one billable image so a user-initiated cancel
@@ -61,7 +122,7 @@ class AltTextPro_Bulk_Processor
         $batch_size = 1;
         $overwrite_existing = isset($_POST['overwrite_existing']) ? (bool) sanitize_text_field(wp_unslash($_POST['overwrite_existing'])) : false;
         $process_type = isset($_POST['process_type']) ? sanitize_text_field(wp_unslash($_POST['process_type'])) : 'missing'; // 'missing', 'all', or 'selected'
-        $selected_images = isset($_POST['selected_images']) ? array_map('intval', (array) $_POST['selected_images']) : array();
+        $selected_images = isset($_POST['selected_images']) ? array_slice(array_map('intval', (array) $_POST['selected_images']), 0, self::MAX_BULK_QUEUE) : array();
 
         if ($this->get_live_active_run()) {
             wp_send_json_error(esc_html__('Another bulk run is already in progress on this site. Wait for it to finish or cancel it before starting a new one.', 'alt-text-pro'));
@@ -71,6 +132,12 @@ class AltTextPro_Bulk_Processor
         // filtered query instead of re-checking every image's metadata in PHP.
         if ($process_type === 'all' && empty($overwrite_existing)) {
             $process_type = 'missing';
+        }
+
+        // Images picked one by one are regenerated even when they already
+        // have alt text: choosing them is the request to replace it.
+        if ($process_type === 'selected') {
+            $overwrite_existing = true;
         }
 
         // Get images to process based on process type
@@ -107,6 +174,12 @@ class AltTextPro_Bulk_Processor
         $usage_stats = $api_client->get_usage_stats();
 
         if (!$usage_stats['success']) {
+            if (!empty($usage_stats['stop_bulk']) || !empty($usage_stats['code'])) {
+                wp_send_json_error(array(
+                    'message' => $usage_stats['message'] ?? esc_html__('Failed to check credits. Please verify your API key.', 'alt-text-pro'),
+                    'code' => sanitize_key((string) ($usage_stats['code'] ?? 'usage_unavailable')),
+                ));
+            }
             wp_send_json_error(esc_html__('Failed to check credits. Please verify your API key.', 'alt-text-pro'));
         }
 
@@ -121,7 +194,10 @@ class AltTextPro_Bulk_Processor
         $subscription_plans = array('free', 'tier1', 'tier2', 'tier3', 'tier4', 'lite', 'standard', 'pro', 'agency');
 
         if ($credits_remaining <= 0) {
-            wp_send_json_error(esc_html__('No credits remaining. Buy a credit pack or upgrade your plan at alt-text.pro before starting bulk processing.', 'alt-text-pro'));
+            wp_send_json_error(array(
+                'message' => __('No credits remaining. Buy a credit pack or upgrade your plan at alt-text.pro before starting bulk processing.', 'alt-text-pro'),
+                'code' => 'no_credits',
+            ));
         }
 
         $total_images = count($images_to_process);
@@ -135,7 +211,10 @@ class AltTextPro_Bulk_Processor
         $processable_images = min($total_images, $credit_limit_for_run);
 
         if ($processable_images <= 0) {
-            wp_send_json_error(esc_html__('No plan credits remaining for this billing cycle. Buy a credit pack or upgrade your plan at alt-text.pro, or wait for your next credit refill before starting bulk processing.', 'alt-text-pro'));
+            wp_send_json_error(array(
+                'message' => __('No plan credits remaining for this billing cycle. Buy a credit pack or upgrade your plan at alt-text.pro, or wait for your next credit refill before starting bulk processing.', 'alt-text-pro'),
+                'code' => 'no_credits',
+            ));
         }
 
         // Create bulk process record
@@ -172,7 +251,7 @@ class AltTextPro_Bulk_Processor
         check_ajax_referer('alt_text_pro_nonce', 'nonce');
 
         if (!current_user_can('upload_files')) {
-            wp_die(esc_html__('You do not have permission to perform this action.', 'alt-text-pro'));
+            AltTextPro::send_permission_error();
         }
 
         $process_id = isset($_POST['process_id']) ? sanitize_text_field(wp_unslash($_POST['process_id'])) : '';
@@ -193,7 +272,7 @@ class AltTextPro_Bulk_Processor
         check_ajax_referer('alt_text_pro_nonce', 'nonce');
 
         if (!current_user_can('upload_files')) {
-            wp_die(esc_html__('You do not have permission to perform this action.', 'alt-text-pro'));
+            AltTextPro::send_permission_error();
         }
 
         $process_id = isset($_POST['process_id']) ? sanitize_text_field(wp_unslash($_POST['process_id'])) : '';
@@ -208,8 +287,7 @@ class AltTextPro_Bulk_Processor
             wp_send_json_error(esc_html__('Process not found.', 'alt-text-pro'));
         }
 
-        $terminal_statuses = array('completed', 'cancelled', 'cancelling', 'stopped_no_credits');
-        if (in_array($process_data['status'] ?? '', $terminal_statuses, true)) {
+        if (in_array($process_data['status'] ?? '', self::TERMINAL_STATUSES, true)) {
             $status = $this->get_bulk_process_status($process_id);
             $status['batch_results'] = array();
             wp_send_json_success($status);
@@ -276,7 +354,7 @@ class AltTextPro_Bulk_Processor
         check_ajax_referer('alt_text_pro_nonce', 'nonce');
 
         if (!current_user_can('upload_files')) {
-            wp_die(esc_html__('You do not have permission to perform this action.', 'alt-text-pro'));
+            AltTextPro::send_permission_error();
         }
 
         $process_id = isset($_POST['process_id']) ? sanitize_text_field(wp_unslash($_POST['process_id'])) : '';
@@ -329,7 +407,7 @@ class AltTextPro_Bulk_Processor
             }
 
             $status = $process_data['status'] ?? 'running';
-            if (in_array($status, array('completed', 'cancelled', 'cancelling', 'stopped_no_credits'), true)) {
+            if (in_array($status, self::TERMINAL_STATUSES, true)) {
                 $status_data = $this->get_bulk_process_status($process_id);
                 $status_data['batch_results'] = array();
                 return array('success' => true, 'data' => $status_data);
@@ -436,15 +514,108 @@ class AltTextPro_Bulk_Processor
         check_ajax_referer('alt_text_pro_nonce', 'nonce');
 
         if (!current_user_can('upload_files')) {
-            wp_die(esc_html__('You do not have permission to perform this action.', 'alt-text-pro'));
+            AltTextPro::send_permission_error();
         }
 
         $process_id = isset($_POST['process_id']) ? sanitize_text_field(wp_unslash($_POST['process_id'])) : '';
+        $cancel_ref = isset($_POST['cancel_ref']) ? sanitize_key(wp_unslash($_POST['cancel_ref'])) : '';
+
+        // An administrator may stop a run another user started (for example
+        // one left running in a closed tab). They send the opaque reference
+        // from the Bulk page, never the other user's process token.
+        if ($process_id === '' && $cancel_ref !== '') {
+            if (!current_user_can('manage_options')) {
+                AltTextPro::send_permission_error();
+            }
+
+            $marker = $this->get_live_active_run();
+            if (!$marker || !hash_equals(self::get_cancel_reference((string) $marker['process_id']), $cancel_ref)) {
+                wp_send_json_error(esc_html__('This bulk run has already finished.', 'alt-text-pro'));
+            }
+
+            $this->cancel_bulk_process((string) $marker['process_id'], true);
+            wp_send_json_success(array('status' => 'cancelled', 'cancelled_by_admin' => true));
+        }
+
         if (!$this->cancel_bulk_process($process_id)) {
             wp_send_json_error(esc_html__('Process not found.', 'alt-text-pro'));
         }
 
         wp_send_json_success($this->get_bulk_process_status($process_id));
+    }
+
+    /**
+     * "Selected" mode picker: one page of images, searchable, including
+     * images that already have alt text so they can be regenerated.
+     */
+    public function ajax_list_images()
+    {
+        check_ajax_referer('alt_text_pro_nonce', 'nonce');
+
+        if (!current_user_can('upload_files')) {
+            AltTextPro::send_permission_error();
+        }
+
+        global $wpdb;
+
+        $page = isset($_POST['page']) ? max(1, absint($_POST['page'])) : 1;
+        $search = isset($_POST['search']) ? trim(sanitize_text_field(wp_unslash($_POST['search']))) : '';
+        $filter = isset($_POST['filter']) ? sanitize_key(wp_unslash($_POST['filter'])) : 'missing';
+        $offset = ($page - 1) * self::SELECTION_PAGE_SIZE;
+
+        $where = "p.post_type = 'attachment'"
+            . AltTextPro_API_Client::get_supported_mime_sql_clause('p')
+            . self::get_editable_media_sql_clause('p');
+
+        if ($search !== '') {
+            $like = '%' . $wpdb->esc_like($search) . '%';
+            $where .= $wpdb->prepare(' AND (p.post_title LIKE %s OR alt.meta_value LIKE %s)', $like, $like);
+        }
+
+        if ($filter === 'missing') {
+            $where .= " AND (alt.meta_value IS NULL OR TRIM(alt.meta_value) = '')";
+        } elseif ($filter === 'has_alt') {
+            $where .= " AND alt.meta_value IS NOT NULL AND TRIM(alt.meta_value) != ''";
+        }
+
+        $from = "FROM {$wpdb->posts} p
+             LEFT JOIN {$wpdb->postmeta} alt ON (p.ID = alt.post_id AND alt.meta_key = '_wp_attachment_image_alt')
+             WHERE {$where}";
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- every variable fragment is prepared above
+        $total = (int) $wpdb->get_var("SELECT COUNT(DISTINCT p.ID) {$from}");
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        $rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT p.ID, p.post_title, MAX(alt.meta_value) AS alt_text {$from}
+             GROUP BY p.ID, p.post_title, p.post_date
+             ORDER BY p.post_date DESC, p.ID DESC
+             LIMIT %d OFFSET %d",
+            self::SELECTION_PAGE_SIZE,
+            $offset
+        ));
+
+        $images = array();
+        foreach ((array) $rows as $row) {
+            $alt_text = trim((string) $row->alt_text);
+            $images[] = array(
+                'id' => intval($row->ID),
+                'title' => $row->post_title !== ''
+                    ? wp_strip_all_tags(html_entity_decode((string) $row->post_title, ENT_QUOTES | ENT_HTML5, 'UTF-8'))
+                    /* translators: %d: attachment ID */
+                    : sprintf(__('Image #%d', 'alt-text-pro'), intval($row->ID)),
+                'thumb' => (string) wp_get_attachment_image_url(intval($row->ID), 'thumbnail'),
+                'alt' => $alt_text,
+                'has_alt' => $alt_text !== '',
+            );
+        }
+
+        wp_send_json_success(array(
+            'images' => $images,
+            'page' => $page,
+            'total' => $total,
+            'total_pages' => max(1, (int) ceil($total / self::SELECTION_PAGE_SIZE)),
+        ));
     }
 
     /**
@@ -514,6 +685,7 @@ class AltTextPro_Bulk_Processor
 
             // Permissions can change after a job is queued. Re-check immediately
             // before any metadata read or billable API request.
+            // wp_attachment_is_image() is false for SVG and other non-raster files.
             if (!$image_id || !wp_attachment_is_image($image_id) || !current_user_can('edit_post', $image_id)) {
                 $error_message = esc_html__('This image is no longer available to edit.', 'alt-text-pro');
                 $errors[] = array(
@@ -559,6 +731,19 @@ class AltTextPro_Bulk_Processor
                 }
             }
 
+            // The automatic generation of a fresh upload is describing this
+            // image right now: let it finish instead of paying twice.
+            if (class_exists('AltTextPro_Media_Handler') && AltTextPro_Media_Handler::is_upload_generation_running($image_id)) {
+                $skipped++;
+                $processed++;
+                $batch_results[] = array(
+                    'id' => $image_id,
+                    'filename' => basename((string) get_attached_file($image_id)),
+                    'status' => 'skipped'
+                );
+                continue;
+            }
+
             // Get blog context from settings
             $settings = get_option('alt_text_pro_settings', array());
             $blog_context = isset($settings['blog_context']) ? $settings['blog_context'] : '';
@@ -602,6 +787,12 @@ class AltTextPro_Bulk_Processor
                 }
                 $cancelled_mid_batch = true;
                 break;
+            }
+
+            // This run describes the image now, so a queued upload job for it
+            // must not bill it again.
+            if (class_exists('AltTextPro_Media_Handler')) {
+                AltTextPro_Media_Handler::claim_pending_upload($image_id);
             }
 
             $result = $api_client->generate_alt_text($image_id, $image_context, $blog_context);
@@ -657,6 +848,37 @@ class AltTextPro_Bulk_Processor
 
                 if ($retry_attempt >= self::MAX_RETRY_ATTEMPTS) {
                     unset($process_data['retry_attempts'][$image_id]);
+
+                    // The service itself keeps failing (or cannot be reached):
+                    // every later image would fail the same way, so stop the
+                    // run instead of trying each one three times.
+                    $status_code = intval($result['status_code'] ?? 0);
+                    if (!empty($result['server_error']) || $status_code === 0) {
+                        $error_message = $result['message'] ?? __('The Alt Text Pro service is not responding.', 'alt-text-pro');
+                        $errors[] = array(
+                            'image_id' => $image_id,
+                            'error' => $error_message
+                        );
+                        $batch_results[] = array(
+                            'id' => $image_id,
+                            'filename' => basename((string) get_attached_file($image_id)),
+                            'status' => 'error',
+                            'error' => $error_message
+                        );
+                        $processed++;
+
+                        return $this->stop_bulk_process_with_error(
+                            $process_id,
+                            $process_data,
+                            $batch_offset + $processed,
+                            array_unique(array_merge($successful_image_ids, $new_successful_ids)),
+                            $errors,
+                            $batch_results,
+                            'service_unavailable',
+                            __('Bulk processing stopped because the Alt Text Pro service kept failing. The images done so far are saved; start a new run later to continue.', 'alt-text-pro')
+                        );
+                    }
+
                     $error_message = esc_html__('The Alt Text Pro service could not process this image after three attempts.', 'alt-text-pro');
                     $errors[] = array(
                         'image_id' => $image_id,
@@ -717,7 +939,7 @@ class AltTextPro_Bulk_Processor
                 $process_data['status'] = 'stopped_no_credits';
                 $process_data['stopped_reason'] = sprintf(
                     // translators: %1$d: Number of processed images, %2$d: Number of successfully processed images
-                    esc_html__('Credits exhausted after processing %1$d images. %2$d images successfully processed. Buy a credit pack or upgrade your plan at alt-text.pro, or wait for your next credit refill.', 'alt-text-pro'),
+                    __('Credits exhausted after processing %1$d images. %2$d images successfully processed. Buy a credit pack or upgrade your plan at alt-text.pro, or wait for your next credit refill.', 'alt-text-pro'),
                     $processed,
                     $successful
                 );
@@ -748,6 +970,34 @@ class AltTextPro_Bulk_Processor
 
                 // Return current batch results up to this point
                 return $batch_results;
+            }
+
+            // Invalid key, suspended or deleted account, or forbidden: nothing
+            // else in the queue can succeed, so stop the run.
+            if (empty($result['success']) && !empty($result['stop_bulk'])) {
+                $error_message = $result['message'] ?? __('Alt Text Pro could not use your account.', 'alt-text-pro');
+                $errors[] = array(
+                    'image_id' => $image_id,
+                    'error' => $error_message
+                );
+                $batch_results[] = array(
+                    'id' => $image_id,
+                    'filename' => basename((string) get_attached_file($image_id)),
+                    'status' => 'error',
+                    'error' => $error_message
+                );
+                $processed++;
+
+                return $this->stop_bulk_process_with_error(
+                    $process_id,
+                    $process_data,
+                    $batch_offset + $processed,
+                    array_unique(array_merge($successful_image_ids, $new_successful_ids)),
+                    $errors,
+                    $batch_results,
+                    sanitize_key((string) ($result['code'] ?? 'account_error')),
+                    $error_message
+                );
             }
 
             if ($result['success'] && !empty($result['alt_text'])) {
@@ -876,12 +1126,44 @@ class AltTextPro_Bulk_Processor
     }
 
     /**
+     * End a run early because of an account or service problem, keeping
+     * everything generated so far.
+     *
+     * @return array Batch results for the browser.
+     */
+    private function stop_bulk_process_with_error($process_id, array $process_data, $total_processed, array $successful_ids, array $new_errors, array $batch_results, $code, $reason)
+    {
+        $existing_errors = isset($process_data['errors']) && is_array($process_data['errors']) ? $process_data['errors'] : array();
+        $all_errors = array_merge($existing_errors, $new_errors);
+        $successful_ids = array_values(array_unique(array_map('intval', $successful_ids)));
+
+        $process_data['status'] = 'stopped_error';
+        $process_data['stopped_code'] = $code;
+        $process_data['stopped_reason'] = (string) $reason;
+        $process_data['processed'] = intval($total_processed);
+        $process_data['successful'] = count($successful_ids);
+        $process_data['successful_image_ids'] = $successful_ids;
+        $process_data['errors'] = $all_errors;
+        unset($process_data['retry_attempts'], $process_data['retry_after_seconds'], $process_data['retry_message']);
+        $process_data['needs_next_batch'] = false;
+        $process_data['next_batch_offset'] = null;
+        $process_data['last_updated'] = current_time('mysql');
+
+        $this->save_bulk_process_data($process_id, $process_data, DAY_IN_SECONDS * 2);
+        $this->complete_bulk_process($process_id, true);
+
+        return $batch_results;
+    }
+
+    /**
      * Get images without alt text
      */
     private function get_images_without_alt_text($include_existing = false)
     {
         global $wpdb;
         $editable_clause = self::get_editable_media_sql_clause('p');
+        // SVG and other non-raster files are never queued.
+        $supported_mime_clause = AltTextPro_API_Client::get_supported_mime_sql_clause('p');
 
         if ($include_existing) {
             // Include all images regardless of alt text
@@ -890,11 +1172,10 @@ class AltTextPro_Bulk_Processor
                 "SELECT p.ID 
                  FROM {$wpdb->posts} p 
                  WHERE p.post_type = 'attachment' 
-                 AND p.post_mime_type LIKE %s
+                 {$supported_mime_clause}
                  {$editable_clause}
                  ORDER BY p.post_date DESC
                  LIMIT %d",
-                'image/%',
                 self::MAX_BULK_QUEUE
             );
         } else {
@@ -912,12 +1193,11 @@ class AltTextPro_Bulk_Processor
                      AND TRIM(pm.meta_value) != ''
                  )
                  WHERE p.post_type = 'attachment' 
-                 AND p.post_mime_type LIKE %s
+                 {$supported_mime_clause}
                  AND pm.post_id IS NULL
                  {$editable_clause}
                  ORDER BY p.post_date DESC
                  LIMIT %d",
-                'image/%',
                 self::MAX_BULK_QUEUE
             );
         }
@@ -951,7 +1231,8 @@ class AltTextPro_Bulk_Processor
         $ids_escaped = array_map('intval', $image_ids);
         // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- IDs are sanitized with intval
         $ids_placeholders = implode(',', array_fill(0, count($ids_escaped), '%d'));
-        $prepared_values = array_merge($ids_escaped, array('image/%'));
+        $prepared_values = $ids_escaped;
+        $supported_mime_clause = AltTextPro_API_Client::get_supported_mime_sql_clause('p');
 
         if ($include_existing) {
             // Include all selected images regardless of alt text
@@ -960,7 +1241,7 @@ class AltTextPro_Bulk_Processor
                  FROM {$wpdb->posts} p 
                  WHERE p.ID IN ($ids_placeholders) 
                  AND p.post_type = 'attachment' 
-                 AND p.post_mime_type LIKE %s";
+                 {$supported_mime_clause}";
             // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
             $query = $wpdb->prepare($sql, ...$prepared_values);
         } else {
@@ -978,7 +1259,7 @@ class AltTextPro_Bulk_Processor
                  )
                  WHERE p.ID IN ($ids_placeholders) 
                  AND p.post_type = 'attachment' 
-                 AND p.post_mime_type LIKE %s
+                 {$supported_mime_clause}
                  AND pm.post_id IS NULL";
             // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
             $query = $wpdb->prepare($sql, ...$prepared_values);
@@ -1149,7 +1430,11 @@ class AltTextPro_Bulk_Processor
 
         // Add stopped_reason if process was stopped due to credits
         if (isset($process_data['status']) && $process_data['status'] === 'stopped_no_credits') {
-            $status_data['stopped_reason'] = $process_data['stopped_reason'] ?? esc_html__('Credits exhausted. Buy a credit pack or upgrade your plan at alt-text.pro, or wait for your next credit refill.', 'alt-text-pro');
+            $status_data['stopped_reason'] = $process_data['stopped_reason'] ?? __('Credits exhausted. Buy a credit pack or upgrade your plan at alt-text.pro, or wait for your next credit refill.', 'alt-text-pro');
+            $status_data['stopped_code'] = 'no_credits';
+        } elseif (isset($process_data['status']) && $process_data['status'] === 'stopped_error') {
+            $status_data['stopped_reason'] = $process_data['stopped_reason'] ?? __('Bulk processing stopped because of an account or service problem.', 'alt-text-pro');
+            $status_data['stopped_code'] = $process_data['stopped_code'] ?? 'account_error';
         }
 
         return $status_data;
@@ -1169,7 +1454,7 @@ class AltTextPro_Bulk_Processor
                 $process_data['successful'] = $successful;
             }
             $current_status = $process_data['status'] ?? 'running';
-            if (!in_array($current_status, array('cancelled', 'completed', 'stopped_no_credits'), true)) {
+            if (!in_array($current_status, array('cancelled', 'completed', 'stopped_no_credits', 'stopped_error'), true)) {
                 $process_data['status'] = 'running';
             }
             $process_data['last_updated'] = current_time('mysql');
@@ -1203,8 +1488,8 @@ class AltTextPro_Bulk_Processor
                 return;
             }
 
-            if ($early_stop && isset($process_data['status']) && $process_data['status'] === 'stopped_no_credits') {
-                $process_data['status'] = 'stopped_no_credits';
+            if ($early_stop && isset($process_data['status']) && in_array($process_data['status'], array('stopped_no_credits', 'stopped_error'), true)) {
+                // Keep the reason the run stopped.
             } else {
                 $process_data['status'] = 'completed';
             }
@@ -1214,8 +1499,11 @@ class AltTextPro_Bulk_Processor
 
             $this->save_bulk_process_data($process_id, $process_data, DAY_IN_SECONDS);
 
-            // Send completion notification (only once)
-            $this->send_completion_notification($process_data);
+            // Send completion notification (only once, and only when the
+            // "Email me when a bulk run finishes" setting is on)
+            if (AltTextPro_Settings::is_enabled('email_bulk_complete')) {
+                $this->send_completion_notification($process_data);
+            }
             $this->delete_bulk_process_state($process_id);
         }
     }
@@ -1223,16 +1511,16 @@ class AltTextPro_Bulk_Processor
     /**
      * Cancel bulk process
      */
-    private function cancel_bulk_process($process_id)
+    private function cancel_bulk_process($process_id, $any_owner = false)
     {
-        $process_data = $this->get_bulk_process_data($process_id, true);
+        $process_data = $this->get_bulk_process_data($process_id, true, $any_owner);
 
         if (!$process_data) {
             return false;
         }
 
         $current_status = $process_data['status'] ?? 'running';
-        if (in_array($current_status, array('completed', 'stopped_no_credits'), true)) {
+        if (in_array($current_status, array('completed', 'stopped_no_credits', 'stopped_error'), true)) {
             $this->delete_bulk_process_state($process_id);
             return true;
         }
@@ -1337,7 +1625,7 @@ class AltTextPro_Bulk_Processor
         }
 
         $now = strtotime(current_time('mysql'));
-        $terminal_statuses = array('completed', 'cancelled', 'stopped_no_credits');
+        $terminal_statuses = array('completed', 'cancelled', 'stopped_no_credits', 'stopped_error');
         $deleted = 0;
 
         foreach ((array) $option_names as $option_name) {
@@ -1613,40 +1901,84 @@ class AltTextPro_Bulk_Processor
 
     /**
      * Send completion notification
+     *
+     * Plain text: wp_mail() sends text/plain by default, so no HTML escaping
+     * (which would show &quot; and &#039; in the mail).
      */
     private function send_completion_notification($process_data)
     {
         $user = get_user_by('id', $process_data['user_id']);
 
-        if ($user && $user->user_email) {
-            // Check if processing stopped due to credits
-            $stopped_reason = isset($process_data['stopped_reason']) ? $process_data['stopped_reason'] : '';
-            $is_stopped = isset($process_data['status']) && $process_data['status'] === 'stopped_no_credits';
-
-            if ($is_stopped) {
-                $subject = esc_html__('Alt Text Pro: Bulk Processing Stopped - No Credits', 'alt-text-pro');
-                $message = sprintf(
-                    // translators: %1$d: Total images, %2$d: Processed images, %3$d: Successfully processed images, %4$d: Error count, %5$s: Stopped reason
-                    esc_html__("Your bulk alt-text generation process has stopped due to insufficient credits.\n\nResults:\n- Total images: %1\$d\n- Processed: %2\$d\n- Successfully processed: %3\$d\n- Errors: %4\$d\n\nReason: %5\$s\n\nBuy a credit pack or upgrade your plan at alt-text.pro to continue processing the remaining images.\n\nYou can view detailed results in your WordPress admin dashboard.", 'alt-text-pro'),
-                    $process_data['total_images'],
-                    $process_data['processed'] ?? 0,
-                    $process_data['successful'] ?? 0,
-                    count($process_data['errors'] ?? array()),
-                    $stopped_reason ?: esc_html__('No credits remaining', 'alt-text-pro')
-                );
-            } else {
-                $subject = esc_html__('Alt Text Pro: Bulk Processing Complete', 'alt-text-pro');
-                $message = sprintf(
-                    // translators: %1$d: Total images, %2$d: Successfully processed images, %3$d: Error count
-                    esc_html__("Your bulk alt-text generation process has completed.\n\nResults:\n- Total images: %1\$d\n- Successfully processed: %2\$d\n- Errors: %3\$d\n\nYou can view detailed results in your WordPress admin dashboard.", 'alt-text-pro'),
-                    $process_data['total_images'],
-                    $process_data['successful'] ?? 0,
-                    count($process_data['errors'] ?? array())
-                );
-            }
-
-            wp_mail($user->user_email, $subject, $message);
+        if (!$user || !$user->user_email) {
+            return;
         }
+
+        $status = $process_data['status'] ?? '';
+        $stopped_reason = isset($process_data['stopped_reason']) ? (string) $process_data['stopped_reason'] : '';
+        $total = intval($process_data['processable_images'] ?? $process_data['total_images'] ?? 0);
+        $processed = intval($process_data['processed'] ?? 0);
+        $successful = intval($process_data['successful'] ?? 0);
+        $error_count = count($process_data['errors'] ?? array());
+        $site_name = self::plain_text(get_bloginfo('name'));
+
+        if ($status === 'stopped_no_credits') {
+            /* translators: %s: site name */
+            $subject = sprintf(__('[%s] Alt Text Pro: bulk run stopped, no credits left', 'alt-text-pro'), $site_name);
+            $message = sprintf(
+                // translators: %1$d: Total images, %2$d: Processed images, %3$d: Successfully processed images, %4$d: Error count, %5$s: Stopped reason, %6$s: pricing URL
+                __("Your bulk alt text run stopped because the account ran out of credits.\n\nResults:\n- Images in this run: %1\$d\n- Processed: %2\$d\n- Alt text written: %3\$d\n- Errors: %4\$d\n\nReason: %5\$s\n\nBuy credits or upgrade your plan to continue: %6\$s", 'alt-text-pro'),
+                $total,
+                $processed,
+                $successful,
+                $error_count,
+                $stopped_reason !== '' ? $stopped_reason : __('No credits remaining', 'alt-text-pro'),
+                ALT_TEXT_PRO_PRICING_URL
+            );
+        } elseif ($status === 'stopped_error') {
+            /* translators: %s: site name */
+            $subject = sprintf(__('[%s] Alt Text Pro: bulk run stopped', 'alt-text-pro'), $site_name);
+            $message = sprintf(
+                // translators: %1$d: Total images, %2$d: Processed images, %3$d: Successfully processed images, %4$d: Error count, %5$s: Stopped reason
+                __("Your bulk alt text run stopped early.\n\nResults:\n- Images in this run: %1\$d\n- Processed: %2\$d\n- Alt text written: %3\$d\n- Errors: %4\$d\n\nReason: %5\$s", 'alt-text-pro'),
+                $total,
+                $processed,
+                $successful,
+                $error_count,
+                $stopped_reason
+            );
+        } else {
+            /* translators: %s: site name */
+            $subject = sprintf(__('[%s] Alt Text Pro: bulk run finished', 'alt-text-pro'), $site_name);
+            $message = sprintf(
+                // translators: %1$d: Total images, %2$d: Successfully processed images, %3$d: Error count
+                __("Your bulk alt text run has finished.\n\nResults:\n- Images in this run: %1\$d\n- Alt text written: %2\$d\n- Errors: %3\$d", 'alt-text-pro'),
+                $total,
+                $successful,
+                $error_count
+            );
+        }
+
+        $message .= "\n\n" . sprintf(
+            /* translators: %s: URL of the Alt Text Pro logs page */
+            __('Details: %s', 'alt-text-pro'),
+            admin_url('admin.php?page=alt-text-pro-logs')
+        );
+        $message .= "\n\n" . sprintf(
+            /* translators: %s: URL of the Alt Text Pro settings page */
+            __('You get this email because "Email me when a bulk run finishes" is on. Turn it off in Alt Text Pro > Settings: %s', 'alt-text-pro'),
+            admin_url('admin.php?page=alt-text-pro-settings')
+        );
+
+        wp_mail($user->user_email, self::plain_text($subject), self::plain_text($message, true));
+    }
+
+    /**
+     * Strip tags and decode entities for a plain-text email.
+     */
+    private static function plain_text($text, $keep_newlines = false)
+    {
+        $text = html_entity_decode(wp_strip_all_tags((string) $text, !$keep_newlines), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        return $keep_newlines ? $text : trim(preg_replace('/\s+/u', ' ', $text));
     }
 
     /**

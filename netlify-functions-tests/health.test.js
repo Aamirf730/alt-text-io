@@ -57,10 +57,8 @@ describe('health check endpoint', () => {
         expect(body.checks.basic.timestamp).toBeDefined();
         expect(body.checks.basic).not.toHaveProperty('node');
         expect(body.checks.basic).not.toHaveProperty('uptime');
-        expect(body.checks.rate_limiter).toMatchObject({
-            status: 'healthy',
-            backend: 'memory',
-        });
+        expect(body.checks.rate_limiter).toEqual({ status: 'healthy' });
+        expect(body.checks.rate_limiter).not.toHaveProperty('backend');
     });
 
     it('rate-limits public health checks per client IP', async () => {
@@ -115,11 +113,8 @@ describe('health check endpoint', () => {
         expect(checkRateLimiterStatusFn).toHaveBeenCalledOnce();
 
         const body = JSON.parse(result.body);
-        expect(body.checks.rate_limiter).toEqual({
-            status: 'healthy',
-            backend: 'redis',
-            probe: 'skipped',
-        });
+        // The public response never names the rate-limit backend.
+        expect(body.checks.rate_limiter).toEqual({ status: 'healthy' });
         expect(body.checks.rate_limiter).not.toHaveProperty('initError');
         expect(body.checks.rate_limiter).not.toHaveProperty('fallbackOverrideRequested');
         expect(body.checks.rate_limiter).not.toHaveProperty('fallbackOverrideIgnored');
@@ -178,10 +173,7 @@ describe('health check endpoint', () => {
         const body = JSON.parse(result.body);
         expect(result.statusCode).toBe(503);
         expect(body.status).toBe('degraded');
-        expect(body.checks.rate_limiter).toMatchObject({
-            status: 'unhealthy',
-            backend: 'unavailable',
-        });
+        expect(body.checks.rate_limiter).toEqual({ status: 'unhealthy' });
         expect(body.checks.rate_limiter).not.toHaveProperty('error');
         expect(body.checks.rate_limiter).not.toHaveProperty('fallbackOverrideRequested');
         expect(body.checks.rate_limiter).not.toHaveProperty('fallbackOverrideIgnored');

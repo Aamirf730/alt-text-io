@@ -167,6 +167,7 @@ function wp_safe_redirect($url)
 function wp_remote_request($url, $args)
 {
     global $alt_text_pro_test;
+    $alt_text_pro_test['remote_request_args'] = $args;
     return $alt_text_pro_test['remote_request'];
 }
 
@@ -449,6 +450,42 @@ alt_text_pro_release_assert(
         && $alt_text_pro_test['remote_get_calls'] === 0,
     'A local file must be read without downloading.'
 );
+
+// --- 1.7.28: server errors reach the bulk run ----------------------------
+// generate_alt_text() must pass server_error on, or the bulk run's "the
+// service keeps failing" stop never fires for 5xx answers.
+$alt_text_pro_test['remote_request'] = array(
+    'response' => array('code' => 500),
+    'headers' => array(),
+    'body' => '{"error":"Internal error"}',
+);
+$server_failure = $client->generate_alt_text(55);
+alt_text_pro_release_assert(
+    empty($server_failure['success']) && !empty($server_failure['retryable']) && $server_failure['server_error'] === true,
+    'A 500 from the service must reach the caller with server_error set.'
+);
+
+$alt_text_pro_test['remote_request']['response']['code'] = 502;
+$gateway_failure = $client->generate_alt_text(55);
+alt_text_pro_release_assert(
+    $gateway_failure['server_error'] === true && intval($gateway_failure['status_code']) === 502,
+    'A 502 gateway error must reach the caller with server_error set.'
+);
+
+$alt_text_pro_test['remote_request'] = array(
+    'response' => array('code' => 500),
+    'headers' => array(),
+    'body' => '{"error":"Could not describe","code":"generation_failed"}',
+);
+$image_failure = $client->generate_alt_text(55);
+alt_text_pro_release_assert(
+    empty($image_failure['retryable']) && $image_failure['server_error'] === false,
+    'One image the AI could not describe is not a service failure.'
+);
+alt_text_pro_release_assert(
+    strpos($bulk_source, "if (!empty(\$result['server_error']) || \$status_code === 0)") !== false,
+    'Bulk runs must stop when the service keeps answering with server errors.'
+);
 unlink($local_file);
 
 // --- Item 7: "Used in" context ------------------------------------------
@@ -493,7 +530,7 @@ $logs_template = file_get_contents(dirname(__DIR__) . '/alt-text-pro/templates/l
 alt_text_pro_release_assert(
     preg_match('/number_format\(\$stats/', $logs_template) === 0
         && substr_count($logs_template, 'number_format((int) $stats') === 4
-        && strpos($logs_template, "wp_nonce_url(admin_url('admin-post.php?action=alt_text_pro_export_logs'), 'alt_text_pro_export_logs')") !== false,
+        && preg_match("/wp_nonce_url\\(.*admin_url\\('admin-post\\.php\\?action=alt_text_pro_export_logs'\\).*, 'alt_text_pro_export_logs'\\)/", $logs_template) === 1,
     'The logs page must cast stats before number_format() and link Export to the nonce-protected handler.'
 );
 
@@ -589,6 +626,51 @@ alt_text_pro_release_assert(
         && strpos($admin_js, 'event.origin !== expectedOrigin') !== false
         && strpos($admin_js, 'event.data.state !== storedState') !== false,
     'The connect callback must use the current browser origin and keep the origin/state checks.'
+);
+
+// --- 1.7.28: formats are counted only where WordPress can process them ---
+// Bulk runs process images through wp_attachment_is_image(), which accepts
+// WebP from 5.8, AVIF from 6.5 and HEIC from 6.7.
+$wp_version = '5.7.2';
+alt_text_pro_release_assert(
+    AltTextPro_API_Client::supported_mime_types() === array('image/jpeg', 'image/png', 'image/gif'),
+    'WordPress before 5.8 must not count WebP, AVIF or HEIC images.'
+);
+$old_wp_clause = AltTextPro_API_Client::get_supported_mime_sql_clause('p');
+alt_text_pro_release_assert(
+    $old_wp_clause['args'] === array(array('image/jpeg', 'image/png', 'image/gif'))
+        && substr_count($old_wp_clause['query'], '%s') === 3,
+    'The missing-alt SQL must use the same formats as processing.'
+);
+$wp_version = '6.5-RC1';
+alt_text_pro_release_assert(
+    AltTextPro_API_Client::supported_mime_types() === array('image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif'),
+    'WordPress 6.5 must count AVIF but not HEIC images.'
+);
+$wp_version = '6.7.1';
+alt_text_pro_release_assert(
+    count(AltTextPro_API_Client::supported_mime_types()) === 7
+        && in_array('image/heic', AltTextPro_API_Client::supported_mime_types(), true),
+    'WordPress 6.7 must count HEIC images.'
+);
+unset($wp_version);
+alt_text_pro_release_assert(
+    count(AltTextPro_API_Client::supported_mime_types()) === 7,
+    'Outside WordPress every supported format is listed.'
+);
+
+// --- 1.7.28: uninstall does not wait for the service ----------------------
+$alt_text_pro_test['remote_request'] = array('response' => array('code' => 0), 'headers' => array(), 'body' => '');
+$alt_text_pro_test['remote_request_args'] = null;
+alt_text_pro_release_assert(
+    $client->disconnect_site(null, false) === true
+        && ($alt_text_pro_test['remote_request_args']['blocking'] ?? null) === false
+        && intval($alt_text_pro_test['remote_request_args']['timeout']) <= 2,
+    'A non-blocking site disconnect must not wait for the answer.'
+);
+alt_text_pro_release_assert(
+    strpos($uninstall_source, 'notify_site_disconnected(false)') !== false,
+    'Uninstall must disconnect each site without blocking, so large networks do not time out.'
 );
 
 restore_error_handler();

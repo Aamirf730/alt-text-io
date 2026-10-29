@@ -141,6 +141,7 @@ else: ?>
                     <span class="stat-value-meta"><?php esc_html_e('available', 'alt-text-pro'); ?></span>
                 </div>
 
+                <?php $alt_text_pro_low_credits = $alt_text_pro_credits_available <= 10; ?>
                 <div class="usage-progress-container">
                     <div class="progress-bar">
                         <div class="progress-fill" style="width: <?php echo esc_attr($alt_text_pro_usage_percentage); ?>%">
@@ -174,6 +175,12 @@ else: ?>
                         <?php endif; ?>
                     </div>
                 </div>
+                <div class="stat-footer">
+                    <a href="<?php echo esc_url(ALT_TEXT_PRO_PRICING_URL); ?>" target="_blank" rel="noopener noreferrer" class="atp-upgrade-link<?php echo $alt_text_pro_low_credits ? ' is-urgent' : ''; ?>">
+                        <span><?php esc_html_e('Buy credits or upgrade', 'alt-text-pro'); ?></span>
+                        <span class="dashicons dashicons-external" aria-hidden="true"></span>
+                    </a>
+                </div>
             </div>
             <?php endif; ?>
 
@@ -196,14 +203,47 @@ else: ?>
                     <?php echo esc_html($alt_text_pro_plan_name); ?>
                 </div>
                 <div class="stat-footer">
-                    <a href="https://www.alt-text.pro/dashboard" target="_blank" rel="noopener noreferrer">
+                    <a href="<?php echo esc_url(ALT_TEXT_PRO_DASHBOARD_URL); ?>" target="_blank" rel="noopener noreferrer">
                         <span><?php esc_html_e('Manage Subscription', 'alt-text-pro'); ?></span>
+                        <span class="dashicons dashicons-external" aria-hidden="true"></span>
+                    </a>
+                    <a href="<?php echo esc_url(ALT_TEXT_PRO_PRICING_URL); ?>" target="_blank" rel="noopener noreferrer">
+                        <span><?php esc_html_e('Upgrade plan', 'alt-text-pro'); ?></span>
                         <span class="dashicons dashicons-external" aria-hidden="true"></span>
                     </a>
                 </div>
             </div>
             <?php endif; ?>
         </div>
+
+        <?php if ($usage_stats !== null && $alt_text_pro_low_credits): ?>
+            <!-- Zero or low credits: the way to pay is right here. -->
+            <div class="alt-text-pro-card is-warning">
+                <div class="atp-callout">
+                    <span class="atp-icon-chip is-warning" aria-hidden="true"><span class="dashicons dashicons-warning"></span></span>
+                    <div class="atp-callout-body">
+                        <h3>
+                            <?php
+                            echo esc_html($alt_text_pro_credits_available <= 0
+                                ? __('You are out of credits', 'alt-text-pro')
+                                : sprintf(
+                                    /* translators: %s: credits left */
+                                    _n('Only %s credit left', 'Only %s credits left', $alt_text_pro_credits_available, 'alt-text-pro'),
+                                    number_format_i18n($alt_text_pro_credits_available)
+                                ));
+                            ?>
+                        </h3>
+                        <p><?php esc_html_e('Each image uses one credit. Buy a credit pack or upgrade your plan to keep generating alt text.', 'alt-text-pro'); ?></p>
+                    </div>
+                    <div class="atp-actions">
+                        <a href="<?php echo esc_url(ALT_TEXT_PRO_PRICING_URL); ?>" target="_blank" rel="noopener noreferrer" class="button-primary-custom">
+                            <span><?php esc_html_e('Buy credits or upgrade', 'alt-text-pro'); ?></span>
+                            <span class="dashicons dashicons-external" aria-hidden="true"></span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        <?php endif; ?>
 
         <!-- Quick Actions -->
         <div class="alt-text-pro-card">

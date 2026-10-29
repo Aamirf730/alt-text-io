@@ -10,6 +10,7 @@ import { trackMarketingEvent } from '@/lib/analytics';
 import { getPolarProductId } from '@/lib/polar-products';
 import { savePendingCheckout } from '@/lib/pending-checkout';
 import { SUBSCRIPTION_EXISTS_CODE } from '@/lib/subscription-status';
+import { EXISTING_ACCOUNT_MESSAGE, isExistingAccountSignUp } from '@/lib/auth-redirect';
 import { toast } from "sonner";
 import {
   Brain, CheckCircle, Star, ArrowRight, Users, Shield, Rocket,
@@ -275,6 +276,11 @@ export default function LandingPage() {
           setPendingConfirmationEmail(email.trim());
         }
         toast.error(result.error.message);
+      } else if (!isLogin && isExistingAccountSignUp(result.data.user, Boolean(result.data.session))) {
+        // Supabase sends no email for an address that already has an account.
+        setIsLogin(true);
+        setPendingConfirmationEmail(null);
+        toast.error(EXISTING_ACCOUNT_MESSAGE, { duration: 8000 });
       } else if (result.data.user) {
         if (!isLogin && result.data.session) {
           trackMarketingEvent("signup_created", {

@@ -18,7 +18,7 @@ test('tracked migrations have one ordered, canonical history', () => {
   assert.ok(files.length > 1);
   assert.equal(new Set(versions).size, versions.length);
   assert.equal(files[0], '20260625140000_bootstrap_schema.sql');
-  assert.equal(files.at(-1), '20261024140000_add_payment_tax_and_refund_amounts.sql');
+  assert.equal(files.at(-1), '20261029130000_reconciliation_processing_and_unknown_sends.sql');
 });
 
 test('bootstrap defines every foundational table and reporting view', () => {
@@ -439,4 +439,16 @@ test('profile email uniqueness no longer blocks duplicate auth identities', () =
   assert.match(integrity, /a\.attname = 'email'/);
   assert.match(integrity, /drop constraint %i/);
   assert.match(integrity, /user_id is the authoritative account binding/);
+});
+
+test('reconciliation rows can be claimed and lifecycle sends can be unknown', () => {
+  const migration = fs.readFileSync(
+    path.join(migrationsDirectory, '20261029130000_reconciliation_processing_and_unknown_sends.sql'),
+    'utf8',
+  ).toLowerCase();
+
+  assert.match(migration, /drop constraint if exists payment_reconciliation_status_check/);
+  assert.match(migration, /check \(status in \('open', 'processing', 'resolved', 'ignored'\)\)/);
+  assert.match(migration, /add constraint marketing_automation_sends_status_check/);
+  assert.match(migration, /check \(status in \('pending', 'sent', 'failed', 'skipped', 'unknown'\)\)/);
 });

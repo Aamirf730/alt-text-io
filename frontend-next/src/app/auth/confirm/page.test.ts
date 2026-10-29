@@ -20,3 +20,16 @@ describe("first-party email confirmation", () => {
     expect(template).not.toContain("{{ .ConfirmationURL }}");
   });
 });
+
+describe("expired or used confirmation links", () => {
+  it("offers a resend form and sign-in instead of a continue loop", () => {
+    expect(source).toContain("supabase.auth.resend({");
+    expect(source).toContain('href="/?auth=signin"');
+    expect(source).not.toContain("Continue without confirming");
+  });
+
+  it("removes the spent token from the address bar before tracking", () => {
+    const cleared = source.indexOf('window.history.replaceState({}, document.title, "/auth/confirm");\n\n      if (type === "signup"');
+    expect(cleared).toBeGreaterThan(-1);
+  });
+});

@@ -28,6 +28,33 @@ class AltTextPro_API_Client
     // Offloaded media (S3/CDN): how long to wait for the attachment URL.
     private const REMOTE_IMAGE_TIMEOUT = 20;
 
+    // Raster formats the plugin offers to describe. SVG, icons and other
+    // non-raster "image/*" types are excluded; the list matches the formats
+    // WordPress itself treats as images (wp_attachment_is_image()).
+    // supported_mime_types() drops the ones the running WordPress does not.
+    private const SUPPORTED_MIME_TYPES = array(
+        'image/jpeg',
+        'image/png',
+        'image/gif',
+        'image/webp',
+        'image/avif',
+        'image/heic',
+        'image/heif',
+    );
+
+    // First WordPress version whose wp_attachment_is_image() accepts each
+    // newer format. Older versions reject them, so they are neither counted
+    // nor queued there.
+    private const MIME_TYPE_MIN_WP_VERSION = array(
+        'image/webp' => '5.8',
+        'image/avif' => '6.5',
+        'image/heic' => '6.7',
+        'image/heif' => '6.7',
+    );
+
+    // Longest wait the plugin honours from a Retry-After answer.
+    private const MAX_RETRY_AFTER_SECONDS = 300;
+
 
     private $api_base;
     private $api_key;
@@ -41,6 +68,101 @@ class AltTextPro_API_Client
         $settings_handler = new AltTextPro_Settings();
         $decrypted_settings = $settings_handler->get_settings();
         $this->api_key = $decrypted_settings['api_key'] ?? '';
+    }
+
+    /**
+     * MIME types Alt Text Pro can describe on this WordPress version: the
+     * same ones wp_attachment_is_image() accepts, so the missing-alt counts
+     * match what a bulk run processes.
+     *
+     * @return string[]
+     */
+    public static function supported_mime_types()
+    {
+        global $wp_version;
+
+        // Unknown version (outside WordPress): assume a current one.
+        if (!is_string($wp_version) || !preg_match('/^\d+(?:\.\d+)*/', $wp_version, $version_match)) {
+            return self::SUPPORTED_MIME_TYPES;
+        }
+
+        $running_version = $version_match[0];
+        $minimum_versions = self::MIME_TYPE_MIN_WP_VERSION;
+        $supported = array();
+        foreach (self::SUPPORTED_MIME_TYPES as $mime_type) {
+            if (
+                !isset($minimum_versions[$mime_type]) ||
+                version_compare($running_version, $minimum_versions[$mime_type], '>=')
+            ) {
+                $supported[] = $mime_type;
+            }
+        }
+
+        return $supported;
+    }
+
+    /**
+     * True when the attachment is a raster image the service can describe.
+     * SVG, icons and other non-raster files return false.
+     */
+    public static function is_supported_image($attachment_id)
+    {
+        $attachment_id = absint($attachment_id);
+        if (!$attachment_id || get_post_type($attachment_id) !== 'attachment') {
+            return false;
+        }
+
+        $mime_type = strtolower((string) get_post_mime_type($attachment_id));
+        return in_array($mime_type, self::supported_mime_types(), true);
+    }
+
+    /**
+     * SQL fragment limiting an attachment query to supported image types.
+     *
+     * @param string $table_alias Alias of the posts table in the query.
+     */
+    public static function get_supported_mime_sql_clause($table_alias = 'p')
+    {
+        global $wpdb;
+
+        $mime_types = self::supported_mime_types();
+        $placeholders = implode(', ', array_fill(0, count($mime_types), '%s'));
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- alias is internal, placeholders match the values
+        return $wpdb->prepare(" AND {$table_alias}.post_mime_type IN ({$placeholders})", $mime_types);
+    }
+
+    /**
+     * This site's address as the service records it for "connected sites".
+     */
+    public static function get_site_url()
+    {
+        return function_exists('home_url') ? rtrim((string) home_url('/'), '/') : '';
+    }
+
+    /**
+     * Tell the service this site no longer uses the key. Best effort: the
+     * key itself stays valid because every site of the account shares it.
+     *
+     * @param string $api_key  Plain API key; defaults to the saved key.
+     * @param bool   $blocking False sends the request without waiting for
+     *                         the answer (uninstall, where a slow service
+     *                         must not hold up every site of a network).
+     * @return bool True when the service confirmed the request, or, when not
+     *              blocking, when the request was sent.
+     */
+    public function disconnect_site($api_key = null, $blocking = true)
+    {
+        $key = $api_key ?? $this->api_key;
+        if (empty($key)) {
+            return false;
+        }
+
+        $original_key = $this->api_key;
+        $this->api_key = $key;
+        $response = $this->make_request('site-disconnect', 'POST', array('site_url' => self::get_site_url()), 5, (bool) $blocking);
+        $this->api_key = $original_key;
+
+        return !empty($response['success']);
     }
 
     /**
@@ -84,10 +206,14 @@ class AltTextPro_API_Client
         // Combine blog context and individual image context
         $combined_context = trim($blog_context . ($blog_context && $context ? ' | ' : '') . $context);
 
-        // Prepare request data
+        // Prepare request data. The language is a BCP-47 tag such as "de-DE";
+        // the service falls back to English for anything it does not support.
         $request_data = array(
             'image_base64' => $image_data,
-            'context' => $combined_context
+            'context' => $combined_context,
+            'language' => method_exists('AltTextPro_Settings', 'get_output_language')
+                ? AltTextPro_Settings::get_output_language()
+                : 'en',
         );
 
         // Make API request
@@ -143,7 +269,10 @@ class AltTextPro_API_Client
             'retry_after_seconds' => $response['retry_after_seconds'] ?? null,
             'code' => $response['code'] ?? null,
             'image_too_large' => $response['image_too_large'] ?? false,
-            'no_credits' => $response['no_credits'] ?? false
+            'no_credits' => $response['no_credits'] ?? false,
+            'stop_bulk' => $response['stop_bulk'] ?? false,
+            // Bulk runs stop when the service itself keeps failing (5xx).
+            'server_error' => $response['server_error'] ?? false
         );
     }
 
@@ -196,9 +325,9 @@ class AltTextPro_API_Client
      */
     private function get_image_base64($attachment_id)
     {
-        // Check if it's an image
-        $mime_type = (string) get_post_mime_type($attachment_id);
-        if (strpos($mime_type, 'image/') !== 0) {
+        // Images only, and never SVG (vector markup the service cannot read).
+        $mime_type = strtolower((string) get_post_mime_type($attachment_id));
+        if (strpos($mime_type, 'image/') !== 0 || strpos($mime_type, 'svg') !== false) {
             return false;
         }
 
@@ -424,18 +553,28 @@ class AltTextPro_API_Client
     /**
      * Make API request
      */
-    private function make_request($endpoint, $method = 'GET', $data = array(), $timeout = 60)
+    private function make_request($endpoint, $method = 'GET', $data = array(), $timeout = 60, $blocking = true)
     {
         // Ensure proper URL construction (remove trailing slash from base, ensure single slash)
         $api_base = rtrim($this->api_base, '/');
         $endpoint = ltrim($endpoint, '/');
         $url = $api_base . '/' . $endpoint;
 
+        // The site URL, plugin version and locale let the account list its
+        // connected sites; they are listed under "External services".
         $headers = array(
             'Content-Type' => 'application/json',
             'Authorization' => 'Bearer ' . $this->api_key,
-            'X-Alt-Text-Pro-Version' => ALT_TEXT_PRO_VERSION
+            'X-Alt-Text-Pro-Version' => ALT_TEXT_PRO_VERSION,
+            'X-Plugin-Version' => ALT_TEXT_PRO_VERSION,
         );
+        $site_url = self::get_site_url();
+        if ($site_url !== '') {
+            $headers['X-Site-URL'] = $site_url;
+        }
+        if (function_exists('get_locale')) {
+            $headers['X-WP-Locale'] = (string) get_locale();
+        }
 
         $args = array(
             'method' => $method,
@@ -444,11 +583,22 @@ class AltTextPro_API_Client
             'sslverify' => true
         );
 
+        // Fire and forget: only connecting and sending may take time.
+        if (!$blocking) {
+            $args['blocking'] = false;
+            $args['timeout'] = 2;
+        }
+
         if ($method === 'POST' && !empty($data)) {
             $args['body'] = json_encode($data);
         }
 
         $response = wp_remote_request($url, $args);
+
+        // A non-blocking request has no answer to read.
+        if (!$blocking) {
+            return array('success' => !is_wp_error($response));
+        }
 
         // Handle WordPress errors
         if (is_wp_error($response)) {
@@ -507,11 +657,22 @@ class AltTextPro_API_Client
                 );
             }
 
+            $response_code = is_array($decoded_body) && isset($decoded_body['code']) ? sanitize_key($decoded_body['code']) : null;
+            $retry_after_seconds = $this->get_retry_after_seconds($response, $decoded_body);
+
             // Handle specific error codes with more specific messages
             switch ($status_code) {
                 case 401:
-                    $error_message = esc_html__('Invalid API key. Please check your settings and ensure your API key is correct.', 'alt-text-pro');
-                    break;
+                    // The key itself is wrong: nothing else will work, so bulk
+                    // runs stop instead of failing every remaining image.
+                    return array(
+                        'success' => false,
+                        'message' => esc_html__('Invalid API key. Please check your settings and ensure your API key is correct.', 'alt-text-pro'),
+                        'status_code' => 401,
+                        'code' => 'invalid_api_key',
+                        'retryable' => false,
+                        'stop_bulk' => true
+                    );
                 case 402:
                     $error_message = esc_html__('No credits remaining. Buy a credit pack or upgrade your plan at alt-text.pro.', 'alt-text-pro');
                     // Mark as no credits error for bulk processing to stop
@@ -519,11 +680,28 @@ class AltTextPro_API_Client
                         'success' => false,
                         'message' => $error_message,
                         'no_credits' => true, // Special flag to indicate credits exhausted
+                        'code' => 'no_credits',
                         'status_code' => 402
                     );
                 case 403:
-                    $error_message = esc_html__('Access forbidden. Please check your API key permissions.', 'alt-text-pro');
-                    break;
+                    if ($response_code === 'account_suspended' || (is_array($decoded_body) && ($decoded_body['error'] ?? '') === 'account_suspended')) {
+                        return array(
+                            'success' => false,
+                            'message' => esc_html__('Your Alt Text Pro account is suspended, so alt text cannot be generated. Contact help@alt-text.pro if you think this is a mistake.', 'alt-text-pro'),
+                            'status_code' => 403,
+                            'code' => 'account_suspended',
+                            'retryable' => false,
+                            'stop_bulk' => true
+                        );
+                    }
+                    return array(
+                        'success' => false,
+                        'message' => esc_html__('Access forbidden. Please check your API key permissions.', 'alt-text-pro'),
+                        'status_code' => 403,
+                        'code' => $response_code ?: 'forbidden',
+                        'retryable' => false,
+                        'stop_bulk' => true
+                    );
                 case 404:
                     // The service answers 404 when the account behind this key
                     // no longer exists; that needs a reconnect, not an update.
@@ -534,7 +712,8 @@ class AltTextPro_API_Client
                             'status_code' => 404,
                             'code' => 'account_not_found',
                             'reconnect' => true,
-                            'retryable' => false
+                            'retryable' => false,
+                            'stop_bulk' => true
                         );
                     }
                     $error_message = esc_html__('The requested Alt Text Pro service is unavailable. Please update the plugin or try again later.', 'alt-text-pro');
@@ -543,10 +722,6 @@ class AltTextPro_API_Client
                     $error_message = esc_html__('Image too large to process.', 'alt-text-pro');
                     break;
                 case 429:
-                    $retry_after_seconds = null;
-                    if (is_array($decoded_body) && isset($decoded_body['retry_after_seconds'])) {
-                        $retry_after_seconds = max(1, intval($decoded_body['retry_after_seconds']));
-                    }
                     $error_message = is_array($decoded_body) && !empty($decoded_body['message'])
                         ? sanitize_text_field($decoded_body['message'])
                         : esc_html__('AI generation is temporarily rate limited. The plugin will wait and retry automatically.', 'alt-text-pro');
@@ -555,41 +730,63 @@ class AltTextPro_API_Client
                         'success' => false,
                         'message' => $error_message,
                         'retryable' => true,
-                        'retry_after_seconds' => $retry_after_seconds,
-                        'code' => is_array($decoded_body) && isset($decoded_body['code']) ? sanitize_key($decoded_body['code']) : 'rate_limited',
+                        'retry_after_seconds' => $retry_after_seconds ?: 15,
+                        'code' => $response_code ?: 'rate_limited',
                         'status_code' => 429
                     );
                 case 500:
-                    $error_message = esc_html__('The Alt Text Pro service encountered an error. Please try again later.', 'alt-text-pro');
-                    break;
+                    // One image the AI could not describe: record it and move on.
+                    if ($response_code === 'generation_failed') {
+                        return array(
+                            'success' => false,
+                            'message' => esc_html__('Alt Text Pro could not describe this image. Try again, or write this one by hand.', 'alt-text-pro'),
+                            'status_code' => 500,
+                            'code' => 'generation_failed',
+                            'retryable' => false
+                        );
+                    }
+
+                    // Any other server error: retry a few times; bulk runs stop
+                    // if it keeps failing.
+                    return array(
+                        'success' => false,
+                        'message' => esc_html__('The Alt Text Pro service encountered an error. Please try again later.', 'alt-text-pro'),
+                        'status_code' => 500,
+                        'code' => $response_code ?: 'server_error',
+                        'retryable' => true,
+                        'retry_after_seconds' => $retry_after_seconds ?: 15,
+                        'server_error' => true
+                    );
                 case 503:
-                    // Temporary: for example the service's rate limiter is
-                    // unavailable. Bulk runs wait and retry, like a 429.
-                    $retry_after_seconds = null;
-                    if (is_array($decoded_body)) {
-                        if (isset($decoded_body['retry_after_seconds'])) {
-                            $retry_after_seconds = intval($decoded_body['retry_after_seconds']);
-                        } elseif (isset($decoded_body['retryAfter'])) {
-                            $retry_after_seconds = intval($decoded_body['retryAfter']);
-                        }
-                    }
-                    if (!$retry_after_seconds) {
-                        $retry_after_header = wp_remote_retrieve_header($response, 'retry-after');
-                        $retry_after_seconds = is_numeric($retry_after_header) ? intval($retry_after_header) : null;
-                    }
+                    // Temporary: the key could not be checked, credit status is
+                    // unavailable, or the rate limiter is down. Bulk runs wait
+                    // and retry, like a 429, and keep the API key.
+                    $error_message = $response_code === 'auth_unavailable'
+                        ? esc_html__('Alt Text Pro could not check your API key right now. Your key is kept; please try again in a moment.', 'alt-text-pro')
+                        : esc_html__('The Alt Text Pro service is temporarily busy. Please try again in a moment; bulk runs retry automatically.', 'alt-text-pro');
 
                     return array(
                         'success' => false,
-                        'message' => esc_html__('The Alt Text Pro service is temporarily busy. Please try again in a moment; bulk runs retry automatically.', 'alt-text-pro'),
+                        'message' => $error_message,
                         'retryable' => true,
-                        'retry_after_seconds' => $retry_after_seconds ? min(300, max(1, $retry_after_seconds)) : 30,
-                        'code' => 'service_unavailable',
-                        'status_code' => 503
+                        'retry_after_seconds' => $retry_after_seconds ?: 30,
+                        'code' => $response_code ?: 'service_unavailable',
+                        'status_code' => 503,
+                        'server_error' => true
                     );
             }
 
             if ($status_code >= 500) {
-                $error_message = esc_html__('The Alt Text Pro service encountered an error. Please try again later.', 'alt-text-pro');
+                // 502/504: a gateway or timeout in front of the service.
+                return array(
+                    'success' => false,
+                    'message' => esc_html__('The Alt Text Pro service encountered an error. Please try again later.', 'alt-text-pro'),
+                    'status_code' => $status_code,
+                    'code' => $response_code ?: 'server_error',
+                    'retryable' => true,
+                    'retry_after_seconds' => $retry_after_seconds ?: 15,
+                    'server_error' => true
+                );
             }
 
             // Handle specific AI service errors (moved inside status >= 400 block)
@@ -682,6 +879,43 @@ class AltTextPro_API_Client
             'data' => $decoded_body,
             'status_code' => $status_code
         );
+    }
+
+    /**
+     * Seconds to wait before retrying, from the body (retry_after_seconds or
+     * retryAfter) or the Retry-After header (seconds or an HTTP date).
+     *
+     * @return int|null
+     */
+    private function get_retry_after_seconds($response, $decoded_body)
+    {
+        $seconds = null;
+
+        if (is_array($decoded_body)) {
+            if (isset($decoded_body['retry_after_seconds']) && is_numeric($decoded_body['retry_after_seconds'])) {
+                $seconds = (int) ceil((float) $decoded_body['retry_after_seconds']);
+            } elseif (isset($decoded_body['retryAfter']) && is_numeric($decoded_body['retryAfter'])) {
+                $seconds = (int) ceil((float) $decoded_body['retryAfter']);
+            }
+        }
+
+        if (!$seconds) {
+            $header = trim((string) wp_remote_retrieve_header($response, 'retry-after'));
+            if ($header !== '' && is_numeric($header)) {
+                $seconds = (int) ceil((float) $header);
+            } elseif ($header !== '') {
+                $timestamp = strtotime($header);
+                if ($timestamp) {
+                    $seconds = $timestamp - time();
+                }
+            }
+        }
+
+        if (!$seconds || $seconds < 1) {
+            return null;
+        }
+
+        return min(self::MAX_RETRY_AFTER_SECONDS, $seconds);
     }
 
     /**

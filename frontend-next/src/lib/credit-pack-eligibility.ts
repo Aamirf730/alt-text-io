@@ -15,7 +15,9 @@ const ELIGIBLE_PLANS = new Set([
     "credit_pack",
     "bulk_pack",
 ]);
-const ELIGIBLE_SUBSCRIPTION_STATUSES = new Set(["active", "cancelled", "canceled"]);
+// A past_due subscriber keeps buying access: packs are paid up front and do
+// not depend on the failing subscription charge.
+const ELIGIBLE_SUBSCRIPTION_STATUSES = new Set(["active", "cancelled", "canceled", "past_due"]);
 
 export type CreditPackProfile = {
     subscription_plan?: unknown;

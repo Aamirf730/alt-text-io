@@ -3,17 +3,19 @@
 const nodemailer = require('nodemailer');
 const { timingSafeEqual } = require('node:crypto');
 const { createClient } = require('@supabase/supabase-js');
-const { getEmailFrom } = require('./utils/email-config');
+const { getEmailFrom, getSupportEmail } = require('./utils/email-config');
 const {
+  LIFECYCLE_PRIORITY,
   buildLifecycleCandidates,
+  buildLifecycleMailOptions,
   fetchAuthUsers,
   fetchLifecycleUsageCounts,
   fetchRecentMarketingEvents,
   filterCandidatesByAuthUsers,
-  renderLifecycleEmail,
   selectLifecycleCandidatePerActor,
 } = require('./utils/lifecycle-automation');
 const { fetchAllRows } = require('./utils/paginated-query');
+const { withErrorReporting } = require('./utils/error-reporter');
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -112,6 +114,26 @@ function createTransporter() {
 // PostgREST filters travel in the URL, so long ID lists are split.
 const IN_FILTER_CHUNK_SIZE = 150;
 
+// Retry policy. Only a row explicitly marked "failed" (the SMTP send threw)
+// is retried on a later run, at most MAX_SEND_ATTEMPTS times in all.
+//
+// A row still "pending" after STALE_PENDING_MS was interrupted somewhere
+// between the reservation and the status update: the email may well have
+// been delivered (sendMail resolved, then the function died or the "sent"
+// update failed). It is never retried automatically; it becomes "unknown"
+// and is reported, so a person can check before anything is resent.
+const MAX_SEND_ATTEMPTS = 3;
+const STALE_PENDING_MS = 60 * 60 * 1000;
+const FAILED_RETRY_DELAY_MS = 30 * 60 * 1000;
+// Sends per run, and the time after which no new send starts. The scheduled
+// function has 30 seconds; reading events and users takes part of that, and
+// each send is an SMTP round trip plus two database writes.
+const DEFAULT_MAX_SENDS_PER_RUN = 15;
+const MAX_SENDS_PER_RUN_LIMIT = 30;
+const SEND_TIME_BUDGET_MS = 18 * 1000;
+// One lifecycle email per person per day at most, across all rules.
+const ACTOR_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
 function chunk(values, size = IN_FILTER_CHUNK_SIZE) {
   const chunks = [];
   for (let index = 0; index < values.length; index += size) {
@@ -120,18 +142,101 @@ function chunk(values, size = IN_FILTER_CHUNK_SIZE) {
   return chunks;
 }
 
-async function getExistingSendSet(candidates) {
-  if (candidates.length === 0) return new Set();
+function sendKey(automationKey, actorKey) {
+  return `${automationKey}:${actorKey}`;
+}
 
-  const automationKeys = [...new Set(candidates.map(candidate => candidate.automation_key))];
+function toTime(value) {
+  const time = new Date(value || 0).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
+/**
+ * done: never send again for this rule and person.
+ * retry: a failed attempt (the send threw) that may be tried again now.
+ * in_flight: an attempt that is recent; leave it alone this run.
+ * stale_pending: an interrupted attempt that may have been delivered. Never
+ *   resent; the run marks it "unknown" and reports it.
+ */
+function classifyExistingSend(row, now = Date.now()) {
+  const status = String(row?.status || '');
+  if (status === 'sent' || status === 'skipped' || status === 'unknown') return 'done';
+
+  const attempts = Number(row?.attempts || 1);
+  const lastAttemptAt = toTime(row?.last_attempt_at || row?.updated_at || row?.created_at);
+
+  if (status === 'failed') {
+    if (attempts >= MAX_SEND_ATTEMPTS) return 'done';
+    return now - lastAttemptAt >= FAILED_RETRY_DELAY_MS ? 'retry' : 'in_flight';
+  }
+
+  if (status === 'pending') {
+    return now - lastAttemptAt < STALE_PENDING_MS ? 'in_flight' : 'stale_pending';
+  }
+
+  return 'done';
+}
+
+/**
+ * Decide what to send this run. Already-sent and in-flight rule/person pairs
+ * are removed BEFORE one email per person is picked, so a sent
+ * higher-priority email no longer blocks the next one. A person who got any
+ * lifecycle email in the last day, or has one in flight, is skipped.
+ */
+function planLifecycleSends(candidates, existingRows = [], { now = Date.now(), maxPerRun = DEFAULT_MAX_SENDS_PER_RUN } = {}) {
+  const existingByKey = new Map();
+  const blockedActors = new Set();
+  const stalePending = [];
+
+  for (const row of existingRows) {
+    existingByKey.set(sendKey(row.automation_key, row.actor_key), row);
+    const state = classifyExistingSend(row, now);
+    if (state === 'stale_pending') stalePending.push(row);
+    // A send that may have gone out counts for the per-person cooldown.
+    const possiblySent = row.status === 'unknown' || state === 'stale_pending';
+    const recentlySent = (row.status === 'sent' || possiblySent)
+      && now - toTime(row.sent_at || row.last_attempt_at || row.updated_at) < ACTOR_COOLDOWN_MS;
+    if (recentlySent || state === 'in_flight') blockedActors.add(row.actor_key);
+  }
+
+  const counts = { done: 0, in_flight: 0, cooldown: 0 };
+  const open = [];
+  for (const candidate of candidates) {
+    const existing = existingByKey.get(sendKey(candidate.automation_key, candidate.actor_key));
+    const state = existing ? classifyExistingSend(existing, now) : 'new';
+    if (state === 'done' || state === 'stale_pending') { counts.done += 1; continue; }
+    if (state === 'in_flight') { counts.in_flight += 1; continue; }
+    if (blockedActors.has(candidate.actor_key)) { counts.cooldown += 1; continue; }
+    open.push(candidate);
+  }
+
+  const selected = selectLifecycleCandidatePerActor(open);
+  return {
+    sends: selected.slice(0, maxPerRun).map(candidate => ({
+      candidate,
+      existing: existingByKey.get(sendKey(candidate.automation_key, candidate.actor_key)) || null,
+    })),
+    eligible: selected.length,
+    suppressed_competing_candidates: open.length - selected.length,
+    stale_pending: stalePending,
+    ...counts,
+  };
+}
+
+async function getExistingSendRows(candidates) {
+  if (candidates.length === 0) return [];
+
+  // Every rule key, so a recent email from another rule is visible for the
+  // per-person cooldown.
+  const automationKeys = [...new Set([...LIFECYCLE_PRIORITY, ...candidates.map(candidate => candidate.automation_key)])];
   const actorKeys = [...new Set(candidates.map(candidate => candidate.actor_key))];
-  const existing = new Set();
+  const rows = [];
 
   for (const actorKeyChunk of chunk(actorKeys)) {
     const data = await fetchAllRows(
       (from, to) => supabase
         .from('marketing_automation_sends')
-        .select('automation_key,actor_key,id')
+        .select('id,automation_key,actor_key,status,attempts,sent_at,last_attempt_at,updated_at,created_at')
         .in('automation_key', automationKeys)
         .in('actor_key', actorKeyChunk)
         .order('automation_key', { ascending: true })
@@ -140,12 +245,10 @@ async function getExistingSendSet(candidates) {
         .range(from, to),
       { label: 'automation sends' }
     );
-    for (const row of data) {
-      existing.add(`${row.automation_key}:${row.actor_key}`);
-    }
+    rows.push(...data);
   }
 
-  return existing;
+  return rows;
 }
 
 async function filterUnsubscribedCandidates(candidates) {
@@ -174,6 +277,14 @@ async function filterUnsubscribedCandidates(candidates) {
   return candidates.filter(candidate => !unsubscribedIds.has(String(candidate.user_id)));
 }
 
+function sendMetadata(candidate) {
+  return {
+    trigger_event_name: candidate.trigger_event_name,
+    trigger_occurred_at: candidate.trigger_occurred_at,
+    cta_url: candidate.cta_url,
+  };
+}
+
 async function reserveSend(candidate) {
   const { data, error } = await supabase
     .from('marketing_automation_sends')
@@ -185,11 +296,9 @@ async function reserveSend(candidate) {
       source_event_id: candidate.source_event_id,
       status: 'pending',
       subject: candidate.subject,
-      metadata: {
-        trigger_event_name: candidate.trigger_event_name,
-        trigger_occurred_at: candidate.trigger_occurred_at,
-        cta_url: candidate.cta_url,
-      },
+      attempts: 1,
+      last_attempt_at: new Date().toISOString(),
+      metadata: sendMetadata(candidate),
     })
     .select('id')
     .single();
@@ -200,6 +309,33 @@ async function reserveSend(candidate) {
   }
 
   return data;
+}
+
+/**
+ * Claim a failed or stuck row for another attempt. The status/attempts guard
+ * makes the claim exclusive if two runs overlap.
+ */
+async function claimRetry(existing, candidate) {
+  const nowIso = new Date().toISOString();
+  const { data, error } = await supabase
+    .from('marketing_automation_sends')
+    .update({
+      status: 'pending',
+      attempts: Number(existing.attempts || 1) + 1,
+      last_attempt_at: nowIso,
+      updated_at: nowIso,
+      error_message: null,
+      user_email: candidate.user_email,
+      subject: candidate.subject,
+      metadata: { ...sendMetadata(candidate), retry: true },
+    })
+    .eq('id', existing.id)
+    .eq('status', existing.status)
+    .eq('attempts', Number(existing.attempts || 1))
+    .select('id');
+
+  if (error) throw new Error(`Failed to claim automation retry: ${error.message}`);
+  return Array.isArray(data) && data.length > 0 ? data[0] : null;
 }
 
 async function markSend(id, patch) {
@@ -216,18 +352,128 @@ async function markSend(id, patch) {
   }
 }
 
-async function sendLifecycleEmail(transporter, candidate) {
-  const { html, text } = renderLifecycleEmail(candidate);
-  return transporter.sendMail({
-    from: getEmailFrom(),
-    to: candidate.user_email,
-    subject: candidate.subject,
-    text,
-    html,
-  });
+/**
+ * Stale "pending" rows may have been delivered. Mark them "unknown" (only
+ * if still pending, so a late "sent" update wins) and report them once.
+ */
+async function markStalePendingUnknown(rows, { client = supabase, reportError } = {}) {
+  let marked = 0;
+  for (const row of rows) {
+    const { data, error } = await client
+      .from('marketing_automation_sends')
+      .update({
+        status: 'unknown',
+        error_message: 'Interrupted after the send started; delivery unknown. Not retried automatically.',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', row.id)
+      .eq('status', 'pending')
+      .select('id');
+    if (error) {
+      console.error('lifecycle-automation: could not mark a stale send unknown');
+      continue;
+    }
+    if (Array.isArray(data) && data.length > 0) marked += 1;
+  }
+
+  if (marked > 0) {
+    const report = reportError || require('./utils/error-reporter').reportError;
+    report(new Error(`Lifecycle automation: ${marked} interrupted send(s) marked unknown; check before resending`), {
+      functionName: 'lifecycle-automation',
+      extra: { reason: 'stale_pending_marked_unknown', count: marked, ids: rows.map(row => row.id).slice(0, 20) },
+    });
+  }
+  return marked;
 }
 
-exports.handler = async (event) => {
+/**
+ * Send the planned emails. Once sendMail has resolved the email is out, so
+ * the row is never made retryable after that point: a failure to record
+ * "sent" is reported and the row is left pending (it later becomes
+ * "unknown", never resent). Only a send that threw is marked "failed".
+ * No new send starts after the time budget.
+ */
+async function executeLifecycleSends(sends, {
+  transporter,
+  claimRetry: claim = claimRetry,
+  reserveSend: reserve = reserveSend,
+  markSend: mark = markSend,
+  sendEmail = sendLifecycleEmail,
+  reportError,
+  startedAt = Date.now(),
+  timeBudgetMs = SEND_TIME_BUDGET_MS,
+  clock = Date.now,
+} = {}) {
+  const results = { sent: 0, retried: 0, failed: 0, lost_claims: 0, unrecorded_sent: 0, deferred: 0 };
+  const report = (error, extra) => {
+    const reporter = reportError || require('./utils/error-reporter').reportError;
+    reporter(error, { functionName: 'lifecycle-automation', extra });
+  };
+
+  for (let index = 0; index < sends.length; index += 1) {
+    if (clock() - startedAt >= timeBudgetMs) {
+      results.deferred = sends.length - index;
+      break;
+    }
+
+    const { candidate, existing } = sends[index];
+    const reservation = existing
+      ? await claim(existing, candidate)
+      : await reserve(candidate);
+    if (!reservation) {
+      results.lost_claims += 1;
+      continue;
+    }
+    if (existing) results.retried += 1;
+
+    try {
+      await sendEmail(transporter, candidate);
+    } catch (error) {
+      results.failed += 1;
+      try {
+        await mark(reservation.id, {
+          status: 'failed',
+          error_message: String(error?.message || error).slice(0, 1000),
+        });
+      } catch (_markError) {
+        // Left pending: it becomes "unknown" later, never resent blindly.
+        console.error('lifecycle-automation: could not record a failed send');
+      }
+      continue;
+    }
+
+    results.sent += 1;
+    try {
+      await mark(reservation.id, {
+        status: 'sent',
+        sent_at: new Date().toISOString(),
+        error_message: null,
+      });
+    } catch (markError) {
+      results.unrecorded_sent += 1;
+      console.error('lifecycle-automation: email sent but its status could not be recorded');
+      report(markError, { reason: 'sent_status_not_recorded', send_id: reservation.id });
+    }
+  }
+
+  return results;
+}
+
+async function sendLifecycleEmail(transporter, candidate) {
+  return transporter.sendMail(buildLifecycleMailOptions(candidate, {
+    from: getEmailFrom(),
+    supportEmail: getSupportEmail(),
+  }));
+}
+
+function failure(statusCode, body, error) {
+  const { reportError } = require('./utils/error-reporter');
+  reportError(error, { functionName: 'lifecycle-automation', extra: { reason: body.reason || null } });
+  return { statusCode, body: JSON.stringify({ success: false, ...body }) };
+}
+
+async function handler(event) {
+  const startedAt = Date.now();
   const auth = isAuthorizedRun(event);
   if (!auth.allowed) {
     return {
@@ -238,37 +484,53 @@ exports.handler = async (event) => {
 
   try {
     if (!supabase) {
-      return {
-        statusCode: 200,
-        body: JSON.stringify({ success: false, sent: 0, reason: 'supabase_not_configured' }),
-      };
-    }
-
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) {
-      return {
-        statusCode: 200,
-        body: JSON.stringify({ success: true, sent: 0, reason: 'email_not_configured' }),
-      };
+      return failure(503, { sent: 0, reason: 'supabase_not_configured' }, new Error('Lifecycle automation: Supabase is not configured'));
     }
 
     const dryRun = parseBoolean(event.queryStringParameters?.dry_run) ||
       parseBoolean(process.env.LIFECYCLE_AUTOMATION_DRY_RUN);
-    const days = parsePositiveInt(process.env.LIFECYCLE_AUTOMATION_LOOKBACK_DAYS, 30, 1, 90);
-    const maxPerRun = parsePositiveInt(process.env.LIFECYCLE_AUTOMATION_MAX_SENDS, 25, 1, 100);
 
+    if (!dryRun && (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD)) {
+      return failure(503, { sent: 0, reason: 'email_not_configured' }, new Error('Lifecycle automation: email transport is not configured'));
+    }
+
+    const days = parsePositiveInt(process.env.LIFECYCLE_AUTOMATION_LOOKBACK_DAYS, 30, 1, 90);
+    const maxPerRun = parsePositiveInt(
+      process.env.LIFECYCLE_AUTOMATION_MAX_SENDS,
+      DEFAULT_MAX_SENDS_PER_RUN,
+      1,
+      MAX_SENDS_PER_RUN_LIMIT
+    );
+
+    // Reads only the event names the rules use (never page views).
     const events = await fetchRecentMarketingEvents(supabase, { days });
-    const usageCountsByUserId = events.some(event => event.event_name === 'connect_completed')
-      ? await fetchLifecycleUsageCounts(supabase)
+    const connectedUserIds = events
+      .filter(item => item.event_name === 'connect_completed' && item.user_id)
+      .map(item => item.user_id);
+    const usageCountsByUserId = connectedUserIds.length > 0
+      ? await fetchLifecycleUsageCounts(supabase, connectedUserIds)
       : new Map();
     const candidates = buildLifecycleCandidates(events, { usageCountsByUserId });
     const authUsers = candidates.length > 0 ? await fetchAuthUsers(supabase) : [];
     const verifiedCandidates = filterCandidatesByAuthUsers(candidates, authUsers);
     const optedInCandidates = await filterUnsubscribedCandidates(verifiedCandidates);
-    const eligibleCandidates = selectLifecycleCandidatePerActor(optedInCandidates);
-    const existingSends = await getExistingSendSet(eligibleCandidates);
-    const unsentCandidates = eligibleCandidates
-      .filter(candidate => !existingSends.has(`${candidate.automation_key}:${candidate.actor_key}`))
-      .slice(0, maxPerRun);
+    const existingRows = await getExistingSendRows(optedInCandidates);
+    const plan = planLifecycleSends(optedInCandidates, existingRows, { maxPerRun });
+
+    const summary = {
+      mode: auth.mode,
+      candidates: candidates.length,
+      verified_candidates: verifiedCandidates.length,
+      rejected_recipients: candidates.length - verifiedCandidates.length,
+      unsubscribed: verifiedCandidates.length - optedInCandidates.length,
+      already_sent: plan.done,
+      in_flight: plan.in_flight,
+      cooldown: plan.cooldown,
+      eligible_candidates: plan.eligible,
+      suppressed_competing_candidates: plan.suppressed_competing_candidates,
+      stale_pending: plan.stale_pending.length,
+      unsent: plan.sends.length,
+    };
 
     if (dryRun) {
       const includePreview = auth.mode === 'manual';
@@ -277,19 +539,13 @@ exports.handler = async (event) => {
         body: JSON.stringify({
           success: true,
           dry_run: true,
-          mode: auth.mode,
-          candidates: candidates.length,
-          verified_candidates: verifiedCandidates.length,
-          eligible_candidates: eligibleCandidates.length,
-          unsubscribed: verifiedCandidates.length - optedInCandidates.length,
-          suppressed_competing_candidates: verifiedCandidates.length - eligibleCandidates.length,
-          rejected_recipients: candidates.length - verifiedCandidates.length,
-          unsent: unsentCandidates.length,
+          ...summary,
           preview: includePreview
-            ? unsentCandidates.map(candidate => ({
+            ? plan.sends.map(({ candidate, existing }) => ({
               automation_key: candidate.automation_key,
               user_email: candidate.user_email,
               trigger_occurred_at: candidate.trigger_occurred_at,
+              retry: Boolean(existing),
             }))
             : undefined,
         }),
@@ -297,58 +553,23 @@ exports.handler = async (event) => {
     }
 
     const transporter = createTransporter();
+    const markedUnknown = await markStalePendingUnknown(plan.stale_pending);
     const results = {
-      sent: 0,
-      skipped: candidates.length - unsentCandidates.length,
-      rejected_recipients: candidates.length - verifiedCandidates.length,
-      failed: 0,
+      ...(await executeLifecycleSends(plan.sends, { transporter, startedAt })),
+      marked_unknown: markedUnknown,
     };
 
-    for (const candidate of unsentCandidates) {
-      const reservation = await reserveSend(candidate);
-      if (!reservation) {
-        results.skipped += 1;
-        continue;
-      }
+    console.log('lifecycle-automation completed', { ...summary, ...results });
 
-      try {
-        await sendLifecycleEmail(transporter, candidate);
-        await markSend(reservation.id, {
-          status: 'sent',
-          sent_at: new Date().toISOString(),
-        });
-        results.sent += 1;
-      } catch (error) {
-        await markSend(reservation.id, {
-          status: 'failed',
-          error_message: String(error.message || error).slice(0, 1000),
-        });
-        results.failed += 1;
-      }
+    if (results.failed > 0) {
+      return failure(500, { ...summary, ...results, reason: 'sends_failed' }, new Error(
+        `Lifecycle automation: ${results.failed} of ${results.sent + results.failed} sends failed`
+      ));
     }
-
-    console.log('lifecycle-automation completed', {
-      mode: auth.mode,
-      candidates: candidates.length,
-      verified_candidates: verifiedCandidates.length,
-      eligible_candidates: eligibleCandidates.length,
-      unsubscribed: verifiedCandidates.length - optedInCandidates.length,
-      suppressed_competing_candidates: verifiedCandidates.length - eligibleCandidates.length,
-      ...results,
-    });
 
     return {
       statusCode: 200,
-      body: JSON.stringify({
-        success: true,
-        mode: auth.mode,
-        candidates: candidates.length,
-        verified_candidates: verifiedCandidates.length,
-        eligible_candidates: eligibleCandidates.length,
-        unsubscribed: verifiedCandidates.length - optedInCandidates.length,
-        suppressed_competing_candidates: verifiedCandidates.length - eligibleCandidates.length,
-        ...results,
-      }),
+      body: JSON.stringify({ success: true, ...summary, ...results }),
     };
   } catch (error) {
     const { reportError } = require('./utils/error-reporter');
@@ -357,17 +578,29 @@ exports.handler = async (event) => {
     return {
       statusCode: 500,
       body: JSON.stringify({
+        success: false,
         error: 'Lifecycle automation failed',
         details: process.env.NODE_ENV === 'development' ? error.message : undefined,
       }),
     };
   }
-};
+}
+
+exports.handler = withErrorReporting('lifecycle-automation', handler);
 
 exports._private = {
+  DEFAULT_MAX_SENDS_PER_RUN,
+  MAX_SENDS_PER_RUN_LIMIT,
+  MAX_SEND_ATTEMPTS,
+  SEND_TIME_BUDGET_MS,
+  STALE_PENDING_MS,
+  classifyExistingSend,
+  executeLifecycleSends,
+  markStalePendingUnknown,
   getHeader,
   getProvidedSecret,
   isAuthorizedRun,
   parseScheduledBody,
+  planLifecycleSends,
   filterUnsubscribedCandidates,
 };

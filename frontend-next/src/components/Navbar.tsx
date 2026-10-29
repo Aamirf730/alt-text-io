@@ -86,7 +86,16 @@ const Navbar = ({ onSignInClick, onSignUpClick }: NavbarProps) => {
     };
 
     const handleSignOut = async () => {
-        await supabase.auth.signOut();
+        try {
+            const { error } = await supabase.auth.signOut();
+            if (error) {
+                toast.error(`Sign out failed: ${error.message}`);
+                return;
+            }
+        } catch {
+            toast.error("Sign out failed. Please try again.");
+            return;
+        }
         setUser(null);
         toast.success("Signed out successfully");
         setIsMobileMenuOpen(false);

@@ -76,7 +76,10 @@ export default function EmailConfirmation() {
                         <h1 className="mt-6 font-outfit text-2xl font-semibold tracking-tight text-ink">Confirmation Failed</h1>
                         <p className="mt-3 leading-7 text-ink-muted">{error}</p>
                         <div className="mt-8 grid gap-3">
-                            <Button onClick={() => router.push('/')} className="w-full">
+                            <Button onClick={() => router.push('/?auth=signin')} className="w-full">
+                                Sign in
+                            </Button>
+                            <Button onClick={() => router.push('/')} variant="secondary" className="w-full">
                                 Go to Homepage
                             </Button>
                         </div>

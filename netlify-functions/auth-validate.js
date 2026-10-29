@@ -10,9 +10,20 @@ const {
   rateLimitExceededResponse,
   methodNotAllowedResponse,
 } = require('./utils/cors');
-const { recordPluginConnectCompleted } = require('./utils/plugin-connect-event');
+const {
+  extractPluginSite,
+  recordPluginConnectCompleted,
+  recordPluginSiteSeen,
+} = require('./utils/plugin-connect-event');
 const { extractPluginVersion } = require('./utils/plugin-version');
-const { getMonthlyCreditState, validateApiKey } = require('./utils/api-key-validator');
+const {
+  API_KEY_STATUS,
+  accountSuspendedResponse,
+  apiKeyFailureResponse,
+  getMonthlyCreditState,
+  isAccountBlocked,
+  validateApiKeyResult,
+} = require('./utils/api-key-validator');
 const { DEFAULT_SUBSCRIPTION_PLAN, getPlanCredits, getPlanDisplayName } = require('./utils/subscription-plans');
 
 const AUTH_USER_REQUEST_TIMEOUT_MS = 5000;
@@ -89,20 +100,19 @@ exports.handler = async (event, context) => {
 
     let authUser = null;
     let userId = null;
+    let isApiKeyAuth = false;
 
     // Check if this is an API key (starts with 'alt_' or legacy 'altai_')
     if (token.startsWith('alt_') || token.startsWith('altai_')) {
-      const validatedUser = await validateApiKey(token);
-      if (!validatedUser) {
-        return {
-          statusCode: 401,
-          headers,
-          body: JSON.stringify({
-            success: false,
-            error: 'Invalid or expired API key'
-          }),
-        };
+      isApiKeyAuth = true;
+      // 401 only when the key is unknown; a lookup outage is a retryable 503
+      // so the plugin can still save a key it cannot check right now.
+      const validation = await validateApiKeyResult(token);
+      if (validation.status !== API_KEY_STATUS.VALID) {
+        return apiKeyFailureResponse(headers, validation);
       }
+
+      const validatedUser = validation.user;
 
       userId = validatedUser.id;
       authUser = {
@@ -192,6 +202,10 @@ exports.handler = async (event, context) => {
       };
     }
 
+    if (isAccountBlocked(profile)) {
+      return accountSuspendedResponse(headers);
+    }
+
     // Get subscription plan details
     const { data: planDetails, error: planError } = await supabase
       .from('subscription_plans')
@@ -208,6 +222,13 @@ exports.handler = async (event, context) => {
       endpointName: 'auth-validate',
       pluginVersion,
     });
+
+    // A key check means the site is (re)connecting, so always write: this
+    // also clears an earlier disconnect. Never fails the validation.
+    const pluginSite = isApiKeyAuth ? extractPluginSite(event) : null;
+    if (pluginSite) {
+      await recordPluginSiteSeen(supabase, { userId: authUser.id, ...pluginSite }, { throttle: false });
+    }
 
     return {
       statusCode: 200,

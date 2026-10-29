@@ -49,3 +49,40 @@ export function getSafeAuthRedirect(
     return `${fallback.pathname}${fallback.search}${fallback.hash}`;
   }
 }
+
+export const EXISTING_ACCOUNT_MESSAGE =
+  "An account with this email already exists. Sign in instead, or reset your password if you have forgotten it.";
+
+type SignUpUser = { identities?: unknown[] | null } | null | undefined;
+
+/**
+ * Supabase does not return an error when someone signs up with an email that
+ * is already registered (so accounts can't be enumerated). It returns a user
+ * with no identities and sends no email, so the sign-up form must say so
+ * instead of "check your email".
+ */
+export function isExistingAccountSignUp(user: SignUpUser, hasSession: boolean): boolean {
+  if (!user || hasSession) return false;
+  return Array.isArray(user.identities) && user.identities.length === 0;
+}
+
+type IdentityUser = {
+  identities?: Array<{ provider?: string | null }> | null;
+  app_metadata?: { provider?: string; providers?: string[] } | null;
+} | null | undefined;
+
+/** True when the account can sign in with an email and password. */
+export function hasPasswordIdentity(user: IdentityUser): boolean {
+  if (!user) return false;
+  const providers = new Set<string>();
+  for (const identity of user.identities || []) {
+    if (identity?.provider) providers.add(identity.provider);
+  }
+  for (const provider of user.app_metadata?.providers || []) {
+    providers.add(provider);
+  }
+  if (user.app_metadata?.provider) providers.add(user.app_metadata.provider);
+  // Unknown identity data: assume email so the option is not hidden wrongly.
+  if (providers.size === 0) return true;
+  return providers.has("email");
+}

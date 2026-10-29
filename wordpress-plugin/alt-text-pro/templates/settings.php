@@ -27,7 +27,7 @@ $alt_text_pro_disconnected = isset($_GET['alt_text_pro_disconnected']) ? sanitiz
     $alt_text_pro_extra_notices = function () use ($alt_text_pro_disconnected) {
         settings_errors();
         if ($alt_text_pro_disconnected === '1') {
-            echo '<div class="notice notice-success"><p>' . esc_html__('Your Alt Text Pro account was disconnected from this site. The API key was removed.', 'alt-text-pro') . '</p></div>';
+            echo '<div class="notice notice-success"><p>' . esc_html__('Your Alt Text Pro account was disconnected from this site and the API key was removed here. The key still works on your other sites; rotate it in your Alt Text Pro dashboard if you want to revoke it everywhere.', 'alt-text-pro') . '</p></div>';
         } elseif ($alt_text_pro_disconnected === '0') {
             echo '<div class="notice notice-error"><p>' . esc_html__('The API key could not be removed. Please try again.', 'alt-text-pro') . '</p></div>';
         }
@@ -82,7 +82,7 @@ echo wp_kses_post(
                         <!-- Submits the separate disconnect form below; forms cannot be nested. -->
                         <button type="submit" class="button-secondary-custom atp-btn-danger" id="alt-text-pro-disconnect"
                             form="alt-text-pro-disconnect-form"
-                            data-confirm="<?php esc_attr_e('Disconnect your Alt Text Pro account from this site? The saved API key will be removed. Alt text already generated stays on your images.', 'alt-text-pro'); ?>">
+                            data-confirm="<?php esc_attr_e('Disconnect your Alt Text Pro account from this site? The API key is removed from this site only; it is shared by all your sites and stays valid on them. Alt text already generated stays on your images.', 'alt-text-pro'); ?>">
                             <span class="dashicons dashicons-dismiss" aria-hidden="true"></span>
                             <span><?php esc_html_e('Disconnect account', 'alt-text-pro'); ?></span>
                         </button>
@@ -97,6 +97,11 @@ echo wp_kses_post(
 endif; ?>
                     </div>
                     <div id="connection-test-result" aria-live="polite"></div>
+                    <?php if ($alt_text_pro_has_key): ?>
+                    <p class="description atp-help">
+                        <?php esc_html_e('Disconnecting removes the key from this site only. One API key is shared by all your sites, so it keeps working elsewhere until you rotate it in your Alt Text Pro dashboard.', 'alt-text-pro'); ?>
+                    </p>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -138,6 +143,59 @@ endif; ?>
 
                 <div class="settings-field">
                     <label class="checkbox-group">
+                        <input type="hidden" name="alt_text_pro_settings[fill_post_content_alt]" value="0" />
+                        <input type="checkbox" id="fill_post_content_alt" name="alt_text_pro_settings[fill_post_content_alt]"
+                            value="1" <?php checked(1, !empty($settings['fill_post_content_alt'])); ?> />
+                        <span class="checkbox-label">
+                            <?php esc_html_e('Fill empty alt text in post content', 'alt-text-pro'); ?>
+                        </span>
+                    </label>
+                    <p class="checkbox-desc">
+                        <?php esc_html_e('When a page is shown, images inside posts whose alt text is empty or missing get the alt text saved in the Media Library. Alt text written in the post is never overwritten, and the saved post is not changed. Turn this off if you leave alt text empty on purpose for decorative images.', 'alt-text-pro'); ?>
+                    </p>
+                </div>
+
+                <div class="settings-field atp-field">
+                    <label for="language" class="field-label atp-label">
+                        <?php esc_html_e('Alt text language', 'alt-text-pro'); ?>
+                    </label>
+                    <select id="language" name="alt_text_pro_settings[language]">
+                        <option value="" <?php selected('', (string) ($settings['language'] ?? '')); ?>>
+                            <?php
+                            echo esc_html(sprintf(
+                                /* translators: %s: the site's language code, such as de_DE */
+                                __('Same as the site language (%s)', 'alt-text-pro'),
+                                get_locale()
+                            ));
+                            ?>
+                        </option>
+                        <?php foreach (AltTextPro_Settings::get_language_options() as $alt_text_pro_locale => $alt_text_pro_language_name): ?>
+                            <option value="<?php echo esc_attr($alt_text_pro_locale); ?>" <?php selected($alt_text_pro_locale, (string) ($settings['language'] ?? '')); ?>>
+                                <?php echo esc_html($alt_text_pro_language_name); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <p class="description atp-help">
+                        <?php esc_html_e('Alt text is written in this language. Languages the service does not support yet fall back to English.', 'alt-text-pro'); ?>
+                    </p>
+                </div>
+
+                <div class="settings-field">
+                    <label class="checkbox-group">
+                        <input type="hidden" name="alt_text_pro_settings[email_bulk_complete]" value="0" />
+                        <input type="checkbox" id="email_bulk_complete" name="alt_text_pro_settings[email_bulk_complete]"
+                            value="1" <?php checked(1, !empty($settings['email_bulk_complete'])); ?> />
+                        <span class="checkbox-label">
+                            <?php esc_html_e('Email me when a bulk run finishes', 'alt-text-pro'); ?>
+                        </span>
+                    </label>
+                    <p class="checkbox-desc">
+                        <?php esc_html_e('WordPress sends a short summary to the email address of the user who started the run when it finishes or stops. The email is sent by your site, not by Alt Text Pro.', 'alt-text-pro'); ?>
+                    </p>
+                </div>
+
+                <div class="settings-field">
+                    <label class="checkbox-group">
                         <input type="hidden" name="alt_text_pro_settings[show_context_field]" value="0" />
                         <input type="checkbox" id="show_context_field" name="alt_text_pro_settings[show_context_field]"
                             value="1" <?php checked(1, $settings['show_context_field'] ?? false); ?> />
@@ -159,6 +217,20 @@ endif; ?>
                 </h3>
             </div>
             <div class="card-content">
+                <div class="settings-field">
+                    <label class="checkbox-group">
+                        <input type="hidden" name="alt_text_pro_settings[context_enabled]" value="0" />
+                        <input type="checkbox" id="context_enabled" name="alt_text_pro_settings[context_enabled]"
+                            value="1" <?php checked(1, !empty($settings['context_enabled'])); ?> />
+                        <span class="checkbox-label">
+                            <?php esc_html_e('Send image context', 'alt-text-pro'); ?>
+                        </span>
+                    </label>
+                    <p class="checkbox-desc">
+                        <?php esc_html_e('Sends the titles of posts that use the image and the image file name with each request, which makes descriptions more relevant. Turn this off to send only the image (and the blog context below, if set).', 'alt-text-pro'); ?>
+                    </p>
+                </div>
+
                 <div class="settings-field atp-field">
                     <label for="blog_context" class="field-label atp-label">
                         <?php esc_html_e('Blog Context', 'alt-text-pro'); ?>
@@ -167,31 +239,6 @@ endif; ?>
                         placeholder="<?php esc_attr_e('e.g., travel blog about New Zealand, food blog focusing on Italian cuisine', 'alt-text-pro'); ?>"><?php echo esc_textarea($settings['blog_context'] ?? ''); ?></textarea>
                     <p class="description atp-help">
                         <?php esc_html_e('Provide general context about your blog to help AI generate more relevant alt text. This context will be included with every image generation request.', 'alt-text-pro'); ?>
-                    </p>
-                </div>
-            </div>
-        </div>
-
-        <div class="alt-text-pro-card">
-            <div class="card-header">
-                <h3>
-                    <?php esc_html_e('Advanced Settings', 'alt-text-pro'); ?>
-                </h3>
-            </div>
-            <div class="card-content">
-                <div class="settings-field atp-field">
-                    <label for="batch_size" class="field-label atp-label">
-                        <?php esc_html_e('Bulk Batch Size', 'alt-text-pro'); ?>
-                    </label>
-                    <div class="atp-input-row">
-                        <input type="number" id="batch_size" name="alt_text_pro_settings[batch_size]" class="atp-input-number"
-                            value="<?php echo esc_attr($settings['batch_size']); ?>" min="1" max="10" />
-                        <span class="atp-muted">
-                            <?php esc_html_e('images per batch', 'alt-text-pro'); ?>
-                        </span>
-                    </div>
-                    <p class="description atp-help">
-                        <?php esc_html_e('For credit-accurate cancellation, bulk processing runs one billable image at a time even if an older saved value is higher.', 'alt-text-pro'); ?>
                     </p>
                 </div>
             </div>

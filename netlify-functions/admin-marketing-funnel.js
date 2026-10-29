@@ -8,9 +8,9 @@ const {
   checkRateLimit,
   rateLimitExceededResponse,
   methodNotAllowedResponse,
-  unauthorizedResponse,
-  forbiddenResponse,
 } = require('./utils/cors');
+const { authenticateAdmin } = require('./utils/admin-auth');
+const { withErrorReporting } = require('./utils/error-reporter');
 const { getMarketingFunnelReport, parsePositiveInt } = require('./utils/marketing-funnel');
 
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -19,47 +19,7 @@ const supabase = supabaseUrl && supabaseServiceKey
   ? createClient(supabaseUrl, supabaseServiceKey)
   : null;
 
-const SUPERUSER_EMAILS = (process.env.SUPERUSER_EMAILS || '')
-  .split(',')
-  .map(email => email.trim().toLowerCase())
-  .filter(Boolean);
-
-async function getAdminUser(event, headers) {
-  const authHeader = event.headers.authorization || event.headers.Authorization;
-  if (!authHeader) {
-    return {
-      response: unauthorizedResponse(headers, 'Authorization header required'),
-    };
-  }
-
-  if (!supabase) {
-    return {
-      response: {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ error: 'Supabase is not configured' }),
-      },
-    };
-  }
-
-  const token = authHeader.replace(/^Bearer\s+/i, '').trim();
-  const { data: { user }, error } = await supabase.auth.getUser(token);
-  if (error || !user) {
-    return {
-      response: unauthorizedResponse(headers, 'Invalid or expired token'),
-    };
-  }
-
-  if (!SUPERUSER_EMAILS.includes(String(user.email || '').toLowerCase())) {
-    return {
-      response: forbiddenResponse(headers, 'Superuser privileges required'),
-    };
-  }
-
-  return { user };
-}
-
-exports.handler = async (event) => {
+async function handler(event) {
   const headers = getCorsHeaders(event.headers, ['GET', 'OPTIONS']);
   const preflightResponse = handlePreflight(event);
   if (preflightResponse) return preflightResponse;
@@ -75,7 +35,7 @@ exports.handler = async (event) => {
   }
 
   try {
-    const { response } = await getAdminUser(event, headers);
+    const { response } = await authenticateAdmin(event, { supabase, headers });
     if (response) return response;
 
     const days = parsePositiveInt(event.queryStringParameters?.days, 7, 1, 90);
@@ -102,4 +62,6 @@ exports.handler = async (event) => {
       }),
     };
   }
-};
+}
+
+exports.handler = withErrorReporting('admin-marketing-funnel', handler);

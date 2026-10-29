@@ -2,7 +2,7 @@
 
 const nodemailer = require('nodemailer');
 const { createClient } = require('@supabase/supabase-js');
-const { getEmailFrom } = require('./utils/email-config');
+const { getEmailFrom, getSupportEmail } = require('./utils/email-config');
 const {
   getCorsHeaders,
   handlePreflight,
@@ -10,13 +10,13 @@ const {
   checkRateLimit,
   rateLimitExceededResponse,
   methodNotAllowedResponse,
-  unauthorizedResponse,
-  forbiddenResponse,
 } = require('./utils/cors');
+const { authenticateAdmin } = require('./utils/admin-auth');
+const { withErrorReporting } = require('./utils/error-reporter');
 const {
   buildLifecycleCandidates,
+  buildLifecycleMailOptions,
   fetchRecentMarketingEvents,
-  renderLifecycleEmail,
 } = require('./utils/lifecycle-automation');
 
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -24,11 +24,6 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = supabaseUrl && supabaseServiceKey
   ? createClient(supabaseUrl, supabaseServiceKey)
   : null;
-
-const SUPERUSER_EMAILS = (process.env.SUPERUSER_EMAILS || '')
-  .split(',')
-  .map(email => email.trim().toLowerCase())
-  .filter(Boolean);
 
 const ALLOWED_TEST_RULES = new Set([
   'signup_no_connect',
@@ -74,41 +69,6 @@ function createTransporter() {
   });
 }
 
-async function getAdminUser(event, headers) {
-  const authHeader = event.headers.authorization || event.headers.Authorization;
-  if (!authHeader) {
-    return {
-      response: unauthorizedResponse(headers, 'Authorization header required'),
-    };
-  }
-
-  if (!supabase) {
-    return {
-      response: {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ error: 'Supabase is not configured' }),
-      },
-    };
-  }
-
-  const token = authHeader.replace(/^Bearer\s+/i, '').trim();
-  const { data: { user }, error } = await supabase.auth.getUser(token);
-  if (error || !user) {
-    return {
-      response: unauthorizedResponse(headers, 'Invalid or expired token'),
-    };
-  }
-
-  if (!SUPERUSER_EMAILS.includes(String(user.email || '').toLowerCase())) {
-    return {
-      response: forbiddenResponse(headers, 'Superuser privileges required'),
-    };
-  }
-
-  return { user };
-}
-
 async function getExistingSend(candidate) {
   const { data, error } = await supabase
     .from('marketing_automation_sends')
@@ -135,6 +95,8 @@ async function reserveSend(candidate, adminUser) {
       source_event_id: candidate.source_event_id,
       status: 'pending',
       subject: candidate.subject,
+      attempts: 1,
+      last_attempt_at: new Date().toISOString(),
       metadata: {
         trigger_event_name: candidate.trigger_event_name,
         trigger_occurred_at: candidate.trigger_occurred_at,
@@ -170,14 +132,10 @@ async function markSend(id, patch) {
 }
 
 async function sendLifecycleEmail(candidate) {
-  const { html, text } = renderLifecycleEmail(candidate);
-  return createTransporter().sendMail({
+  return createTransporter().sendMail(buildLifecycleMailOptions(candidate, {
     from: getEmailFrom(),
-    to: candidate.user_email,
-    subject: candidate.subject,
-    text,
-    html,
-  });
+    supportEmail: getSupportEmail(),
+  }));
 }
 
 function safeCandidate(candidate) {
@@ -411,7 +369,7 @@ async function buildSingleUserCandidate(email, automationKey) {
   return null;
 }
 
-exports.handler = async (event) => {
+async function handler(event) {
   const headers = getCorsHeaders(event.headers, ['POST', 'OPTIONS']);
   const preflightResponse = handlePreflight(event);
   if (preflightResponse) return preflightResponse;
@@ -427,7 +385,7 @@ exports.handler = async (event) => {
   }
 
   try {
-    const { user: adminUser, response } = await getAdminUser(event, headers);
+    const { user: adminUser, response } = await authenticateAdmin(event, { supabase, headers });
     if (response) return response;
 
     let body = {};
@@ -590,7 +548,9 @@ exports.handler = async (event) => {
       }),
     };
   }
-};
+}
+
+exports.handler = withErrorReporting('admin-lifecycle-test-send', handler);
 
 exports._private = {
   getTargetProfileBlockReason,

@@ -3,7 +3,7 @@
  * Plugin Name: Alt Text Pro
  * Plugin URI: https://www.alt-text.pro
  * Description: Draft AI alt text for WordPress images, review it, and fill missing Media Library alt attributes in small batches.
- * Version:           1.7.27
+ * Version:           1.7.28
  * Author: Alt Text Pro
  * Author URI: https://www.alt-text.pro/about
  * License: GPL v2 or later
@@ -20,7 +20,8 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('ALT_TEXT_PRO_VERSION', '1.7.27');
+define('ALT_TEXT_PRO_VERSION', '1.7.28');
+// Version 1.7.28 - Fill empty alt text inside post content, alt text language setting, upgrade links, resumable bulk runs and clearer service errors.
 // Version 1.7.27 - Clearer WordPress.org listing and an optional review request after 50 descriptions.
 // Version 1.7.26 - Fix: keep post content intact when syncing alt text, one bulk run per site without the 1,000-image cap, downscale large images, and show real account state on the dashboard.
 // Version 1.7.24 - Maintenance: fix context generation, timezone-aware stats, safe writes, cleanup, and dead admin bindings.
@@ -83,6 +84,10 @@ define('ALT_TEXT_PRO_PLUGIN_BASENAME', plugin_basename(__FILE__));
 // API Configuration
 define('ALT_TEXT_PRO_API_BASE', 'https://www.alt-text.pro/.netlify/functions');
 
+// Where customers buy credits or change plan.
+define('ALT_TEXT_PRO_PRICING_URL', 'https://www.alt-text.pro/#pricing');
+define('ALT_TEXT_PRO_DASHBOARD_URL', 'https://www.alt-text.pro/dashboard');
+
 /**
  * Main Plugin Class
  */
@@ -125,6 +130,18 @@ class AltTextPro
     }
 
     /**
+     * Answer an AJAX request the current user may not make with JSON (HTTP
+     * 403) instead of the plain-text page wp_die() prints.
+     */
+    public static function send_permission_error($message = '')
+    {
+        wp_send_json_error(
+            $message !== '' ? $message : __('You do not have permission to perform this action.', 'alt-text-pro'),
+            403
+        );
+    }
+
+    /**
      * Initialize plugin
      */
     public function init()
@@ -164,6 +181,12 @@ class AltTextPro
             add_filter('manage_pages_columns', array($this, 'add_alt_text_column'));
             add_action('manage_posts_custom_column', array($this, 'render_alt_text_column'), 10, 2);
             add_action('manage_pages_custom_column', array($this, 'render_alt_text_column'), 10, 2);
+        }
+
+        // Front end: fill empty alt attributes of images in post content from
+        // the Media Library. wp_content_img_tag exists since WordPress 6.0.
+        if (!is_admin() && self::supports_content_img_tag_filter()) {
+            add_filter('wp_content_img_tag', array($this, 'fill_content_image_alt'), 10, 3);
         }
 
         // Media hooks
@@ -261,24 +284,20 @@ class AltTextPro
      */
     private function activate_site()
     {
+        require_once ALT_TEXT_PRO_PLUGIN_PATH . 'includes/class-settings.php';
+
         // Create database tables if needed
         $this->create_tables();
         update_option('alt_text_pro_db_version', self::DB_VERSION, true);
 
         // Set default options
         if (!get_option('alt_text_pro_settings')) {
-            add_option('alt_text_pro_settings', array(
-                'api_key' => '',
-                'auto_generate' => false,
-                'overwrite_existing' => false,
-                'context_enabled' => true,
-                'batch_size' => 1
-            ));
+            add_option('alt_text_pro_settings', AltTextPro_Settings::defaults());
         }
 
         // Clear any scheduled events for bulk processing
         wp_clear_scheduled_hook('alt_text_pro_bulk_process_batch');
-        wp_clear_scheduled_hook('alt_text_pro_generate_background');
+        wp_unschedule_hook('alt_text_pro_generate_background');
 
         if (!wp_next_scheduled('alt_text_pro_cleanup')) {
             wp_schedule_event(time() + HOUR_IN_SECONDS, 'daily', 'alt_text_pro_cleanup');
@@ -373,7 +392,7 @@ class AltTextPro
     {
         wp_clear_scheduled_hook('alt_text_pro_cleanup');
         wp_clear_scheduled_hook('alt_text_pro_bulk_process_batch');
-        wp_clear_scheduled_hook('alt_text_pro_generate_background');
+        wp_unschedule_hook('alt_text_pro_generate_background');
     }
 
     /**
@@ -448,22 +467,24 @@ class AltTextPro
         $settings = $settings_handler->get_settings();
         $has_valid_key = !empty($settings['api_key'])
             && AltTextPro_API_Client::validate_api_key_format($settings['api_key']);
-        $show_onboarding = !$has_valid_key;
+        // "I'll do this later" is remembered per user; the settings page
+        // button still opens the modal.
+        $show_onboarding = !$has_valid_key
+            && !get_user_meta(get_current_user_id(), AltTextPro_Admin::ONBOARDING_DISMISSED_META, true);
 
         wp_localize_script('alt-text-pro-admin', 'altTextAI', array(
             'ajaxUrl' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('alt_text_pro_nonce'),
             'version' => ALT_TEXT_PRO_VERSION,
-            'settings' => array(
-                'batch_size' => 1
-            ),
+            'pricingUrl' => ALT_TEXT_PRO_PRICING_URL,
             'onboarding' => array(
                 'show' => (bool)$show_onboarding,
                 'modalId' => 'alt-text-pro-onboarding-modal',
-                'dashboardUrl' => 'https://www.alt-text.pro/dashboard',
+                'dashboardUrl' => ALT_TEXT_PRO_DASHBOARD_URL,
                 'connectUrl' => 'https://www.alt-text.pro/connect',
                 'settingsUrl' => admin_url('admin.php?page=alt-text-pro-settings'),
             ),
+            'bulk' => $hook === 'alt-text-pro_page_alt-text-pro-bulk' ? AltTextPro_Bulk_Processor::get_active_run_for_page() : null,
             'strings' => array(
                 'generating' => __('Generating alt-text...', 'alt-text-pro'),
                 'success' => __('Alt-text generated successfully!', 'alt-text-pro'),
@@ -498,8 +519,11 @@ class AltTextPro
                 'postSuccess' => __('Done! %d image(s) updated.', 'alt-text-pro'),
                 'postPermissionWarning' => __('%d image(s) skipped because you do not have permission to edit them.', 'alt-text-pro'),
                 'postError' => __('Error generating alt-text.', 'alt-text-pro'),
-                'postAddAltText' => __('Add Alt Text', 'alt-text-pro')
-            )
+                'postAddAltText' => __('Add Alt Text', 'alt-text-pro'),
+                'postSyncToPost' => __('Copy alt text into post', 'alt-text-pro'),
+                // translators: %d: number of images whose alt text was copied into the post.
+                'postContentFilled' => __('Done! Alt text copied into the post for %d image(s).', 'alt-text-pro'),
+            ) + self::get_admin_js_strings()
         ));
 
         // Add page-specific inline scripts
@@ -512,6 +536,131 @@ class AltTextPro
         elseif ($hook === 'edit.php') {
             $this->add_posts_list_inline_script();
         }
+    }
+
+    /**
+     * Translated text for admin.js, passed as altTextAI.strings. admin.js
+     * keeps an English fallback for each key.
+     *
+     * @return array<string, string>
+     */
+    private static function get_admin_js_strings()
+    {
+        return array(
+            'accountSuspendedTitle' => __('Account suspended', 'alt-text-pro'),
+            'altFieldMissing' => __('The WordPress alt-text field could not be found. Copy the draft and paste it manually.', 'alt-text-pro'),
+            'analysing' => __('Alt Text Pro AI is analysing this image.', 'alt-text-pro'),
+            'bulkAttention' => __('Bulk processing needs attention. Review the activity list for details.', 'alt-text-pro'),
+            'bulkCompleted' => __('Bulk optimization completed!', 'alt-text-pro'),
+            'bulkProcessingLabel' => __('Bulk processing', 'alt-text-pro'),
+            'bulkRequestFailed' => __('Bulk request failed. Please try again.', 'alt-text-pro'),
+            'bulkRequestTimeout' => __('Bulk request timed out. Please try again.', 'alt-text-pro'),
+            'buyCredits' => __('Buy credits or upgrade', 'alt-text-pro'),
+            // translators: %s: name of the user who started the bulk run.
+            'cancelOtherConfirm' => __('Stop the bulk run started by %s? Images already done keep their alt text.', 'alt-text-pro'),
+            'cancelOwnConfirm' => __('Stop this bulk run? Images already done keep their alt text.', 'alt-text-pro'),
+            'cancelled' => __('Cancelled', 'alt-text-pro'),
+            'cancelledByUser' => __('Bulk optimization cancelled by user.', 'alt-text-pro'),
+            // translators: 1: images processed, 2: images that got alt text, 3: images with errors.
+            'cancelledSummary' => __('Processed %1$d images (%2$d successful, %3$d errors) before stopping.', 'alt-text-pro'),
+            'completedLabel' => __('Completed', 'alt-text-pro'),
+            'connectedSaved' => __('Connected successfully! Your API key has been saved.', 'alt-text-pro'),
+            'connectedSuccess' => __('Connected successfully!', 'alt-text-pro'),
+            'connecting' => __('Connecting...', 'alt-text-pro'),
+            'copied' => __('Copied!', 'alt-text-pro'),
+            'creditsExhausted' => __('Credits Exhausted', 'alt-text-pro'),
+            // translators: %d: number of images processed.
+            'creditsRanOutSummary' => __('Processed %d images before available credits ran out.', 'alt-text-pro'),
+            'creditsUsedUp' => __('Credits Used Up', 'alt-text-pro'),
+            'dismissNotice' => __('Dismiss this notice.', 'alt-text-pro'),
+            'draftApplied' => __('Draft placed in the WordPress alt-text field. Save or update the image to keep it.', 'alt-text-pro'),
+            'endedEarly' => __('The run ended before all scheduled images completed.', 'alt-text-pro'),
+            'endedWithErrors' => __('Process ended with errors or was interrupted.', 'alt-text-pro'),
+            'enterKeyFirst' => __('Please enter an API key first.', 'alt-text-pro'),
+            'errorLabel' => __('Error', 'alt-text-pro'),
+            // translators: %s: error message.
+            'errorPrefix' => __('Error: %s', 'alt-text-pro'),
+            'everyImageFinished' => __('Every scheduled image has finished.', 'alt-text-pro'),
+            'finishingCurrent' => __('Finishing the current image before stopping.', 'alt-text-pro'),
+            'firstImageSoon' => __('The first image will begin shortly.', 'alt-text-pro'),
+            'generatingState' => __('Generating', 'alt-text-pro'),
+            // translators: %d: position of the image in the run.
+            'imageN' => __('Image %d', 'alt-text-pro'),
+            'imageNotProcessed' => __('Image could not be processed.', 'alt-text-pro'),
+            'imageTooLarge' => __('Image too large to process.', 'alt-text-pro'),
+            // translators: %d: number of images the run can process.
+            'initializedProcess' => __('Run started: up to %d images can be processed with the available credits.', 'alt-text-pro'),
+            'initializing' => __('Initializing...', 'alt-text-pro'),
+            'invalidAttachment' => __('Invalid attachment ID', 'alt-text-pro'),
+            'leaveWarning' => __('A bulk run is in progress. Leaving this page pauses it; you can resume it from the Bulk page.', 'alt-text-pro'),
+            // translators: %d: number of images the run can process.
+            'limitNote' => __('This run can process up to %d images with available plan credits.', 'alt-text-pro'),
+            // translators: 1: number of images the run can process, 2: credits at the start.
+            'limitNoteCredits' => __('This run can process up to %1$d images with available plan credits (%2$d credits at start).', 'alt-text-pro'),
+            // translators: 1: number of images the run can process, 2: plan credits used, 3: monthly plan credits.
+            'limitNoteUsed' => __('This run can process up to %1$d images with available plan credits (%2$d used of %3$d).', 'alt-text-pro'),
+            'loadImagesFailed' => __('Images could not be loaded.', 'alt-text-pro'),
+            'loadingImages' => __('Loading images...', 'alt-text-pro'),
+            // translators: %d: number of images with errors.
+            'manyImagesAttention' => __('%d images need attention. Review the activity list for details.', 'alt-text-pro'),
+            'missingAlt' => __('Missing alt text', 'alt-text-pro'),
+            'needsAttentionState' => __('Needs attention', 'alt-text-pro'),
+            'noImagesFound' => __('No images match.', 'alt-text-pro'),
+            'noMoreImages' => __('No additional images will start. Any active image is included above.', 'alt-text-pro'),
+            // translators: %d: number of images with errors (1).
+            'oneImageAttention' => __('%d image needs attention. Review the activity list for details.', 'alt-text-pro'),
+            // translators: 1: current page, 2: number of pages.
+            'pageOf' => __('Page %1$d of %2$d', 'alt-text-pro'),
+            // translators: 1: plan name, 2: credits remaining.
+            'planCredits' => __('Plan: %1$s | Credits: %2$s', 'alt-text-pro'),
+            'popupBlocked' => __('Your browser blocked the sign-in window. Allow popups or use manual entry.', 'alt-text-pro'),
+            'popupClosed' => __('Sign-in window closed. Try again or use manual entry.', 'alt-text-pro'),
+            'preparing' => __('Preparing', 'alt-text-pro'),
+            'processCancelled' => __('Process Cancelled', 'alt-text-pro'),
+            // translators: %d: position of the image in the run.
+            'processingImage' => __('Processing image %d...', 'alt-text-pro'),
+            'processingUpdate' => __('Processing update', 'alt-text-pro'),
+            // translators: %d: maximum number of images in one run.
+            'queueCapped' => __('This run includes the newest %d images. Start another run when it finishes to continue with older images.', 'alt-text-pro'),
+            'queued' => __('Queued', 'alt-text-pro'),
+            'ranOutLog' => __('Bulk optimization stopped because the account ran out of credits.', 'alt-text-pro'),
+            'readyNext' => __('Ready to start after the latest update.', 'alt-text-pro'),
+            'recordingFailed' => __('Recording the failed image and continuing.', 'alt-text-pro'),
+            'resumeRun' => __('Resuming your bulk run...', 'alt-text-pro'),
+            'runCancelled' => __('The bulk run was stopped.', 'alt-text-pro'),
+            'runStoppedTitle' => __('Run stopped', 'alt-text-pro'),
+            'saveFailedManual' => __('Failed to save. Please try manual entry.', 'alt-text-pro'),
+            'saveKeyFailed' => __('WordPress could not save the API key.', 'alt-text-pro'),
+            'savingKey' => __('Account connected. Saving your key...', 'alt-text-pro'),
+            'secureUnavailable' => __('Secure connection is unavailable in this browser. Use manual API key entry.', 'alt-text-pro'),
+            // translators: %d: number of selected images.
+            'selectedCount' => __('%d selected', 'alt-text-pro'),
+            'serverUnreachable' => __('Failed to connect to server', 'alt-text-pro'),
+            'skipping' => __('Skipping', 'alt-text-pro'),
+            'skippingFailed' => __('Skipping failed image...', 'alt-text-pro'),
+            'startFailed' => __('Failed to start bulk process', 'alt-text-pro'),
+            'startingBulk' => __('Starting bulk optimization...', 'alt-text-pro'),
+            'statusFailed' => __('Failed', 'alt-text-pro'),
+            'statusRetrying' => __('Waiting to retry', 'alt-text-pro'),
+            'statusSkipped' => __('Skipped', 'alt-text-pro'),
+            'statusStoppedBefore' => __('Stopped before generation', 'alt-text-pro'),
+            'statusSuccess' => __('Success', 'alt-text-pro'),
+            'stopped' => __('Stopped', 'alt-text-pro'),
+            'stoppedAccount' => __('Bulk processing stopped because of an account or service problem.', 'alt-text-pro'),
+            'stopping' => __('Stopping', 'alt-text-pro'),
+            'stoppingAfterCurrent' => __('Stopping after current image...', 'alt-text-pro'),
+            'testing' => __('Testing...', 'alt-text-pro'),
+            'testingConnection' => __('Testing connection...', 'alt-text-pro'),
+            'testingSaved' => __('Testing saved connection...', 'alt-text-pro'),
+            'unableToStop' => __('Unable to stop yet, retrying...', 'alt-text-pro'),
+            'validating' => __('Validating...', 'alt-text-pro'),
+            'waiting' => __('Waiting', 'alt-text-pro'),
+            'waitingFirst' => __('Waiting to begin the first image.', 'alt-text-pro'),
+            'waitingRateLimit' => __('Waiting for the service before retrying...', 'alt-text-pro'),
+            'waitingRateLimitTask' => __('Waiting before retrying this image.', 'alt-text-pro'),
+            'waitingSignIn' => __('Waiting for you to sign in...', 'alt-text-pro'),
+            'working' => __('Working', 'alt-text-pro'),
+        );
     }
 
     /**
@@ -530,7 +679,9 @@ class AltTextPro
                         auto_generate: $('#auto_generate').is(':checked'),
                         overwrite_existing: $('#overwrite_existing').is(':checked'),
                         context_enabled: $('#context_enabled').is(':checked'),
-                        batch_size: parseInt($('#batch_size').val())
+                        fill_post_content_alt: $('#fill_post_content_alt').is(':checked'),
+                        email_bulk_complete: $('#email_bulk_complete').is(':checked'),
+                        language: $('#language').val() || ''
                     }
                 };
                 var dataStr = JSON.stringify(settings, null, 2);
@@ -557,7 +708,9 @@ class AltTextPro
                             if (settings.settings.auto_generate !== undefined) $('#auto_generate').prop('checked', settings.settings.auto_generate);
                             if (settings.settings.overwrite_existing !== undefined) $('#overwrite_existing').prop('checked', settings.settings.overwrite_existing);
                             if (settings.settings.context_enabled !== undefined) $('#context_enabled').prop('checked', settings.settings.context_enabled);
-                            if (settings.settings.batch_size !== undefined) $('#batch_size').val(settings.settings.batch_size);
+                            if (settings.settings.fill_post_content_alt !== undefined) $('#fill_post_content_alt').prop('checked', settings.settings.fill_post_content_alt);
+                            if (settings.settings.email_bulk_complete !== undefined) $('#email_bulk_complete').prop('checked', settings.settings.email_bulk_complete);
+                            if (typeof settings.settings.language === 'string' && $('#language option').filter(function() { return this.value === settings.settings.language; }).length) $('#language').val(settings.settings.language);
                             alert(altTextAI.strings.settingsImported);
                         }
                     } catch (error) {
@@ -576,29 +729,15 @@ class AltTextPro
      */
     private function add_logs_inline_script()
     {
+        // Search runs on the server (the whole history, not only this page);
+        // the export link already carries the same search term.
         $inline_script = "jQuery(document).ready(function($) {
-            var \$export = $('#export-logs');
-            var exportBase = \$export.attr('href') || '';
-
-            $('#search-logs').on('input', function() {
-                var raw = $(this).val();
-                var term = raw.toLowerCase();
-                $('.log-row').each(function() {
-                    $(this).toggle(String($(this).data('alt-text')).includes(term));
-                });
-
-                // Export the same entries the search shows.
-                if (exportBase) {
-                    \$export.attr('href', raw ? exportBase + '&s=' + encodeURIComponent(raw) : exportBase);
-                }
-            });
-
             $('.copy-alt-text').click(function() {
                 var text = $(this).data('alt-text');
                 navigator.clipboard.writeText(text);
                 var \$btn = $(this);
                 var orig = \$btn.html();
-                \$btn.find('.atp-copy-label').text('Copied!');
+                \$btn.find('.atp-copy-label').text(altTextAI.strings.copied || 'Copied!');
                 setTimeout(function(){ \$btn.html(orig); }, 1500);
             });
         });";
@@ -614,7 +753,7 @@ class AltTextPro
         check_ajax_referer('alt_text_pro_nonce', 'nonce');
 
         if (!current_user_can('upload_files')) {
-            wp_die(esc_html__('You do not have permission to perform this action.', 'alt-text-pro'));
+            self::send_permission_error();
         }
 
         $attachment_id = isset($_POST['attachment_id']) ? intval($_POST['attachment_id']) : 0;
@@ -624,13 +763,21 @@ class AltTextPro
             wp_send_json_error(esc_html__('Invalid attachment ID.', 'alt-text-pro'));
         }
 
-        if (!wp_attachment_is_image($attachment_id) || !current_user_can('edit_post', $attachment_id)) {
-            wp_send_json_error(esc_html__('You do not have permission to edit this image.', 'alt-text-pro'));
+        if (!current_user_can('edit_post', $attachment_id)) {
+            self::send_permission_error(__('You do not have permission to edit this image.', 'alt-text-pro'));
+        }
+
+        if (!wp_attachment_is_image($attachment_id)) {
+            wp_send_json_error(esc_html__('Alt Text Pro can only describe photos and other raster images (JPEG, PNG, GIF, WebP, AVIF, HEIC). SVG and other file types are not supported.', 'alt-text-pro'));
         }
 
         // Get blog context from settings
         $settings = get_option('alt_text_pro_settings', array());
         $blog_context = isset($settings['blog_context']) ? $settings['blog_context'] : '';
+
+        // Generating here replaces a queued upload job for this image, so the
+        // image is billed once.
+        AltTextPro_Media_Handler::claim_pending_upload($attachment_id);
 
         $api_client = new AltTextPro_API_Client();
         $result = $api_client->generate_alt_text($attachment_id, $context, $blog_context);
@@ -648,7 +795,16 @@ class AltTextPro
             ));
         }
         else {
-            wp_send_json_error($result['message'] ?? esc_html__('Failed to generate alt-text. Please check your API key and try again.', 'alt-text-pro'));
+            $message = $result['message'] ?? esc_html__('Failed to generate alt-text. Please check your API key and try again.', 'alt-text-pro');
+            // Out of credits or a suspended account: give the browser a code
+            // so it can add the buy-credits link or explain the suspension.
+            if (!empty($result['no_credits']) || in_array($result['code'] ?? '', array('account_suspended', 'invalid_api_key'), true)) {
+                wp_send_json_error(array(
+                    'message' => $message,
+                    'code' => !empty($result['no_credits']) ? 'no_credits' : sanitize_key($result['code']),
+                ));
+            }
+            wp_send_json_error($message);
         }
     }
 
@@ -660,7 +816,7 @@ class AltTextPro
         check_ajax_referer('alt_text_pro_nonce', 'nonce');
 
         if (!current_user_can('manage_options')) {
-            wp_die(esc_html__('You do not have permission to perform this action.', 'alt-text-pro'));
+            self::send_permission_error();
         }
 
         $api_client = new AltTextPro_API_Client();
@@ -682,7 +838,7 @@ class AltTextPro
         check_ajax_referer('alt_text_pro_nonce', 'nonce');
 
         if (!current_user_can('manage_options')) {
-            wp_die(esc_html__('You do not have permission to perform this action.', 'alt-text-pro'));
+            self::send_permission_error();
         }
 
         $api_key = isset($_POST['api_key']) ? trim(sanitize_text_field(wp_unslash($_POST['api_key']))) : '';
@@ -694,7 +850,11 @@ class AltTextPro
         $api_client = new AltTextPro_API_Client();
         $result = $api_client->validate_api_key($api_key);
 
-        if ($result['success']) {
+        // The service could not check the key (outage or timeout), which is
+        // not a rejection: save the well-formed key and say so.
+        $unverified = empty($result['success']) && !empty($result['retryable']) && intval($result['status_code'] ?? 0) !== 401;
+
+        if ($result['success'] || $unverified) {
             // Persist the validated key (encrypted) without altering other settings
             $existing_settings = get_option('alt_text_pro_settings', array());
             if (!is_array($existing_settings)) {
@@ -718,9 +878,12 @@ class AltTextPro
                 wp_send_json_error(esc_html__('Your API key was validated, but WordPress could not save it. Please try again or check your site configuration.', 'alt-text-pro'));
             }
 
-            $response_data = is_array($result['data']) ? $result['data'] : array();
+            $response_data = isset($result['data']) && is_array($result['data']) ? $result['data'] : array();
             $response_data['saved'] = true;
-            $response_data['message'] = esc_html__('API key validated and saved successfully.', 'alt-text-pro');
+            $response_data['verified'] = !$unverified;
+            $response_data['message'] = $unverified
+                ? esc_html__('API key saved. Alt Text Pro could not confirm it right now; use "Test" on the Settings page in a few minutes.', 'alt-text-pro')
+                : esc_html__('API key validated and saved successfully.', 'alt-text-pro');
 
             wp_send_json_success($response_data);
         }
@@ -788,6 +951,35 @@ class AltTextPro
             }
         }
 
+        // Images whose Media Library alt is filled but whose <img> in the
+        // post still has an empty or missing alt (for example after a bulk
+        // run). The same button copies the alt text into the post.
+        $content_to_fill = $missing === 0 ? $this->count_post_content_images_to_fill($post_id, $attachments) : 0;
+
+        if ($missing === 0 && $content_to_fill > 0) {
+            printf(
+                '<span class="atp-post-actions"><button type="button" class="button atp-post-generate-btn" data-post-id="%d" data-nonce="%s" data-mode="sync" title="%s">
+                    <span class="dashicons dashicons-images-alt2" aria-hidden="true"></span>
+                    <span class="atp-btn-text">%s</span>
+                </button></span>',
+                intval($post_id),
+                esc_attr(wp_create_nonce('alt_text_pro_nonce')),
+                /* translators: %d: number of images in the post content with empty alt text */
+                esc_attr(sprintf(_n('%d image in the post has empty alt text', '%d images in the post have empty alt text', $content_to_fill, 'alt-text-pro'), $content_to_fill)),
+                esc_html__('Copy alt text into post', 'alt-text-pro')
+            );
+            echo '<span class="atp-post-status atp-post-warning">' . esc_html(sprintf(
+                /* translators: %d: number of images in the post content with empty alt text */
+                _n('%d image in the post has empty alt text. No credits needed.', '%d images in the post have empty alt text. No credits needed.', $content_to_fill, 'alt-text-pro'),
+                $content_to_fill
+            )) . '</span>';
+
+            if ($permission_warning) {
+                echo '<span class="atp-post-status atp-post-warning">⚠ ' . esc_html($permission_warning['message']) . '</span>';
+            }
+            return;
+        }
+
         if ($missing === 0) {
             if ($permission_warning) {
                 echo '<span class="atp-post-status atp-post-warning">⚠ ' . esc_html($permission_warning['message']) . '</span>';
@@ -841,6 +1033,17 @@ class AltTextPro
             $attachment_ids[] = intval($thumbnail_id);
         }
 
+        // WooCommerce product gallery (comma-separated attachment IDs).
+        $gallery = get_post_meta($post_id, '_product_image_gallery', true);
+        if (is_string($gallery) && $gallery !== '') {
+            foreach (explode(',', $gallery) as $gallery_id) {
+                $gallery_id = absint($gallery_id);
+                if ($gallery_id) {
+                    $attachment_ids[] = $gallery_id;
+                }
+            }
+        }
+
         // 2. Images in post content — match wp-image-{id} class pattern
         if (!empty($post->post_content)) {
             // Match WordPress image classes like wp-image-123
@@ -862,6 +1065,8 @@ class AltTextPro
         $attachment_ids = array_unique($attachment_ids);
         $valid_ids = array();
         foreach ($attachment_ids as $att_id) {
+            // wp_attachment_is_image() is false for SVG and other non-raster
+            // files, which cannot be described.
             if (!wp_attachment_is_image($att_id)) {
                 continue;
             }
@@ -1094,6 +1299,132 @@ class AltTextPro
     }
 
     /**
+     * Attachment ID an <img> tag refers to (wp-image-{ID} class or data-id),
+     * or 0.
+     */
+    private function get_img_tag_attachment_id($image_tag)
+    {
+        $id_patterns = array(
+            '/\bwp-image-(\d+)\b/i',
+            '/\bdata-id\s*=\s*["\'](\d+)["\']/i',
+            '/\bdata-attachment-id\s*=\s*["\'](\d+)["\']/i',
+        );
+
+        foreach ($id_patterns as $pattern) {
+            if (preg_match($pattern, $image_tag, $id_match)) {
+                return intval($id_match[1]);
+            }
+        }
+
+        return 0;
+    }
+
+    /**
+     * Attachment IDs of <img> tags in the HTML whose alt is missing or empty,
+     * one entry per tag.
+     *
+     * @return int[]
+     */
+    private function get_content_empty_alt_attachment_ids($html)
+    {
+        $ids = array();
+        if (!is_string($html) || stripos($html, '<img') === false) {
+            return $ids;
+        }
+
+        if (!preg_match_all('/<img\b[^>]*>/i', $html, $matches)) {
+            return $ids;
+        }
+
+        foreach ($matches[0] as $image_tag) {
+            $attachment_id = $this->get_img_tag_attachment_id($image_tag);
+            if (!$attachment_id) {
+                continue;
+            }
+
+            $alt = $this->find_img_alt_attribute($image_tag);
+            if ($alt !== null && trim($alt['value']) !== '') {
+                continue;
+            }
+
+            $ids[] = $attachment_id;
+        }
+
+        return $ids;
+    }
+
+    /**
+     * Number of <img> tags in the post that have an empty or missing alt
+     * while their Media Library image (one the user may edit) has alt text.
+     *
+     * @param int   $post_id     Post to inspect.
+     * @param int[] $attachments Editable image attachments of the post.
+     */
+    private function count_post_content_images_to_fill($post_id, array $attachments)
+    {
+        $post = get_post($post_id);
+        if (!$post || empty($post->post_content) || empty($attachments)) {
+            return 0;
+        }
+
+        $editable = array_flip(array_map('intval', $attachments));
+        $count = 0;
+        foreach ($this->get_content_empty_alt_attachment_ids($post->post_content) as $attachment_id) {
+            if (!isset($editable[$attachment_id])) {
+                continue;
+            }
+
+            $library_alt = (string) get_post_meta($attachment_id, '_wp_attachment_image_alt', true);
+            if (trim($library_alt) !== '') {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * True when WordPress offers the wp_content_img_tag filter (6.0+).
+     */
+    public static function supports_content_img_tag_filter()
+    {
+        global $wp_version;
+
+        return isset($wp_version) && version_compare((string) $wp_version, '6.0', '>=');
+    }
+
+    /**
+     * Front end (wp_content_img_tag): give an image in post content the alt
+     * text of its Media Library attachment when the post's own alt is empty
+     * or missing. Alt text written in the post is never replaced, and the
+     * stored post is not changed.
+     *
+     * @param string $filtered_image Full <img> tag.
+     * @param string $context        Where the content comes from.
+     * @param int    $attachment_id  Attachment from the wp-image-{ID} class, or 0.
+     * @return string
+     */
+    public function fill_content_image_alt($filtered_image, $context = '', $attachment_id = 0)
+    {
+        $attachment_id = absint($attachment_id);
+        if (!$attachment_id || !is_string($filtered_image) || !AltTextPro_Settings::is_enabled('fill_post_content_alt')) {
+            return $filtered_image;
+        }
+
+        $current = $this->find_img_alt_attribute($filtered_image);
+        if ($current !== null && trim($current['value']) !== '') {
+            return $filtered_image;
+        }
+
+        $library_alt = trim((string) get_post_meta($attachment_id, '_wp_attachment_image_alt', true));
+        if ($library_alt === '') {
+            return $filtered_image;
+        }
+
+        return $this->sync_html_image_alt_text($filtered_image, array($attachment_id => $library_alt));
+    }
+
+    /**
      * Fill missing or empty image alt attributes in raw HTML (classic content
      * and block markup). Non-empty alt text is never replaced.
      */
@@ -1107,19 +1438,7 @@ class AltTextPro
             '/<img\b[^>]*>/i',
             function ($matches) use ($content_updates) {
                 $image_tag = $matches[0];
-                $attachment_id = 0;
-                $id_patterns = array(
-                    '/\bwp-image-(\d+)\b/i',
-                    '/\bdata-id\s*=\s*["\'](\d+)["\']/i',
-                    '/\bdata-attachment-id\s*=\s*["\'](\d+)["\']/i',
-                );
-
-                foreach ($id_patterns as $pattern) {
-                    if (preg_match($pattern, $image_tag, $id_match)) {
-                        $attachment_id = intval($id_match[1]);
-                        break;
-                    }
-                }
+                $attachment_id = $this->get_img_tag_attachment_id($image_tag);
 
                 if (!$attachment_id || !isset($content_updates[$attachment_id])) {
                     return $image_tag;
@@ -1193,6 +1512,12 @@ class AltTextPro
             return;
         }
 
+        $filled = max(
+            0,
+            count($this->get_content_empty_alt_attachment_ids($post->post_content))
+                - count($this->get_content_empty_alt_attachment_ids($content))
+        );
+
         // Save the updated content back to the post only when it actually changed.
         // wp_update_post() expects slashed data and unslashes it once;
         // without wp_slash() every backslash in the post (block JSON
@@ -1205,7 +1530,10 @@ class AltTextPro
         if (is_wp_error($update_result) || !$update_result) {
             $results['content_synced'] = false;
             $results['content_update_error'] = __('Alt text was saved to the Media Library, but the post content could not be updated automatically.', 'alt-text-pro');
+            return;
         }
+
+        $results['content_filled'] = $filled;
     }
 
     /**
@@ -1272,6 +1600,7 @@ class AltTextPro
         if (!$sync_only) {
             $api_client = null;
             $generations = 0;
+            $blog_context = isset($settings['blog_context']) ? (string) $settings['blog_context'] : '';
             $context = '';
             if (!empty($settings['context_enabled'])) {
                 $context = (string) get_the_title($post_id);
@@ -1298,7 +1627,7 @@ class AltTextPro
 
                 // Leave the rest for the next request (or for a later run once
                 // credits are available again).
-                if ($generations >= self::POST_GENERATIONS_PER_REQUEST || !empty($results['no_credits'])) {
+                if ($generations >= self::POST_GENERATIONS_PER_REQUEST || !empty($results['no_credits']) || !empty($results['stopped'])) {
                     $results['remaining']++;
                     continue;
                 }
@@ -1319,7 +1648,10 @@ class AltTextPro
                     $api_client = new AltTextPro_API_Client();
                 }
 
-                $result = $api_client->generate_alt_text($attachment_id, $context);
+                // Replaces a queued upload job for this image (billed once).
+                AltTextPro_Media_Handler::claim_pending_upload($attachment_id);
+
+                $result = $api_client->generate_alt_text($attachment_id, $context, $blog_context);
                 $alt_text = sanitize_text_field((string) ($result['alt_text'] ?? ''));
 
                 if (!empty($result['success']) && $alt_text !== '') {
@@ -1350,11 +1682,19 @@ class AltTextPro
                         'code' => 'no_credits',
                         'message' => __('You ran out of credits. Buy a credit pack or upgrade your plan at alt-text.pro, then run this again.', 'alt-text-pro'),
                     );
+                } elseif (!empty($result['stop_bulk'])) {
+                    // Invalid key, suspended or missing account: every other
+                    // image would fail the same way.
+                    $results['stopped'] = true;
+                    $results['warnings'][] = array(
+                        'code' => sanitize_key($result['code'] ?? 'account_error'),
+                        'message' => (string) ($result['message'] ?? __('Alt Text Pro stopped because of an account problem.', 'alt-text-pro')),
+                    );
                 }
             }
         }
 
-        $results['done'] = $sync_only || !empty($results['no_credits']) || $results['remaining'] === 0;
+        $results['done'] = $sync_only || !empty($results['no_credits']) || !empty($results['stopped']) || $results['remaining'] === 0;
 
         // Keep the post in step with the Media Library: on the final request,
         // on an explicit sync request, or on every request when the caller
@@ -1388,10 +1728,19 @@ class AltTextPro
                         var message = typeof warning === "string" ? warning : (warning && warning.message);
                         if (!message) return;
 
-                        $("<div>", {
+                        var $warning = $("<div>", {
                             "class": "atp-post-status atp-post-warning",
                             "text": "⚠ " + message
                         }).appendTo($container);
+
+                        if (warning && warning.code === "no_credits" && altTextAI.pricingUrl) {
+                            $warning.append(" ").append($("<a>", {
+                                "href": altTextAI.pricingUrl,
+                                "target": "_blank",
+                                "rel": "noopener noreferrer",
+                                "text": altTextAI.strings.buyCredits
+                            }));
+                        }
                     });
                 }
 
@@ -1400,6 +1749,7 @@ class AltTextPro
                     var $btn = $(this);
                     var postId = $btn.data("post-id");
                     var nonce = $btn.data("nonce");
+                    var syncOnly = $btn.data("mode") === "sync";
                     var $cell = $btn.closest("td");
                     var processed = 0;
                     var errors = 0;
@@ -1418,7 +1768,7 @@ class AltTextPro
                     function resetButton() {
                         $btn.prop("disabled", false);
                         $btn.find(".dashicons").removeClass("dashicons-update atp-spin").addClass("dashicons-images-alt2");
-                        $btn.find(".atp-btn-text").text(altTextAI.strings.postAddAltText);
+                        $btn.find(".atp-btn-text").text(syncOnly ? altTextAI.strings.postSyncToPost : altTextAI.strings.postAddAltText);
                     }
 
                     function showProgress() {
@@ -1472,7 +1822,10 @@ class AltTextPro
                     function finish(data) {
                         var permissionSkipped = data.permission_skipped || 0;
 
-                        if (processed > 0) {
+                        if (processed === 0 && data.content_filled > 0) {
+                            $cell.html("<span class=\"atp-post-status atp-all-done\"></span>");
+                            $cell.find(".atp-all-done").text("✓ " + altTextAI.strings.postContentFilled.replace("%d", data.content_filled));
+                        } else if (processed > 0) {
                             var msg = altTextAI.strings.postSuccess.replace("%d", processed);
                             $cell.html("<span class=\"atp-post-status atp-all-done\"></span>");
                             $cell.find(".atp-all-done").text("✓ " + msg);
@@ -1485,7 +1838,7 @@ class AltTextPro
                         } else if (!data.no_credits && errors === 0) {
                             $cell.html("<span class=\"atp-post-status atp-all-done\"></span>");
                             $cell.find(".atp-all-done").text("✓ " + altTextAI.strings.postAllDone);
-                        } else if (data.no_credits) {
+                        } else if (data.no_credits || data.stopped) {
                             resetButton();
                         } else {
                             // Every attempted image failed.
@@ -1509,6 +1862,7 @@ class AltTextPro
                                 nonce: nonce,
                                 post_id: postId,
                                 defer_sync: 1,
+                                sync_only: syncOnly ? 1 : 0,
                                 failed_ids: failedIds
                             },
                             success: function(response) {
@@ -1547,8 +1901,9 @@ class AltTextPro
                                 showProgress();
                                 step();
                             },
-                            error: function() {
-                                fail(altTextAI.strings.postError);
+                            error: function(xhr) {
+                                var json = xhr && xhr.responseJSON;
+                                fail(json && typeof json.data === "string" ? json.data : altTextAI.strings.postError);
                             }
                         });
                     }

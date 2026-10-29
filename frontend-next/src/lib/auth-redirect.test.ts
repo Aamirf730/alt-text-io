@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getSafeAuthRedirect } from "./auth-redirect";
+import { getSafeAuthRedirect, hasPasswordIdentity, isExistingAccountSignUp } from "./auth-redirect";
 
 describe("getSafeAuthRedirect", () => {
   it("preserves first-party confirmation destinations", () => {
@@ -61,5 +61,31 @@ describe("getSafeAuthRedirect", () => {
     const result = getSafeAuthRedirect(candidate, "/email-confirmed", "https://www.alt-text.pro");
     expect(result).toBe("/email-confirmed");
     expect(new URL(result, "https://www.alt-text.pro").origin).toBe("https://www.alt-text.pro");
+  });
+});
+
+describe("isExistingAccountSignUp", () => {
+  it("detects a repeated sign-up that Supabase answers with no identities", () => {
+    expect(isExistingAccountSignUp({ identities: [] }, false)).toBe(true);
+  });
+
+  it("treats a new account or a signed-in result as a real sign-up", () => {
+    expect(isExistingAccountSignUp({ identities: [{ provider: "email" }] }, false)).toBe(false);
+    expect(isExistingAccountSignUp({ identities: [] }, true)).toBe(false);
+    expect(isExistingAccountSignUp({}, false)).toBe(false);
+    expect(isExistingAccountSignUp(null, false)).toBe(false);
+  });
+});
+
+describe("hasPasswordIdentity", () => {
+  it("hides password changes for Google-only accounts", () => {
+    expect(hasPasswordIdentity({ identities: [{ provider: "google" }], app_metadata: { provider: "google", providers: ["google"] } })).toBe(false);
+  });
+
+  it("allows password changes for email accounts, including linked ones", () => {
+    expect(hasPasswordIdentity({ identities: [{ provider: "email" }] })).toBe(true);
+    expect(hasPasswordIdentity({ identities: [{ provider: "google" }], app_metadata: { providers: ["google", "email"] } })).toBe(true);
+    expect(hasPasswordIdentity({})).toBe(true);
+    expect(hasPasswordIdentity(null)).toBe(false);
   });
 });

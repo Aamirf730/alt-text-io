@@ -454,3 +454,124 @@
     cursor: not-allowed;
     opacity: 0.5;
 }
+
+/* Signed-in account row on the confirm screen. */
+.connect-account {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    margin: 16px 0 0;
+    padding: 12px 16px;
+    border: 1px solid #EFE3A3;
+    border-radius: 12px;
+    background: #FFFBEA;
+    text-align: left;
+}
+
+.connect-account-text {
+    min-width: 0;
+}
+
+.connect-confirmation .connect-account-label {
+    margin: 0;
+    color: #6B6B73;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.connect-confirmation .connect-account-email {
+    margin: 4px 0 0;
+    overflow-wrap: anywhere;
+    color: #3F3F46;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+/* Warning callout (status colour: warning #B45309 on pale amber). */
+.connect-warning {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    width: 100%;
+    margin: 16px 0;
+    padding: 12px 16px;
+    border: 1px solid #FDE68A;
+    border-radius: 12px;
+    background: #FFFBEB;
+    color: #B45309;
+    font-size: 13px;
+    line-height: 1.5;
+    text-align: left;
+}
+
+.connect-warning svg {
+    flex: 0 0 16px;
+    margin-top: 2px;
+}
+
+.connect-waiting-email {
+    width: 100%;
+    overflow-wrap: anywhere;
+    margin: 16px 0 8px;
+    padding: 12px 16px;
+    border: 1px solid #E2CE5A;
+    border-radius: 12px;
+    background: #FFF3B0;
+    color: #3F3F46;
+    font-size: 15px;
+    font-weight: 700;
+}
+
+.connect-waiting-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.connect-confirmation .connect-actions {
+    display: grid;
+    gap: 8px;
+    width: 100%;
+    margin-top: 16px;
+}
+
+.connect-confirmation a.connect-submit-btn {
+    text-decoration: none;
+}
+
+.connect-secondary-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 44px;
+    padding: 0 20px;
+    border: 1px solid #E2CE5A;
+    border-radius: 12px;
+    background: #FFFFFF;
+    color: #3F3F46;
+    cursor: pointer;
+    font-size: 15px;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.connect-secondary-btn:hover:not(:disabled) {
+    background: #FFFBEA;
+}
+
+.connect-secondary-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.connect-secondary-btn svg {
+    flex: 0 0 18px;
+    width: 18px;
+    height: 18px;
+}

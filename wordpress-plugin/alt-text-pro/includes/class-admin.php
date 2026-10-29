@@ -20,10 +20,110 @@ class AltTextPro_Admin
         add_action('admin_menu', array($this, 'add_admin_menu'));
         add_action('admin_init', array($this, 'admin_init'));
         add_action('alt_text_pro_render_notices', array($this, 'plugin_notices'));
-        // Removed attachment_fields_to_edit filter - using meta box instead to avoid duplication
+        // Media modal and Media Library grid. The full attachment edit screen
+        // uses the meta box instead, so add_alt_text_field() skips it.
+        add_filter('attachment_fields_to_edit', array($this, 'add_alt_text_field'), 10, 2);
+        add_filter('attachment_fields_to_save', array($this, 'save_alt_text_field'), 10, 2);
         add_action('add_meta_boxes', array($this, 'add_media_meta_boxes'));
         add_action('admin_post_alt_text_pro_export_logs', array($this, 'export_logs_csv'));
         add_action('admin_post_alt_text_pro_review_prompt', array($this, 'handle_review_prompt'));
+        add_action('wp_ajax_alt_text_pro_dismiss_onboarding', array($this, 'ajax_dismiss_onboarding'));
+    }
+
+    // Per-user flag: the onboarding modal was closed with "I'll do this later".
+    public const ONBOARDING_DISMISSED_META = 'alt_text_pro_onboarding_dismissed';
+
+    // Per-user transient holding automatic-generation failures to report.
+    public const AUTO_GENERATE_ERROR_TRANSIENT = 'alt_text_pro_error_';
+
+    // Logs per page on the Usage & Logs screen.
+    private const LOGS_PER_PAGE = 20;
+
+    /**
+     * Remember that this user chose "I'll do this later" in the onboarding
+     * modal, so it no longer opens on every page load.
+     */
+    public function ajax_dismiss_onboarding()
+    {
+        check_ajax_referer('alt_text_pro_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            AltTextPro::send_permission_error();
+        }
+
+        update_user_meta(get_current_user_id(), self::ONBOARDING_DISMISSED_META, time());
+        wp_send_json_success();
+    }
+
+    /**
+     * Record a failed automatic generation for the user who uploaded the
+     * image; the next admin page shows it once.
+     *
+     * @param int    $user_id    Uploading user.
+     * @param string $message    Plain-text reason.
+     * @param string $image_name Image title.
+     * @param string $code       Error code such as no_credits.
+     */
+    public static function record_auto_generate_error($user_id, $message, $image_name, $code = '')
+    {
+        $user_id = absint($user_id);
+        if (!$user_id) {
+            return;
+        }
+
+        $key = self::AUTO_GENERATE_ERROR_TRANSIENT . $user_id;
+        $existing = get_transient($key);
+        $existing = is_array($existing) ? $existing : array();
+
+        set_transient($key, array(
+            'count' => intval($existing['count'] ?? 0) + 1,
+            'message' => (string) $message,
+            'image' => (string) $image_name,
+            'code' => (string) $code,
+        ), DAY_IN_SECONDS);
+    }
+
+    /**
+     * Show (once) the automatic-generation failures recorded for the current
+     * user, with a buy-credits link when credits ran out.
+     */
+    private function render_auto_generate_errors()
+    {
+        if (!current_user_can('upload_files')) {
+            return;
+        }
+
+        $key = self::AUTO_GENERATE_ERROR_TRANSIENT . get_current_user_id();
+        $error = get_transient($key);
+        if (!is_array($error) || empty($error['message'])) {
+            return;
+        }
+        delete_transient($key);
+
+        $count = max(1, intval($error['count'] ?? 1));
+        echo '<div class="notice notice-error is-dismissible alt-text-pro-auto-error"><p><strong>' . esc_html__('Alt Text Pro:', 'alt-text-pro') . '</strong> ';
+        if ($count > 1) {
+            echo esc_html(sprintf(
+                /* translators: 1: number of uploads, 2: reason of the latest failure */
+                __('Automatic alt text failed for %1$d uploaded images. Latest reason: %2$s', 'alt-text-pro'),
+                $count,
+                $error['message']
+            ));
+        } else {
+            echo esc_html(sprintf(
+                /* translators: 1: image title, 2: reason */
+                __('Automatic alt text failed for "%1$s": %2$s', 'alt-text-pro'),
+                $error['image'] ?? '',
+                $error['message']
+            ));
+        }
+
+        if (($error['code'] ?? '') === 'no_credits') {
+            echo ' <a href="' . esc_url(ALT_TEXT_PRO_PRICING_URL) . '" target="_blank" rel="noopener noreferrer">' . esc_html__('Buy credits or upgrade', 'alt-text-pro') . '</a>';
+        } elseif (in_array($error['code'] ?? '', array('invalid_api_key', 'account_not_found'), true) && current_user_can('manage_options')) {
+            echo ' <a href="' . esc_url(admin_url('admin.php?page=alt-text-pro-settings')) . '">' . esc_html__('Open Alt Text Pro settings', 'alt-text-pro') . '</a>';
+        }
+        echo '</p></div>';
     }
 
     // Most rows one CSV export writes.
@@ -58,7 +158,9 @@ class AltTextPro_Admin
         $where = '';
         $args = array();
         if ($search !== '') {
-            $where = 'WHERE l.alt_text LIKE %s';
+            // Same match as the Logs page search: alt text or image title.
+            $where = 'WHERE (l.alt_text LIKE %s OR p.post_title LIKE %s)';
+            $args[] = '%' . $wpdb->esc_like($search) . '%';
             $args[] = '%' . $wpdb->esc_like($search) . '%';
         }
         $args[] = self::EXPORT_LOGS_LIMIT;
@@ -265,6 +367,8 @@ class AltTextPro_Admin
      */
     public function admin_notices()
     {
+        $this->render_auto_generate_errors();
+
         if (!current_user_can('manage_options')) {
             return;
         }
@@ -296,6 +400,8 @@ class AltTextPro_Admin
      */
     public function plugin_notices()
     {
+        $this->render_auto_generate_errors();
+
         if (!current_user_can('manage_options')) {
             return;
         }
@@ -464,13 +570,15 @@ class AltTextPro_Admin
         // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
         $recent_generations = $wpdb->get_results($query);
 
-        // Get images without alt text (using a more reliable query)
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+        // Get images without alt text (using a more reliable query). SVG and
+        // other files the service cannot describe are not counted.
+        $supported_mime_clause = AltTextPro_API_Client::get_supported_mime_sql_clause('p');
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- the mime clause is prepared
         $images_without_alt = $wpdb->get_var(
             "SELECT COUNT(DISTINCT p.ID) 
              FROM {$wpdb->posts} p 
              WHERE p.post_type = 'attachment' 
-             AND p.post_mime_type LIKE 'image/%'
+             {$supported_mime_clause}
              AND p.ID NOT IN (
                  SELECT DISTINCT pm.post_id 
                  FROM {$wpdb->postmeta} pm 
@@ -500,6 +608,8 @@ class AltTextPro_Admin
         // keeps this page fast on large libraries; a single run takes the
         // newest images up to the processor's queue cap.
         $editable_clause = AltTextPro_Bulk_Processor::get_editable_media_sql_clause('p');
+        // SVG and other non-raster files are never queued, so not counted.
+        $supported_mime_clause = AltTextPro_API_Client::get_supported_mime_sql_clause('p');
         $missing_alt_sql = "FROM {$wpdb->posts} p
              LEFT JOIN {$wpdb->postmeta} pm ON (
                  p.ID = pm.post_id
@@ -509,26 +619,19 @@ class AltTextPro_Admin
                  AND TRIM(pm.meta_value) != ''
              )
              WHERE p.post_type = 'attachment'
-             AND p.post_mime_type LIKE 'image/%'
+             {$supported_mime_clause}
              AND pm.post_id IS NULL
              {$editable_clause}";
 
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared -- the only variable fragment is prepared above
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared -- the only variable fragments are prepared above
         $total_without_alt = (int) $wpdb->get_var("SELECT COUNT(*) {$missing_alt_sql}");
-
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
-        $images_without_alt = $wpdb->get_results(
-            "SELECT p.ID, p.post_title, p.post_date {$missing_alt_sql}
-             ORDER BY p.post_date DESC
-             LIMIT 100"
-        );
 
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
         $total_images = (int) $wpdb->get_var(
             "SELECT COUNT(*)
              FROM {$wpdb->posts} p
              WHERE p.post_type = 'attachment'
-             AND p.post_mime_type LIKE 'image/%'
+             {$supported_mime_clause}
              {$editable_clause}"
         );
 
@@ -537,9 +640,15 @@ class AltTextPro_Admin
         $has_valid_key = !empty($settings['api_key'])
             && AltTextPro_API_Client::validate_api_key_format($settings['api_key']);
 
+        $usage_error = '';
+        $usage_error_code = '';
         if ($has_valid_key) {
             $api_client = new AltTextPro_API_Client();
             $usage_response = $api_client->get_usage_stats();
+            if (empty($usage_response['success'])) {
+                $usage_error = isset($usage_response['message']) ? sanitize_text_field($usage_response['message']) : '';
+                $usage_error_code = isset($usage_response['code']) ? sanitize_key((string) $usage_response['code']) : '';
+            }
             if (!empty($usage_response['success'])) {
                 $credits_remaining = isset($usage_response['data']['credits_remaining']) ? intval($usage_response['data']['credits_remaining']) : null;
                 $billing_cycle = isset($usage_response['data']['billing_cycle']) ? sanitize_text_field($usage_response['data']['billing_cycle']) : null;
@@ -549,6 +658,10 @@ class AltTextPro_Admin
             }
         }
 
+        // A run that is still going (this tab was closed or reloaded, or
+        // another administrator started it).
+        $active_run = AltTextPro_Bulk_Processor::get_active_run_for_page();
+
         include ALT_TEXT_PRO_PLUGIN_PATH . 'templates/bulk-process.php';
     }
 
@@ -557,15 +670,7 @@ class AltTextPro_Admin
      */
     public function settings_page()
     {
-        $settings = wp_parse_args(get_option('alt_text_pro_settings', array()), array(
-            'api_key' => '',
-            'auto_generate' => false,
-            'overwrite_existing' => false,
-            'context_enabled' => true,
-            'blog_context' => '',
-            'show_context_field' => false,
-            'batch_size' => 1
-        ));
+        $settings = wp_parse_args(get_option('alt_text_pro_settings', array()), AltTextPro_Settings::defaults());
 
         include ALT_TEXT_PRO_PLUGIN_PATH . 'templates/settings.php';
     }
@@ -578,25 +683,46 @@ class AltTextPro_Admin
         global $wpdb;
 
         $logs_table = $wpdb->prefix . 'alt_text_pro_logs';
-        $per_page = 20;
+        $per_page = self::LOGS_PER_PAGE;
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         $current_page = max(1, intval($_GET['paged'] ?? 1));
         $offset = ($current_page - 1) * $per_page;
+
+        // Search the whole history on the server (alt text and image title),
+        // not only the rows on this page. Read-only, so no nonce.
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $search = isset($_GET['s']) ? trim(sanitize_text_field(wp_unslash($_GET['s']))) : '';
+        $where = '';
+        $where_args = array();
+        if ($search !== '') {
+            $like = '%' . $wpdb->esc_like($search) . '%';
+            $where = 'WHERE (l.alt_text LIKE %s OR p.post_title LIKE %s)';
+            $where_args = array($like, $like);
+        }
 
         // Get logs with pagination
         // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
         $query = "SELECT l.*, p.post_title, p.guid 
              FROM $logs_table l 
              LEFT JOIN {$wpdb->posts} p ON l.attachment_id = p.ID 
-             ORDER BY l.created_at DESC 
+             {$where}
+             ORDER BY l.created_at DESC, l.id DESC 
              LIMIT %d OFFSET %d";
 
         // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
-        $logs = $wpdb->get_results($wpdb->prepare($query, $per_page, $offset));
+        $logs = $wpdb->get_results($wpdb->prepare($query, array_merge($where_args, array($per_page, $offset))));
 
         // Get total count for pagination
-        // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery
-        $total_logs = $wpdb->get_var("SELECT COUNT(*) FROM $logs_table");
+        if ($search !== '') {
+            // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery
+            $total_logs = (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM $logs_table l LEFT JOIN {$wpdb->posts} p ON l.attachment_id = p.ID {$where}",
+                $where_args
+            ));
+        } else {
+            // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery
+            $total_logs = (int) $wpdb->get_var("SELECT COUNT(*) FROM $logs_table");
+        }
         $total_pages = ceil($total_logs / $per_page);
 
         $site_date_prefix = current_time('Y-m-d') . '%';
@@ -628,7 +754,13 @@ class AltTextPro_Admin
      */
     public function add_alt_text_field($form_fields, $post)
     {
-        if (strpos((string) $post->post_mime_type, 'image/') !== 0) {
+        if (!is_object($post) || !AltTextPro_API_Client::is_supported_image($post->ID) || !current_user_can('edit_post', $post->ID)) {
+            return $form_fields;
+        }
+
+        // The full attachment edit screen shows the meta box instead.
+        $screen = function_exists('get_current_screen') ? get_current_screen() : null;
+        if ($screen && $screen->base === 'post' && $screen->post_type === 'attachment') {
             return $form_fields;
         }
 
@@ -648,7 +780,7 @@ class AltTextPro_Admin
      */
     public function save_alt_text_field($post, $attachment)
     {
-        if (isset($attachment['alt_text_pro_context'])) {
+        if (isset($attachment['alt_text_pro_context']) && !empty($post['ID']) && current_user_can('edit_post', $post['ID'])) {
             update_post_meta($post['ID'], '_alt_text_pro_context', sanitize_text_field($attachment['alt_text_pro_context']));
         }
 
@@ -684,6 +816,7 @@ class AltTextPro_Admin
                     </label>
                     <input type="text" id="alt_text_pro_context_<?php echo esc_attr($attachment_id); ?>"
                         name="attachments[<?php echo esc_attr($attachment_id); ?>][alt_text_pro_context]"
+                        value="<?php echo esc_attr((string) get_post_meta($attachment_id, '_alt_text_pro_context', true)); ?>"
                         placeholder="<?php esc_attr_e('e.g., product photo, team meeting, etc.', 'alt-text-pro'); ?>">
                     <p class="description">
                         <?php esc_html_e('Add specific context to make the generated draft more relevant to this page.', 'alt-text-pro'); ?>
@@ -750,8 +883,8 @@ class AltTextPro_Admin
             return;
         }
 
-        if (strpos((string) $post->post_mime_type, 'image/') !== 0) {
-            echo '<p>' . esc_html__('Alt-text generation is only available for images.', 'alt-text-pro') . '</p>';
+        if (!AltTextPro_API_Client::is_supported_image($post->ID)) {
+            echo '<p>' . esc_html__('Alt Text Pro can only describe photos and other raster images. SVG and other file types are not supported.', 'alt-text-pro') . '</p>';
             return;
         }
 

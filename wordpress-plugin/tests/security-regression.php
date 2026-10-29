@@ -348,9 +348,22 @@ alt_text_pro_security_assert(
     strpos($bulk_source, 'get_option($this->get_bulk_process_option_name($process_id), false)') !== false,
     'Bulk state reads must recover from the durable options-table copy.'
 );
+// Upload generation runs later in one WP-Cron event. It is billed at most
+// once: the event claims (deletes) the pending flag before calling the
+// service, and bulk and manual generation claim it first. (Behaviour is
+// covered at the end of this file.)
 alt_text_pro_security_assert(
-    strpos($media_source, 'wp_schedule_single_event') === false,
-    'Automatic upload generation must not schedule a duplicate billable fallback.'
+    substr_count($media_source, 'wp_schedule_single_event(') === 1
+        && strpos($media_source, 'if (!self::claim_pending_upload($attachment_id))') !== false
+        && strpos($media_source, "delete_post_meta(\$attachment_id, self::PENDING_META)") !== false,
+    'Automatic upload generation must schedule one event that claims the pending flag before billing.'
+);
+alt_text_pro_security_assert(
+    strpos($bulk_source, 'AltTextPro_Media_Handler::claim_pending_upload($image_id);') !== false
+        && strpos($bulk_source, 'AltTextPro_Media_Handler::is_upload_generation_running($image_id)') !== false
+        && substr_count($plugin_source, 'AltTextPro_Media_Handler::claim_pending_upload($attachment_id);') === 2
+        && strpos($media_source, '        self::claim_pending_upload($attachment_id);' . "\n\n" . '        $result = $api_client->generate_alt_text(') !== false,
+    'Bulk, single-image, post and media regeneration must cancel a queued upload job before billing.'
 );
 alt_text_pro_security_assert(
     strpos($plugin_source, 'data.content_update_error') !== false,
@@ -502,6 +515,121 @@ alt_text_pro_security_assert(
         && strpos($plugin_source, "wp_clear_scheduled_hook('alt_text_pro_cleanup')") !== false
         && strpos($uninstall_source, "wp_clear_scheduled_hook('alt_text_pro_cleanup')") !== false,
     'The daily cleanup must be scheduled on activation, handled, and cleared on deactivation and uninstall.'
+);
+
+// Deferred upload generation bills an image at most once and never replaces
+// alt text written after the upload.
+if (!defined('MINUTE_IN_SECONDS')) {
+    define('MINUTE_IN_SECONDS', 60);
+}
+
+$alt_text_pro_test_post_meta = array();
+
+function absint($value)
+{
+    return abs(intval($value));
+}
+
+function get_post_meta($post_id, $key = '', $single = false)
+{
+    global $alt_text_pro_test_post_meta;
+    return $alt_text_pro_test_post_meta[$post_id][$key] ?? '';
+}
+
+function delete_post_meta($post_id, $key)
+{
+    global $alt_text_pro_test_post_meta;
+    if (!isset($alt_text_pro_test_post_meta[$post_id]) || !array_key_exists($key, $alt_text_pro_test_post_meta[$post_id])) {
+        return false;
+    }
+    unset($alt_text_pro_test_post_meta[$post_id][$key]);
+    return true;
+}
+
+require_once dirname(__DIR__) . '/alt-text-pro/includes/class-media-handler.php';
+
+// Records billable calls instead of contacting the service.
+class AltTextPro_Test_Media_Handler extends AltTextPro_Media_Handler
+{
+    public $calls = array();
+
+    public function generate_alt_text_background($attachment_id, $force_overwrite = false, $user_id = 0)
+    {
+        $this->calls[] = array(
+            'id' => $attachment_id,
+            'force' => $force_overwrite,
+            'running' => AltTextPro_Media_Handler::is_upload_generation_running($attachment_id),
+        );
+    }
+}
+
+$alt_text_pro_pending = AltTextPro_Media_Handler::PENDING_META;
+$alt_text_pro_test_options['alt_text_pro_settings'] = array('auto_generate' => true, 'overwrite_existing' => false);
+$media_handler = new AltTextPro_Test_Media_Handler();
+
+// Nothing written since the upload: generate once, even if the event repeats.
+$alt_text_pro_test_post_meta[201] = array($alt_text_pro_pending => array('alt' => ''), '_wp_attachment_image_alt' => '');
+$media_handler->run_scheduled_generation(201, false, 41);
+$media_handler->run_scheduled_generation(201, false, 41);
+alt_text_pro_security_assert(
+    count($media_handler->calls) === 1
+        && $media_handler->calls[0]['running'] === true
+        && !AltTextPro_Media_Handler::is_upload_generation_running(201)
+        && !array_key_exists($alt_text_pro_pending, $alt_text_pro_test_post_meta[201]),
+    'A queued upload must be described once, marked running only while it is described.'
+);
+
+// A person wrote alt text after the upload: keep it, even with overwrite on.
+$alt_text_pro_test_options['alt_text_pro_settings']['overwrite_existing'] = true;
+$alt_text_pro_test_post_meta[202] = array($alt_text_pro_pending => array('alt' => ''), '_wp_attachment_image_alt' => 'Written by hand');
+$media_handler->calls = array();
+$media_handler->run_scheduled_generation(202, true, 41);
+alt_text_pro_security_assert(
+    $media_handler->calls === array() && !array_key_exists($alt_text_pro_pending, $alt_text_pro_test_post_meta[202]),
+    'Alt text written after the upload must never be replaced by the queued job.'
+);
+
+// Overwrite was on at upload but is off now: existing alt text stays.
+$alt_text_pro_test_options['alt_text_pro_settings']['overwrite_existing'] = false;
+$alt_text_pro_test_post_meta[203] = array($alt_text_pro_pending => array('alt' => 'Old alt'), '_wp_attachment_image_alt' => 'Old alt');
+$media_handler->run_scheduled_generation(203, true, 41);
+alt_text_pro_security_assert(
+    $media_handler->calls === array(),
+    'With overwrite turned off, the queued job must not replace existing alt text.'
+);
+
+// Overwrite on at upload and now, alt unchanged: regenerate with overwrite.
+$alt_text_pro_test_options['alt_text_pro_settings']['overwrite_existing'] = true;
+$alt_text_pro_test_post_meta[204] = array($alt_text_pro_pending => array('alt' => 'Old alt'), '_wp_attachment_image_alt' => 'Old alt');
+$media_handler->run_scheduled_generation(204, true, 41);
+alt_text_pro_security_assert(
+    count($media_handler->calls) === 1 && $media_handler->calls[0]['force'] === true,
+    'With overwrite on, unchanged alt text from the upload is regenerated once.'
+);
+
+// A bulk run or the Generate button reached the image first: the queued job
+// must not bill it again.
+$alt_text_pro_test_options['alt_text_pro_settings']['overwrite_existing'] = false;
+$alt_text_pro_test_post_meta[205] = array($alt_text_pro_pending => array('alt' => ''), '_wp_attachment_image_alt' => '');
+$media_handler->calls = array();
+alt_text_pro_security_assert(
+    AltTextPro_Media_Handler::claim_pending_upload(205) === true
+        && AltTextPro_Media_Handler::claim_pending_upload(205) === false,
+    'Only one caller can claim a queued upload.'
+);
+$media_handler->run_scheduled_generation(205, false, 41);
+alt_text_pro_security_assert(
+    $media_handler->calls === array(),
+    'A queued upload claimed by bulk or manual generation must not be billed again.'
+);
+
+// Automatic generation turned off before the job ran: do nothing.
+$alt_text_pro_test_options['alt_text_pro_settings']['auto_generate'] = false;
+$alt_text_pro_test_post_meta[206] = array($alt_text_pro_pending => array('alt' => ''), '_wp_attachment_image_alt' => '');
+$media_handler->run_scheduled_generation(206, false, 41);
+alt_text_pro_security_assert(
+    $media_handler->calls === array(),
+    'A queued upload must not be described after automatic generation was turned off.'
 );
 
 fwrite(STDOUT, "WordPress security regression tests passed.\n");

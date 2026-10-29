@@ -96,6 +96,41 @@
   to = "/.netlify/functions/send-contact-email"
   status = 200
 
+[[redirects]]
+  from = "/api/delete-account"
+  to = "/.netlify/functions/delete-account"
+  status = 200
+
+[[redirects]]
+  from = "/api/get-connected-sites"
+  to = "/.netlify/functions/get-connected-sites"
+  status = 200
+
+[[redirects]]
+  from = "/api/site-disconnect"
+  to = "/.netlify/functions/site-disconnect"
+  status = 200
+
+[[redirects]]
+  from = "/api/admin-user-detail"
+  to = "/.netlify/functions/admin-user-detail"
+  status = 200
+
+[[redirects]]
+  from = "/api/admin-user-action"
+  to = "/.netlify/functions/admin-user-action"
+  status = 200
+
+[[redirects]]
+  from = "/api/admin-payment-reconciliation"
+  to = "/.netlify/functions/admin-payment-reconciliation"
+  status = 200
+
+[[redirects]]
+  from = "/api/admin-audit-log"
+  to = "/.netlify/functions/admin-audit-log"
+  status = 200
+
 # Next.js plugin handles everything else (including new /api/checkout)
 [[plugins]]
   package = "@netlify/plugin-nextjs"

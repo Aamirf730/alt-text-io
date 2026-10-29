@@ -31,12 +31,10 @@ export default function ResetPasswordPage() {
 
     const prepareResetSession = async () => {
       try {
+        // Only the PKCE code (from the Supabase redirect) or a session set by
+        // /auth/confirm is accepted; credentials in the URL are never trusted.
         const queryParams = new URLSearchParams(window.location.search);
-        const hashParams = new URLSearchParams(window.location.hash.substring(1));
         const code = queryParams.get("code");
-        const accessToken = hashParams.get("access_token") || queryParams.get("access_token");
-        const refreshToken = hashParams.get("refresh_token") || queryParams.get("refresh_token");
-        const type = hashParams.get("type") || queryParams.get("type");
 
         const { data: initialSessionData, error: initialSessionError } = await supabase.auth.getSession();
         if (initialSessionError) throw initialSessionError;
@@ -47,12 +45,6 @@ export default function ResetPasswordPage() {
 
         if (code) {
           const { error } = await supabase.auth.exchangeCodeForSession(code);
-          if (error) throw error;
-        } else if (type === "recovery" && accessToken && refreshToken) {
-          const { error } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken,
-          });
           if (error) throw error;
         }
 
@@ -66,6 +58,7 @@ export default function ResetPasswordPage() {
       } catch (error) {
         if (!active) return;
         console.error("Password reset session error:", error);
+        window.history.replaceState({}, document.title, "/reset-password");
         setState("error");
         setMessage(error instanceof Error ? error.message : "This password reset link is invalid or has expired.");
       }
@@ -188,15 +181,20 @@ export default function ResetPasswordPage() {
         ) : null}
 
         {state === "success" && (
-          <Button type="button" onClick={() => router.push("/")} className="mt-8 w-full">
+          <Button type="button" onClick={() => router.push("/?auth=signin")} className="mt-8 w-full">
             Return to sign in
           </Button>
         )}
 
         {state === "error" && (
-          <Button type="button" onClick={() => router.push("/")} className="mt-8 w-full">
-            Request a new link
-          </Button>
+          <>
+            <Button type="button" onClick={() => router.push("/?auth=signin")} className="mt-8 w-full">
+              Request a new link
+            </Button>
+            <p className="mt-3 text-sm text-ink-muted">
+              Choose <strong>Forgot password?</strong> in the sign-in window to get a new link.
+            </p>
+          </>
         )}
       </section>
     </main>

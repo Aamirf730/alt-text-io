@@ -18,3 +18,16 @@ describe("password recovery flow", () => {
     expect(landingPage).toContain("Forgot password?");
   });
 });
+
+describe("password recovery hardening", () => {
+  it("never accepts session tokens from the URL", () => {
+    expect(source).not.toContain("access_token");
+    expect(source).not.toContain("refresh_token");
+    expect(source).not.toContain("auth.setSession");
+  });
+
+  it("sends people back to the sign-in dialog", () => {
+    expect(source).toContain('router.push("/?auth=signin")');
+    expect(source).not.toContain('router.push("/")');
+  });
+});

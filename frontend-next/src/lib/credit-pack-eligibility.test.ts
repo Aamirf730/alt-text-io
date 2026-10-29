@@ -30,6 +30,13 @@ describe("isCreditPackEligible", () => {
         })).toBe(true);
     });
 
+    it("allows a subscriber whose renewal charge is past due", () => {
+        expect(isCreditPackEligible({
+            subscription_plan: "tier2",
+            subscription_status: "past_due",
+        })).toBe(true);
+    });
+
     it("allows established paid-plan aliases", () => {
         expect(isCreditPackEligible({
             subscription_plan: "lite",

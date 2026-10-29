@@ -56,6 +56,52 @@ function getMonthlyCreditState(profile, planCredits = null) {
   };
 }
 
+/**
+ * True for a usage row paid from the plan allowance. Bonus and credit-pack
+ * generations do not count against it; rows logged before
+ * usage_logs.credit_source existed are NULL and count as plan usage, matching
+ * reserve_credit.
+ */
+function isPlanCreditRow(row) {
+  return !row?.credit_source || row.credit_source === 'plan';
+}
+
+function isMissingCreditSourceError(error) {
+  return /credit_source/i.test(String(error?.message || error || ''));
+}
+
+/**
+ * Sum this cycle's usage rows: plan-allowance credits (creditsUsed, used for
+ * the monthly allowance) and every generation (imagesProcessed). Before the
+ * credit_source column exists every row counts as plan usage.
+ */
+async function loadCycleUsageRows(client, userId, cycleStart, { label = 'current-cycle usage', ascending = true } = {}) {
+  const cycleStartIso = cycleStart.toISOString();
+  const buildQuery = (columns) => (from, to) => client
+    .from('usage_logs')
+    .select(columns)
+    .eq('user_id', userId)
+    .gte('created_at', cycleStartIso)
+    .order('created_at', { ascending })
+    .order('id', { ascending })
+    .range(from, to);
+
+  let rows;
+  try {
+    rows = await fetchAllRows(buildQuery('credits_used, credit_source, created_at, id'), { label });
+  } catch (error) {
+    if (!isMissingCreditSourceError(error)) throw error;
+    rows = await fetchAllRows(buildQuery('credits_used, created_at, id'), { label });
+  }
+
+  return {
+    creditsUsed: rows
+      .filter(isPlanCreditRow)
+      .reduce((sum, log) => sum + Number(log.credits_used || 1), 0),
+    imagesProcessed: rows.reduce((sum, log) => sum + Number(log.credits_used || 1), 0),
+  };
+}
+
 async function getCurrentCycleCreditsUsedResult(userId, creditsLastRenewedAt = null) {
   if (!supabase || !userId) {
     return { success: false, error: 'Supabase credentials or user ID is missing' };
@@ -66,21 +112,14 @@ async function getCurrentCycleCreditsUsedResult(userId, creditsLastRenewedAt = n
     : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 
   try {
-    const usageLogs = await fetchAllRows(
-      (from, to) => supabase
-        .from('usage_logs')
-        .select('credits_used, created_at, id')
-        .eq('user_id', userId)
-        .gte('created_at', cycleStart.toISOString())
-        .order('created_at', { ascending: true })
-        .order('id', { ascending: true })
-        .range(from, to),
-      { label: 'current-cycle usage' }
-    );
+    // creditsUsed is plan-allowance usage only; imagesProcessed counts every
+    // generation this cycle.
+    const usage = await loadCycleUsageRows(supabase, userId, cycleStart);
 
     return {
       success: true,
-      creditsUsed: usageLogs.reduce((sum, log) => sum + Number(log.credits_used || 1), 0),
+      creditsUsed: usage.creditsUsed,
+      imagesProcessed: usage.imagesProcessed,
     };
   } catch (error) {
     console.error('Failed to calculate current-cycle usage:', error.message || error);
@@ -100,20 +139,84 @@ function isSupabaseConfigured() {
   return Boolean(supabase);
 }
 
+const API_KEY_PROFILE_COLUMNS = 'id, email, credits_remaining, bonus_credits_remaining, purchased_credits_remaining, total_processed, subscription_plan, subscription_status, billing_cycle, monthly_credit_allowance, credits_last_renewed_at, updated_at';
+const PROFILE_BLOCK_COLUMNS = 'blocked_at, blocked_reason';
+
+const ACCOUNT_SUSPENDED_MESSAGE = 'This Alt Text Pro account is suspended, so it cannot generate alt text. Contact help@alt-text.pro if you think this is a mistake.';
+const AUTH_UNAVAILABLE_RETRY_SECONDS = 30;
+
+// Outcomes of an API-key lookup. Only "invalid" means the key itself is bad;
+// "unavailable" is a lookup failure the caller should report as retryable.
+const API_KEY_STATUS = Object.freeze({
+  VALID: 'valid',
+  INVALID: 'invalid',
+  SUSPENDED: 'suspended',
+  UNAVAILABLE: 'unavailable',
+});
+
 /**
- * Validate API key and return user information from profiles table
- * @param {string} apiKey - The API key to validate
- * @returns {Object|null} - User object if valid, null if invalid
+ * True when PostgREST rejected the query because the block columns do not
+ * exist yet (their migration has not been applied to this database).
  */
-async function validateApiKey(apiKey) {
+function isMissingBlockColumnError(error) {
+  if (!error) return false;
+  const message = String(error.message || '');
+  return error.code === '42703' || error.code === 'PGRST204' || /blocked_(at|reason)/i.test(message);
+}
+
+function isAccountBlocked(profile) {
+  return Boolean(profile && profile.blocked_at);
+}
+
+/**
+ * Read one profile with its block state. Before the block columns exist the
+ * profile is read without them, so deploying ahead of that migration does not
+ * break authentication.
+ *
+ * @returns {Promise<{ data: Object|null, error: Object|null }>}
+ */
+async function fetchProfileWithBlockState(userId, columns = API_KEY_PROFILE_COLUMNS, client = supabase) {
+  if (!client || !userId) {
+    return { data: null, error: { message: 'Supabase credentials or user ID is missing' } };
+  }
+
+  const withBlock = await client
+    .from('profiles')
+    .select(`${columns}, ${PROFILE_BLOCK_COLUMNS}`)
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (!withBlock.error || !isMissingBlockColumnError(withBlock.error)) {
+    return { data: withBlock.data || null, error: withBlock.error || null };
+  }
+
+  const withoutBlock = await client
+    .from('profiles')
+    .select(columns)
+    .eq('id', userId)
+    .maybeSingle();
+
+  return { data: withoutBlock.data || null, error: withoutBlock.error || null };
+}
+
+/**
+ * Validate an API key and say why it failed.
+ *
+ * @param {string} apiKey - The API key to validate
+ * @returns {Promise<{ status: string, user?: Object, error?: string }>}
+ *   status "valid" (user set), "suspended" (user set, account blocked),
+ *   "invalid" (unknown, inactive or orphaned key) or "unavailable" (the
+ *   lookup itself failed; retry later).
+ */
+async function validateApiKeyResult(apiKey) {
   if (!supabase) {
     console.error('❌ [validateApiKey] Supabase credentials not configured');
-    return null;
+    return { status: API_KEY_STATUS.UNAVAILABLE, error: 'Supabase credentials not configured' };
   }
 
   // Validate API key format (accepts both altai_ and alt_ formats)
-  if (!apiKey || (!apiKey.startsWith('altai_') && !apiKey.startsWith('alt_'))) {
-    return null;
+  if (!apiKey || typeof apiKey !== 'string' || (!apiKey.startsWith('altai_') && !apiKey.startsWith('alt_'))) {
+    return { status: API_KEY_STATUS.INVALID };
   }
 
   try {
@@ -121,16 +224,19 @@ async function validateApiKey(apiKey) {
 
     // Validate against the one-way hash. The legacy lookup is retained only
     // for rows not yet migrated by an authorized request.
-    let { data: apiKeyRecord, error: apiKeyError } = await supabase
+    const hashLookup = await supabase
       .from('api_keys')
       .select('id, user_id, api_key_hash, is_active, created_at')
       .eq('api_key_hash', apiKeyHash)
       .eq('is_active', true)
       .maybeSingle();
 
-    if (apiKeyError) {
-      console.error('[validateApiKey] Hash lookup failed:', apiKeyError.message);
+    if (hashLookup.error) {
+      console.error('[validateApiKey] Hash lookup failed:', hashLookup.error.message);
+      return { status: API_KEY_STATUS.UNAVAILABLE, error: 'API key lookup failed' };
     }
+
+    let apiKeyRecord = hashLookup.data;
 
     if (!apiKeyRecord) {
       const legacyLookup = await supabase
@@ -140,8 +246,12 @@ async function validateApiKey(apiKey) {
         .eq('is_active', true)
         .maybeSingle();
 
+      if (legacyLookup.error) {
+        console.error('[validateApiKey] Legacy lookup failed:', legacyLookup.error.message);
+        return { status: API_KEY_STATUS.UNAVAILABLE, error: 'API key lookup failed' };
+      }
+
       apiKeyRecord = legacyLookup.data;
-      apiKeyError = legacyLookup.error;
 
       if (apiKeyRecord) {
         try {
@@ -168,25 +278,26 @@ async function validateApiKey(apiKey) {
     }
 
     if (!apiKeyRecord) {
-      return null;
+      return { status: API_KEY_STATUS.INVALID };
     }
 
     // Get user profile from profiles table (single source of truth)
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('id, email, credits_remaining, bonus_credits_remaining, purchased_credits_remaining, total_processed, subscription_plan, subscription_status, billing_cycle, monthly_credit_allowance, credits_last_renewed_at, updated_at')
-      .eq('id', apiKeyRecord.user_id)
-      .single();
+    const { data: profile, error: profileError } = await fetchProfileWithBlockState(apiKeyRecord.user_id);
 
-    if (profileError || !profile) {
-      console.error('[validateApiKey] Profile lookup failed:', profileError?.message || 'Profile not found');
+    if (profileError) {
+      console.error('[validateApiKey] Profile lookup failed:', profileError.message);
+      return { status: API_KEY_STATUS.UNAVAILABLE, error: 'Profile lookup failed' };
+    }
+
+    if (!profile) {
       // Do NOT fall back - if profile doesn't exist, the API key is orphaned
-      return null;
+      console.error('[validateApiKey] Profile lookup failed: Profile not found');
+      return { status: API_KEY_STATUS.INVALID };
     }
 
     const cycleUsageResult = await getCurrentCycleCreditsUsedResult(profile.id, profile.credits_last_renewed_at);
 
-    return {
+    const user = {
       id: profile.id,
       email: profile.email,
       credits_remaining: profile.credits_remaining ?? 0,
@@ -201,14 +312,84 @@ async function validateApiKey(apiKey) {
       monthly_credit_allowance: profile.monthly_credit_allowance ?? null,
       credits_last_renewed_at: profile.credits_last_renewed_at || null,
       subscription_status: profile.subscription_status,
+      blocked_at: profile.blocked_at || null,
       created_at: apiKeyRecord.created_at,
       updated_at: profile.updated_at
     };
 
+    if (isAccountBlocked(profile)) {
+      return { status: API_KEY_STATUS.SUSPENDED, user };
+    }
+
+    return { status: API_KEY_STATUS.VALID, user };
   } catch (error) {
     console.error('[validateApiKey] Unexpected validation error:', error instanceof Error ? error.message : 'Unknown error');
-    return null;
+    return { status: API_KEY_STATUS.UNAVAILABLE, error: 'Unexpected validation error' };
   }
+}
+
+/**
+ * Validate API key and return user information from profiles table.
+ * Kept for callers that only need "usable or not": any failure, including
+ * a suspended account or a lookup outage, returns null.
+ *
+ * @param {string} apiKey - The API key to validate
+ * @returns {Object|null} - User object if valid, null otherwise
+ */
+async function validateApiKey(apiKey) {
+  const result = await validateApiKeyResult(apiKey);
+  return result.status === API_KEY_STATUS.VALID ? result.user : null;
+}
+
+/**
+ * HTTP response for an API-key result that is not "valid":
+ * 403 account_suspended, 503 retryable lookup failure, or 401 invalid key.
+ */
+function apiKeyFailureResponse(headers, result) {
+  if (result?.status === API_KEY_STATUS.SUSPENDED) {
+    return accountSuspendedResponse(headers);
+  }
+
+  if (result?.status === API_KEY_STATUS.UNAVAILABLE) {
+    return {
+      statusCode: 503,
+      headers: {
+        ...headers,
+        'Retry-After': String(AUTH_UNAVAILABLE_RETRY_SECONDS),
+      },
+      body: JSON.stringify({
+        success: false,
+        code: 'auth_unavailable',
+        retryable: true,
+        retry_after_seconds: AUTH_UNAVAILABLE_RETRY_SECONDS,
+        error: 'Your API key could not be checked right now. Please try again shortly.',
+        message: 'Your API key could not be checked right now. Please try again shortly.',
+      }),
+    };
+  }
+
+  return {
+    statusCode: 401,
+    headers,
+    body: JSON.stringify({
+      success: false,
+      code: 'invalid_api_key',
+      error: 'Invalid or expired API key',
+    }),
+  };
+}
+
+function accountSuspendedResponse(headers) {
+  return {
+    statusCode: 403,
+    headers,
+    body: JSON.stringify({
+      success: false,
+      code: 'account_suspended',
+      error: 'account_suspended',
+      message: ACCOUNT_SUSPENDED_MESSAGE,
+    }),
+  };
 }
 
 /**
@@ -360,12 +541,21 @@ async function releaseUserCreditReservation(reservationId) {
 }
 
 module.exports = {
+  API_KEY_STATUS,
+  ACCOUNT_SUSPENDED_MESSAGE,
   validateApiKey,
+  validateApiKeyResult,
+  apiKeyFailureResponse,
+  accountSuspendedResponse,
+  fetchProfileWithBlockState,
+  isAccountBlocked,
   reserveUserCredit,
   finalizeUserCreditReservation,
   releaseUserCreditReservation,
   getMonthlyCreditState,
   getCurrentCycleCreditsUsed,
   getCurrentCycleCreditsUsedResult,
+  loadCycleUsageRows,
+  isPlanCreditRow,
   isSupabaseConfigured
 };

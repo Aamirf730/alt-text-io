@@ -53,23 +53,42 @@ const SERVER_ONLY_EVENTS = new Set([
   'purchase_completed',
 ]);
 
+// Caps for caller-supplied data. Anonymous traffic is the cheapest to forge,
+// so it gets its own, tighter per-IP limits on top of the shared one.
+const MAX_PROPERTY_KEYS = 30;
+const MAX_PROPERTY_STRING_LENGTH = 300;
+const MAX_PROPERTIES_BYTES = 4096;
+const SOURCE_PATTERN = /^[a-z0-9][a-z0-9_.-]{0,39}$/i;
+const REQUEST_RATE_LIMIT = 120;
+const ANONYMOUS_PAGE_VIEW_RATE_LIMIT = 30;
+const ANONYMOUS_EVENT_RATE_LIMIT = 10;
+const RATE_WINDOW_MS = 60000;
+
 function sanitizeProperties(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return {};
 
-  return Object.entries(input).slice(0, 60).reduce((acc, [key, value]) => {
-    if (!/^[a-zA-Z0-9_.-]{1,80}$/.test(key)) return acc;
+  const output = {};
+  let size = 2;
+  for (const [key, value] of Object.entries(input).slice(0, MAX_PROPERTY_KEYS)) {
+    if (!/^[a-zA-Z0-9_.-]{1,80}$/.test(key)) continue;
 
+    let cleanValue;
     if (typeof value === 'string') {
-      acc[key] = value.slice(0, 800);
-      return acc;
+      cleanValue = value.slice(0, MAX_PROPERTY_STRING_LENGTH);
+    } else if (typeof value === 'number' || typeof value === 'boolean' || value === null) {
+      cleanValue = value;
+    } else {
+      continue;
     }
 
-    if (typeof value === 'number' || typeof value === 'boolean' || value === null) {
-      acc[key] = value;
-    }
+    const entrySize = Buffer.byteLength(JSON.stringify(key), 'utf8')
+      + Buffer.byteLength(JSON.stringify(cleanValue), 'utf8') + 2;
+    if (size + entrySize > MAX_PROPERTIES_BYTES) break;
+    size += entrySize;
+    output[key] = cleanValue;
+  }
 
-    return acc;
-  }, {});
+  return output;
 }
 
 function textValue(value, fallback = null, maxLength = 255) {
@@ -140,7 +159,7 @@ function createHandler({
     }
 
     const clientIp = getClientIp({ ...event, headers: requestHeaders });
-    const rateLimit = await checkRateLimitFn(`track-event:${clientIp}`, 120, 60000);
+    const rateLimit = await checkRateLimitFn(`track-event:${clientIp}`, REQUEST_RATE_LIMIT, RATE_WINDOW_MS);
     if (!rateLimit.allowed) {
       return rateLimitExceededResponse(headers, rateLimit);
     }
@@ -166,6 +185,14 @@ function createHandler({
     }
 
     const source = textValue(body.source, 'web_app', 80);
+    if (!SOURCE_PATTERN.test(source)) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Invalid event source' }),
+      };
+    }
+
     if (RESERVED_SOURCES.has(source.toLowerCase())) {
       // Authoritative integration events are written directly by verified
       // server-side handlers. Never let the public endpoint claim those sources.
@@ -200,6 +227,20 @@ function createHandler({
         headers,
         body: JSON.stringify({ error: 'Authentication required for this event' }),
       };
+    }
+
+    if (!identity.user) {
+      const anonymousLimit = eventName === 'page_viewed'
+        ? ANONYMOUS_PAGE_VIEW_RATE_LIMIT
+        : ANONYMOUS_EVENT_RATE_LIMIT;
+      const anonymousRate = await checkRateLimitFn(
+        `track-event:anon:${eventName === 'page_viewed' ? 'page' : 'event'}:${clientIp}`,
+        anonymousLimit,
+        RATE_WINDOW_MS
+      );
+      if (!anonymousRate.allowed) {
+        return rateLimitExceededResponse(headers, anonymousRate);
+      }
     }
 
     const anonymousId = textValue(body.anonymous_id, null, 120);
@@ -254,8 +295,8 @@ function createHandler({
       user_id: identity.user?.id || null,
       user_email: identity.user?.email ? String(identity.user.email).toLowerCase() : null,
       properties,
-      page_path: textValue(properties.path, null, 500),
-      referrer: textValue(properties.referrer, null, 500),
+      page_path: textValue(properties.path, null, MAX_PROPERTY_STRING_LENGTH),
+      referrer: textValue(properties.referrer, null, MAX_PROPERTY_STRING_LENGTH),
       user_agent: textValue(requestHeaders['user-agent'], null, 500),
       ip_address: clientIp,
       // Public clients cannot backdate lifecycle triggers. Authoritative
@@ -297,6 +338,10 @@ function createHandler({
 
 exports.handler = createHandler();
 exports._private = {
+  ANONYMOUS_EVENT_RATE_LIMIT,
+  ANONYMOUS_PAGE_VIEW_RATE_LIMIT,
+  MAX_PROPERTIES_BYTES,
+  SOURCE_PATTERN,
   ALLOWED_EVENTS,
   ANONYMOUS_EVENTS,
   RESERVED_SOURCES,

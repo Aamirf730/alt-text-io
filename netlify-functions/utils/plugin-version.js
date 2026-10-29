@@ -11,13 +11,27 @@ function normalizePluginVersion(value) {
   return trimmed.slice(0, 40);
 }
 
+// Header names arrive in any case depending on the runtime and proxy.
+function getHeaderValue(headers, name) {
+  if (!headers || typeof headers !== 'object') return null;
+
+  const wanted = String(name).toLowerCase();
+  const underscored = wanted.replace(/-/g, '_');
+  for (const [key, value] of Object.entries(headers)) {
+    const normalizedKey = String(key).toLowerCase();
+    if (normalizedKey === wanted || normalizedKey === underscored) {
+      return Array.isArray(value) ? value[0] : value;
+    }
+  }
+
+  return null;
+}
+
 function extractPluginVersion(event) {
   const headers = event?.headers || {};
   const headerValue =
-    headers['x-alt-text-pro-version']
-    || headers['X-Alt-Text-Pro-Version']
-    || headers['x_alt_text_pro_version']
-    || headers['X_ALT_TEXT_PRO_VERSION']
+    getHeaderValue(headers, 'x-plugin-version')
+    || getHeaderValue(headers, 'x-alt-text-pro-version')
     || null;
 
   const normalizedHeader = normalizePluginVersion(headerValue);
@@ -48,6 +62,7 @@ function getEventPluginVersion(eventRow) {
 
 module.exports = {
   extractPluginVersion,
+  getHeaderValue,
   getEventPluginVersion,
   normalizePluginVersion,
 };

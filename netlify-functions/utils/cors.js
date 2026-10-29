@@ -240,7 +240,10 @@ function rateLimitExceededResponse(headers, rateLimitInfo) {
       body: JSON.stringify({
         error: 'Rate limiter unavailable',
         message: 'Request throttling is temporarily unavailable. Please try again shortly.',
+        code: 'rate_limiter_unavailable',
+        retryable: true,
         retryAfter,
+        retry_after_seconds: retryAfter,
       }),
     };
   }
@@ -262,7 +265,10 @@ function rateLimitExceededResponse(headers, rateLimitInfo) {
     body: JSON.stringify({
       error: 'Too many requests',
       message: 'Rate limit exceeded. Please try again later.',
+      code: 'rate_limited',
+      retryable: true,
       retryAfter,
+      retry_after_seconds: retryAfter,
     }),
   };
 }

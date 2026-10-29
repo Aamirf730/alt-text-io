@@ -11,7 +11,21 @@ import { getPolarProductId } from '@/lib/polar-products';
 import { CREDIT_PACKS, getPlanDisplayName, getPurchaseOption, SUBSCRIPTION_PLANS } from '@/lib/pricing-catalog';
 import { isCreditPackEligible as getIsCreditPackEligible } from '@/lib/credit-pack-eligibility';
 import { getUsageDisplayLimit } from '@/lib/credit-display';
-import { consumePendingCheckout } from '@/lib/pending-checkout';
+import {
+    CHECKOUT_POLL_INTERVAL_MS,
+    CHECKOUT_POLL_TIMEOUT_MS,
+    consumeCheckoutBaseline,
+    consumePendingCheckout,
+    hasAccountChangedSinceCheckout,
+    saveCheckoutBaseline,
+    type AccountSnapshot,
+} from '@/lib/pending-checkout';
+import { hasPasswordIdentity } from '@/lib/auth-redirect';
+import { fetchUsageStats, snapshotFromUsage, type UsageStats } from './dashboard-helpers';
+import GenerationHistory from './GenerationHistory';
+import ConnectedSites from './ConnectedSites';
+import AccountSettings from './AccountSettings';
+import DeleteAccountCard from './DeleteAccountCard';
 import { hasLivePaidSubscription, SUBSCRIPTION_EXISTS_CODE, SUBSCRIPTION_EXISTS_MESSAGE } from '@/lib/subscription-status';
 
 type UsageHistoryItem = {
@@ -22,6 +36,8 @@ type UsageHistoryItem = {
 };
 
 type UpgradeModalView = "plans" | "credit-packs";
+type SessionStatus = "checking" | "ready" | "redirecting";
+type CheckoutSyncState = "idle" | "waiting" | "timeout";
 
 const DASHBOARD_IMAGE_MAX_DIMENSION = 1600;
 const DASHBOARD_IMAGE_MAX_BASE64_BYTES = 3 * 1024 * 1024;
@@ -89,7 +105,7 @@ import {
     CreditCard, Key, Copy, AlertTriangle, RefreshCw, Book, FileText,
     HelpCircle, Settings, LogOut, MessageCircle, Image as ImageIcon, Crown, X,
     LayoutDashboard, Menu, PanelLeftClose, Sparkles, Layers3, BarChart3,
-    ChevronRight, CircleCheck, PlugZap
+    ChevronRight, CircleCheck, PlugZap, History, UserRound, Loader2
 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -100,6 +116,20 @@ export default function Dashboard() {
     const [testImage, setTestImage] = useState<string | null>(null);
     const [testResult, setTestResult] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
+    // Nothing account-specific renders until the session check finishes.
+    const [sessionStatus, setSessionStatus] = useState<SessionStatus>("checking");
+    const [usageError, setUsageError] = useState<string | null>(null);
+    const [isRetryingUsage, setIsRetryingUsage] = useState(false);
+    const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
+    const [checkoutSync, setCheckoutSync] = useState<CheckoutSyncState>("idle");
+    // Set while this tab signs out, so the auth listener doesn't treat it as
+    // a sign-out from another tab.
+    const signingOutRef = useRef(false);
+    const userIdRef = useRef<string | null>(null);
+    const checkoutReturnRef = useRef(false);
+    const checkoutPollStartedRef = useRef(false);
+    const checkoutPollTimerRef = useRef<number | null>(null);
+    const isUnmountedRef = useRef(false);
     const [subscriptionData, setSubscriptionData] = useState<any>(null);
     const [showUpgradeModal, setShowUpgradeModal] = useState(false);
     const [selectedUpgradePlan, setSelectedUpgradePlan] = useState<any>(null);
@@ -158,6 +188,7 @@ export default function Dashboard() {
     const isPluginConnected = usageStats?.plugin_connected === true;
     const showFirstRunOnboarding = !isPluginConnected || !hasGeneratedFirstAltText;
     const accountInitial = String(user?.email || 'A').charAt(0).toUpperCase();
+    const canUsePassword = hasPasswordIdentity(user?.authUser);
     const firstName = String(user?.email || 'there').split('@')[0].split(/[._-]/)[0] || 'there';
     const renewalDateValue = subscriptionData?.subscription?.next_billing_date || null;
     const renewalDateLabel = renewalDateValue
@@ -169,8 +200,10 @@ export default function Dashboard() {
         { label: 'Overview', href: '#overview', icon: LayoutDashboard },
         { label: 'Generate', href: '#generate', icon: Sparkles },
         { label: 'Activity', href: '#activity', icon: ImageIcon },
+        { label: 'History', href: '#history', icon: History },
         { label: 'Usage', href: '#usage', icon: BarChart3 },
         { label: 'Settings', href: '#settings', icon: Settings },
+        { label: 'Account', href: '#account', icon: UserRound },
     ];
     const selectedUpgradeDetails = selectedUpgradePlan
         ? getPurchaseOption(selectedUpgradePlan.id)
@@ -192,26 +225,13 @@ export default function Dashboard() {
                 const data = await response.json();
                 setSubscriptionData(data);
             } else {
-                console.warn('Subscription API not available, using fallback data');
-                setSubscriptionData({
-                    subscription: {
-                        plan: 'free',
-                        status: 'active',
-                        subscription_id: null,
-                        next_billing_date: null
-                    }
-                });
+                // Plan and credits come from get-usage; only the renewal date is lost.
+                console.warn('Subscription API not available:', response.status);
+                setSubscriptionData(null);
             }
         } catch (error: any) {
-            console.warn('Subscription API not available, using fallback data:', error.message);
-            setSubscriptionData({
-                subscription: {
-                    plan: 'free',
-                    status: 'active',
-                    subscription_id: null,
-                    next_billing_date: null
-                }
-            });
+            console.warn('Subscription API not available:', error.message);
+            setSubscriptionData(null);
         }
     }, []);
 
@@ -238,17 +258,35 @@ export default function Dashboard() {
     };
 
     const signOut = async () => {
+        signingOutRef.current = true;
         try {
             const { error } = await supabase.auth.signOut();
-            if (!error) {
-                toast.success("Logged out successfully");
-                router.push("/");
+            if (error) {
+                signingOutRef.current = false;
+                toast.error(`Sign out failed: ${error.message}`);
+                return;
             }
+            toast.success("Logged out successfully");
+            router.push("/");
         } catch (error) {
+            signingOutRef.current = false;
             console.error("Logout failed:", error);
-            toast.error("Logout failed");
+            toast.error("Sign out failed. Check your connection and try again.");
         }
     };
+
+    // An expired or revoked session: sign out locally and go to sign-in.
+    const handleSessionExpired = useCallback(async () => {
+        signingOutRef.current = true;
+        setSessionStatus("redirecting");
+        try {
+            await supabase.auth.signOut({ scope: 'local' });
+        } catch {
+            // The session is already unusable; continue to sign-in.
+        }
+        toast.error("Your session expired. Please sign in again.");
+        router.replace("/?auth=signin");
+    }, [router]);
 
     // Redirect to Polar.sh checkout
     const redirectToCheckout = async (productId: string) => {
@@ -292,6 +330,11 @@ export default function Dashboard() {
             return;
         }
 
+        // Lets the dashboard tell when the purchase reaches the account.
+        if (usageStats) {
+            saveCheckoutBaseline(snapshotFromUsage(usageStats));
+        }
+
         // Recorded only once a checkout exists, so a refused request never
         // triggers checkout-recovery emails.
         trackMarketingEvent("checkout_started", {
@@ -326,6 +369,17 @@ export default function Dashboard() {
             });
 
             const data = await response.json().catch(() => ({}));
+
+            if (response.status === 404) {
+                // No Polar customer yet: nothing has been bought on this account.
+                toast.info('No billing history yet');
+                return;
+            }
+
+            if (response.status === 401) {
+                void handleSessionExpired();
+                return;
+            }
 
             if (!response.ok || !data.url) {
                 toast.error(data.error || 'Could not open billing portal.');
@@ -385,87 +439,43 @@ export default function Dashboard() {
         }
     }, [user]);
 
+    // Returns the fresh usage, or null after handling a failure.
+    const loadUsage = useCallback(async (accessToken: string): Promise<UsageStats | null> => {
+        const result = await fetchUsageStats(getApiBase(), accessToken);
+        if (result.status === "unauthorized") {
+            await handleSessionExpired();
+            return null;
+        }
+        if (result.status === "error") {
+            console.error('Error loading usage data:', result.message);
+            setUsageError(result.message);
+            return null;
+        }
+        setUsageError(null);
+        setUsageStats(result.stats);
+        return result.stats;
+    }, [handleSessionExpired]);
+
     const loadDashboard = useCallback(async () => {
         try {
             const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
             if (sessionError || !session) {
+                setSessionStatus("redirecting");
                 toast.error("Please sign in to access the dashboard");
-                router.push("/");
+                router.replace("/?auth=signin");
                 return;
             }
 
+            userIdRef.current = session.user.id;
             setUser({
                 email: session.user.email,
                 id: session.user.id,
-                token: session.access_token
+                authUser: session.user,
             });
+            setSessionStatus("ready");
 
-            // Use the same Netlify function path in local development and production,
-            // with the existing direct Supabase query as a fallback.
-            try {
-                const usageResponse = await fetch(`${getApiBase()}/get-usage`, {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${session.access_token}`
-                    }
-                });
-
-                if (usageResponse.ok) {
-                    const usageData = await usageResponse.json();
-                    if (usageData.success && usageData.data) {
-                        setUsageStats({
-                            credits_remaining: usageData.data.credits_remaining || 0,
-                            bonus_credits_remaining: usageData.data.bonus_credits_remaining || 0,
-                            purchased_credits_remaining: usageData.data.purchased_credits_remaining || 0,
-                            monthly_credits_remaining: usageData.data.monthly_credits_remaining,
-                            monthly_credit_limit: usageData.data.monthly_credit_limit,
-                            monthly_credits_used: usageData.data.monthly_credits_used,
-                            total_processed: usageData.data.total_processed || usageData.data.credits_used || 0,
-                            // Lifetime count; total_processed is this billing cycle only.
-                            total_generated: Number(usageData.data.total_generated ?? 0),
-                            plan: usageData.data.subscription_plan || 'free',
-                            subscription_status: usageData.data.subscription_status || null,
-                            billing_cycle: usageData.data.billing_cycle || null,
-                            monthly_credit_allowance: usageData.data.monthly_credit_allowance || null,
-                            plugin_connected: usageData.data.plugin_connected === true,
-                        });
-                    } else {
-                        throw new Error('Invalid API response format');
-                    }
-                } else {
-                    throw new Error(`API returned status ${usageResponse.status}`);
-                }
-            } catch (error) {
-                console.error('Error loading usage data from API:', error);
-                const { data: profile, error: profileError } = await supabase
-                    .from('profiles')
-                    .select('credits_remaining, bonus_credits_remaining, purchased_credits_remaining, total_processed, subscription_plan, subscription_status, next_billing_date, subscription_id, billing_cycle, monthly_credit_allowance')
-                    .eq('id', session.user.id)
-                    .single();
-
-                if (profileError || !profile) {
-                    console.error('Error loading profile:', profileError);
-                    setUsageStats({
-                        credits_remaining: 0,
-                        total_processed: 0,
-                        plan: 'free',
-                        plugin_connected: false,
-                    });
-                } else {
-                    setUsageStats({
-                        credits_remaining: profile.credits_remaining || 0,
-                        bonus_credits_remaining: profile.bonus_credits_remaining || 0,
-                        purchased_credits_remaining: profile.purchased_credits_remaining || 0,
-                        total_processed: profile.total_processed || 0,
-                        plan: profile.subscription_plan || 'free',
-                        subscription_status: profile.subscription_status || null,
-                        billing_cycle: profile.billing_cycle || null,
-                        monthly_credit_allowance: profile.monthly_credit_allowance || null,
-                        plugin_connected: false,
-                    });
-                }
-            }
+            await loadUsage(session.access_token);
 
             // Load subscription data from API (non-blocking)
             loadSubscriptionData(session.access_token).catch(err => {
@@ -475,10 +485,27 @@ export default function Dashboard() {
             setIsLoading(false);
         } catch (error) {
             console.error("Failed to load dashboard:", error);
-            toast.error("Failed to load dashboard. Please try logging in again.");
-            router.push("/");
+            setUsageError("We couldn't load your dashboard. Check your connection and try again.");
+            setIsLoading(false);
         }
-    }, [loadSubscriptionData, router]);
+    }, [loadSubscriptionData, loadUsage, router]);
+
+    const retryUsage = async () => {
+        setIsRetryingUsage(true);
+        try {
+            const accessToken = await getAccessToken();
+            if (!accessToken) {
+                await handleSessionExpired();
+                return;
+            }
+            const stats = await loadUsage(accessToken);
+            if (stats) {
+                loadSubscriptionData(accessToken).catch(() => undefined);
+            }
+        } finally {
+            setIsRetryingUsage(false);
+        }
+    };
 
     const loadHistory = useCallback(async () => {
         if (!user?.id) return;
@@ -490,7 +517,7 @@ export default function Dashboard() {
                 .select('id, alt_text_generated, image_context, created_at')
                 .eq('user_id', user.id)
                 .order('created_at', { ascending: false })
-                .limit(20);
+                .limit(5);
 
             if (error) {
                 console.error('Error loading history:', error);
@@ -517,6 +544,100 @@ export default function Dashboard() {
 
         return () => window.clearTimeout(timer);
     }, [loadDashboard]);
+
+    // Follow sign-outs, account switches and email changes from other tabs.
+    useEffect(() => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+            if (event === 'SIGNED_OUT') {
+                if (signingOutRef.current) return;
+                setSessionStatus("redirecting");
+                toast.info("You were signed out.");
+                router.replace("/?auth=signin");
+                return;
+            }
+
+            if (!session?.user) return;
+
+            if (userIdRef.current && session.user.id !== userIdRef.current) {
+                // Another account signed in elsewhere in this browser.
+                window.location.reload();
+                return;
+            }
+
+            if (event === 'USER_UPDATED') {
+                setUser((previous: any) => previous
+                    ? { ...previous, email: session.user.email, authUser: session.user }
+                    : previous);
+            }
+        });
+
+        return () => subscription.unsubscribe();
+    }, [router]);
+
+    // Returning from checkout: /dashboard?checkout=success, or ?checkout=pending
+    // when /payment-success stopped waiting before the account was updated.
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const checkoutState = params.get('checkout');
+        if (checkoutState !== 'success' && checkoutState !== 'pending') return;
+        checkoutReturnRef.current = true;
+        params.delete('checkout');
+        params.delete('checkout_id');
+        const query = params.toString();
+        window.history.replaceState(null, '', `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`);
+    }, []);
+
+    // Poll until Polar's webhook has updated the plan or credits.
+    useEffect(() => {
+        if (!checkoutReturnRef.current || !usageStats || checkoutPollStartedRef.current) return;
+        checkoutPollStartedRef.current = true;
+
+        const firstLoad = snapshotFromUsage(usageStats);
+        const baseline: AccountSnapshot = consumeCheckoutBaseline() ?? firstLoad;
+        if (hasAccountChangedSinceCheckout(baseline, firstLoad)) {
+            toast.success("Payment received. Your account is up to date.");
+            return;
+        }
+
+        const startedAt = Date.now();
+        const poll = async () => {
+            checkoutPollTimerRef.current = null;
+            if (isUnmountedRef.current) return;
+            const accessToken = await getAccessToken();
+            if (!accessToken) {
+                setCheckoutSync("idle");
+                void handleSessionExpired();
+                return;
+            }
+            const stats = await loadUsage(accessToken);
+            if (stats && hasAccountChangedSinceCheckout(baseline, snapshotFromUsage(stats))) {
+                setCheckoutSync("idle");
+                loadSubscriptionData(accessToken).catch(() => undefined);
+                toast.success("Payment received. Your account is up to date.");
+                return;
+            }
+            if (isUnmountedRef.current) return;
+            if (Date.now() - startedAt >= CHECKOUT_POLL_TIMEOUT_MS) {
+                setCheckoutSync("timeout");
+                return;
+            }
+            checkoutPollTimerRef.current = window.setTimeout(() => void poll(), CHECKOUT_POLL_INTERVAL_MS);
+        };
+
+        // Deferred like the other dashboard effects.
+        checkoutPollTimerRef.current = window.setTimeout(() => {
+            setCheckoutSync("waiting");
+            void poll();
+        }, 0);
+    }, [usageStats, loadUsage, loadSubscriptionData, handleSessionExpired]);
+
+    useEffect(() => {
+        isUnmountedRef.current = false;
+        return () => {
+            isUnmountedRef.current = true;
+            if (checkoutPollTimerRef.current) window.clearTimeout(checkoutPollTimerRef.current);
+        };
+    }, []);
 
     // Load API key and recent history after the authenticated user is available.
     useEffect(() => {
@@ -580,10 +701,23 @@ export default function Dashboard() {
         }, 0);
     }, [usageStats, isSubscribed, isCreditPackEligible]);
 
+    const handleAccountDeleted = async () => {
+        signingOutRef.current = true;
+        setSessionStatus("redirecting");
+        try {
+            // The server already removed the account; only local state is left.
+            await supabase.auth.signOut({ scope: 'local' });
+        } catch {
+            // Nothing else to clean up.
+        }
+        toast.success("Your account has been deleted.");
+        router.replace("/");
+    };
+
     const rotateApiKey = async () => {
         if (!user?.id) return;
 
-        if (!confirm("Rotate your API key? Your old key will stop working immediately.")) {
+        if (!confirm("Generate a new API key? The old key stops working immediately, which disconnects every WordPress site that uses it until you reconnect it.")) {
             return;
         }
 
@@ -627,8 +761,7 @@ export default function Dashboard() {
 
         const accessToken = await getAccessToken();
         if (!accessToken) {
-            toast.error("Session expired. Please sign in again.");
-            router.push("/");
+            void handleSessionExpired();
             return;
         }
 
@@ -742,6 +875,7 @@ export default function Dashboard() {
 
                 // Reload history to show new generation
                 loadHistory();
+                setHistoryRefreshKey((key) => key + 1);
 
                 toast.success("Alt-text generated successfully!");
             } else {
@@ -752,8 +886,7 @@ export default function Dashboard() {
                 });
 
                 if (apiResponse.status === 401) {
-                    toast.error("Session expired. Please sign in again.");
-                    router.push("/");
+                    void handleSessionExpired();
                 } else if (apiResponse.status === 402) {
                     toast.error("No credits remaining. Please upgrade your plan.");
                 } else {
@@ -768,13 +901,45 @@ export default function Dashboard() {
         }
     };
 
-    if (isLoading) {
+    // Loading gate: nothing account-specific renders before the session check.
+    if (sessionStatus !== "ready" || (isLoading && !usageError)) {
         return (
             <main className="min-h-screen bg-yellow-tint flex items-center justify-center" aria-busy="true">
-                <div className="text-center">
+                <div className="text-center" role="status">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-line-strong mx-auto mb-4"></div>
-                    <p className="text-ink-muted">Loading dashboard...</p>
+                    <p className="text-ink-muted">
+                        {sessionStatus === "redirecting" ? "Taking you to sign in…" : "Loading dashboard..."}
+                    </p>
                 </div>
+            </main>
+        );
+    }
+
+    // Never show "0 credits, Free plan" when the account could not be loaded.
+    if (!usageStats) {
+        return (
+            <main className="flex min-h-screen items-center justify-center bg-yellow-tint px-4 py-12 text-ink">
+                <section className="w-full max-w-md rounded-2xl border border-line bg-white p-6 text-center shadow-notebook sm:p-8">
+                    <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-amber-50 text-warning" aria-hidden="true">
+                        <AlertTriangle className="h-8 w-8" />
+                    </span>
+                    <h1 className="mt-6 font-lato text-2xl font-semibold tracking-tight">We couldn&apos;t load your account</h1>
+                    <p role="alert" className="mt-3 leading-7 text-ink-muted">
+                        {usageError || "Your plan and credits are temporarily unavailable."} Nothing has changed on your account.
+                    </p>
+                    <div className="mt-8 grid gap-3">
+                        <Button type="button" onClick={() => void retryUsage()} disabled={isRetryingUsage} className="w-full">
+                            <RefreshCw className={isRetryingUsage ? 'animate-spin' : undefined} />
+                            {isRetryingUsage ? 'Trying again…' : 'Try again'}
+                        </Button>
+                        <Button type="button" variant="secondary" onClick={() => void signOut()} className="w-full">
+                            <LogOut /> Sign out
+                        </Button>
+                        <Link href="/contact" className={cn(buttonVariants({ variant: 'ghost' }), 'w-full')}>
+                            Contact support
+                        </Link>
+                    </div>
+                </section>
             </main>
         );
     }
@@ -953,6 +1118,38 @@ export default function Dashboard() {
                         </div>
                     </header>
 
+                    {checkoutSync === "waiting" && (
+                        <div role="status" className="mb-6 flex items-center gap-3 rounded-2xl border border-line-strong bg-yellow-soft p-4 text-sm font-semibold text-ink">
+                            <Loader2 className="h-5 w-5 shrink-0 animate-spin" aria-hidden />
+                            Payment received — updating your account…
+                        </div>
+                    )}
+                    {checkoutSync === "timeout" && (
+                        <div role="alert" className="mb-6 flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-warning sm:flex-row sm:items-center sm:justify-between">
+                            <p className="flex items-start gap-2">
+                                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                                <span>
+                                    Your payment went through, but your plan or credits haven&apos;t updated yet. This can take a few minutes.
+                                    If they still look wrong, <Link href="/contact" className="font-semibold underline underline-offset-2">contact support</Link> and we&apos;ll sort it out.
+                                </span>
+                            </p>
+                            <button type="button" onClick={() => { setCheckoutSync("idle"); void retryUsage(); }} className={cn(buttonVariants({ variant: 'secondary', size: 'sm' }), 'shrink-0')}>
+                                <RefreshCw className="h-4 w-4" /> Refresh
+                            </button>
+                        </div>
+                    )}
+                    {usageError && (
+                        <div role="alert" className="mb-6 flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-warning sm:flex-row sm:items-center sm:justify-between">
+                            <p className="flex items-start gap-2">
+                                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                                <span>{usageError} The numbers below may be out of date.</span>
+                            </p>
+                            <button type="button" onClick={() => void retryUsage()} disabled={isRetryingUsage} className={cn(buttonVariants({ variant: 'secondary', size: 'sm' }), 'shrink-0')}>
+                                <RefreshCw className={`h-4 w-4 ${isRetryingUsage ? 'animate-spin' : ''}`} /> Try again
+                            </button>
+                        </div>
+                    )}
+
                     {showFirstRunOnboarding && (
                         <section
                             aria-labelledby="setup-heading"
@@ -990,10 +1187,12 @@ export default function Dashboard() {
                             <div className="flex flex-col gap-3 border-b border-line px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                                 <div>
                                     <h2 id="activity-heading" className="font-lato text-xl font-semibold text-ink">Recent activity</h2>
-                                    <p className="mt-1 text-sm text-ink-muted">Your latest generated alt text</p>
+                                    <p className="mt-1 text-sm text-ink-muted">
+                                        Your latest generated alt text · <a href="#history" className="font-semibold text-ink underline underline-offset-2">View full history</a>
+                                    </p>
                                 </div>
                                 <span className="inline-flex w-fit items-center rounded-full bg-yellow-soft px-3 py-1.5 text-xs font-semibold text-ink">
-                                    {(usageStats?.total_processed || 0).toLocaleString()} images optimized
+                                    {(usageStats?.total_processed || 0).toLocaleString()} images this billing cycle
                                 </span>
                             </div>
 
@@ -1121,19 +1320,15 @@ export default function Dashboard() {
                                 </ul>
 
                                 <div className="mt-6 grid gap-3">
-                                    {usageStats?.plan && usageStats.plan !== 'free' && subscriptionData?.subscription?.polar_customer_id ? (
-                                        <button type="button" onClick={openCustomerPortal} className={cn(buttonVariants({ variant: 'secondary' }), 'w-full')}>
-                                            Manage billing <ArrowRight className="h-4 w-4" />
-                                        </button>
-                                    ) : usageStats?.plan && usageStats.plan !== 'free' ? (
-                                        <button type="button" onClick={() => router.push('/#pricing')} className={cn(buttonVariants({ variant: 'secondary' }), 'w-full')}>
-                                            View plan details <ArrowRight className="h-4 w-4" />
-                                        </button>
-                                    ) : (
+                                    {currentPlan === 'free' && (
                                         <button type="button" onClick={openUpgradePlans} className={cn(buttonVariants(), 'w-full')}>
                                             Upgrade plan <ArrowRight className="h-4 w-4" />
                                         </button>
                                     )}
+                                    {/* Shown to everyone: credit-pack buyers on Free need receipts too. */}
+                                    <button type="button" onClick={openCustomerPortal} className={cn(buttonVariants({ variant: 'secondary' }), 'w-full')}>
+                                        <CreditCard className="h-4 w-4" /> Billing &amp; receipts
+                                    </button>
                                     <button
                                         type="button"
                                         onClick={openCreditPacks}
@@ -1243,6 +1438,8 @@ export default function Dashboard() {
                         </div>
                     </section>
 
+                    {user?.id && <GenerationHistory userId={user.id} refreshKey={historyRefreshKey} />}
+
                     <section id="settings" aria-labelledby="settings-heading" className="mt-6 scroll-mt-24 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
                         <div className="rounded-2xl border border-line bg-white p-5 shadow-notebook sm:p-6">
                             <div className="flex items-center gap-3">
@@ -1319,6 +1516,17 @@ export default function Dashboard() {
                             </div>
                         </div>
                     </section>
+
+                    <div className="mt-6">
+                        <ConnectedSites />
+                    </div>
+
+                    {user?.email && (
+                        <>
+                            <AccountSettings email={user.email} canUsePassword={canUsePassword} />
+                            <DeleteAccountCard email={user.email} onDeleted={handleAccountDeleted} />
+                        </>
+                    )}
 
                     <footer className="mt-8 flex flex-col gap-2 border-t border-line py-6 text-xs text-ink-muted sm:flex-row sm:items-center sm:justify-between">
                         <p>Alt Text Pro v{PLUGIN_VERSION} · System status: active</p>

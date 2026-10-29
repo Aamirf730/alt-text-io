@@ -11,6 +11,8 @@ const {
   methodNotAllowedResponse,
 } = require('./utils/cors');
 const { getMonthlyCreditState } = require('./utils/api-key-validator');
+const { fetchAllRows } = require('./utils/paginated-query');
+const { getPlanCredits } = require('./utils/subscription-plans');
 
 // Initialize Supabase client
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -18,6 +20,68 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = supabaseUrl && supabaseServiceKey
   ? createClient(supabaseUrl, supabaseServiceKey)
   : null;
+
+function getCycleStart(profile, now = new Date()) {
+  return profile?.credits_last_renewed_at
+    ? new Date(profile.credits_last_renewed_at)
+    : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+}
+
+/**
+ * Plan-allowance credits used this cycle. Generations paid from the bonus or
+ * credit-pack ledgers do not count against the plan allowance. Rows logged
+ * before usage_logs.credit_source existed are NULL and count as plan usage,
+ * matching reserve_credit. If the column is not deployed yet, every row this
+ * cycle counts (the previous behaviour).
+ */
+async function loadCyclePlanCreditsUsed(client, userId, cycleStart) {
+  const cycleStartIso = cycleStart.toISOString();
+  const buildQuery = (columns) => (from, to) => client
+    .from('usage_logs')
+    .select(columns)
+    .eq('user_id', userId)
+    .gte('created_at', cycleStartIso)
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
+    .range(from, to);
+
+  let rows;
+  try {
+    rows = await fetchAllRows(buildQuery('id,credits_used,credit_source'), { label: 'cycle plan usage' });
+  } catch (error) {
+    if (!/credit_source/i.test(String(error?.message || ''))) throw error;
+    rows = await fetchAllRows(buildQuery('id,credits_used'), { label: 'cycle usage' });
+  }
+
+  return rows
+    .filter((row) => !row.credit_source || row.credit_source === 'plan')
+    .reduce((sum, row) => sum + Number(row.credits_used || 1), 0);
+}
+
+/**
+ * Credits reported the same way get-usage reports them: the plan allowance
+ * left this cycle plus the bonus and purchased (pack) ledgers.
+ */
+function buildSubscriptionCredits(profile, planCredits, planCreditsUsed) {
+  const totalCredits = planCredits ?? getPlanCredits(profile?.subscription_plan);
+  const state = getMonthlyCreditState(
+    { ...profile, total_processed: planCreditsUsed },
+    totalCredits
+  );
+
+  return {
+    credits_remaining: state.monthly_credits_remaining,
+    monthly_credits_remaining: state.monthly_credits_remaining,
+    monthly_credit_limit: state.monthly_credit_limit,
+    monthly_credits_used: state.monthly_credits_used,
+    plan_credits_remaining: state.is_monthly_limited
+      ? Math.max(0, state.monthly_credit_limit - Number(state.monthly_credits_used || 0))
+      : null,
+    bonus_credits_remaining: state.bonus_credits_remaining,
+    purchased_credits_remaining: state.purchased_credits_remaining,
+    is_monthly_limited: state.is_monthly_limited,
+  };
+}
 
 exports.handler = async (event, context) => {
   // Get secure CORS headers (origin-validated)
@@ -75,6 +139,9 @@ exports.handler = async (event, context) => {
       .select(`
         subscription_plan,
         credits_remaining,
+        bonus_credits_remaining,
+        purchased_credits_remaining,
+        credits_last_renewed_at,
         total_processed,
         subscription_status,
         subscription_id,
@@ -107,7 +174,19 @@ exports.handler = async (event, context) => {
       console.error('Plan details error:', planError);
     }
 
-    const monthlyCreditState = getMonthlyCreditState(profile, planDetails?.credits);
+    let planCreditsUsed;
+    try {
+      planCreditsUsed = await loadCyclePlanCreditsUsed(supabase, authUser.id, getCycleStart(profile));
+    } catch (usageError) {
+      console.error('Error fetching cycle usage:', usageError.message || usageError);
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Failed to fetch usage statistics' }),
+      };
+    }
+
+    const credits = buildSubscriptionCredits(profile, planDetails?.credits, planCreditsUsed);
 
     // Get recent payments
     const { data: payments, error: paymentsError } = await supabase
@@ -149,8 +228,10 @@ exports.handler = async (event, context) => {
           next_billing_date: profile.next_billing_date,
           billing_cycle: profile.billing_cycle,
           monthly_credit_allowance: profile.monthly_credit_allowance,
-          credits_remaining: monthlyCreditState.monthly_credits_remaining,
-          monthly_credits_remaining: monthlyCreditState.monthly_credits_remaining,
+          // past_due: a renewal charge failed and Polar is retrying it.
+          // The plan stays until Polar sends active (recovered) or revoked.
+          is_past_due: profile.subscription_status === 'past_due',
+          ...credits,
           total_processed: profile.total_processed,
           created_at: profile.created_at,
           updated_at: profile.updated_at
@@ -170,4 +251,10 @@ exports.handler = async (event, context) => {
       body: JSON.stringify({ error: 'Internal server error' }),
     };
   }
+};
+
+exports._private = {
+  buildSubscriptionCredits,
+  getCycleStart,
+  loadCyclePlanCreditsUsed,
 };

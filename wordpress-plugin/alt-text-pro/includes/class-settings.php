@@ -122,20 +122,20 @@ class AltTextPro_Settings
             $this->settings_section
         );
 
-        // Batch Size Settings
-        add_settings_field(
-            'batch_size',
-            __('Batch Processing', 'alt-text-pro'),
-            array($this, 'batch_size_field_callback'),
-            'alt-text-pro-settings',
-            $this->settings_section
-        );
     }
 
     /**
      * Get default settings
      */
     private function get_default_settings()
+    {
+        return self::defaults();
+    }
+
+    /**
+     * Default values of every setting.
+     */
+    public static function defaults()
     {
         return array(
             'api_key' => '',
@@ -144,8 +144,103 @@ class AltTextPro_Settings
             'context_enabled' => true,
             'blog_context' => '',
             'show_context_field' => false,
-            'batch_size' => 1
+            // Fill empty alt attributes of post images on the front end.
+            'fill_post_content_alt' => true,
+            // '' follows the site language (get_locale()).
+            'language' => '',
+            'email_bulk_complete' => true,
         );
+    }
+
+    /**
+     * Read a checkbox setting, falling back to its default when the site has
+     * not saved it yet.
+     */
+    public static function is_enabled($key)
+    {
+        $settings = get_option('alt_text_pro_settings', array());
+        if (!is_array($settings) || !array_key_exists($key, $settings)) {
+            $defaults = self::defaults();
+            return !empty($defaults[$key]);
+        }
+
+        return !empty($settings[$key]);
+    }
+
+    /**
+     * Languages offered in the "Alt text language" setting, keyed by
+     * WordPress locale. Names are written in their own language so each
+     * reader can find theirs.
+     *
+     * @return array<string, string>
+     */
+    public static function get_language_options()
+    {
+        return array(
+            'ar' => 'العربية',
+            'bg_BG' => 'Български',
+            'bn_BD' => 'বাংলা',
+            'ca' => 'Català',
+            'cs_CZ' => 'Čeština',
+            'da_DK' => 'Dansk',
+            'de_DE' => 'Deutsch',
+            'el' => 'Ελληνικά',
+            'en_US' => 'English (US)',
+            'en_GB' => 'English (UK)',
+            'es_ES' => 'Español',
+            'es_MX' => 'Español (México)',
+            'et' => 'Eesti',
+            'fa_IR' => 'فارسی',
+            'fi' => 'Suomi',
+            'fr_FR' => 'Français',
+            'fr_CA' => 'Français (Canada)',
+            'he_IL' => 'עברית',
+            'hi_IN' => 'हिन्दी',
+            'hr' => 'Hrvatski',
+            'hu_HU' => 'Magyar',
+            'id_ID' => 'Bahasa Indonesia',
+            'it_IT' => 'Italiano',
+            'ja' => '日本語',
+            'ko_KR' => '한국어',
+            'lt_LT' => 'Lietuvių',
+            'lv' => 'Latviešu',
+            'ms_MY' => 'Bahasa Melayu',
+            'nb_NO' => 'Norsk bokmål',
+            'nl_NL' => 'Nederlands',
+            'pl_PL' => 'Polski',
+            'pt_PT' => 'Português',
+            'pt_BR' => 'Português (Brasil)',
+            'ro_RO' => 'Română',
+            'ru_RU' => 'Русский',
+            'sk_SK' => 'Slovenčina',
+            'sl_SI' => 'Slovenščina',
+            'sr_RS' => 'Српски',
+            'sv_SE' => 'Svenska',
+            'th' => 'ไทย',
+            'tr_TR' => 'Türkçe',
+            'uk' => 'Українська',
+            'vi' => 'Tiếng Việt',
+            'zh_CN' => '简体中文',
+            'zh_TW' => '繁體中文',
+        );
+    }
+
+    /**
+     * Language the service should write in, as a BCP-47 tag ("de-DE").
+     * An empty setting follows the site language.
+     */
+    public static function get_output_language()
+    {
+        $settings = get_option('alt_text_pro_settings', array());
+        $locale = is_array($settings) && !empty($settings['language']) && is_string($settings['language'])
+            ? $settings['language']
+            : (string) get_locale();
+
+        if (!preg_match('/^[a-z]{2,3}(?:_[A-Za-z0-9]{2,8})*$/', $locale)) {
+            return 'en';
+        }
+
+        return str_replace('_', '-', $locale);
     }
 
     /**
@@ -163,6 +258,19 @@ class AltTextPro_Settings
 
         $client = new AltTextPro_API_Client();
         $result = $client->validate_api_key($api_key);
+
+        if (empty($result['success']) && intval($result['status_code'] ?? 0) !== 401) {
+            // Outage, timeout or a suspended account: save the key, but say
+            // it could not be confirmed.
+            add_settings_error(
+                'alt_text_pro_settings',
+                'api_key_not_verified',
+                !empty($result['code']) && $result['code'] === 'account_suspended'
+                    ? esc_html__('Your API key was saved, but this Alt Text Pro account is suspended. Contact help@alt-text.pro.', 'alt-text-pro')
+                    : esc_html__('Your API key was saved, but Alt Text Pro could not confirm it right now. Use "Test" in a few minutes to check the connection.', 'alt-text-pro'),
+                'warning'
+            );
+        }
 
         return empty($result['success']) && intval($result['status_code'] ?? 0) === 401;
     }
@@ -276,12 +384,25 @@ class AltTextPro_Settings
             $sanitized['show_context_field'] = array_key_exists('show_context_field', $input)
                 ? !empty($input['show_context_field'])
                 : $sanitized['show_context_field'];
+            $sanitized['fill_post_content_alt'] = array_key_exists('fill_post_content_alt', $input)
+                ? !empty($input['fill_post_content_alt'])
+                : $sanitized['fill_post_content_alt'];
+            $sanitized['email_bulk_complete'] = array_key_exists('email_bulk_complete', $input)
+                ? !empty($input['email_bulk_complete'])
+                : $sanitized['email_bulk_complete'];
         }
 
-        // Sanitize batch size
-        if (isset($input['batch_size'])) {
-            $sanitized['batch_size'] = min(10, max(1, intval($input['batch_size'])));
+        // Output language: '' (site language) or one of the offered locales.
+        if (isset($input['language'])) {
+            $language = sanitize_text_field(wp_unslash((string) $input['language']));
+            $sanitized['language'] = ($language === '' || array_key_exists($language, self::get_language_options()))
+                ? $language
+                : '';
         }
+
+        // Bulk runs always send one billable image per request; the old
+        // batch-size setting has no effect and is no longer stored.
+        unset($sanitized['batch_size']);
 
         // Sanitize blog context (textarea, max 500 characters). Sanitize first
         // and cut by characters: cutting bytes can split a multibyte
@@ -338,6 +459,27 @@ class AltTextPro_Settings
     }
 
     /**
+     * Tell the service this site stopped using the saved key. Best effort,
+     * and the key is not revoked: the account's other sites share it.
+     *
+     * @param bool $blocking False sends the request without waiting (uninstall).
+     */
+    public function notify_site_disconnected($blocking = true)
+    {
+        if (!class_exists('AltTextPro_API_Client')) {
+            return false;
+        }
+
+        $settings = $this->get_settings();
+        if (empty($settings['api_key'])) {
+            return false;
+        }
+
+        $client = new AltTextPro_API_Client();
+        return $client->disconnect_site($settings['api_key'], $blocking);
+    }
+
+    /**
      * Settings page "Disconnect account": remove the stored API key.
      */
     public function handle_disconnect()
@@ -348,6 +490,7 @@ class AltTextPro_Settings
 
         check_admin_referer('alt_text_pro_disconnect', 'alt_text_pro_disconnect_nonce');
 
+        $this->notify_site_disconnected();
         $disconnected = $this->clear_api_key();
 
         wp_safe_redirect(add_query_arg(
@@ -456,22 +599,6 @@ class AltTextPro_Settings
     }
 
     /**
-     * Batch size field callback
-     */
-    public function batch_size_field_callback()
-    {
-        $settings = get_option('alt_text_pro_settings', $this->get_default_settings());
-        $batch_size = $settings['batch_size'];
-
-        echo '<input type="number" id="batch_size" name="alt_text_pro_settings[batch_size]" value="' . esc_attr($batch_size) . '" min="1" max="10" class="small-text" />';
-        echo ' ' . esc_html__('images per batch', 'alt-text-pro');
-
-        echo '<p class="description">';
-        echo esc_html__('Number of images to process in each batch during bulk operations. Lower numbers are more reliable but slower.', 'alt-text-pro');
-        echo '</p>';
-    }
-
-    /**
      * AJAX test connection
      */
     public function ajax_test_connection()
@@ -479,7 +606,7 @@ class AltTextPro_Settings
         check_ajax_referer('alt_text_pro_nonce', 'nonce');
 
         if (!current_user_can('manage_options')) {
-            wp_die(esc_html__('You do not have permission to perform this action.', 'alt-text-pro'));
+            AltTextPro::send_permission_error();
         }
 
         $api_key = isset($_POST['api_key']) ? sanitize_text_field(wp_unslash($_POST['api_key'])) : '';
@@ -527,8 +654,10 @@ class AltTextPro_Settings
         check_ajax_referer('alt_text_pro_nonce', 'nonce');
 
         if (!current_user_can('manage_options')) {
-            wp_die(esc_html__('You do not have permission to perform this action.', 'alt-text-pro'));
+            AltTextPro::send_permission_error();
         }
+
+        $this->notify_site_disconnected();
 
         // Reset to default settings, including removing the API key, which
         // sanitize_settings() otherwise keeps when the submitted key is empty.

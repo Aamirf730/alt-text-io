@@ -169,11 +169,21 @@ function __($text)
     return $text;
 }
 
+$alt_text_pro_test_disconnect_calls = array();
+
 class AltTextPro_API_Client
 {
     public static function validate_api_key_format($api_key)
     {
         return strpos($api_key, 'alt_') === 0 && strlen($api_key) > 20;
+    }
+
+    // Disconnect and reset tell the service the site stopped using the key.
+    public function disconnect_site($api_key = null, $blocking = true)
+    {
+        global $alt_text_pro_test_disconnect_calls;
+        $alt_text_pro_test_disconnect_calls[] = array('api_key' => $api_key, 'blocking' => $blocking);
+        return true;
     }
 }
 
@@ -403,13 +413,14 @@ alt_text_pro_test_assert(
 
 // Disconnect: nonce + manage_options, removes only the key.
 $alt_text_pro_test_options['alt_text_pro_settings'] = array('api_key' => $encrypted_key, 'blog_context' => 'Travel');
+$alt_text_pro_test_disconnect_calls = array();
 $alt_text_pro_test_can_manage = false;
 try {
     $settings_handler->handle_disconnect();
 } catch (AltTextPro_Test_Exit $exit) {
 }
 alt_text_pro_test_assert(
-    get_option('alt_text_pro_settings')['api_key'] === $encrypted_key,
+    get_option('alt_text_pro_settings')['api_key'] === $encrypted_key && $alt_text_pro_test_disconnect_calls === array(),
     'A user without manage_options must not be able to disconnect.'
 );
 $alt_text_pro_test_can_manage = true;
@@ -422,6 +433,10 @@ alt_text_pro_test_assert(
         && get_option('alt_text_pro_settings')['blog_context'] === 'Travel'
         && strpos($alt_text_pro_test_redirect, 'page=alt-text-pro-settings&alt_text_pro_disconnected=1') !== false,
     'Disconnect must remove the API key, keep other settings and redirect to the settings page.'
+);
+alt_text_pro_test_assert(
+    $alt_text_pro_test_disconnect_calls === array(array('api_key' => $api_key, 'blocking' => true)),
+    'Disconnect must tell the service once, with the decrypted key, and wait for the answer.'
 );
 alt_text_pro_test_assert(
     strpos($settings_template, 'id="alt-text-pro-disconnect-form"') !== false

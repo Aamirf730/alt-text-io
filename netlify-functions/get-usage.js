@@ -10,10 +10,18 @@ const {
   rateLimitExceededResponse,
   methodNotAllowedResponse,
 } = require('./utils/cors');
-const { getMonthlyCreditState } = require('./utils/api-key-validator');
 const {
+  accountSuspendedResponse,
+  apiKeyFailureResponse,
+  getMonthlyCreditState,
+  isAccountBlocked,
+  isPlanCreditRow,
+} = require('./utils/api-key-validator');
+const {
+  extractPluginSite,
   recordPluginConnectCompleted,
-  getPluginConnectionStatus,
+  recordPluginSiteSeen,
+  getPluginSiteConnectionStatus,
 } = require('./utils/plugin-connect-event');
 const { extractPluginVersion } = require('./utils/plugin-version');
 const { fetchAllRows } = require('./utils/paginated-query');
@@ -32,25 +40,37 @@ const supabase = supabaseUrl && supabaseServiceKey
  * cycle's credit rows (bounded by the cycle's allowance and packs), and the
  * ten most recent generations.
  */
-async function loadUsageSummary(client, userId, cycleStart) {
+/**
+ * This cycle's usage rows with their credit source. Before the
+ * usage_logs.credit_source column exists the rows are read without it and
+ * every row counts as plan usage (the previous behaviour).
+ */
+async function loadCycleRows(client, userId, cycleStart) {
   const cycleStartIso = cycleStart.toISOString();
+  const buildQuery = (columns) => (from, to) => client
+    .from('usage_logs')
+    .select(columns)
+    .eq('user_id', userId)
+    .gte('created_at', cycleStartIso)
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
+    .range(from, to);
 
-  const [totalResult, cycleRows, recentResult] = await Promise.all([
+  try {
+    return await fetchAllRows(buildQuery('id,credits_used,credit_source,created_at'), { label: 'cycle usage logs' });
+  } catch (error) {
+    if (!/credit_source/i.test(String(error?.message || ''))) throw error;
+    return fetchAllRows(buildQuery('id,credits_used,created_at'), { label: 'cycle usage logs' });
+  }
+}
+
+async function loadUsageSummary(client, userId, cycleStart) {
+  const [totalResult, cycleUsage, recentResult] = await Promise.all([
     client
       .from('usage_logs')
       .select('id', { count: 'exact', head: true })
       .eq('user_id', userId),
-    fetchAllRows(
-      (from, to) => client
-        .from('usage_logs')
-        .select('id,credits_used,created_at')
-        .eq('user_id', userId)
-        .gte('created_at', cycleStartIso)
-        .order('created_at', { ascending: false })
-        .order('id', { ascending: false })
-        .range(from, to),
-      { label: 'cycle usage logs' }
-    ),
+    loadCycleRows(client, userId, cycleStart),
     client
       .from('usage_logs')
       .select('*')
@@ -69,7 +89,13 @@ async function loadUsageSummary(client, userId, cycleStart) {
 
   return {
     totalGenerated: Number(totalResult.count || 0),
-    creditsUsed: cycleRows.reduce((sum, log) => sum + Number(log.credits_used || 1), 0),
+    // Every generation this cycle ("images this cycle").
+    creditsUsed: cycleUsage.reduce((sum, log) => sum + Number(log.credits_used || 1), 0),
+    // Only generations paid from the plan allowance; bonus and credit-pack
+    // generations do not use it up.
+    planCreditsUsed: cycleUsage
+      .filter(isPlanCreditRow)
+      .reduce((sum, log) => sum + Number(log.credits_used || 1), 0),
     recentUsage: recentResult.data || [],
   };
 }
@@ -129,19 +155,18 @@ exports.handler = async (event, context) => {
         .rpc('validate_api_key', { p_api_key: token });
 
       if (apiKeyError) {
+        // A lookup outage is not an invalid key: answer with a retryable 503
+        // so the plugin keeps the key and shows "try again".
         console.error('[get-usage] API-key validation service failed');
+        return apiKeyFailureResponse(headers, { status: 'unavailable' });
       }
 
-      if (!apiKeyError && userIdData) {
+      if (userIdData) {
         userId = userIdData;
       }
 
       if (!userId) {
-        return {
-          statusCode: 401,
-          headers,
-          body: JSON.stringify({ error: 'Invalid or expired API key' }),
-        };
+        return apiKeyFailureResponse(headers, { status: 'invalid' });
       }
 
       // Get user info using service role
@@ -185,6 +210,12 @@ exports.handler = async (event, context) => {
       };
     }
 
+    // The plugin shows this clearly and stops; the dashboard still loads so
+    // a suspended customer can see their account.
+    if (isApiKeyAuth && isAccountBlocked(profile)) {
+      return accountSuspendedResponse(headers);
+    }
+
     if (isApiKeyAuth) {
       await recordPluginConnectCompleted(supabase, {
         userId: authUser.id,
@@ -192,9 +223,16 @@ exports.handler = async (event, context) => {
         endpointName: 'get-usage',
         pluginVersion,
       });
+
+      const pluginSite = extractPluginSite(event);
+      if (pluginSite) {
+        await recordPluginSiteSeen(supabase, { userId: authUser.id, ...pluginSite });
+      }
     }
 
-    const pluginConnection = await getPluginConnectionStatus(
+    // "WordPress connected": a site used the key in the last 30 days and has
+    // not been disconnected (plugin_sites), not "ever connected".
+    const pluginConnection = await getPluginSiteConnectionStatus(
       supabase,
       userId || authUser.id,
     );
@@ -215,7 +253,7 @@ exports.handler = async (event, context) => {
       };
     }
 
-    const { totalGenerated, creditsUsed, recentUsage } = usageSummary;
+    const { totalGenerated, creditsUsed, planCreditsUsed, recentUsage } = usageSummary;
 
     // Get subscription plan details
     const { data: planDetails, error: planError } = await supabase
@@ -226,7 +264,7 @@ exports.handler = async (event, context) => {
 
     const totalCredits = planDetails?.credits ?? getPlanCredits(profile.subscription_plan);
     const monthlyCreditState = getMonthlyCreditState(
-      { ...profile, total_processed: creditsUsed },
+      { ...profile, total_processed: planCreditsUsed },
       totalCredits
     );
 

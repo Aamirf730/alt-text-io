@@ -66,6 +66,47 @@ function getAnonymousId(): string {
   return generated;
 }
 
+// Auth, password reset, plugin connect and email confirmation URLs carry
+// one-time tokens, codes and plugin callback details. Their query string and
+// hash are never recorded.
+const PRIVATE_QUERY_PATH_PREFIXES = ["/auth", "/reset-password", "/connect", "/email-confirmed"];
+
+// Query parameters that look like credentials are dropped on every page.
+const SENSITIVE_PARAM_PATTERN = /(token|secret|password|passwd|api[_-]?key|session|code|otp|nonce|signature|^sig$|^key$|^state$|hash|callback|email)/i;
+
+function isPrivateQueryPath(pathname: string): boolean {
+  return PRIVATE_QUERY_PATH_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+}
+
+/** Returns a query string that is safe to send to analytics, or undefined. */
+export function sanitizeAnalyticsSearch(pathname: string, search: string): string | undefined {
+  if (!search || isPrivateQueryPath(pathname)) return undefined;
+
+  const params = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
+  for (const name of Array.from(params.keys())) {
+    if (SENSITIVE_PARAM_PATTERN.test(name)) {
+      params.delete(name);
+    }
+  }
+
+  const cleaned = params.toString();
+  return cleaned ? `?${cleaned}` : undefined;
+}
+
+/** Keeps only the origin and path of the referrer, never its query or hash. */
+export function sanitizeAnalyticsReferrer(referrer: string): string | undefined {
+  if (!referrer) return undefined;
+
+  try {
+    const url = new URL(referrer);
+    return `${url.origin}${url.pathname}`;
+  } catch {
+    return undefined;
+  }
+}
+
 function cleanProperties(properties: MarketingEventProperties = {}): MarketingEventProperties {
   return Object.fromEntries(
     Object.entries(properties).filter(([, value]) => value !== undefined)
@@ -139,8 +180,8 @@ export function trackMarketingEvent(
   const properties = cleanProperties({
     ...options.properties,
     path: window.location.pathname,
-    search: window.location.search || undefined,
-    referrer: document.referrer || undefined,
+    search: sanitizeAnalyticsSearch(window.location.pathname, window.location.search),
+    referrer: sanitizeAnalyticsReferrer(document.referrer),
   });
 
   const payload = {

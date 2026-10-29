@@ -80,12 +80,29 @@ function buildActivePluginKeyMap(apiKeys = []) {
   return activePluginKeys;
 }
 
+// Only the server-written connect event (auth-validate) may supply a plugin
+// version. The browser-sent "wordpress_connect" event can claim any version.
+const TRUSTED_VERSION_SOURCE = 'wordpress_plugin_auth';
+
+function buildLatestSiteMap(pluginSites = []) {
+  const latest = new Map();
+  for (const site of pluginSites || []) {
+    if (!site?.user_id || site.disconnected_at) continue;
+    const current = latest.get(site.user_id);
+    if (!current || new Date(site.last_seen_at || 0) > new Date(current.last_seen_at || 0)) {
+      latest.set(site.user_id, site);
+    }
+  }
+  return latest;
+}
+
 function buildLifecycleStatusReport({
   profiles = [],
   events = [],
   usageStats = [],
   apiKeys = [],
   automationSends = [],
+  pluginSites = [],
   generatedAt = new Date().toISOString(),
   days = 30,
 } = {}) {
@@ -93,6 +110,7 @@ function buildLifecycleStatusReport({
   const sendGroups = groupByIdentity(automationSends, row => row.user_id, row => row.user_email);
   const usageByUser = new Map((usageStats || []).map(row => [row.user_id, row]));
   const activePluginKeysByUser = buildActivePluginKeyMap(apiKeys);
+  const latestSiteByUser = buildLatestSiteMap(pluginSites);
 
   const rows = profiles.map(profile => {
     const profileEvents = getIdentityRows(eventGroups, profile);
@@ -112,10 +130,14 @@ function buildLifecycleStatusReport({
         .filter(event => event.source === 'wordpress_plugin_auth' || event.source === 'wordpress_connect')
     );
     const pluginKeyFallback = activePluginKeysByUser.get(profile.id) || null;
-    const pluginConnectedAt = getEventTime(pluginConnectEvent) || pluginKeyFallback?.created_at || null;
-    const pluginConnectionSource = pluginConnectEvent?.source || (pluginKeyFallback ? 'wordpress_plugin_key' : null);
-    const pluginVersion = getEventPluginVersion(pluginConnectEvent);
-    const isPluginConnected = Boolean(pluginConnectEvent || pluginKeyFallback);
+    const pluginSite = latestSiteByUser.get(profile.id) || null;
+    const pluginConnectedAt = getEventTime(pluginConnectEvent) || pluginSite?.first_seen_at || pluginKeyFallback?.created_at || null;
+    const pluginConnectionSource = pluginConnectEvent?.source
+      || (pluginSite ? 'plugin_sites' : null)
+      || (pluginKeyFallback ? 'wordpress_plugin_key' : null);
+    const pluginVersion = pluginSite?.plugin_version
+      || (pluginConnectEvent?.source === TRUSTED_VERSION_SOURCE ? getEventPluginVersion(pluginConnectEvent) : null);
+    const isPluginConnected = Boolean(pluginConnectEvent || pluginSite || pluginKeyFallback);
     const firstImageEvent = latestByDate(eventsByName.get('first_image_processed') || []);
     const checkoutEvent = latestByDate(eventsByName.get('checkout_started') || []);
     const purchaseEvent = latestByDate(eventsByName.get('purchase_completed') || []);
@@ -161,6 +183,7 @@ function buildLifecycleStatusReport({
       plugin_connected_at: pluginConnectedAt,
       plugin_connection_source: pluginConnectionSource,
       plugin_version: pluginVersion,
+      plugin_site_url: pluginSite?.site_url || null,
       first_generation_at: usage.last_usage_at || getEventTime(firstImageEvent),
       checkout_started_at: getEventTime(checkoutEvent),
       purchase_completed_at: getEventTime(purchaseEvent),
@@ -283,12 +306,30 @@ async function fetchLifecycleStatusReport(supabase, { days = 30 } = {}) {
     ),
   ]);
 
+  // plugin_sites is written by the plugin API. If its migration has not
+  // been applied yet, report without it rather than failing.
+  let pluginSites = [];
+  try {
+    pluginSites = await fetchAllRows(
+      (from, to) => supabase
+        .from('plugin_sites')
+        .select('id,user_id,site_url,plugin_version,first_seen_at,last_seen_at,disconnected_at')
+        .is('disconnected_at', null)
+        .order('id', { ascending: true })
+        .range(from, to),
+      { label: 'lifecycle plugin sites' }
+    );
+  } catch (_error) {
+    console.warn('lifecycle-status: plugin_sites unavailable');
+  }
+
   return buildLifecycleStatusReport({
     profiles,
     events,
     usageStats,
     apiKeys,
     automationSends,
+    pluginSites,
     days: parsedDays,
   });
 }

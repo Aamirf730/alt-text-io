@@ -228,6 +228,147 @@ function validateAuthToken(headers) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// OUTPUT LANGUAGE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const DEFAULT_ALT_TEXT_LANGUAGE = Object.freeze({ code: 'en', name: 'English' });
+
+// Languages the generator is told to write in, keyed by lowercase BCP-47 tag.
+// Regional entries only exist where the written language really differs.
+// Anything not listed falls back to its primary language, then to English.
+const ALT_TEXT_LANGUAGES = Object.freeze({
+    af: 'Afrikaans',
+    ar: 'Arabic',
+    az: 'Azerbaijani',
+    be: 'Belarusian',
+    bg: 'Bulgarian',
+    bn: 'Bengali',
+    bs: 'Bosnian',
+    ca: 'Catalan',
+    cs: 'Czech',
+    cy: 'Welsh',
+    da: 'Danish',
+    de: 'German',
+    el: 'Greek',
+    en: 'English',
+    'en-gb': 'British English',
+    'en-us': 'American English',
+    es: 'Spanish',
+    'es-419': 'Latin American Spanish',
+    'es-mx': 'Mexican Spanish',
+    et: 'Estonian',
+    eu: 'Basque',
+    fa: 'Persian',
+    fi: 'Finnish',
+    fil: 'Filipino',
+    fr: 'French',
+    'fr-ca': 'Canadian French',
+    ga: 'Irish',
+    gl: 'Galician',
+    gu: 'Gujarati',
+    he: 'Hebrew',
+    hi: 'Hindi',
+    hr: 'Croatian',
+    hu: 'Hungarian',
+    hy: 'Armenian',
+    id: 'Indonesian',
+    is: 'Icelandic',
+    it: 'Italian',
+    ja: 'Japanese',
+    ka: 'Georgian',
+    kk: 'Kazakh',
+    km: 'Khmer',
+    kn: 'Kannada',
+    ko: 'Korean',
+    lt: 'Lithuanian',
+    lv: 'Latvian',
+    mk: 'Macedonian',
+    ml: 'Malayalam',
+    mr: 'Marathi',
+    ms: 'Malay',
+    nb: 'Norwegian Bokmål',
+    ne: 'Nepali',
+    nl: 'Dutch',
+    nn: 'Norwegian Nynorsk',
+    pa: 'Punjabi',
+    pl: 'Polish',
+    pt: 'Portuguese',
+    'pt-br': 'Brazilian Portuguese',
+    'pt-pt': 'European Portuguese',
+    ro: 'Romanian',
+    ru: 'Russian',
+    si: 'Sinhala',
+    sk: 'Slovak',
+    sl: 'Slovenian',
+    sq: 'Albanian',
+    sr: 'Serbian',
+    sv: 'Swedish',
+    sw: 'Swahili',
+    ta: 'Tamil',
+    te: 'Telugu',
+    th: 'Thai',
+    tl: 'Filipino',
+    tr: 'Turkish',
+    uk: 'Ukrainian',
+    ur: 'Urdu',
+    uz: 'Uzbek',
+    vi: 'Vietnamese',
+    'zh-cn': 'Simplified Chinese',
+    'zh-hans': 'Simplified Chinese',
+    'zh-sg': 'Simplified Chinese',
+    'zh-tw': 'Traditional Chinese',
+    'zh-hant': 'Traditional Chinese',
+    'zh-hk': 'Traditional Chinese',
+    zh: 'Simplified Chinese',
+});
+
+// Older or alternative primary tags that WordPress or browsers still send.
+const LANGUAGE_ALIASES = Object.freeze({
+    iw: 'he',
+    in: 'id',
+    no: 'nb',
+    'zh-mo': 'zh-hk',
+});
+
+const LANGUAGE_TAG_PATTERN = /^[a-z]{2,3}(?:-[a-z0-9]{2,8}){0,3}$/;
+
+/**
+ * Resolve a requested output language to one the generator supports.
+ *
+ * Accepts BCP-47 tags ("de-DE", "pt-BR") and WordPress locales ("de_DE",
+ * "de_DE_formal"). Anything malformed or unknown falls back to English, so
+ * the request never fails because of the language field.
+ *
+ * @param {*} value - Requested language
+ * @returns {{ code: string, name: string, fallback: boolean }}
+ */
+function normalizeAltTextLanguage(value) {
+    const fallback = { ...DEFAULT_ALT_TEXT_LANGUAGE, fallback: value !== undefined && value !== null && value !== '' };
+
+    if (typeof value !== 'string') return fallback;
+
+    const tag = value.trim().replace(/_/g, '-').toLowerCase();
+    if (!tag || tag.length > 35 || !LANGUAGE_TAG_PATTERN.test(tag)) return fallback;
+
+    const parts = tag.split('-');
+    const primary = LANGUAGE_ALIASES[parts[0]] || parts[0];
+    const candidates = [];
+    if (parts.length > 1) {
+        const regional = `${primary}-${parts[1]}`;
+        candidates.push(LANGUAGE_ALIASES[regional] || regional);
+    }
+    candidates.push(primary);
+
+    for (const candidate of candidates) {
+        if (Object.prototype.hasOwnProperty.call(ALT_TEXT_LANGUAGES, candidate)) {
+            return { code: candidate, name: ALT_TEXT_LANGUAGES[candidate], fallback: false };
+        }
+    }
+
+    return fallback;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // CONVENIENCE: Build 400 response
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -263,6 +404,9 @@ function unauthorized(headers, message = 'Authorization required') {
 
 module.exports = {
     LIMITS,
+    ALT_TEXT_LANGUAGES,
+    DEFAULT_ALT_TEXT_LANGUAGE,
+    normalizeAltTextLanguage,
     parseJsonBody,
     sanitizeString,
     validateString,

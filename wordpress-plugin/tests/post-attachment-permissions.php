@@ -58,6 +58,17 @@ function get_post_thumbnail_id($post_id)
     return 101;
 }
 
+// No WooCommerce product gallery on this post.
+function get_post_meta($post_id, $key = '', $single = false)
+{
+    return '';
+}
+
+function absint($value)
+{
+    return abs(intval($value));
+}
+
 function wp_attachment_is_image($attachment_id)
 {
     return in_array(intval($attachment_id), array(101, 102, 103), true);

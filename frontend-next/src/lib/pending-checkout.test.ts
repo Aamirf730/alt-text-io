@@ -2,7 +2,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import {
+  consumeCheckoutBaseline,
   consumePendingCheckout,
+  hasAccountChangedSinceCheckout,
+  saveCheckoutBaseline,
   resolvePendingCheckout,
   savePendingCheckout,
 } from "./pending-checkout";
@@ -55,5 +58,32 @@ describe("pending checkout", () => {
 
     expect(consumePendingCheckout(NOW)).toBeNull();
     expect(resolvePendingCheckout(null, NOW)).toBeNull();
+  });
+});
+
+describe("checkout baseline", () => {
+  const base = { plan: "free", status: "active", creditsRemaining: 40, purchasedCredits: 0, monthlyLimit: 15 };
+
+  beforeEach(() => window.localStorage.clear());
+
+  it("is read once and expires after a day", () => {
+    saveCheckoutBaseline(base, NOW);
+    expect(consumeCheckoutBaseline(NOW + 1000)).toEqual(base);
+    expect(consumeCheckoutBaseline(NOW + 1000)).toBeNull();
+
+    saveCheckoutBaseline(base, NOW);
+    expect(consumeCheckoutBaseline(NOW + 25 * 60 * 60 * 1000)).toBeNull();
+  });
+
+  it("detects a new plan, status, allowance or added credits", () => {
+    expect(hasAccountChangedSinceCheckout(base, { ...base, plan: "starter" })).toBe(true);
+    expect(hasAccountChangedSinceCheckout(base, { ...base, status: "cancelled" })).toBe(true);
+    expect(hasAccountChangedSinceCheckout(base, { ...base, monthlyLimit: 500 })).toBe(true);
+    expect(hasAccountChangedSinceCheckout(base, { ...base, purchasedCredits: 500, creditsRemaining: 540 })).toBe(true);
+  });
+
+  it("ignores credits being spent while the webhook is pending", () => {
+    expect(hasAccountChangedSinceCheckout(base, { ...base })).toBe(false);
+    expect(hasAccountChangedSinceCheckout(base, { ...base, creditsRemaining: 38 })).toBe(false);
   });
 });

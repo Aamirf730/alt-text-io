@@ -10,6 +10,10 @@ describe("hasLivePaidSubscription", () => {
     },
   );
 
+  it("treats a past-due subscription as still subscribed", () => {
+    expect(hasLivePaidSubscription({ subscription_plan: "tier1", subscription_status: "past_due" })).toBe(true);
+  });
+
   it("treats a scheduled cancellation as still subscribed", () => {
     expect(hasLivePaidSubscription({ subscription_plan: "tier2", subscription_status: "cancelled" })).toBe(true);
   });

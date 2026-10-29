@@ -4,7 +4,7 @@ Tags: alt text, ai alt text, image alt text, accessibility, image seo
 Requires at least: 5.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.7.27
+Stable tag: 1.7.28
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -21,6 +21,8 @@ Use it to fix missing alt text across an older media library, describe WooCommer
 * Optionally writes alt text automatically when you upload new images
 * Bulk fixes missing alt text across your media library, up to your newest 20,000 images per run
 * Adds alt text from the Posts and Pages list, including empty alt attributes inside the post content, without replacing alt text you already wrote
+* Fills empty alt attributes of images inside posts on your pages from the Media Library (optional, on by default), so images already placed in posts benefit from new alt text
+* Writes alt text in your site's language, or in a language you choose
 * Uses optional page and site context for more relevant descriptions
 * Works with WooCommerce product and gallery images, because they live in the media library
 * Shows credit usage and generation history, with CSV export
@@ -144,7 +146,19 @@ No. The plugin does not send non-essential wp-admin marketing or funnel events. 
 
 = What image formats are supported? =
 
-Alt Text Pro supports standard WordPress web image formats such as JPEG, PNG, GIF, and WebP.
+Alt Text Pro supports JPEG, PNG, GIF, WebP and AVIF, and HEIC when your server's image editor can read it. SVG and other vector files are skipped.
+
+= Does it write alt text in my language? =
+
+Yes. By default alt text is written in your site's language. Choose another language under Alt Text Pro > Settings > Alt text language. Languages the service does not support yet fall back to English.
+
+= Will images already inside my posts get the new alt text? =
+
+Yes. With "Fill empty alt text in post content" on (the default), images in posts whose alt attribute is empty or missing are shown with the alt text saved in the Media Library. Alt text written in the post is never replaced. The Posts list also offers "Copy alt text into post" to save it into the post itself, which uses no credits.
+
+= Does the plugin send emails? =
+
+Only one: when a bulk run finishes or stops, WordPress emails a short summary to the user who started it. Turn it off under Alt Text Pro > Settings > "Email me when a bulk run finishes". The email is sent by your site through wp_mail(), not by Alt Text Pro.
 
 = Can I cancel my subscription anytime? =
 
@@ -160,6 +174,29 @@ Yes, you can cancel your subscription at any time from your Alt Text Pro dashboa
 6. Responsive admin interface for managing alt text from different screen sizes.
 
 == Changelog ==
+= 1.7.28 =
+* New: "Fill empty alt text in post content" (on by default). On WordPress 6.0 and later, images inside posts whose alt is empty or missing are shown with their Media Library alt text. Alt text written in the post is never overwritten.
+* New: the Posts list counts images in the post content that still have empty alt text and offers "Copy alt text into post" (no credits) instead of "All done". WooCommerce product gallery images are included.
+* New: "Alt text language" setting. Alt text follows the site language by default, or a language you choose.
+* New: "Buy credits or upgrade" links on the dashboard, the Bulk page and every out-of-credits message. Bulk "Start" is disabled at 0 credits, with an explanation.
+* New: a Generate button in the media modal and the Media Library grid.
+* New: a bulk run survives a page reload. The Bulk page shows the running run so its owner can resume it and any administrator can stop it, and the browser warns before leaving a running run.
+* New: "Selected" mode lets you search and page through all images, including ones that already have alt text, to regenerate them.
+* New: "Email me when a bulk run finishes" setting (on by default). The email is now proper plain text.
+* New: the "Send image context" setting is shown on the Settings page. The unused batch-size field was removed.
+* Fix: generate-on-upload no longer slows uploads, imports or WooCommerce CSV imports. Generation runs right after the upload in the background and still uses one credit per image. It never replaces alt text written after the upload, and an image that a bulk run or a Generate button already described is not billed again.
+* Fix: failed automatic generation (for example no credits or a rejected key) is shown as an admin notice.
+* Fix: bulk runs stop on an invalid key, a suspended or deleted account, or a service that keeps failing, instead of failing every remaining image.
+* Fix: a temporary service outage no longer looks like an invalid API key. The key is kept, saving a key still works, and bulk runs wait and retry, honouring Retry-After.
+* Fix: a suspended Alt Text Pro account is explained clearly.
+* Fix: SVG and other non-raster files no longer show Generate and are not counted or queued by bulk runs. On older WordPress versions, WebP (before 5.8), AVIF (before 6.5) and HEIC (before 6.7) images are not counted either, because WordPress cannot process them there.
+* Fix: a bulk run that was stopping when you left the page can be stopped from the Bulk page instead of being resumed.
+* Fix: Posts list generation uses your blog context.
+* Fix: the Logs search covers the whole history, not only the visible page.
+* Fix: "I'll do this later" in the setup window is remembered.
+* Fix: Disconnect and uninstall tell Alt Text Pro this site stopped using the key. The key itself stays valid for your other sites. Uninstall does not wait for the answer, so large multisite networks uninstall quickly.
+* Fix: permission errors in admin requests return JSON, and most interface text can now be translated.
+
 = 1.7.27 =
 * Readme: clearer plugin name, short description, tags and feature list.
 * New: after 50 alt text descriptions on a site, plugin pages ask once for a WordPress.org review. Choose "Maybe later" (asks again in 30 days) or "Don't ask again". Shown only to administrators, only on Alt Text Pro pages.
@@ -744,6 +781,9 @@ Yes, you can cancel your subscription at any time from your Alt Text Pro dashboa
 
 == Upgrade Notice ==
 
+= 1.7.28 =
+Images inside posts get their Media Library alt text, alt text in your language, faster uploads, resumable bulk runs and clearer account errors. Recommended for all users.
+
 = 1.7.27 =
 Clearer plugin description and an optional, dismissible review request. No changes to how alt text is generated.
 
@@ -765,11 +805,14 @@ Need help with alt text generation? We're here for you!
 
 This plugin needs an Alt Text Pro account and connects to the Alt Text Pro service at `https://www.alt-text.pro` to work.
 
-* **Generating alt text** (single image, post, bulk, or automatic on upload): the image (downscaled when large), the optional context you enable (post title, related text, and your blog context setting), your API key, and the plugin version are sent to `https://www.alt-text.pro/.netlify/functions/generate-alt-text`. Alt Text Pro sends the image and context to its AI provider (Google Gemini) to produce the description.
+* **Generating alt text** (single image, post, bulk, or automatic on upload): the image (downscaled when large), the optional context you enable (post title, related text, and your blog context setting), the alt text language, your API key, and the plugin version are sent to `https://www.alt-text.pro/.netlify/functions/generate-alt-text`. Alt Text Pro sends the image and context to its AI provider (Google Gemini) to produce the description.
 * **Showing your credits and plan, and validating a key**: your API key and the plugin version are sent to `https://www.alt-text.pro/.netlify/functions/get-usage` and `https://www.alt-text.pro/.netlify/functions/auth-validate` when you open the plugin's pages, start a bulk run, or save a key.
+* **Connected sites**: every request above also sends this site's address (home URL) and WordPress language, so your Alt Text Pro account can list the sites that use your API key. When you disconnect the account or uninstall the plugin, the site address is sent to `https://www.alt-text.pro/.netlify/functions/site-disconnect` so the site stops counting as connected.
 * **Connecting your account**: "Connect Account" opens `https://www.alt-text.pro/connect` with this site's settings page address so the API key can be returned to WordPress after you sign in.
 
 WordPress also sends its standard user agent, which includes your site address, with these requests. Nothing is sent until you connect an account.
+
+When a bulk run finishes, WordPress (not Alt Text Pro) emails a summary to the user who started it, unless "Email me when a bulk run finishes" is turned off in Settings.
 
 Terms of Service: https://www.alt-text.pro/terms
 Privacy Policy: https://www.alt-text.pro/privacy

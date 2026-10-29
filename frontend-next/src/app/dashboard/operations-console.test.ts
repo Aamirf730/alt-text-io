@@ -47,4 +47,51 @@ describe("dashboard operations console", () => {
     const homeSource = fs.readFileSync(path.resolve(process.cwd(), "src/app/LandingPageClient.tsx"), "utf8");
     expect(homeSource).toContain("savePendingCheckout(planId, billingCycle)");
   });
+
+  it("never shows a failed usage load as 0 credits on the Free plan", () => {
+    expect(dashboardSource).toContain("fetchUsageStats(getApiBase(), accessToken)");
+    expect(dashboardSource).toContain('result.status === "unauthorized"');
+    expect(dashboardSource).toContain("We couldn&apos;t load your account");
+    expect(dashboardSource).not.toContain(".from('profiles')");
+  });
+
+  it("follows sign-outs from other tabs and gates rendering on the session check", () => {
+    expect(dashboardSource).toContain("supabase.auth.onAuthStateChange");
+    expect(dashboardSource).toContain("event === 'SIGNED_OUT'");
+    expect(dashboardSource).toContain('sessionStatus !== "ready"');
+    expect(dashboardSource).toContain('router.replace("/?auth=signin")');
+  });
+
+  it("shows billing to every signed-in user and explains an empty billing history", () => {
+    expect(dashboardSource).toContain("Billing &amp; receipts");
+    expect(dashboardSource).toContain("No billing history yet");
+    expect(dashboardSource).not.toContain("subscriptionData?.subscription?.polar_customer_id ?");
+  });
+
+  it("waits for the purchase to reach the account after checkout", () => {
+    expect(dashboardSource).toContain("checkoutState !== 'success' && checkoutState !== 'pending'");
+    expect(dashboardSource).toContain("Payment received — updating your account…");
+    expect(dashboardSource).toContain("CHECKOUT_POLL_TIMEOUT_MS");
+    expect(dashboardSource).toContain("saveCheckoutBaseline(snapshotFromUsage(usageStats))");
+  });
+
+  it("includes account settings, full history, connected sites and account deletion", () => {
+    expect(dashboardSource).toContain("<GenerationHistory");
+    expect(dashboardSource).toContain("<ConnectedSites");
+    expect(dashboardSource).toContain("<AccountSettings");
+    expect(dashboardSource).toContain("<DeleteAccountCard");
+    expect(dashboardSource).toContain("images this billing cycle");
+    expect(dashboardSource).not.toContain("images optimized");
+
+    const read = (file: string) => fs.readFileSync(path.resolve(process.cwd(), "src/app/dashboard", file), "utf8");
+    expect(read("GenerationHistory.tsx")).toContain('.range(from, to)');
+    expect(read("ConnectedSites.tsx")).toContain("/get-connected-sites");
+    expect(read("ConnectedSites.tsx")).toContain("response.status === 404");
+    expect(read("AccountSettings.tsx")).toContain("supabase.auth.updateUser({ password: newPassword })");
+    expect(read("AccountSettings.tsx")).toContain("{ email: nextEmail }");
+    const deleteCard = read("DeleteAccountCard.tsx");
+    expect(deleteCard).toContain("fetch(`${getApiBase()}/delete-account`");
+    expect(deleteCard).toContain("confirm_email: confirmEmail.trim()");
+    expect(deleteCard).toContain("Payment records are kept");
+  });
 });
