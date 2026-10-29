@@ -617,14 +617,17 @@ class AltTextPro_Admin
         $recent_generations = $wpdb->get_results($query);
 
         // Get images without alt text (using a more reliable query). SVG and
-        // other files the service cannot describe are not counted.
+        // other files the service cannot describe are not counted, nor are
+        // images marked as decorative (empty alt on purpose).
         $supported_mime_clause = AltTextPro_API_Client::get_supported_mime_sql_clause('p');
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- the mime clause is prepared
+        $not_decorative_clause = AltTextPro_Image_Details::get_not_decorative_sql_clause('p');
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- the mime and decorative clauses are prepared
         $images_without_alt = $wpdb->get_var(
             "SELECT COUNT(DISTINCT p.ID) 
              FROM {$wpdb->posts} p 
              WHERE p.post_type = 'attachment' 
              {$supported_mime_clause}
+             {$not_decorative_clause}
              AND p.ID NOT IN (
                  SELECT DISTINCT pm.post_id 
                  FROM {$wpdb->postmeta} pm 
@@ -656,6 +659,8 @@ class AltTextPro_Admin
         $editable_clause = AltTextPro_Bulk_Processor::get_editable_media_sql_clause('p');
         // SVG and other non-raster files are never queued, so not counted.
         $supported_mime_clause = AltTextPro_API_Client::get_supported_mime_sql_clause('p');
+        // Decorative images keep an empty alt on purpose and are not queued.
+        $not_decorative_clause = AltTextPro_Image_Details::get_not_decorative_sql_clause('p');
         $missing_alt_sql = "FROM {$wpdb->posts} p
              LEFT JOIN {$wpdb->postmeta} pm ON (
                  p.ID = pm.post_id
@@ -667,6 +672,7 @@ class AltTextPro_Admin
              WHERE p.post_type = 'attachment'
              {$supported_mime_clause}
              AND pm.post_id IS NULL
+             {$not_decorative_clause}
              {$editable_clause}";
 
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared -- the only variable fragments are prepared above

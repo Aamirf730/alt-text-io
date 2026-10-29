@@ -149,6 +149,11 @@ class AltTextPro_Settings
             // '' follows the site language (get_locale()).
             'language' => '',
             'email_bulk_complete' => true,
+            // Copy new alt text into the image title (while it is the file
+            // name), caption and description (while empty). Off by default.
+            'fill_title_from_alt' => false,
+            'fill_caption_from_alt' => false,
+            'fill_description_from_alt' => false,
         );
     }
 
@@ -227,20 +232,89 @@ class AltTextPro_Settings
 
     /**
      * Language the service should write in, as a BCP-47 tag ("de-DE").
-     * An empty setting follows the site language.
+     *
+     * A language chosen in the settings always wins. With the default
+     * ("Same as the site language"), an image that WPML or Polylang assigns
+     * a language is described in that language; any other image follows
+     * the site language.
+     *
+     * @param int $attachment_id Image being described (0: none).
      */
-    public static function get_output_language()
+    public static function get_output_language($attachment_id = 0)
     {
         $settings = get_option('alt_text_pro_settings', array());
-        $locale = is_array($settings) && !empty($settings['language']) && is_string($settings['language'])
-            ? $settings['language']
-            : (string) get_locale();
+        if (is_array($settings) && !empty($settings['language']) && is_string($settings['language'])) {
+            $locale = $settings['language'];
+        } else {
+            $locale = self::get_attachment_locale($attachment_id);
+            if ($locale === '') {
+                $locale = (string) get_locale();
+            }
+        }
+
+        // WPML language codes use dashes ("pt-br"), WordPress locales use
+        // underscores ("pt_BR").
+        $locale = str_replace('-', '_', trim($locale));
 
         if (!preg_match('/^[a-z]{2,3}(?:_[A-Za-z0-9]{2,8})*$/', $locale)) {
             return 'en';
         }
 
         return str_replace('_', '-', $locale);
+    }
+
+    /**
+     * Locale (or language code) that Polylang or WPML assigns to an
+     * attachment, or '' when neither plugin is active or the image has no
+     * language (for example Polylang without media translation).
+     *
+     * @param int $attachment_id Image.
+     */
+    public static function get_attachment_locale($attachment_id)
+    {
+        $attachment_id = absint($attachment_id);
+        if (!$attachment_id) {
+            return '';
+        }
+
+        // Polylang: languages are assigned to media when "Media" is enabled
+        // in Languages > Settings.
+        if (function_exists('pll_get_post_language')) {
+            $locale = pll_get_post_language($attachment_id, 'locale');
+            if (is_string($locale) && $locale !== '') {
+                return $locale;
+            }
+
+            $slug = pll_get_post_language($attachment_id, 'slug');
+            if (is_string($slug) && $slug !== '') {
+                return $slug;
+            }
+        }
+
+        // WPML (and WPML Media Translation).
+        if (has_filter('wpml_post_language_details')) {
+            $details = apply_filters('wpml_post_language_details', null, $attachment_id);
+            if (is_array($details)) {
+                if (!empty($details['locale']) && is_string($details['locale'])) {
+                    return $details['locale'];
+                }
+                if (!empty($details['language_code']) && is_string($details['language_code'])) {
+                    return $details['language_code'];
+                }
+            }
+        }
+
+        if (has_filter('wpml_element_language_details')) {
+            $details = apply_filters('wpml_element_language_details', null, array(
+                'element_id' => $attachment_id,
+                'element_type' => 'attachment',
+            ));
+            if (is_object($details) && !empty($details->language_code) && is_string($details->language_code)) {
+                return $details->language_code;
+            }
+        }
+
+        return '';
     }
 
     /**
@@ -390,6 +464,13 @@ class AltTextPro_Settings
             $sanitized['email_bulk_complete'] = array_key_exists('email_bulk_complete', $input)
                 ? !empty($input['email_bulk_complete'])
                 : $sanitized['email_bulk_complete'];
+
+            // Image title, caption and description filled from new alt text.
+            foreach (array('fill_title_from_alt', 'fill_caption_from_alt', 'fill_description_from_alt') as $alt_text_pro_detail_key) {
+                $sanitized[$alt_text_pro_detail_key] = array_key_exists($alt_text_pro_detail_key, $input)
+                    ? !empty($input[$alt_text_pro_detail_key])
+                    : !empty($sanitized[$alt_text_pro_detail_key]);
+            }
         }
 
         // Output language: '' (site language) or one of the offered locales.

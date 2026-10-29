@@ -51,13 +51,21 @@ function alt_text_pro_uninstall_site()
     delete_option('alt_text_pro_active_bulk_run');
     delete_transient('alt_text_pro_activation_redirect');
     delete_transient('alt_text_pro_generated_count');
+    delete_option('alt_text_pro_credit_status');
 
     wp_clear_scheduled_hook('alt_text_pro_cleanup');
     wp_clear_scheduled_hook('alt_text_pro_bulk_process_batch');
     wp_unschedule_hook('alt_text_pro_generate_background');
+    wp_clear_scheduled_hook('alt_text_pro_refresh_credit_status');
 
-    // Uploads still waiting for automatic generation.
+    // Uploads still waiting for automatic generation, and generated alt
+    // text kept to fill image titles and captions. The "decorative" flag
+    // is the site owner's choice and stays, like image context.
     delete_post_meta_by_key('_alt_text_pro_auto_pending');
+    delete_post_meta_by_key('_alt_text_pro_generated_alt');
+
+    // Per-site "low credits" notice dismissals (stored with update_user_option()).
+    delete_metadata('user', 0, $wpdb->get_blog_prefix() . 'alt_text_pro_credit_notice_dismissed', '', true);
 
     $logs_table = $wpdb->prefix . 'alt_text_pro_logs';
     // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared

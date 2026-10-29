@@ -181,6 +181,18 @@ class AltTextPro_API_Client
             );
         }
 
+        // A decorative image keeps an empty alt on purpose: never spend a
+        // credit on it, whichever button or run asked.
+        if (class_exists('AltTextPro_Image_Details') && AltTextPro_Image_Details::is_decorative($attachment_id)) {
+            return array(
+                'success' => false,
+                'message' => esc_html(AltTextPro_Image_Details::get_decorative_message()),
+                'code' => 'decorative_image',
+                'retryable' => false,
+                'decorative' => true,
+            );
+        }
+
         // Get image data
         $image_data = $this->get_image_base64($attachment_id);
         if (!$image_data) {
@@ -206,13 +218,14 @@ class AltTextPro_API_Client
         // Combine blog context and individual image context
         $combined_context = trim($blog_context . ($blog_context && $context ? ' | ' : '') . $context);
 
-        // Prepare request data. The language is a BCP-47 tag such as "de-DE";
-        // the service falls back to English for anything it does not support.
+        // Prepare request data. The language is a BCP-47 tag such as "de-DE"
+        // (the image's own WPML or Polylang language when it has one); the
+        // service falls back to English for anything it does not support.
         $request_data = array(
             'image_base64' => $image_data,
             'context' => $combined_context,
             'language' => method_exists('AltTextPro_Settings', 'get_output_language')
-                ? AltTextPro_Settings::get_output_language()
+                ? AltTextPro_Settings::get_output_language($attachment_id)
                 : 'en',
         );
 
@@ -224,6 +237,9 @@ class AltTextPro_API_Client
             $alt_text = null;
             $credits_used = 1;
             $credits_remaining = 0;
+            $reported = is_array($response['data'] ?? null) && isset($response['data']['alt_text'])
+                ? $response['data']
+                : (is_array($response['full_response'] ?? null) ? $response['full_response'] : array());
 
             // Try to find alt_text in different possible locations
             if (isset($response['data']['alt_text'])) {
@@ -250,6 +266,18 @@ class AltTextPro_API_Client
             }
 
             if (!empty($alt_text)) {
+                // Keep the low-credit notice current without asking the
+                // service again.
+                if (isset($reported['credits_remaining']) && is_numeric($reported['credits_remaining']) && class_exists('AltTextPro_Credit_Notice')) {
+                    AltTextPro_Credit_Notice::remember_credits(intval($reported['credits_remaining']));
+                }
+
+                // Lets a later save of exactly this text fill the image
+                // title, caption or description when those settings are on.
+                if (class_exists('AltTextPro_Image_Details')) {
+                    AltTextPro_Image_Details::remember_generated_alt($attachment_id, $alt_text);
+                }
+
                 return array(
                     'success' => true,
                     'alt_text' => $alt_text,
@@ -258,6 +286,10 @@ class AltTextPro_API_Client
                 );
             }
 
+        }
+
+        if (!empty($response['no_credits']) && class_exists('AltTextPro_Credit_Notice')) {
+            AltTextPro_Credit_Notice::remember_credits(0);
         }
 
         // Return error response with proper message
@@ -290,7 +322,21 @@ class AltTextPro_API_Client
 
         // Account state renders admin pages; do not let a slow service hold
         // them for the full generation timeout.
-        return $this->make_request('get-usage', 'GET', array(), 15);
+        $response = $this->make_request('get-usage', 'GET', array(), 15);
+
+        // Every successful check also refreshes the cached credit balance
+        // behind the low-credit notice.
+        if (!empty($response['success']) && is_array($response['data'] ?? null) && class_exists('AltTextPro_Credit_Notice')) {
+            $data = $response['data'];
+            $credits = isset($data['monthly_credits_remaining']) && is_numeric($data['monthly_credits_remaining'])
+                ? $data['monthly_credits_remaining']
+                : ($data['credits_remaining'] ?? null);
+            if (is_numeric($credits)) {
+                AltTextPro_Credit_Notice::remember_credits(intval($credits));
+            }
+        }
+
+        return $response;
     }
 
     /**
