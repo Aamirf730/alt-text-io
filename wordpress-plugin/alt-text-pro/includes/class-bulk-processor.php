@@ -55,6 +55,16 @@ class AltTextPro_Bulk_Processor
     // Seconds of work one background tick starts images for.
     private const BACKGROUND_TICK_BUDGET = 30;
 
+    // A background run waiting for work with no tick queued and no progress
+    // for this long gets a new tick (a tick died, or WP-Cron dropped it).
+    private const BACKGROUND_RESTART_SECONDS = 180;
+
+    // A background run with no progress for this long is shown as stalled.
+    private const BACKGROUND_STALLED_SECONDS = 600;
+
+    // Throttle of the admin-page watchdog check.
+    private const WATCHDOG_TRANSIENT = 'alt_text_pro_bulk_watchdog';
+
     // Additive logs-table columns for bulk runs (outcome, reason, run,
     // previous alt text). Upgraded separately from the base table.
     public const LOG_SCHEMA_OPTION = 'alt_text_pro_bulk_log_db_version';
@@ -102,6 +112,7 @@ class AltTextPro_Bulk_Processor
         add_action('wp_ajax_alt_text_pro_bulk_run_items', array($this, 'ajax_run_items'));
         add_action('wp_ajax_alt_text_pro_bulk_undo_run', array($this, 'ajax_undo_run'));
         add_action(self::BACKGROUND_HOOK, array(__CLASS__, 'run_background_tick'));
+        add_action('admin_init', array(__CLASS__, 'watch_background_run'));
     }
 
     /**
@@ -130,9 +141,12 @@ class AltTextPro_Bulk_Processor
         $owner = get_userdata($owner_id);
         $is_background = $processor->is_background_run($process_id);
         $idle_seconds = $processor->get_idle_seconds($process_data);
+        $processor->maybe_restart_background($process_id, $process_data);
 
         return array(
             'mode' => $is_background ? 'background' : 'foreground',
+            // A background run WP-Cron has not moved for a while.
+            'is_stalled' => $is_background && $idle_seconds > self::BACKGROUND_STALLED_SECONDS,
             // A tab-driven run that stopped moving (tab closed or reloaded).
             'is_paused' => !$is_background && $idle_seconds > self::PAUSED_AFTER_SECONDS,
             'idle_seconds' => $idle_seconds,
@@ -227,9 +241,9 @@ class AltTextPro_Bulk_Processor
             'runItemsNone' => __('No failed or skipped images were recorded for this run.', 'alt-text-pro'),
             'statusSuggested' => __('Saved for review', 'alt-text-pro'),
             // translators: %s: number of images the run changed.
-            'undoConfirm' => __('Undo this run? Up to %s images get back the alt text they had before it. Images whose alt text was changed since keep the newer text. No credits are used.', 'alt-text-pro'),
+            'undoConfirm' => __('Undo this run? Up to %s images get back the alt text they had before it. Images whose alt text was changed since keep the newer text. No credits are used. Only alt text is undone: titles, captions and descriptions filled from it (Settings > Image title, caption and description) stay as they are.', 'alt-text-pro'),
             // translators: 1: images restored, 2: images kept because they changed after the run.
-            'undoDone' => __('Done. %1$s images got their previous alt text back. %2$s kept their alt text because it was changed after the run.', 'alt-text-pro'),
+            'undoDone' => __('Done. %1$s images got their previous alt text back. %2$s kept their alt text because it was changed after the run. Only alt text is undone: titles, captions and descriptions filled from it (Settings > Image title, caption and description) stay as they are.', 'alt-text-pro'),
             'undoing' => __('Undoing the run...', 'alt-text-pro'),
             // translators: %s: number of images that could not be changed.
             'undoNotAllowed' => __('%s images were skipped because you cannot edit them.', 'alt-text-pro'),
@@ -397,6 +411,13 @@ class AltTextPro_Bulk_Processor
         }
 
         $process_id = isset($_POST['process_id']) ? sanitize_text_field(wp_unslash($_POST['process_id'])) : '';
+
+        // Watchdog: a background run whose tick was lost gets a new one.
+        $process_data = $this->get_bulk_process_data($process_id, true);
+        if (is_array($process_data)) {
+            $this->maybe_restart_background($process_id, $process_data);
+        }
+
         $status = $this->get_bulk_process_status($process_id);
 
         if ($status) {
@@ -465,13 +486,29 @@ class AltTextPro_Bulk_Processor
                 ? intval($process_data['next_batch_offset'])
                 : intval($process_data['processed'] ?? 0);
 
-            if (!$process_data || $batch_offset !== $expected_offset) {
+            // An image is still with the service (for example a background
+            // tick whose lock expired while it waited): never bill it twice.
+            $image_in_flight = get_transient($this->get_active_request_key($process_id)) !== false;
+
+            if (!$process_data || $batch_offset !== $expected_offset || $image_in_flight) {
                 $batch_results = array();
             } else {
                 $batch_results = $this->process_batch_sync($process_id, $batch_offset);
             }
         } finally {
             $this->release_process_lock($process_id, $lock_token);
+        }
+
+        if (!empty($image_in_flight)) {
+            $status = $this->get_bulk_process_status($process_id);
+            if (!$status) {
+                wp_send_json_error(esc_html__('Process not found.', 'alt-text-pro'));
+            }
+            $status['batch_results'] = array();
+            $status['busy'] = true;
+            $status['needs_next_batch'] = false;
+            $status['retry_after_seconds'] = 2;
+            wp_send_json_success($status);
         }
 
         // Get updated status
@@ -783,9 +820,10 @@ class AltTextPro_Bulk_Processor
         $overwrite = !empty($_POST['overwrite_existing']);
         // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- each field is sanitized in parse_filters()
         $filters = self::parse_filters(isset($_POST['filters']) ? wp_unslash($_POST['filters']) : array());
-        // Credits a run may use, as shown on the page (display only; the
-        // run itself checks the account again when it starts).
-        $credit_limit = isset($_POST['credit_limit']) && $_POST['credit_limit'] !== '' ? max(0, intval($_POST['credit_limit'])) : null;
+        // Credits a run may use, read from the account here (never from the
+        // page). Start asks with "fresh" so its confirmation uses the current
+        // balance; previews reuse a balance up to a minute old.
+        $credit_limit = $this->get_estimate_credit_limit(!empty($_POST['fresh']));
 
         $counts = self::count_images($filters);
         $with_alt = 0;
@@ -816,6 +854,32 @@ class AltTextPro_Bulk_Processor
             'queue_capped' => $images >= self::MAX_BULK_QUEUE,
             'review_mode' => class_exists('AltTextPro_Review') && AltTextPro_Review::is_enabled(),
         ));
+    }
+
+    /**
+     * Credits one run may use now, or null when the account cannot be read.
+     *
+     * @param bool $fresh Ask the service instead of using the cached value.
+     * @return int|null
+     */
+    private function get_estimate_credit_limit($fresh)
+    {
+        $cache_key = 'alt_text_pro_bulk_credit_limit';
+        if (!$fresh) {
+            $cached = get_transient($cache_key);
+            if (is_array($cached) && array_key_exists('limit', $cached)) {
+                return $cached['limit'] === null ? null : intval($cached['limit']);
+            }
+        }
+
+        $limit = null;
+        $usage = (new AltTextPro_API_Client())->get_usage_stats();
+        if (!empty($usage['success']) && is_array($usage['data'] ?? null)) {
+            $limit = self::get_run_credit_limits($usage['data'])['run_limit'];
+        }
+        set_transient($cache_key, array('limit' => $limit), MINUTE_IN_SECONDS);
+
+        return $limit;
     }
 
     /**
@@ -1141,6 +1205,10 @@ class AltTextPro_Bulk_Processor
             if (array_key_exists($column, $fields)) {
                 $data[$column] = (string) $fields[$column];
             }
+        }
+        $status = self::get_log_status_for_outcome($data['outcome']);
+        if ($status !== null) {
+            $data['status'] = $status;
         }
 
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery
@@ -1656,7 +1724,9 @@ class AltTextPro_Bulk_Processor
                 } else {
                     // Keep the alt text this run replaces so the run can be undone.
                     $previous_alt = (string) get_post_meta($image_id, '_wp_attachment_image_alt', true);
-                    update_post_meta($image_id, '_wp_attachment_image_alt', $alt_text);
+                    // update_post_meta() unslashes: keep backslashes so undo
+                    // can compare the stored text with the logged text.
+                    update_post_meta($image_id, '_wp_attachment_image_alt', wp_slash($alt_text));
 
                     // Log generation (only if alt_text exists)
                     if ($alt_text !== '') {
@@ -1789,7 +1859,7 @@ class AltTextPro_Bulk_Processor
      *
      * @return array Batch results for the browser.
      */
-    private function stop_bulk_process_with_error($process_id, array $process_data, $total_processed, array $successful_ids, array $new_errors, array $batch_results, $code, $reason)
+    private function stop_bulk_process_with_error($process_id, array $process_data, $total_processed, array $successful_ids, array $new_errors, array $batch_results, $code, $reason, $any_owner = false)
     {
         $existing_errors = isset($process_data['errors']) && is_array($process_data['errors']) ? $process_data['errors'] : array();
         $all_errors = array_merge($existing_errors, $new_errors);
@@ -1808,7 +1878,7 @@ class AltTextPro_Bulk_Processor
         $process_data['last_updated'] = current_time('mysql');
 
         $this->save_bulk_process_data($process_id, $process_data, DAY_IN_SECONDS * 2);
-        $this->complete_bulk_process($process_id, true);
+        $this->complete_bulk_process($process_id, true, $any_owner);
 
         return $batch_results;
     }
@@ -2367,9 +2437,10 @@ class AltTextPro_Bulk_Processor
     /**
      * Complete bulk process
      */
-    private function complete_bulk_process($process_id, $early_stop = false)
+    private function complete_bulk_process($process_id, $early_stop = false, $any_owner = false)
     {
-        $process_data = $this->get_bulk_process_data($process_id, true);
+        // $any_owner: a background run whose owner was deleted.
+        $process_data = $this->get_bulk_process_data($process_id, true, $any_owner);
 
         if ($process_data) {
             if (isset($process_data['status']) && $process_data['status'] === 'cancelled') {
@@ -2751,6 +2822,57 @@ class AltTextPro_Bulk_Processor
     }
 
     /**
+     * Watchdog: queue a new tick for a background run that still has work,
+     * has no tick queued and has made no progress for a few minutes (a tick
+     * died, or WP-Cron lost the event). Cheap: no tick is started here.
+     *
+     * @return bool True when a tick was queued.
+     */
+    private function maybe_restart_background($process_id, array $process_data)
+    {
+        if (
+            ($process_data['status'] ?? '') !== 'running'
+            || empty($process_data['needs_next_batch'])
+            || $this->get_idle_seconds($process_data) < self::BACKGROUND_RESTART_SECONDS
+            || wp_next_scheduled(self::BACKGROUND_HOOK) !== false
+            || !$this->is_background_run($process_id)
+        ) {
+            return false;
+        }
+
+        self::schedule_background_tick(0);
+        if (!wp_doing_cron() && !(defined('DISABLE_WP_CRON') && DISABLE_WP_CRON)) {
+            add_action('shutdown', array(__CLASS__, 'spawn_cron_after_request'));
+        }
+
+        return true;
+    }
+
+    /**
+     * admin_init: run the watchdog for the site's background run, at most
+     * every few minutes.
+     */
+    public static function watch_background_run()
+    {
+        if (wp_doing_ajax() || get_transient(self::WATCHDOG_TRANSIENT) !== false) {
+            return;
+        }
+        set_transient(self::WATCHDOG_TRANSIENT, 1, self::BACKGROUND_RESTART_SECONDS);
+
+        $processor = new self(false);
+        $marker = $processor->get_live_active_run();
+        if (!$marker) {
+            return;
+        }
+
+        $process_id = (string) $marker['process_id'];
+        $process_data = $processor->get_bulk_process_data($process_id, true, true);
+        if (is_array($process_data)) {
+            $processor->maybe_restart_background($process_id, $process_data);
+        }
+    }
+
+    /**
      * WP-Cron callback: continue the site's background run for a short
      * slice of time, then queue the next tick.
      */
@@ -2786,6 +2908,9 @@ class AltTextPro_Bulk_Processor
 
         try {
             if (!$owner_id || !current_user_can('upload_files')) {
+                // The owner was deleted or lost access. Finish with the state
+                // in hand: the owner check on the run cannot pass for a
+                // deleted user.
                 $this->stop_bulk_process_with_error(
                     $process_id,
                     $process_data,
@@ -2794,7 +2919,8 @@ class AltTextPro_Bulk_Processor
                     array(),
                     array(),
                     'owner_unavailable',
-                    __('The background run stopped because the user who started it can no longer upload files.', 'alt-text-pro')
+                    __('The background run stopped because the user who started it can no longer upload files.', 'alt-text-pro'),
+                    true
                 );
                 return;
             }
@@ -2840,6 +2966,13 @@ class AltTextPro_Bulk_Processor
                             $next_delay = $ready_at - $now;
                             break;
                         }
+                    }
+
+                    // Renew the lock before each image so it cannot expire while
+                    // an image is with the service; stop if it was lost.
+                    if (!$this->refresh_process_lock($process_id, $lock_token)) {
+                        $next_delay = 15;
+                        break;
                     }
 
                     $offset = isset($process_data['next_batch_offset'])
@@ -3007,6 +3140,42 @@ class AltTextPro_Bulk_Processor
         }
 
         return false;
+    }
+
+    /**
+     * Give a held process lock another full lifetime, so a long background
+     * tick never loses it while starting the next image. Atomic: only the
+     * exact lock this request holds is replaced.
+     *
+     * @return bool False when the lock is no longer this request's.
+     */
+    private function refresh_process_lock($process_id, $token)
+    {
+        global $wpdb;
+
+        $option_name = 'alt_text_pro_bulk_lock_' . hash('sha256', $process_id);
+        $this->clear_lock_option_cache($option_name);
+        $existing_lock = get_option($option_name, false);
+
+        if (
+            !is_array($existing_lock) ||
+            !is_string($existing_lock['token'] ?? null) ||
+            !is_string($token) ||
+            !hash_equals($existing_lock['token'], $token)
+        ) {
+            return false;
+        }
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $updated = $wpdb->query($wpdb->prepare(
+            "UPDATE {$wpdb->options} SET option_value = %s WHERE option_name = %s AND option_value = %s",
+            maybe_serialize(array('token' => $token, 'expires_at' => time() + 120)),
+            $option_name,
+            maybe_serialize($existing_lock)
+        ));
+        $this->clear_lock_option_cache($option_name);
+
+        return 1 === $updated;
     }
 
     /**
@@ -3244,6 +3413,15 @@ class AltTextPro_Bulk_Processor
             return 0;
         }
 
+        // The draft/saved status column (its default is "saved"): only
+        // written alt text is saved, a suggestion is a draft, anything else
+        // has no status.
+        $status = self::get_log_status_for_outcome($outcome);
+        if ($status !== null) {
+            $data['status'] = $status;
+            $formats[] = '%s';
+        }
+
         $table_name = $wpdb->prefix . 'alt_text_pro_logs';
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery
         $inserted = $wpdb->insert($table_name, $data, $formats);
@@ -3257,6 +3435,29 @@ class AltTextPro_Bulk_Processor
         }
 
         return (int) $wpdb->insert_id;
+    }
+
+    /**
+     * Value of the logs table's draft/saved status column for a result,
+     * or null when the site has no status column yet.
+     *
+     * @param string $outcome generated, suggested, failed, skipped, undone or rejected.
+     * @return string|null
+     */
+    private static function get_log_status_for_outcome($outcome)
+    {
+        if (!class_exists('AltTextPro_Generation_Log') || !AltTextPro_Generation_Log::has_status_column()) {
+            return null;
+        }
+
+        if ($outcome === 'generated' || $outcome === '') {
+            return AltTextPro_Generation_Log::STATUS_SAVED;
+        }
+        if ($outcome === 'suggested') {
+            return AltTextPro_Generation_Log::STATUS_DRAFT;
+        }
+
+        return '';
     }
 
     /**
@@ -3356,7 +3557,7 @@ class AltTextPro_Bulk_Processor
 
         // Only mark the step done when the columns are really there.
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name comes from $wpdb
-        $columns = (array) $wpdb->get_col("SHOW COLUMNS FROM {$table_name}", 0);
+        $columns = (array) $wpdb->get_col("DESCRIBE {$table_name}", 0);
         if (in_array('outcome', $columns, true) && in_array('run_ref', $columns, true) && in_array('previous_alt', $columns, true) && in_array('outcome_reason', $columns, true)) {
             update_option(self::LOG_SCHEMA_OPTION, self::LOG_SCHEMA_VERSION, true);
         }

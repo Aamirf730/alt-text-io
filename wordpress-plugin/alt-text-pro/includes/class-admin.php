@@ -247,7 +247,8 @@ class AltTextPro_Admin
                 self::csv_safe_cell($row['alt_text'] ?? ''),
                 (string) intval($row['credits_used'] ?? 0),
                 self::csv_safe_cell($row['created_at'] ?? ''),
-                self::csv_safe_cell(self::get_log_status_label($row['status'] ?? '')),
+                // Only generations have a draft/saved status.
+                self::csv_safe_cell(in_array($outcome, array('generated', 'suggested'), true) ? self::get_log_status_label($row['status'] ?? '') : ''),
                 self::csv_safe_cell($outcome_labels[$outcome] ?? $outcome),
                 self::csv_safe_cell($row['outcome_reason'] ?? ''),
                 self::csv_safe_cell($row['run_ref'] ?? ''),
@@ -709,6 +710,8 @@ class AltTextPro_Admin
                 $monthly_credit_limit = isset($usage_response['data']['monthly_credit_limit']) ? intval($usage_response['data']['monthly_credit_limit']) : null;
                 // Credits one run may use: the run estimate compares with this.
                 $run_credit_limit = AltTextPro_Bulk_Processor::get_run_credit_limits((array) $usage_response['data'])['run_limit'];
+                // The run estimate's first preview reuses this balance.
+                set_transient('alt_text_pro_bulk_credit_limit', array('limit' => $run_credit_limit), MINUTE_IN_SECONDS);
             }
         }
 

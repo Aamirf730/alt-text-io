@@ -133,7 +133,11 @@ if (!defined('ABSPATH')) {
                                     <?php
                                     // Whether the text reached the image; rows logged before
                                     // 1.7.28 did not record it and show no status.
-                                    $alt_text_pro_status = AltTextPro_Generation_Log::get_status_display($alt_text_pro_log->status ?? '');
+                                    // Failed, skipped, undone and rejected bulk rows show their
+                                    // result above instead.
+                                    $alt_text_pro_status = in_array($alt_text_pro_outcome, array('generated', 'suggested'), true)
+                                        ? AltTextPro_Generation_Log::get_status_display($alt_text_pro_log->status ?? '')
+                                        : null;
                                     if ($alt_text_pro_status): ?>
                                         <p class="atp-log-status-row">
                                             <span class="atp-badge atp-log-status is-<?php echo esc_attr($alt_text_pro_status['class']); ?>"><?php echo esc_html($alt_text_pro_status['label']); ?></span>

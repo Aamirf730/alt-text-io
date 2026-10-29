@@ -66,11 +66,6 @@
             return filters;
         },
 
-        creditLimit: function () {
-            var value = $('#bulk-process-form').attr('data-credit-limit');
-            return value === undefined || value === '' ? null : parseInt(value, 10);
-        },
-
         requestData: function () {
             var type = $('input[name="process_type"]:checked').val() || 'missing';
             var data = {
@@ -79,10 +74,6 @@
                 overwrite_existing: $('#overwrite_existing').is(':checked') ? 1 : 0,
                 filters: this.getFilters()
             };
-            var limit = this.creditLimit();
-            if (limit !== null) {
-                data.credit_limit = limit;
-            }
             if (type === 'selected') {
                 data.selected_images = window.bulkProcessor ? Object.keys(window.bulkProcessor.selectedImages || {}) : [];
             }
@@ -93,8 +84,10 @@
             return JSON.stringify([data.process_type, data.overwrite_existing, data.filters, (data.selected_images || []).slice().sort()]);
         },
 
-        // Estimate for the current choices (cached per choice set).
-        fetchEstimate: function () {
+        // Estimate for the current choices. The preview is cached per
+        // choice set; Start asks for a fresh one (fresh = true), so library
+        // and credit changes since the last run are always confirmed.
+        fetchEstimate: function (fresh) {
             var data = this.requestData();
             var key = this.cacheKey(data);
             var self = this;
@@ -102,7 +95,10 @@
             if (data.process_type === 'selected' && !data.selected_images.length) {
                 return $.Deferred().resolve(null, key).promise();
             }
-            if (this.estimateCache[key]) {
+            if (fresh) {
+                this.estimateCache = {};
+                data.fresh = 1;
+            } else if (this.estimateCache[key]) {
                 return $.Deferred().resolve(this.estimateCache[key], key).promise();
             }
 
@@ -255,7 +251,7 @@
 
                 self.confirming = true;
                 $('#start-bulk-process').prop('disabled', true);
-                self.fetchEstimate().always(function () {
+                self.fetchEstimate(true).always(function () {
                     self.confirming = false;
                     $('#start-bulk-process').prop('disabled', false);
                 }).done(function (estimate) {
@@ -290,6 +286,29 @@
                     notify(ajaxErrorMessage(xhr, t('error', 'Something went wrong.')), 'error');
                 }).always(function () {
                     $button.prop('disabled', false);
+                });
+            });
+
+            // Background run found on page load (for example stalled because
+            // WP-Cron is not running): continue it in this tab.
+            $(document).on('click', '#resume-bulk-foreground', function () {
+                var run = window.altTextAI && window.altTextAI.bulk;
+                var $button = $(this);
+                if (!run || !run.process_id) {
+                    return;
+                }
+                $button.prop('disabled', true);
+                self.setMode(run.process_id, 'foreground').done(function (response) {
+                    if (response && response.success) {
+                        run.mode = 'foreground';
+                        bp.resumeProcessing();
+                    } else {
+                        $button.prop('disabled', false);
+                        notify((response && response.data) || t('error', 'Something went wrong.'), 'error');
+                    }
+                }).fail(function (xhr) {
+                    $button.prop('disabled', false);
+                    notify(ajaxErrorMessage(xhr, t('error', 'Something went wrong.')), 'error');
                 });
             });
 
@@ -385,7 +404,7 @@
                 var totals = { restored: 0, changed: 0, not_allowed: 0, withdrawn: 0 };
 
                 if (!window.confirm(sprintf(
-                    t('undoConfirm', 'Undo this run? Up to %s images get back the alt text they had before it. Images whose alt text was changed since keep the newer text. No credits are used.'),
+                    t('undoConfirm', 'Undo this run? Up to %s images get back the alt text they had before it. Images whose alt text was changed since keep the newer text. No credits are used. Only alt text is undone: titles, captions and descriptions filled from it (Settings > Image title, caption and description) stay as they are.'),
                     formatNumber($button.data('count'))
                 ))) {
                     return;
@@ -412,7 +431,7 @@
                         }
 
                         var summary = sprintf(
-                            t('undoDone', 'Done. %1$s images got their previous alt text back. %2$s kept their alt text because it was changed after the run.'),
+                            t('undoDone', 'Done. %1$s images got their previous alt text back. %2$s kept their alt text because it was changed after the run. Only alt text is undone: titles, captions and descriptions filled from it (Settings > Image title, caption and description) stay as they are.'),
                             formatNumber(totals.restored),
                             formatNumber(totals.changed)
                         );

@@ -132,7 +132,7 @@ $alt_text_pro_run_status_labels = array(
             <?php endforeach; ?>
         </ul>
         <p class="description atp-help">
-            <?php esc_html_e('Undo puts back the alt text each image had before the run. Images whose alt text was changed after the run keep the newer text. Undo uses no credits.', 'alt-text-pro'); ?>
+            <?php esc_html_e('Undo puts back the alt text each image had before the run. Images whose alt text was changed after the run keep the newer text. Undo uses no credits. Only alt text is undone: titles, captions and descriptions filled from it stay as they are.', 'alt-text-pro'); ?>
         </p>
     </div>
 </div>

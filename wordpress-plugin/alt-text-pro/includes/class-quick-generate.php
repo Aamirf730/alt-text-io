@@ -293,6 +293,7 @@ class AltTextPro_Quick_Generate
             'no_permission' => 0,
             'has_alt' => 0,
             'decorative' => 0,
+            'pending_review' => 0,
         );
 
         foreach ($ids as $id) {
@@ -302,6 +303,9 @@ class AltTextPro_Quick_Generate
                 $selection['no_permission']++;
             } elseif (AltTextPro_Image_Details::is_decorative($id)) {
                 $selection['decorative']++;
+            } elseif (class_exists('AltTextPro_Review') && AltTextPro_Review::has_suggestion($id)) {
+                // Bulk runs never queue an image waiting on the Review page.
+                $selection['pending_review']++;
             } elseif (!$overwrite && trim((string) get_post_meta($id, '_wp_attachment_image_alt', true)) !== '') {
                 $selection['has_alt']++;
             } else {
@@ -420,7 +424,8 @@ class AltTextPro_Quick_Generate
                 intval($selection['has_alt'] ?? 0),
                 intval($selection['unsupported'] ?? 0),
                 intval($selection['no_permission'] ?? 0),
-                intval($selection['decorative'] ?? 0)
+                intval($selection['decorative'] ?? 0),
+                intval($selection['pending_review'] ?? 0)
             ),
         ));
     }
@@ -433,8 +438,9 @@ class AltTextPro_Quick_Generate
      * @param int $unsupported   Left out: SVG or other unsupported files.
      * @param int $no_permission Left out: the user cannot edit them.
      * @param int $decorative    Left out: marked as decorative images.
+     * @param int $pending_review Left out: suggested alt text waits on the Review page.
      */
-    public static function get_selection_message($selected, $has_alt, $unsupported, $no_permission, $decorative = 0)
+    public static function get_selection_message($selected, $has_alt, $unsupported, $no_permission, $decorative = 0, $pending_review = 0)
     {
         $parts = array();
 
@@ -502,6 +508,19 @@ class AltTextPro_Quick_Generate
                     'alt-text-pro'
                 ),
                 number_format_i18n($decorative)
+            );
+        }
+
+        if ($pending_review > 0) {
+            $parts[] = sprintf(
+                /* translators: %s: number of images */
+                _n(
+                    '%s already has suggested alt text waiting on the Review page and was left out. Approve or reject it there.',
+                    '%s already have suggested alt text waiting on the Review page and were left out. Approve or reject them there.',
+                    $pending_review,
+                    'alt-text-pro'
+                ),
+                number_format_i18n($pending_review)
             );
         }
 

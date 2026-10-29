@@ -66,6 +66,9 @@ if (!defined('ABSPATH')) {
                             if (($active_run['status'] ?? '') === 'cancelling') {
                                 /* translators: %s: "X of Y done" */
                                 $alt_text_pro_run_title = sprintf(__('Stopping: %s', 'alt-text-pro'), $alt_text_pro_run_done);
+                            } elseif (!empty($active_run['is_stalled'])) {
+                                /* translators: %s: "X of Y done" */
+                                $alt_text_pro_run_title = sprintf(__('Paused in the background: %s', 'alt-text-pro'), $alt_text_pro_run_done);
                             } elseif (($active_run['mode'] ?? '') === 'background') {
                                 /* translators: %s: "X of Y done" */
                                 $alt_text_pro_run_title = sprintf(__('Running in the background: %s', 'alt-text-pro'), $alt_text_pro_run_done);
@@ -99,7 +102,9 @@ if (!defined('ABSPATH')) {
                                 ?>
                             <?php endif; ?>
                             <?php esc_html_e('Only one bulk run can be active on a site.', 'alt-text-pro'); ?>
-                            <?php if ($alt_text_pro_run_resumable && ($active_run['mode'] ?? '') === 'background'): ?>
+                            <?php if ($alt_text_pro_run_resumable && !empty($active_run['is_stalled'])): ?>
+                                <?php esc_html_e('WP-Cron has not moved it for a while, usually because nobody visited the site or WP-Cron is turned off. It has been queued again. You can also resume it in this tab, or stop it.', 'alt-text-pro'); ?>
+                            <?php elseif ($alt_text_pro_run_resumable && ($active_run['mode'] ?? '') === 'background'): ?>
                                 <?php esc_html_e('It keeps going while WP-Cron runs (site visits or a server cron job). Show its progress here, or stop it.', 'alt-text-pro'); ?>
                             <?php elseif ($alt_text_pro_run_resumable): ?>
                                 <?php esc_html_e('A paused run stays resumable for 7 days. Resume it here, let it keep going in the background, or stop it to start a different run.', 'alt-text-pro'); ?>
@@ -116,7 +121,12 @@ if (!defined('ABSPATH')) {
                                 <span class="dashicons dashicons-controls-play" aria-hidden="true"></span>
                                 <span><?php echo esc_html(($active_run['mode'] ?? '') === 'background' ? __('Show progress', 'alt-text-pro') : __('Resume run', 'alt-text-pro')); ?></span>
                             </button>
-                            <?php if (($active_run['mode'] ?? '') !== 'background'): ?>
+                            <?php if (($active_run['mode'] ?? '') === 'background'): ?>
+                                <button type="button" class="button-secondary-custom" id="resume-bulk-foreground">
+                                    <span class="dashicons dashicons-controls-play" aria-hidden="true"></span>
+                                    <span><?php esc_html_e('Run in this tab instead', 'alt-text-pro'); ?></span>
+                                </button>
+                            <?php else: ?>
                                 <button type="button" class="button-secondary-custom" id="resume-bulk-background">
                                     <span class="dashicons dashicons-clock" aria-hidden="true"></span>
                                     <span><?php esc_html_e('Keep going in the background', 'alt-text-pro'); ?></span>
@@ -140,7 +150,6 @@ if (!defined('ABSPATH')) {
             </div>
             <div class="card-content">
                 <form id="bulk-process-form"
-                    data-credit-limit="<?php echo esc_attr($run_credit_limit === null ? '' : (string) intval($run_credit_limit)); ?>"
                     data-review-mode="<?php echo esc_attr(!empty($review_enabled) ? '1' : '0'); ?>">
                     <?php if ($bulk_display_credits_remaining !== null): ?>
                         <div class="atp-info-box">

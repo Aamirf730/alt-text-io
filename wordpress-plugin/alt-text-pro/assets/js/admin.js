@@ -1893,6 +1893,12 @@
             }
             this.finishedProcessId = this.processId;
 
+            // The library and credits changed: the next estimate starts fresh.
+            if (window.AltTextProBulkTools) {
+                window.AltTextProBulkTools.estimateCache = {};
+                window.AltTextProBulkTools.scheduleEstimate();
+            }
+
             this.isProcessing = false;
             this.cancelRequested = false;
             this.pendingCancel = false;

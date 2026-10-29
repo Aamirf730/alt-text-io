@@ -238,12 +238,14 @@ Yes, you can cancel your subscription at any time from your Alt Text Pro dashboa
 * New: before you start a bulk run, the Bulk page says how many credits it will use and how long it will take. If you do not have enough credits for every image, it says where the run will stop and asks you to confirm.
 * New: a bulk run interrupted by closing the tab stays paused and resumable for 7 days ("Paused: X of Y done"). It still keeps the site's one run slot, and any administrator can stop it.
 * New: "Keep going in the background" lets a bulk run finish after you close the tab, a few images at a time through WP-Cron. It stops on no credits, a rejected key or Stop, and sends the "bulk run finished" email. WP-Cron needs site visits or a server cron job to run.
+* Fix: a background bulk run that WP-Cron stopped moving is queued again when the Bulk page or another admin page loads, and the Bulk page shows it as paused with "Run in this tab instead".
 * New: failed and skipped bulk images are saved with the reason. "Recent runs" on the Bulk page lists them after a reload, and they appear in Logs with a result filter.
 * New: the Bulk page asks for confirmation, with the number of images, before a run replaces existing alt text, including in "Selected" mode.
 * New: "Undo this run" on the Bulk page puts back the alt text images had before a run, only where the alt text is still what the run wrote, and reports how many were restored or kept. No credits are used.
 * New: narrow a bulk run by upload date, by what the image is attached to (posts, pages or WooCommerce products) and by the category of that post. Counts, the estimate, the "Selected" list and the run all follow the filters.
 * New: the Logs CSV export includes failed and skipped images with their result and reason.
 * New: "Review alt text before it goes live" setting (off by default). Alt text from bulk runs, generate-on-upload and the Posts list waits on a new Review page, where you approve it (as written or edited), reject it, or approve all. Images waiting for review are not generated or billed again.
+* Fix: images waiting on the Review page are left out when you send a Media Library selection to the Bulk page, with a note saying so.
 
 = 1.7.27 =
 * Readme: clearer plugin name, short description, tags and feature list.
