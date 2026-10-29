@@ -60,13 +60,15 @@ Collected during the one-by-one review (sections A and B so far). Tick an item o
 - [ ] **A3:** the demo resuming after sign-in, and the demo image waiting in the dashboard after an email sign-up. Needs a real account.
 - [ ] **A15:** the tax note in the dashboard upgrade window. Needs a signed-in account.
 - [ ] **A8:** the plugin Bulk page's "credits needed" box. Needs a WordPress site. The plugin's PHP tests have not been run (no PHP on this machine).
-- [ ] **B4, B5, C10:** the real Supabase replies (account already exists, sign-up, resend, rate limit, wrong password). The screens were checked in the browser by setting their state by hand.
+- [ ] **B6:** that production still sends the repo's branded template. Last confirmed with a real test email on 12 Aug (`progress.md`).
+- [ ] **B4, B5, B7, C10:** the real Supabase replies (account already exists, sign-up, resend, rate limit, wrong password), and a plugin sign-up confirmed on a phone finishing with "I've confirmed — continue". The screens were checked in the browser by setting their state by hand.
 
 **Release steps not done**
 
 - [ ] Push the branch and deploy the website. None of the 29 Oct website fixes are live.
 - [ ] Release plugin 1.7.28 to WordPress.org (Bulk page credits box, readme wording).
 - [ ] Apply the 8 database migrations to production (the steps marked *needs new migration*).
+- [ ] **B6:** apply the updated confirmation and reset email templates (`supabase/templates/`) in production Supabase, and check that production's link expiry is 1 hour, as the emails now say.
 
 **Done**
 
@@ -146,10 +148,10 @@ Switches to sign-in with a clear message. It doesn't mention Google if that acco
 *Changed 29 Oct:* the homepage now swaps the form for a "Check your email" panel (address, "Not there? Check your spam folder.", resend, "Already confirmed? Log in", "Use a different email") instead of a small note under a still-filled form. The connect window and customer offer page also mention the spam folder. On all three, the resend button counts down from 60 seconds after an email is sent, so Supabase's "you can only request this after N seconds" error no longer shows.
 
 **B6. Gets a branded confirmation email**: OK
-The repo has a branded template. Whether production uses it can't be confirmed from code.
+The repo has a branded template. Whether production uses it can't be confirmed from code. *Reviewed 29 Oct:* `progress.md` records it going live on 12 Aug, sent as Alt Text Pro <help@alt-text.pro> with the subject "Confirm your Alt Text Pro email", and checked with a real test email. The link goes to www.alt-text.pro/auth/confirm, not a supabase.co address. *Changed 29 Oct (repo only):* the confirmation and password reset emails now say the link works for 1 hour, include a copy-and-paste link under the button, add "Questions? Reply to this email and we will help.", and fit phone screens. The confirmation email also says the 150 free credits are ready once confirmed. Production keeps the old wording until the templates are applied in Supabase.
 
 **B7. Clicks the link, possibly on another device**: OK
-Works across devices, then goes to /email-confirmed and on to the dashboard.
+Works across devices, then goes to /email-confirmed and on to the dashboard. *Fixed 29 Oct:* for plugin sign-ups confirmed on a phone or another device, both connect windows said the WordPress window "continues on its own", which only happens in the same browser. They now say to click "I've confirmed — continue" in that case. The phone tab's "Close this tab" button, which browsers usually block for tabs opened from email, now falls back to "You can close this tab now." The homepage line about the saved demo image now says it waits "when you sign in on this computer".
 
 **B8. Goes back to the original tab after confirming in another one**: PARTIAL
 That tab stays on "Confirm your email" and doesn't move on. The plugin's connect window handles this; the homepage doesn't.

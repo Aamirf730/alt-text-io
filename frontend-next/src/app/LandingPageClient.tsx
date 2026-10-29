@@ -1106,7 +1106,7 @@ export default function LandingPage() {
                       Open it to finish creating your account. It opens your dashboard, so you can close this window.
                     </p>
                     {demoImageKept && (
-                      <p className="mt-3 text-sm text-ink-muted">Your image will be waiting in the dashboard, ready to generate.</p>
+                      <p className="mt-3 text-sm text-ink-muted">Your image will be waiting in the dashboard when you sign in on this computer, ready to generate.</p>
                     )}
                     <p className="mt-3 text-sm text-ink-muted">Not there? Check your spam folder.</p>
                   </div>

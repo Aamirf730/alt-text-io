@@ -131,6 +131,9 @@ function ConnectPageContent() {
     const { secondsLeft: resendSecondsLeft, startCooldown: startResendCooldown } = useResendCooldown();
     // The account was confirmed in a tab with no WordPress opener.
     const [isDetachedFromWordPress, setIsDetachedFromWordPress] = useState(false);
+    // Browsers only let a page close a tab that a script opened, so a tab
+    // opened from the confirmation email usually stays open.
+    const [closeTabBlocked, setCloseTabBlocked] = useState(false);
     // A signed-in visit without a WordPress callback (direct visit or after cancel).
     const [hasNoConnectRequest, setHasNoConnectRequest] = useState(false);
     const [connectionCancelled, setConnectionCancelled] = useState(false);
@@ -423,6 +426,13 @@ function ConnectPageContent() {
     useEffect(() => {
         continueWithSessionRef.current = continueWithSession;
     });
+
+    const closeThisTab = () => {
+        window.close();
+        window.setTimeout(() => {
+            if (!window.closed) setCloseTabBlocked(true);
+        }, 300);
+    };
 
     const confirmConnection = async () => {
         if (!callbackTarget) {
@@ -1038,8 +1048,9 @@ function ConnectPageContent() {
                             Waiting for you to confirm your email…
                         </p>
                         <p>
-                            Open the link in the email. This window continues on its own once your
-                            email is confirmed, so keep it open.
+                            Open the link in the email. If you open it in this browser, this window
+                            continues on its own, so keep it open. Opened it on your phone or another
+                            device? Click &ldquo;I&apos;ve confirmed — continue&rdquo; below.
                         </p>
                         <p>Not there? Check your spam folder.</p>
                         <div className="connect-actions">
@@ -1113,15 +1124,23 @@ function ConnectPageContent() {
                         <CheckCircle size={52} className="confirmation-icon" />
                         <h2>Return to the WordPress connection window to finish</h2>
                         <p>
-                            Your account is ready. Go back to the Alt Text Pro window you opened from
-                            WordPress. It continues on its own and asks you to confirm this site:
+                            Your email is confirmed. Go back to the Alt Text Pro window you opened from
+                            WordPress, where you&apos;ll confirm this site:
                         </p>
                         <div className="confirmation-target">{callbackTarget.host}</div>
-                        <p className="confirmation-note">You can close this tab.</p>
+                        <p className="confirmation-note">
+                            If you confirmed in the same browser, that window continues on its own. If you
+                            confirmed on your phone or another device, click &ldquo;I&apos;ve confirmed —
+                            continue&rdquo; there.
+                        </p>
                         {errorBanner}
-                        <button type="button" className="connect-submit-btn" onClick={() => window.close()}>
-                            Close this tab
-                        </button>
+                        {closeTabBlocked ? (
+                            <p className="confirmation-note" role="status">You can close this tab now.</p>
+                        ) : (
+                            <button type="button" className="connect-submit-btn" onClick={closeThisTab}>
+                                Close this tab
+                            </button>
+                        )}
                         <button
                             type="button"
                             className="connect-cancel-btn"
