@@ -23,13 +23,14 @@ if (!defined('ABSPATH')) {
                 </p>
 
                 <div class="atp-actions is-center is-stack">
-                    <a href="https://www.alt-text.pro/dashboard" target="_blank" rel="noopener noreferrer" class="button-secondary-custom">
-                        <span><?php esc_html_e('Get API Key', 'alt-text-pro'); ?></span>
-                        <span class="dashicons dashicons-external" aria-hidden="true"></span>
-                    </a>
+                    <button type="button" class="button-primary-custom open-modal"
+                        data-modal="alt-text-pro-onboarding-modal">
+                        <span class="dashicons dashicons-admin-links" aria-hidden="true"></span>
+                        <span><?php esc_html_e('Connect Account', 'alt-text-pro'); ?></span>
+                    </button>
                     <a href="<?php echo esc_url(admin_url('admin.php?page=alt-text-pro-settings')); ?>"
-                        class="button-primary-custom">
-                        <span><?php esc_html_e('Configure Settings', 'alt-text-pro'); ?></span>
+                        class="button-secondary-custom">
+                        <span><?php esc_html_e('Settings', 'alt-text-pro'); ?></span>
                         <span class="dashicons dashicons-arrow-right-alt" aria-hidden="true"></span>
                     </a>
                 </div>
@@ -202,6 +203,17 @@ else: ?>
                 <div class="stat-value is-text">
                     <?php echo esc_html($alt_text_pro_plan_name); ?>
                 </div>
+                <?php if (!empty($usage_stats['account_email'])): ?>
+                    <div class="stat-desc">
+                        <?php
+                        echo esc_html(sprintf(
+                            /* translators: %s: email address of the connected Alt Text Pro account */
+                            __('Connected as %s', 'alt-text-pro'),
+                            sanitize_email($usage_stats['account_email'])
+                        ));
+                        ?>
+                    </div>
+                <?php endif; ?>
                 <div class="stat-footer">
                     <a href="<?php echo esc_url(ALT_TEXT_PRO_DASHBOARD_URL); ?>" target="_blank" rel="noopener noreferrer">
                         <span><?php esc_html_e('Manage Subscription', 'alt-text-pro'); ?></span>

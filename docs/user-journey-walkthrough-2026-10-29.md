@@ -17,12 +17,11 @@ Some steps depend on the 8 new database migrations from the last round, which ar
 
 ## Missing or broken at a glance
 
-There are 186 steps across 16 sections: 130 OK, 36 PARTIAL, 20 MISSING (18 different gaps, 2 of which are listed in two sections) and 0 BROKEN. Before the 29 Oct fixes: 109 OK, 48 PARTIAL, 27 MISSING and 2 BROKEN.
+There are 186 steps across 16 sections: 137 OK, 30 PARTIAL, 19 MISSING (17 different gaps, 2 of which are listed in two sections) and 0 BROKEN. Before the 29 Oct fixes: 109 OK, 48 PARTIAL, 27 MISSING and 2 BROKEN.
 
 | Step | What's missing or broken |
 |---|---|
 | A5 | Reviews, ratings, install count or testimonials on the website |
-| E10 | Plugin showing which account the site is connected to |
 | F2 | Generate from the Media Library list view (row or bulk action) |
 | G6 | Bulk runs that keep going without the browser tab open |
 | G14 | Undo a bulk run |
@@ -56,7 +55,7 @@ Collected during the one-by-one review (sections A and B so far). Tick an item o
 
 - [ ] **A3:** the demo resuming after sign-in, and the demo image waiting in the dashboard after an email sign-up. Needs a real account.
 - [ ] **A15:** the tax note in the dashboard upgrade window. Needs a signed-in account.
-- [ ] **A8:** the plugin Bulk page's "credits needed" box. Needs a WordPress site. The plugin's PHP tests have not been run (no PHP on this machine).
+- [ ] **Plugin 1.7.28 on a real WordPress site:** A8 (Bulk page credits box), D8 (Connect Account on the dashboard), D11 (storage check in the connect window), E10 ("Connected as"), E11 ("Connect a different account"), and the later plugin steps marked *fixed 29 Oct*. Only a PHP syntax check was possible here (no PHP runtime); the plugin's PHP tests have not been run.
 - [ ] **B11:** the welcome email arriving after a real sign-up (needs the functions deployed). It can be previewed first with the admin test-send tool (`signup_welcome`).
 - [ ] **B14:** the getting-started checklist with a real account. It was checked locally against sample account data.
 - [ ] **B6:** that production still sends the repo's branded template. Last confirmed with a real test email on 12 Aug (`progress.md`).
@@ -221,11 +220,11 @@ From the docs and the dashboard. The ZIP is built during deploy.
 **D3. Reads install instructions**: OK
 Both methods are in the docs, plus the WordPress 5.0 / PHP 7.4 requirement.
 
-**D4. Dashboard tells them what to do next**: PARTIAL
-Only a docs link. No "Install from WordPress.org" button, and the ZIP is far down the page.
+**D4. Dashboard tells them what to do next**: OK
+Only a docs link. No "Install from WordPress.org" button, and the ZIP is far down the page. *Fixed 29 Oct:* the dashboard's getting-started checklist has "Get the plugin" (WordPress.org) and the setup guide (B14).
 
-**D5. Follows the readme setup steps**: PARTIAL
-The readme says to click "Connect to Alt Text Pro". The buttons are actually labelled "Connect Account" and "Start onboarding".
+**D5. Follows the readme setup steps**: OK
+The readme says to click "Connect to Alt Text Pro". The buttons are actually labelled "Connect Account" and "Start onboarding". *Fixed 29 Oct:* the readme says "Connect Account", "Start onboarding" and "Test", matching the plugin (A11).
 
 **D6. Activates the plugin and lands somewhere useful**: OK
 Goes straight to the plugin's dashboard (not on network or bulk activation).
@@ -233,8 +232,8 @@ Goes straight to the plugin's dashboard (not on network or bulk activation).
 **D7. Sees a welcome or connect window**: OK
 Opens automatically until connected or dismissed.
 
-**D8. Closes the window ("later")**: PARTIAL
-The plugin dashboard then has no Connect button. They have to go through Settings.
+**D8. Closes the window ("later")**: OK
+The plugin dashboard then has no Connect button. They have to go through Settings. *Fixed 29 Oct:* the plugin dashboard's "not connected" card now has a Connect Account button that opens the connect window.
 
 **D9. Finds the plugin in the admin menu**: OK
 "Alt Text Pro" with Dashboard, Bulk Process, Settings and Usage & Logs.
@@ -242,8 +241,8 @@ The plugin dashboard then has no Connect button. They have to go through Setting
 **D10. Sees a reminder on other admin pages**: OK
 The "configure your API key" notice has a "Don't show again" link, remembered for each user. *Fixed 29 Oct.*
 
-**D11. Server can't store the key securely**: PARTIAL
-No check up front. They only find out after signing in, with an AUTH_KEY/OpenSSL error.
+**D11. Server can't store the key securely**: OK
+No check up front. They only find out after signing in, with an AUTH_KEY/OpenSSL error. *Fixed 29 Oct:* the connect window checks up front (a test encryption) and, if the site cannot store a key, says why (OpenSSL missing or no unique AUTH_KEY) and disables the connect buttons.
 
 ## E. Connecting the site to an account
 
@@ -273,17 +272,17 @@ The key is checked when saved.
 **E9. Sees that it worked**: OK
 "Connected successfully!", then the dashboard with credits and the number of images missing alt text.
 
-**E10. Sees which account the site is connected to**: **MISSING**
-The plugin never shows the account email. The server returns it (`class-settings.php:638`), but the plugin only shows the plan and credits.
+**E10. Sees which account the site is connected to**: OK
+The plugin never shows the account email. The server returns it (`class-settings.php:638`), but the plugin only shows the plan and credits. *Fixed 29 Oct:* the plugin dashboard's Plan card says "Connected as …" and Settings says which account the site is connected to (the usage reply now includes the account email).
 
-**E11. Switches to another account**: PARTIAL
-They must Disconnect first or paste a new key. "Start onboarding" is hidden once a key exists.
+**E11. Switches to another account**: OK
+They must Disconnect first or paste a new key. "Start onboarding" is hidden once a key exists. *Fixed 29 Oct:* Settings shows "Connect a different account" when a key is saved. It opens the same connect window, which offers "Use a different account", and the new key replaces the old one.
 
 **E12. Service is down while connecting**: OK
 The key is saved as "unverified", with a hint to test it later.
 
-**E13. Sees the site appear in the website dashboard**: PARTIAL
-The connected-sites list doesn't refresh until the page is reloaded *(needs new migration)*.
+**E13. Sees the site appear in the website dashboard**: OK
+The connected-sites list doesn't refresh until the page is reloaded *(needs new migration)*. *Fixed 29 Oct:* the list refreshes by itself when the person comes back to the dashboard tab (at most every 10 seconds), as well as with its refresh button.
 
 ## F. First alt text
 

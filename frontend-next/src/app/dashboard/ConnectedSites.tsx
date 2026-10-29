@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import NextImage from "next/image";
 import { Globe, RefreshCw } from "lucide-react";
 
@@ -25,8 +25,12 @@ export default function ConnectedSites() {
     const [sites, setSites] = useState<ConnectedSite[]>([]);
     const [state, setState] = useState<LoadState>("loading");
 
-    const loadSites = useCallback(async () => {
-        setState("loading");
+    const lastLoadRef = useRef(0);
+
+    // quiet: refresh in place without the loading message.
+    const loadSites = useCallback(async ({ quiet = false }: { quiet?: boolean } = {}) => {
+        lastLoadRef.current = Date.now();
+        if (!quiet) setState("loading");
         try {
             const accessToken = await getAccessToken();
             if (!accessToken) {
@@ -47,7 +51,7 @@ export default function ConnectedSites() {
 
             const data = await response.json().catch(() => null);
             if (!response.ok || !data?.success || !Array.isArray(data.sites)) {
-                setState("error");
+                if (!quiet) setState("error");
                 return;
             }
 
@@ -55,13 +59,28 @@ export default function ConnectedSites() {
             setState("ready");
         } catch (error) {
             console.warn("Connected sites unavailable:", error);
-            setState("error");
+            if (!quiet) setState("error");
         }
     }, []);
 
     useEffect(() => {
         const timer = window.setTimeout(() => void loadSites(), 0);
         return () => window.clearTimeout(timer);
+    }, [loadSites]);
+
+    // A site connected in another tab shows up when the person comes back.
+    useEffect(() => {
+        const refreshOnReturn = () => {
+            if (document.visibilityState !== "visible") return;
+            if (Date.now() - lastLoadRef.current < 10_000) return;
+            void loadSites({ quiet: true });
+        };
+        document.addEventListener("visibilitychange", refreshOnReturn);
+        window.addEventListener("focus", refreshOnReturn);
+        return () => {
+            document.removeEventListener("visibilitychange", refreshOnReturn);
+            window.removeEventListener("focus", refreshOnReturn);
+        };
     }, [loadSites]);
 
     return (

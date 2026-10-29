@@ -73,6 +73,20 @@ echo wp_kses_post(
 ); ?>
                     </p>
                     <?php if ($alt_text_pro_has_key): ?>
+                    <?php if (!empty($account_email)): ?>
+                    <p class="description atp-help atp-connected-as">
+                        <?php
+                        echo wp_kses(
+                            sprintf(
+                                /* translators: %s: email address of the connected Alt Text Pro account */
+                                __('This site is connected to the Alt Text Pro account <strong>%s</strong>.', 'alt-text-pro'),
+                                esc_html($account_email)
+                            ),
+                            array('strong' => array())
+                        );
+                        ?>
+                    </p>
+                    <?php endif; ?>
                     <p class="description atp-help">
                         <?php esc_html_e('An API key is already saved. Leave this blank to keep it, or paste a new key to replace it.', 'alt-text-pro'); ?>
                     </p>
@@ -87,14 +101,17 @@ echo wp_kses_post(
                             <span><?php esc_html_e('Disconnect account', 'alt-text-pro'); ?></span>
                         </button>
                     <?php endif; ?>
-                    <?php if (!$alt_text_pro_has_key): ?>
                         <button type="button" class="button-secondary-custom open-modal"
                             data-modal="alt-text-pro-onboarding-modal">
                             <span class="dashicons dashicons-admin-links" aria-hidden="true"></span>
-                            <span><?php esc_html_e('Start onboarding', 'alt-text-pro'); ?></span>
+                            <span>
+                                <?php
+                                echo esc_html($alt_text_pro_has_key
+                                    ? __('Connect a different account', 'alt-text-pro')
+                                    : __('Start onboarding', 'alt-text-pro'));
+                                ?>
+                            </span>
                         </button>
-                    <?php
-endif; ?>
                     </div>
                     <div id="connection-test-result" aria-live="polite"></div>
                     <?php if ($alt_text_pro_has_key): ?>

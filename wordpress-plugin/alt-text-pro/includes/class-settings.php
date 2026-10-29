@@ -833,6 +833,26 @@ class AltTextPro_Settings
     }
 
     /**
+     * Why this site cannot store an API key, or '' when it can. Checked before
+     * Connect Account, so nobody signs in only to hit the error afterwards.
+     *
+     * @return string Message for the administrator, or empty string
+     */
+    public function get_key_storage_problem()
+    {
+        if (!function_exists('openssl_encrypt') || !function_exists('openssl_cipher_iv_length')) {
+            return __('This server\'s PHP does not have the OpenSSL extension, which Alt Text Pro needs to store your API key encrypted. Ask your host to enable OpenSSL, then connect.', 'alt-text-pro');
+        }
+        if ($this->get_encryption_key() === false) {
+            return __('This site\'s wp-config.php has no unique AUTH_KEY, which Alt Text Pro needs to encrypt your API key. Add one (WordPress.org has a secret key generator), then connect.', 'alt-text-pro');
+        }
+        if ($this->encrypt_api_key('alt_storage_check') === false) {
+            return __('This server could not encrypt your API key. Ask your host to check PHP\'s OpenSSL extension, then connect.', 'alt-text-pro');
+        }
+        return '';
+    }
+
+    /**
      * Encrypt an API key before storing in database.
      *
      * @param string $plain_text The plain-text API key

@@ -699,6 +699,16 @@ class AltTextPro_Admin
     {
         $settings = wp_parse_args(get_option('alt_text_pro_settings', array()), AltTextPro_Settings::defaults());
 
+        // Which Alt Text Pro account the saved key belongs to.
+        $account_email = '';
+        $usable_settings = (new AltTextPro_Settings())->get_settings();
+        if (!empty($usable_settings['api_key']) && AltTextPro_API_Client::validate_api_key_format($usable_settings['api_key'])) {
+            $usage_response = (new AltTextPro_API_Client())->get_usage_stats();
+            if (!empty($usage_response['success']) && !empty($usage_response['data']['account_email'])) {
+                $account_email = sanitize_email($usage_response['data']['account_email']);
+            }
+        }
+
         include ALT_TEXT_PRO_PLUGIN_PATH . 'templates/settings.php';
     }
 

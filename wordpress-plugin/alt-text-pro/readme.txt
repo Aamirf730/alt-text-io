@@ -182,6 +182,10 @@ Yes, you can cancel your subscription at any time from your Alt Text Pro dashboa
 * New: a Generate button in the media modal and the Media Library grid.
 * New: a bulk run survives a page reload. The Bulk page shows the running run so its owner can resume it and any administrator can stop it, and the browser warns before leaving a running run.
 * New: the Bulk page compares the images missing alt text with your credits and says how many more credits you need, or that you have enough.
+* New: the plugin dashboard and Settings show which Alt Text Pro account the site is connected to.
+* New: "Connect a different account" in Settings switches the site to another account without disconnecting first.
+* New: the plugin dashboard has a Connect Account button when the site is not connected yet.
+* New: the connect window checks first that this site can store the API key (OpenSSL and a unique AUTH_KEY), and explains what to fix before you sign in.
 * New: "Selected" mode lets you search and page through all images, including ones that already have alt text, to regenerate them.
 * New: "Email me when a bulk run finishes" setting (on by default). The email is now proper plain text.
 * New: the "Send image context" setting is shown on the Settings page. The unused batch-size field was removed.

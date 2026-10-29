@@ -291,6 +291,8 @@ exports.handler = async (event, context) => {
             : null,
           is_monthly_limited: monthlyCreditState.is_monthly_limited,
           total_generated: totalGenerated,
+          // The plugin shows which account its key belongs to.
+          account_email: authUser.email || profile.email || null,
           subscription_plan: profile.subscription_plan || 'free',
           plan_name: getPlanDisplayName(profile.subscription_plan, profile.monthly_credit_allowance),
           subscription_status: profile.subscription_status || 'active',

@@ -8,6 +8,8 @@
 if (!defined('ABSPATH')) {
     exit;
 }
+
+$alt_text_pro_storage_problem = (new AltTextPro_Settings())->get_key_storage_problem();
 ?>
 <div id="alt-text-pro-onboarding-modal" class="alt-text-pro-modal modal atp-ui" aria-hidden="true">
     <div class="modal-overlay close-modal" tabindex="-1"></div>
@@ -30,6 +32,12 @@ if (!defined('ABSPATH')) {
         </div>
 
         <div class="modal-body">
+            <?php if ($alt_text_pro_storage_problem !== ''): ?>
+                <div class="onboarding-message error" role="alert">
+                    <strong><?php esc_html_e('This site cannot store an API key yet.', 'alt-text-pro'); ?></strong>
+                    <?php echo esc_html($alt_text_pro_storage_problem); ?>
+                </div>
+            <?php endif; ?>
             <section class="onboarding-step onboarding-step-recommended">
                 <div class="onboarding-recommended-copy">
                     <div class="step-label">
@@ -41,7 +49,7 @@ if (!defined('ABSPATH')) {
                         <?php esc_html_e('Sign in or create a free account and we will securely connect this site for you.', 'alt-text-pro'); ?>
                     </p>
                     <button type="button" class="button button-primary-custom atp-btn-block onboarding-connect-button"
-                        id="auto-connect-btn">
+                        id="auto-connect-btn"<?php disabled($alt_text_pro_storage_problem !== ''); ?>>
                         <span><?php esc_html_e('Connect Account', 'alt-text-pro'); ?></span>
                         <span class="dashicons dashicons-arrow-right-alt2" aria-hidden="true"></span>
                     </button>
@@ -84,7 +92,7 @@ if (!defined('ABSPATH')) {
 
                 <div id="onboarding-message" class="onboarding-message" aria-live="polite"></div>
 
-                <button type="button" class="button button-secondary-custom atp-btn-block onboarding-save-button" id="onboarding-save">
+                <button type="button" class="button button-secondary-custom atp-btn-block onboarding-save-button" id="onboarding-save"<?php disabled($alt_text_pro_storage_problem !== ''); ?>>
                     <span class="dashicons dashicons-lock" aria-hidden="true"></span>
                     <span><?php esc_html_e('Save API Key', 'alt-text-pro'); ?></span>
                 </button>
