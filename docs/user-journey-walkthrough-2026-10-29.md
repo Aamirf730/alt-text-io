@@ -17,19 +17,15 @@ Some steps depend on the 8 new database migrations from the last round, which ar
 
 ## Missing or broken at a glance
 
-There are 186 steps across 16 sections: 164 OK, 12 PARTIAL, 10 MISSING (10 different gaps, 0 of which are listed in two sections) and 0 BROKEN. Before the 29 Oct fixes: 109 OK, 48 PARTIAL, 27 MISSING and 2 BROKEN.
+There are 186 steps across 16 sections: 175 OK, 5 PARTIAL, 6 MISSING (6 different gaps, 0 of which are listed in two sections) and 0 BROKEN. Before the 29 Oct fixes: 109 OK, 48 PARTIAL, 27 MISSING and 2 BROKEN.
 
 | Step | What's missing or broken |
 |---|---|
 | A5 | Reviews, ratings, install count or testimonials on the website |
-| F2 | Generate from the Media Library list view (row or bulk action) |
 | G6 | Bulk runs that keep going without the browser tab open |
 | G14 | Undo a bulk run |
 | G15 | Bulk filters by date, post, category or WooCommerce products |
-| H5 | Filling image title, caption or description |
 | H6 | Approving bulk or auto results before they go live |
-| H7 | Multilingual sites (WPML or Polylang) |
-| H8 | Marking one image as decorative |
 | M9 | Team members |
 
 ---
@@ -41,7 +37,6 @@ Collected during the one-by-one review (sections A and B so far). Tick an item o
 **Waiting on a decision**
 
 - [ ] **A5:** no reviews, ratings, install count or testimonials on the website. Left out on purpose while the plugin has about 10 installs and no ratings.
-- [ ] **A10:** the Alt Text Simulator stays a scripted teaching demo. The homepage demo already generates real alt text, so a second generator is not planned unless wanted.
 - [ ] **B2:** the 6-character password minimum is a live Supabase setting. Raising it needs approval to change production.
 - [ ] **M9:** team members are not built. A proper version needs new tables (members and invitations), invitation emails, and members spending the owner's credits, which changes the credit-reservation database functions. API keys are stored hashed, so members can't simply be shown the owner's key. Decide whether Agency customers need it before building it.
 - [ ] **O4, O5:** the Contact page and the automatic reply now say "We usually reply within one to two business days". Confirm that promise, or change the wording.
@@ -70,6 +65,7 @@ Collected during the one-by-one review (sections A and B so far). Tick an item o
 
 **Done**
 
+- [x] **A10:** the simulator links to the real homepage demo ("Try it on your own image"). *30 Oct.*
 - [x] **A13:** Privacy names Google (Gmail) as the email provider, including for Supabase's confirmation and reset emails. *29 Oct.*
 - [x] **A3:** email sign-ups that need confirmation keep the demo image. It is saved in the browser for 24 hours and waits in the dashboard, ready to generate. *29 Oct.*
 - [x] **A8:** a "How many images need alt text?" calculator in the pricing section suggests the cheapest packs. *29 Oct.*
@@ -110,8 +106,8 @@ Credit packs are shown ($12 for 1,000 and up). There's no "how many credits do I
 **A9. Reads the FAQ**: OK
 Six questions on the homepage, more in the docs. *Changed 29 Oct:* two questions added, "Will it replace alt text I already wrote?" and "What happens to my images?", so there are now eight.
 
-**A10. Tries the Alt Text Simulator**: PARTIAL
-A scripted demo. It doesn't generate anything real and has no sign-up button. *Fixed 29 Oct:* the page now ends with "Start with 150 free credits" and "Install the WordPress plugin" buttons, and the "No alt text" keywords say png instead of jpg. It stays a teaching page, not a generator.
+**A10. Tries the Alt Text Simulator**: OK
+A scripted demo. It doesn't generate anything real and has no sign-up button. *Fixed 29 Oct:* the page now ends with "Start with 150 free credits" and "Install the WordPress plugin" buttons, and the "No alt text" keywords say png instead of jpg. It stays a teaching page, not a generator. *Changed 29 Oct:* the simulator stays a teaching page by design, and now leads with "Try it on your own image", which opens the real demo on the homepage.
 
 **A11. Reads the docs**: OK
 Getting started, installation, features, pricing, troubleshooting and FAQ. *Fixed 29 Oct:* the button is now called "Connect Account" (docs and readme), the settings list matches the plugin (batch size removed, five newer settings added, the "Test" button named correctly), AVIF and HEIC are listed, the API error example matches the real reply, the two misleading troubleshooting headings were renamed, the quick start no longer says to create an account first, and bulk is described as one image at a time.
@@ -287,20 +283,20 @@ The connected-sites list doesn't refresh until the page is reloaded *(needs new 
 
 **F1. Generates for one image in the Media Library grid or image window**: OK
 
-**F2. Generates from the Media Library list view (row action or bulk action)**: **MISSING**
-There's nothing in the list view. They have to open each image.
+**F2. Generates from the Media Library list view (row action or bulk action)**: OK
+There's nothing in the list view. They have to open each image. *Fixed 29 Oct:* each image in the Media Library list view has "Generate alt text", with the result shown in place (replace or keep when alt text already exists), and a bulk action opens the Bulk page with the chosen images selected.
 
 **F3. Generates on the full image edit screen**: OK
 Side box, then Apply, then Update.
 
-**F4. Generates from the image block in the block editor**: PARTIAL
-Only through the media window when choosing or replacing an image.
+**F4. Generates from the image block in the block editor**: OK
+Only through the media window when choosing or replacing an image. *Fixed 29 Oct:* the image block has an Alt Text Pro panel with "Generate alt text" that fills the block's alternative text, and the Media Library's when it is empty or overwrite is on.
 
 **F5. Reviews the draft before it's saved**: OK
 Single images give a draft and an Apply button.
 
-**F6. Generates a draft but never clicks Apply**: PARTIAL
-The credit is used anyway, and it's logged as "generated" although the image still has no alt text.
+**F6. Generates a draft but never clicks Apply**: OK
+The credit is used anyway, and it's logged as "generated" although the image still has no alt text. *Fixed 29 Oct:* Generate now says it uses 1 credit even if the draft is not applied, and the Logs mark each entry "Saved to image" or "Draft, not applied" (older rows show no status).
 
 **F7. Edits or regenerates**: OK
 Edited in the normal WordPress field. Each regenerate costs a credit.
@@ -317,8 +313,8 @@ Defaults to the site's language.
 **F11. Runs out of credits**: OK
 A clear message with a "Buy credits or upgrade" link.
 
-**F12. Key is invalid or has been rotated**: PARTIAL
-Shows "Invalid API key…" with no link to Settings.
+**F12. Key is invalid or has been rotated**: OK
+Shows "Invalid API key…" with no link to Settings. *Fixed 29 Oct:* every "Invalid API key" message links to Settings to reconnect (or says to ask an administrator).
 
 **F13. Service is down, or the image can't be described**: OK
 Specific messages for each case.
@@ -392,19 +388,20 @@ Empty alt text in posts is filled from the Media Library when the page is shown 
 
 **H3. Featured images and WooCommerce product images**: OK
 
-**H4. Page builders (Elementor, Divi and others)**: PARTIAL
-Only images inside normal post content are covered. Builders that store their own alt text aren't.
+**H4. Page builders (Elementor, Divi and others)**: OK
+Only images inside normal post content are covered. Builders that store their own alt text aren't. *Fixed 29 Oct:* empty alt text is also filled in Elementor and Divi content shown outside the post content (Theme Builder headers, footers, templates, Elementor popups) when the image is from the Media Library. Builder alt text is never replaced; the readme FAQ lists what is not covered (images by URL, CSS backgrounds, other builders).
 
-**H5. Image title, caption or description filled too**: **MISSING**
+**H5. Image title, caption or description filled too**: OK
+*Fixed 29 Oct:* optional settings (off by default) also fill the image title while it is still the file name, and the caption and description while empty, with new alt text.
 
 **H6. Approves bulk or auto results before they go live**: **MISSING**
 Bulk, auto-upload and post-level runs write straight to the live site. The only check afterwards is the Logs list.
 
-**H7. Multilingual site (WPML or Polylang)**: **MISSING**
-One language for the whole site.
+**H7. Multilingual site (WPML or Polylang)**: OK
+One language for the whole site. *Fixed 29 Oct:* on WPML and Polylang sites, each image is described in its own language when the language setting follows the site; a chosen language still wins.
 
-**H8. Marks one image as decorative (empty alt on purpose)**: **MISSING**
-The only option is to turn off the post fill for the whole site.
+**H8. Marks one image as decorative (empty alt on purpose)**: OK
+The only option is to turn off the post fill for the whole site. *Fixed 29 Oct:* any image can be marked "Decorative image (empty alt on purpose)". It is never described or billed, keeps alt="" in posts, and is not counted as missing alt text.
 
 ## I. Running out of free credits
 
@@ -420,8 +417,8 @@ Clear stop, a buy link, and Bulk Start is disabled.
 **I4. Auto-generate fails on upload at 0**: OK
 A notice with a buy link on the next admin page.
 
-**I5. Gets a low-credit warning in WordPress**: PARTIAL
-At 10 or fewer, but only on the plugin's own dashboard page.
+**I5. Gets a low-credit warning in WordPress**: OK
+At 10 or fewer, but only on the plugin's own dashboard page. *Fixed 29 Oct:* a dismissible "Only N credits left" / "You are out of credits" notice shows on the Media Library screens and Alt Text Pro pages, from the last known balance, so pages never wait on the service.
 
 **I6. Gets a low-credit email**: OK
 Sent at 5 credits, the same threshold for every plan, and only once per person ever, so a subscriber is never warned again in later months (`bootstrap_schema.sql:218`). *Fixed 29 Oct:* the warning level now follows the plan (10% of the monthly allowance, at least 5 and at most 100 credits), and it can be sent again in each new credit cycle (after a refill or a purchase), once per cycle.
@@ -580,8 +577,8 @@ Counts only.
 **N8. Receipt**: OK
 From Polar.
 
-**N9. Failed-payment emails**: PARTIAL
-Polar only, nothing in the app (K7).
+**N9. Failed-payment emails**: OK
+Polar only, nothing in the app (K7). *Fixed 29 Oct:* Polar sends the payment-failure emails, and the dashboard and the plugin now show a failed-payment warning with "Update card" (K7).
 
 **N10. Reminder before the yearly charge on annual plans**: OK
 Nothing in our code. Polar may send one, but that can't be checked from code. Some countries require it. *Fixed 29 Oct:* annual subscribers get "Your yearly Alt Text Pro plan renews on …" about a week before the renewal, with how to change or cancel. Not sent after a cancellation.

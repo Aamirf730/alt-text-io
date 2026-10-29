@@ -635,7 +635,7 @@ export default function LandingPage() {
               </div>
 
               {/* Right Side - Reference hero visual */}
-              <div className="relative min-h-[570px] animate-in fade-in zoom-in-95 delay-150 duration-1000 sm:min-h-[500px] lg:ml-[-2.5rem] lg:min-h-[470px] min-[1800px]:ml-[-4rem] min-[1800px]:min-h-[670px] min-[1800px]:-translate-y-12">
+              <div id="try-demo" className="relative scroll-mt-24 min-h-[570px] animate-in fade-in zoom-in-95 delay-150 duration-1000 sm:min-h-[500px] lg:ml-[-2.5rem] lg:min-h-[470px] min-[1800px]:ml-[-4rem] min-[1800px]:min-h-[670px] min-[1800px]:-translate-y-12">
                 <input
                   type="file"
                   id="image-upload"

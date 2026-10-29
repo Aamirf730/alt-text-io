@@ -396,7 +396,10 @@ export default function AltTextSimulatorPage() {
                         Clear descriptions help people who cannot see the image, and give search engines useful text too. Want drafts for your own images? See the{' '}
                         <Link href="/ai-alt-text-generator-for-wordpress" className="font-medium text-ink underline decoration-line-strong decoration-2 underline-offset-4 hover:decoration-ink">AI alt text generator for WordPress</Link>.
                         <div className="mt-6 flex flex-col sm:flex-row justify-center gap-3">
-                            <Link href="/?auth=signup" className={buttonVariants()}>
+                            <Link href="/#try-demo" className={buttonVariants()}>
+                                Try it on your own image
+                            </Link>
+                            <Link href="/?auth=signup" className={buttonVariants({ variant: 'secondary' })}>
                                 Start with 150 free credits
                             </Link>
                             <a
