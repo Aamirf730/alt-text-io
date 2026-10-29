@@ -78,6 +78,9 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
   },
 ];
 
+// Polar is the merchant of record and adds tax at checkout by country.
+export const PRICE_TAX_NOTE = "Prices are in US dollars. VAT, GST or sales tax may be added at checkout, depending on your country.";
+
 const PACK_FEATURES = ["Credits never expire", "Available on every plan, including Free"];
 
 export const CREDIT_PACKS: CreditPack[] = [

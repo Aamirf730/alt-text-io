@@ -67,6 +67,7 @@ export default function AboutPage() {
                                 Questions, feedback, or a bug to report? Email us or use the contact form.
                             </p>
                             <p className="text-ink leading-relaxed mt-4">
+                                <strong>Operator:</strong> Alt Text Pro, India<br />
                                 <strong>Email:</strong> help@alt-text.pro<br />
                                 <strong>Website:</strong> <Link href="/contact" className="font-medium text-ink underline decoration-line-strong decoration-2 underline-offset-4 hover:decoration-ink">www.alt-text.pro/contact</Link>
                             </p>

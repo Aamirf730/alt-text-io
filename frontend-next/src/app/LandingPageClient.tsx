@@ -134,11 +134,12 @@ export default function LandingPage() {
     const authMode = params.get("auth");
     if (authMode !== "signin" && authMode !== "signup") return;
 
-    params.delete("auth");
-    const query = params.toString();
-    window.history.replaceState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`);
-
+    // The parameter is dropped inside the timer so an effect that is set up,
+    // cleaned up and run again (React Strict Mode) still sees it.
     const timer = window.setTimeout(() => {
+      params.delete("auth");
+      const query = params.toString();
+      window.history.replaceState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`);
       setIsLogin(authMode === "signin");
       setShowAuthForm(true);
     }, 0);

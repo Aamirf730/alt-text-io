@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { CREDIT_PACKS, SUBSCRIPTION_PLANS } from "@/lib/pricing-catalog";
+import { CREDIT_PACKS, PRICE_TAX_NOTE, SUBSCRIPTION_PLANS } from "@/lib/pricing-catalog";
 
 type PricingSectionProps = {
   billingCycle: string;
@@ -143,6 +143,7 @@ export default function PricingSection({
             1 credit per successful image
           </span>
           <p className="mt-3 text-sm text-ink-muted">Failed requests don&apos;t use credits. Plan credits refresh monthly; signup and pack credits never expire.</p>
+          <p className="mt-1 text-sm text-ink-muted">{PRICE_TAX_NOTE}</p>
         </div>
       </div>
     </section>

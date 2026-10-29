@@ -80,6 +80,10 @@ export default function ContactPage() {
                         <p className="text-lg text-ink-muted max-w-2xl mx-auto">
                             Have a question or need help? We'd love to hear from you. Send us a message and we'll respond as soon as possible.
                         </p>
+                        <p className="mt-3 text-base text-ink-muted">
+                            Prefer email? Write to{' '}
+                            <a href="mailto:help@alt-text.pro" className="font-medium text-ink underline decoration-line-strong decoration-2 underline-offset-4 hover:decoration-ink">help@alt-text.pro</a>.
+                        </p>
                     </div>
 
                     {/* Contact Form */}

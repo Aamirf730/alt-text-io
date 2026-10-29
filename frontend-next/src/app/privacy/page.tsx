@@ -32,13 +32,13 @@ export default function PrivacyPage() {
 
                     <div className="relative z-10">
                         <h1 className="text-4xl md:text-5xl font-bold text-ink mb-4 tracking-tight">Privacy Policy</h1>
-                        <p className="text-ink-muted mb-12 font-medium tracking-wide">Last updated: August 11, 2026</p>
+                        <p className="text-ink-muted mb-12 font-medium tracking-wide">Last updated: October 29, 2026</p>
 
                         <div className="prose prose-slate max-w-none space-y-12">
                             <section>
                                 <h2 className="text-2xl font-semibold text-ink mb-4 tracking-tight">1. Introduction</h2>
                                 <p className="text-ink-muted leading-relaxed">
-                                    Alt Text Pro ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our AI-powered alt-text generation service.
+                                    Alt Text Pro ("we," "our," or "us"), based in India, is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our AI-powered alt-text generation service.
                                 </p>
                             </section>
 
@@ -51,6 +51,7 @@ export default function PrivacyPage() {
                                             <li>Email address (required for account creation)</li>
                                             <li>Password (stored in encrypted/hashed format)</li>
                                             <li>Account creation date and last login information</li>
+                                            <li>If you sign in with Google: the name, email address, profile picture link and Google account ID that Google shares with your permission</li>
                                         </ul>
                                     </div>
 
@@ -181,7 +182,14 @@ export default function PrivacyPage() {
                                     <div>
                                         <h3 className="text-xl font-semibold text-ink mb-3">5.7 Email delivery</h3>
                                         <p className="text-ink-muted leading-relaxed">
-                                            Our configured email delivery provider processes recipient addresses and message content for account, lifecycle, support, and service communications.
+                                            Our configured email delivery provider processes recipient addresses and message content for account, lifecycle, support, and service communications. Our emails are sent from help@alt-text.pro.
+                                        </p>
+                                    </div>
+
+                                    <div>
+                                        <h3 className="text-xl font-semibold text-ink mb-3">5.8 Google Sign-In</h3>
+                                        <p className="text-ink-muted leading-relaxed">
+                                            If you choose to sign in with Google, Google confirms your identity and shares the account details listed in section 2.1 with us. Google&apos;s privacy policy applies to the sign-in itself. We do not receive your Google password.
                                         </p>
                                     </div>
                                 </div>
@@ -294,6 +302,10 @@ export default function PrivacyPage() {
                                         If you have any questions about this Privacy Policy, please contact us at:
                                     </p>
                                     <p className="text-ink-muted leading-relaxed mt-6 flex flex-col gap-2">
+                                        <span className="flex items-center gap-2">
+                                            <strong className="text-ink">Operator:</strong>
+                                            Alt Text Pro, India
+                                        </span>
                                         <span className="flex items-center gap-2">
                                             <strong className="text-ink">Email:</strong>
                                             <a href="mailto:help@alt-text.pro" className="font-medium text-ink underline decoration-line-strong decoration-2 underline-offset-4 hover:decoration-ink transition-colors">help@alt-text.pro</a>

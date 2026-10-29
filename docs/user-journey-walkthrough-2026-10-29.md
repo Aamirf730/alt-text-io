@@ -85,13 +85,13 @@ Getting started, installation, features, pricing, troubleshooting and FAQ. *Fixe
 Linked from the hero, footer and guide pages.
 
 **A13. Checks the trust pages (privacy, terms, about, contact)**: OK
-All four exist and are linked from the footer. *Fixed 29 Oct: added the About link.*
+All four exist and are linked from the footer. *Fixed 29 Oct: added the About link.* *Also fixed 29 Oct:* the operator is named (Alt Text Pro, India) on About, Privacy and Terms; Terms gained "governed by the laws of India" and no longer contradict themselves on refunds; Privacy covers Google sign-in and says emails come from help@alt-text.pro; Contact shows the email address. Still open: the email delivery provider is not named.
 
 **A14. Types /pricing, /login or /signup**: PARTIAL
-All three give the 404 page (which has useful links). There are no redirects.
+All three give the 404 page (which has useful links). There are no redirects. *Fixed 29 Oct:* /pricing goes to the pricing section, /login and /signin open the sign-in form, /signup and /register open the sign-up form. The ?auth= handler was also made safe for React Strict Mode, which kept the form from opening in development.
 
 **A15. Sees whether prices include tax**: **MISSING**
-Prices are bare USD. Polar adds VAT at checkout, so EU and UK buyers see a higher total with no warning.
+Prices are bare USD. Polar adds VAT at checkout, so EU and UK buyers see a higher total with no warning. *Fixed 29 Oct:* "Prices are in US dollars. VAT, GST or sales tax may be added at checkout, depending on your country." now appears under the homepage pricing, in the docs and in the dashboard upgrade window, and the Terms say prices exclude taxes added at checkout.
 
 ## B. Creating an account on the website
 

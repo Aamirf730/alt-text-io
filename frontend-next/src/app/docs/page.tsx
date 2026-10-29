@@ -12,7 +12,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { buttonVariants } from '@/components/ui/button';
 import { PLUGIN_VERSION } from '@/lib/utils';
-import { CREDIT_PACKS, SUBSCRIPTION_PLANS } from '@/lib/pricing-catalog';
+import { CREDIT_PACKS, PRICE_TAX_NOTE, SUBSCRIPTION_PLANS } from '@/lib/pricing-catalog';
 
 const DOC_SECTIONS = [
     { id: 'getting-started', title: 'Getting Started', icon: Rocket },
@@ -446,7 +446,7 @@ export default function DocsPage() {
                                             .join(', ')}{' '}
                                         — two months free compared with monthly billing. The listed monthly credit allowance still renews monthly on subscription plans. One-time credit packs are available on every plan, including Free:{' '}
                                         {CREDIT_PACKS.map((pack) => `${pack.price} for ${pack.creditCount.toLocaleString()} credits`).join(', ')}.
-                                        Pack credits never expire and are only used up when you generate.
+                                        Pack credits never expire and are only used up when you generate. {PRICE_TAX_NOTE}
                                     </p>
                                     <h3 className="text-2xl font-bold mt-6 mb-4 text-ink">Credit System</h3>
                                     <p className="text-ink mb-4">Each alt-text generation consumes <strong>1 credit</strong>. Credits are used when:</p>

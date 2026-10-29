@@ -71,6 +71,18 @@ const nextConfig = {
       },
     ];
   },
+
+  // Addresses people type out of habit. The homepage opens the sign-in or
+  // sign-up dialog for ?auth=…, and holds the pricing section.
+  async redirects() {
+    return [
+      { source: '/pricing', destination: '/#pricing', permanent: false },
+      { source: '/login', destination: '/?auth=signin', permanent: false },
+      { source: '/signin', destination: '/?auth=signin', permanent: false },
+      { source: '/signup', destination: '/?auth=signup', permanent: false },
+      { source: '/register', destination: '/?auth=signup', permanent: false },
+    ];
+  },
 };
 
 export default nextConfig;

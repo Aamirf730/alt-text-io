@@ -28,13 +28,13 @@ export default function TermsPage() {
             <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
                 <div className="bg-white rounded-2xl border border-line shadow-notebook p-8 md:p-12">
                     <h1 className="text-4xl font-bold text-ink mb-2">Terms & Conditions</h1>
-                    <p className="text-ink-muted mb-8">Last updated: August 11, 2026</p>
+                    <p className="text-ink-muted mb-8">Last updated: October 29, 2026</p>
 
                     <div className="prose prose-lg max-w-none space-y-8">
                         <section>
                             <h2 className="text-2xl font-semibold text-ink mb-4">1. Introduction and Acceptance</h2>
                             <p className="text-ink leading-relaxed mb-4">
-                                Welcome to Alt Text Pro ("we," "our," or "us"). These Terms & Conditions ("Terms") govern your access to and use of our AI-powered alt-text generation service, including our website, API, and WordPress plugin (collectively, the "Service").
+                                Welcome to Alt Text Pro ("we," "our," or "us"). These Terms & Conditions ("Terms") govern your access to and use of our AI-powered alt-text generation service, including our website, API, and WordPress plugin (collectively, the "Service"). The Service is operated by Alt Text Pro, based in India.
                             </p>
                             <p className="text-ink leading-relaxed">
                                 By accessing or using our Service, you agree to be bound by these Terms. If you do not agree to these Terms, you may not use the Service.
@@ -106,7 +106,8 @@ export default function TermsPage() {
                             <ul className="list-disc list-inside text-ink space-y-2 ml-4">
                                 <li>Subscription fees are charged in advance for each billing period</li>
                                 <li>One-time payments are charged immediately upon purchase</li>
-                                <li>All fees are non-refundable except as required by law</li>
+                                <li>Prices are in US dollars and exclude applicable taxes, which our payment provider calculates and adds at checkout</li>
+                                <li>All fees are non-refundable except as required by law or as described in section 6</li>
                                 <li>If payment fails, your account may be suspended until payment is received</li>
                                 <li>We reserve the right to change our pricing with 30 days' notice</li>
                             </ul>
@@ -212,6 +213,7 @@ export default function TermsPage() {
                                 If you have any questions about these Terms, please contact us at:
                             </p>
                             <p className="text-ink leading-relaxed mt-2">
+                                <strong>Operator:</strong> Alt Text Pro, India<br />
                                 <strong>Email:</strong> help@alt-text.pro<br />
                                 <strong>Website:</strong> <Link href="/contact" className="font-medium text-ink underline decoration-line-strong decoration-2 underline-offset-4 hover:decoration-ink">www.alt-text.pro/contact</Link>
                             </p>
@@ -221,6 +223,13 @@ export default function TermsPage() {
                             <h2 className="text-2xl font-semibold text-ink mb-4">14. Changes to Terms</h2>
                             <p className="text-ink leading-relaxed">
                                 We reserve the right to modify these Terms at any time. We will notify users of material changes via email or through the Service. Your continued use of the Service after such modifications constitutes acceptance of the updated Terms.
+                            </p>
+                        </section>
+
+                        <section>
+                            <h2 className="text-2xl font-semibold text-ink mb-4">15. Governing Law</h2>
+                            <p className="text-ink leading-relaxed">
+                                These Terms are governed by the laws of India.
                             </p>
                         </section>
                     </div>

@@ -8,7 +8,7 @@ import { getAccessToken, supabase } from '@/lib/supabase';
 import { getApiBase, PLAN_CREDIT_LIMITS, PLUGIN_VERSION } from '@/lib/utils';
 import { trackMarketingEvent } from '@/lib/analytics';
 import { getPolarProductId } from '@/lib/polar-products';
-import { CREDIT_PACKS, getPlanDisplayName, getPurchaseOption, SUBSCRIPTION_PLANS } from '@/lib/pricing-catalog';
+import { CREDIT_PACKS, getPlanDisplayName, getPurchaseOption, PRICE_TAX_NOTE, SUBSCRIPTION_PLANS } from '@/lib/pricing-catalog';
 import { isCreditPackEligible as getIsCreditPackEligible } from '@/lib/credit-pack-eligibility';
 import { getUsageDisplayLimit } from '@/lib/credit-display';
 import {
@@ -1561,6 +1561,7 @@ export default function Dashboard() {
                                     <div className="text-center text-xs text-ink-muted flex items-center justify-center gap-2">
                                         <Shield className="h-3.5 w-3.5" /> Encrypted Transaction via Polar.sh
                                     </div>
+                                    <p className="text-center text-xs text-ink-muted">{PRICE_TAX_NOTE}</p>
                                 </div>
                             ) : (
                                 <div className="space-y-10">
