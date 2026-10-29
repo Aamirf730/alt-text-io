@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { EXISTING_ACCOUNT_MESSAGE, isExistingAccountSignUp } from "@/lib/auth-redirect";
+import { getResendWaitSeconds, resendButtonLabel, useResendCooldown } from "@/lib/resend-cooldown";
 import GoogleIdentityButton from "@/components/GoogleIdentityButton";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -52,6 +53,7 @@ export default function CustomerOfferPage() {
     const [authMessage, setAuthMessage] = useState("");
     // Email waiting for confirmation; enables the resend link.
     const [pendingConfirmationEmail, setPendingConfirmationEmail] = useState("");
+    const { secondsLeft: resendSecondsLeft, startCooldown: startResendCooldown } = useResendCooldown();
 
     useEffect(() => {
         let mounted = true;
@@ -122,8 +124,9 @@ export default function CustomerOfferPage() {
                     setAuthMessage(EXISTING_ACCOUNT_MESSAGE);
                 } else if (!data.session) {
                     setPendingConfirmationEmail(email.trim());
+                    startResendCooldown();
                     setAuthMessage(
-                        "Check your inbox and confirm your email, then return to this page to claim your credits."
+                        "Check your inbox and confirm your email, then return to this page to claim your credits. Not there? Check your spam folder."
                     );
                 } else if (data.user?.email) {
                     setUser({ id: data.user.id, email: data.user.email });
@@ -177,11 +180,16 @@ export default function CustomerOfferPage() {
                 email: normalizedEmail,
                 options: { emailRedirectTo: `${window.location.origin}/customer-offer` },
             });
-            setAuthMessage(
-                error
-                    ? error.message
-                    : "We sent a new confirmation email. Confirm it, then return to this page to claim your credits."
-            );
+            const waitSeconds = getResendWaitSeconds(error?.message);
+            if (waitSeconds) {
+                startResendCooldown(waitSeconds);
+                setAuthMessage(`We just sent an email. You can ask for another in ${waitSeconds} seconds.`);
+            } else if (error) {
+                setAuthMessage(error.message);
+            } else {
+                startResendCooldown();
+                setAuthMessage("We sent a new confirmation email. Confirm it, then return to this page to claim your credits. Not there? Check your spam folder.");
+            }
         } catch {
             setAuthMessage("Could not resend the confirmation email. Please try again.");
         } finally {
@@ -487,10 +495,10 @@ export default function CustomerOfferPage() {
                                                     <button
                                                         type="button"
                                                         onClick={() => void handleResendConfirmation()}
-                                                        disabled={isAuthenticating}
+                                                        disabled={isAuthenticating || resendSecondsLeft > 0}
                                                         className={cn(buttonVariants({ variant: "link" }), "text-sm")}
                                                     >
-                                                        Resend confirmation email
+                                                        {resendButtonLabel(resendSecondsLeft)}
                                                     </button>
                                                 )}
                                             </div>

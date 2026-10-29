@@ -71,7 +71,7 @@ describe("WordPress connect result screens", () => {
         expect(pageSource).toContain("CONFIRMATION_POLL_INTERVAL_MS");
         expect(pageSource).toContain("Waiting for you to confirm your email");
         expect(pageSource).toContain("I&apos;ve confirmed — continue");
-        expect(pageSource).toContain("Resend confirmation email");
+        expect(pageSource).toContain("resendButtonLabel(resendSecondsLeft)");
     });
 
     it("tells the confirmation tab to return to the WordPress window", () => {

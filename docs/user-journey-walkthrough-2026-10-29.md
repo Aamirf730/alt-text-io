@@ -1,6 +1,6 @@
 # Alt Text Pro: the customer journey, step by step
 
-Checked on 29 October 2026 against commit `4791c4d` (branch `fix/flow-audit-2026-10`) by reading the code, then updated after the follow-up fixes the same day (steps marked *fixed 29 Oct*). Nothing here was clicked through in a browser or tried on a live WordPress site.
+Checked on 29 October 2026 against commit `4791c4d` (branch `fix/flow-audit-2026-10`) by reading the code, then updated after the follow-up fixes the same day (steps marked *fixed 29 Oct*). From 29 Oct each step is being reviewed again one at a time, against the code and the local website; what that review leaves unfinished goes in **Still open** below. Nothing here was tried on a live WordPress site or with a real account.
 
 **The customer.** A small-business owner runs a WordPress site with about 800 images, most of them without alt text. They find Alt Text Pro, sign up free, connect their site, fix their library, pay when the free credits run out, use it for a year, and eventually leave.
 
@@ -17,12 +17,11 @@ Some steps depend on the 8 new database migrations from the last round, which ar
 
 ## Missing or broken at a glance
 
-There are 186 steps across 16 sections: 116 OK, 45 PARTIAL, 25 MISSING (22 different gaps, 3 of which are listed in two sections) and 0 BROKEN. Before the 29 Oct fixes: 109 OK, 48 PARTIAL, 27 MISSING and 2 BROKEN.
+There are 186 steps across 16 sections: 120 OK, 42 PARTIAL, 24 MISSING (21 different gaps, 3 of which are listed in two sections) and 0 BROKEN. Before the 29 Oct fixes: 109 OK, 48 PARTIAL, 27 MISSING and 2 BROKEN.
 
 | Step | What's missing or broken |
 |---|---|
 | A5 | Reviews, ratings, install count or testimonials on the website |
-| A15 | Any note that prices exclude VAT/tax |
 | B11 | Welcome email after a free sign-up |
 | B14 | Getting-started checklist in the dashboard |
 | C11 | "Set a password" for Google-only accounts |
@@ -46,6 +45,42 @@ There are 186 steps across 16 sections: 116 OK, 45 PARTIAL, 25 MISSING (22 diffe
 
 ---
 
+## Still open
+
+Collected during the one-by-one review (sections A and B so far). Tick an item off when it is done, and add new ones as the review goes on.
+
+**Left as they are for now (decide later)**
+
+- [ ] **A5:** no reviews, ratings, install count or testimonials on the website. Left out on purpose while the plugin has about 10 installs and no ratings.
+- [ ] **A13:** Privacy doesn't name the email delivery provider. Needs the provider's name.
+- [ ] **A3:** email sign-ups that need confirmation still lose the homepage demo image. Only email sign-in and Google keep it.
+- [ ] **A8:** no "how many credits do I need" calculator. A worked example and the plugin's Bulk page cover it for now.
+- [ ] **A10:** the Alt Text Simulator stays a scripted demo, not a real generator.
+- [ ] **B2:** the 6-character password minimum is a live Supabase setting. Raising it needs approval to change production.
+
+**Done in code but not seen working yet**
+
+- [ ] **A3:** the demo resuming after sign-in. Needs a real account.
+- [ ] **A15:** the tax note in the dashboard upgrade window. Needs a signed-in account.
+- [ ] **A8:** the plugin Bulk page's "credits needed" box. Needs a WordPress site. The plugin's PHP tests have not been run (no PHP on this machine).
+- [ ] **B4:** the real "account already exists" reply from Supabase.
+- [ ] **B5:** a real sign-up, resend and rate-limit reply from Supabase. The connect window and customer offer page changes were checked by tests only, not looked at in the browser.
+
+**Release steps not done**
+
+- [ ] Commit the B2, B4 and B5 fixes (A2 to A15 are committed).
+- [ ] Push the branch and deploy the website. None of the 29 Oct website fixes are live.
+- [ ] Release plugin 1.7.28 to WordPress.org (Bulk page credits box, readme wording).
+- [ ] Apply the 8 database migrations to production (the steps marked *needs new migration*).
+
+**Noticed during A and B, belongs to a later step**
+
+- [ ] **C:** signing in with the wrong password shows Supabase's bare "Invalid login credentials", with no hint for accounts that use Google.
+- [ ] **B9:** the expired-link page's "Resend confirmation email" button has no 60-second countdown like the sign-up forms now have.
+- [ ] Supabase's project-wide "Email rate limit exceeded" error is shown as is on all sign-up forms.
+
+---
+
 ## A. Finding and evaluating Alt Text Pro
 
 **A1. Reads the homepage**: OK
@@ -57,7 +92,7 @@ A three-step section (install and connect, generate, review and save) with examp
 **A3. Tries it on their own image before signing up**: PARTIAL
 They can pick an image on the homepage, but generating needs an account. After signing up they're sent to the dashboard and the image is lost (`LandingPageClient.tsx:179-186, 302`). *Fixed 29 Oct:* when the sign-in form was opened from the demo, signing in (email or Google) now keeps them on the homepage and generates alt text for their image. Email sign-ups that need confirmation still lose the image.
 
-**A4. Tries a large phone photo in the homepage demo (signed in)**: PARTIAL
+**A4. Tries a large phone photo in the homepage demo (signed in)**: OK
 The homepage sends the full-size image without resizing. The dashboard resizes to 1600 px / 3 MB because of the server's size limit. A big photo will likely fail with "Invalid response from server." (not tried) (`LandingPageClient.tsx:140-213`, `dashboard/page.tsx:42-43`). *Fixed 29 Oct:* the homepage now uses the same shrink step as the dashboard (`lib/prepare-image.ts`). A 39 MB test image was sent as a 0.67 MB, 1600 × 1200 JPEG.
 
 **A5. Sees reviews, star ratings, install count or testimonials**: **MISSING**
@@ -87,10 +122,10 @@ Linked from the hero, footer and guide pages.
 **A13. Checks the trust pages (privacy, terms, about, contact)**: OK
 All four exist and are linked from the footer. *Fixed 29 Oct: added the About link.* *Also fixed 29 Oct:* the operator is named (Alt Text Pro, India) on About, Privacy and Terms; Terms gained "governed by the laws of India" and no longer contradict themselves on refunds; Privacy covers Google sign-in and says emails come from help@alt-text.pro; Contact shows the email address. Still open: the email delivery provider is not named.
 
-**A14. Types /pricing, /login or /signup**: PARTIAL
+**A14. Types /pricing, /login or /signup**: OK
 All three give the 404 page (which has useful links). There are no redirects. *Fixed 29 Oct:* /pricing goes to the pricing section, /login and /signin open the sign-in form, /signup and /register open the sign-up form. The ?auth= handler was also made safe for React Strict Mode, which kept the form from opening in development.
 
-**A15. Sees whether prices include tax**: **MISSING**
+**A15. Sees whether prices include tax**: OK
 Prices are bare USD. Polar adds VAT at checkout, so EU and UK buyers see a higher total with no warning. *Fixed 29 Oct:* "Prices are in US dollars. VAT, GST or sales tax may be added at checkout, depending on your country." now appears under the homepage pricing, in the docs and in the dashboard upgrade window, and the Terms say prices exclude taxes added at checkout.
 
 ## B. Creating an account on the website
@@ -98,16 +133,17 @@ Prices are bare USD. Polar adds VAT at checkout, so EU and UK buyers see a highe
 **B1. Opens the sign-up form**: OK
 Opens as a pop-up window on the homepage. Other pages send people there with `?auth=signup`.
 
-**B2. Types email and password**: PARTIAL
-Checks the email format and a 6-character minimum. No show-password button (the eye icon is imported but unused) and no strength hint.
+**B2. Types email and password**: OK
+Checks the email format and a 6-character minimum. No show-password button (the eye icon is imported but unused) and no strength hint. *Fixed 29 Oct:* the homepage form has a labelled show/hide password button and an "At least 6 characters." hint when signing up; the connect window's button is now reachable by keyboard and labelled. The 6-character minimum is unchanged (it is a live Supabase setting).
 
 **B3. Sees Terms and Privacy at sign-up**: OK
 "By creating an account you agree to the Terms and Privacy Policy" under the sign-up form, and "By continuing…" in the plugin's connect window. *Fixed 29 Oct.*
 
 **B4. Signs up with an email that already has an account**: OK
-Switches to sign-in with a clear message. It doesn't mention Google if that account uses Google sign-in.
+Switches to sign-in with a clear message. It doesn't mention Google if that account uses Google sign-in. *Fixed 29 Oct:* the message now ends "If you signed up with Google, use the Google button." (on the homepage, the connect window and the customer offer page); on the homepage it stays in the form until the email changes or the form is sent again, instead of an 8-second pop-up; screen readers now announce the connect window's message.
 
 **B5. Sees "check your email" with a resend button**: OK
+*Changed 29 Oct:* the homepage now swaps the form for a "Check your email" panel (address, "Not there? Check your spam folder.", resend, "Already confirmed? Log in", "Use a different email") instead of a small note under a still-filled form. The connect window and customer offer page also mention the spam folder. On all three, the resend button counts down from 60 seconds after an email is sent, so Supabase's "you can only request this after N seconds" error no longer shows.
 
 **B6. Gets a branded confirmation email**: OK
 The repo has a branded template. Whether production uses it can't be confirmed from code.

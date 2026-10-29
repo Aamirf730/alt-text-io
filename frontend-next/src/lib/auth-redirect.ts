@@ -51,7 +51,7 @@ export function getSafeAuthRedirect(
 }
 
 export const EXISTING_ACCOUNT_MESSAGE =
-  "An account with this email already exists. Sign in instead, or reset your password if you have forgotten it.";
+  "An account with this email already exists. Sign in instead, or reset your password if you have forgotten it. If you signed up with Google, use the Google button.";
 
 type SignUpUser = { identities?: unknown[] | null } | null | undefined;
 

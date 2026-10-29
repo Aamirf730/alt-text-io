@@ -12,6 +12,7 @@ import { savePendingCheckout } from '@/lib/pending-checkout';
 import { SUBSCRIPTION_EXISTS_CODE } from '@/lib/subscription-status';
 import { prepareImageForUpload } from '@/lib/prepare-image';
 import { EXISTING_ACCOUNT_MESSAGE, isExistingAccountSignUp, isNewlyCreatedUser } from '@/lib/auth-redirect';
+import { getResendWaitSeconds, resendButtonLabel, useResendCooldown } from '@/lib/resend-cooldown';
 import { toast } from "sonner";
 import {
   Brain, CheckCircle, Star, ArrowRight, Users, Shield, Rocket,
@@ -41,11 +42,14 @@ const HERO_SAMPLE_ALT_TEXT = "Turquoise alpine lake reflecting sunlit mountain p
 export default function LandingPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isLogin, setIsLogin] = useState(false);
   const [showAuthForm, setShowAuthForm] = useState(false);
   // Email waiting for confirmation; shows an inline notice with a resend link.
   const [pendingConfirmationEmail, setPendingConfirmationEmail] = useState<string | null>(null);
+  const [existingAccountEmail, setExistingAccountEmail] = useState<string | null>(null);
+  const { secondsLeft: resendSecondsLeft, startCooldown: startResendCooldown } = useResendCooldown();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [generatedAltText, setGeneratedAltText] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
@@ -56,6 +60,7 @@ export default function LandingPage() {
   const [openFaq, setOpenFaq] = useState(0);
   const authDialogRef = useRef<HTMLDivElement>(null);
   const emailInputRef = useRef<HTMLInputElement>(null);
+  const confirmationHeadingRef = useRef<HTMLHeadingElement>(null);
   // Set when the demo asked the visitor to sign in, so their image is
   // processed after sign-in instead of being lost on the way to the dashboard.
   const demoAfterAuthRef = useRef(false);
@@ -80,6 +85,12 @@ export default function LandingPage() {
   useEffect(() => {
     if (!showAuthForm) demoAfterAuthRef.current = false;
   }, [showAuthForm]);
+
+  // The form's submit button disappears when the "check your email" panel
+  // replaces it, so move focus to the panel's heading.
+  useEffect(() => {
+    if (showAuthForm && pendingConfirmationEmail) confirmationHeadingRef.current?.focus();
+  }, [showAuthForm, pendingConfirmationEmail]);
 
   useEffect(() => {
     trackMarketingEvent("page_viewed", {
@@ -252,6 +263,7 @@ export default function LandingPage() {
   // After signing in, finish the demo the visitor started, or go to the dashboard.
   const continueAfterAuth = () => {
     const resumeDemo = demoAfterAuthRef.current && Boolean(selectedImage);
+    setExistingAccountEmail(null);
     setShowAuthForm(false);
     if (resumeDemo) {
       void generateDemoAltText();
@@ -268,6 +280,7 @@ export default function LandingPage() {
     }
 
     setIsLoading(true);
+    setExistingAccountEmail(null);
     try {
       let result;
 
@@ -286,13 +299,15 @@ export default function LandingPage() {
       if (result.error) {
         if (isLogin && /email not confirmed/i.test(result.error.message)) {
           setPendingConfirmationEmail(email.trim());
+          toast.error("Confirm your email first. Open the link we sent you.");
+        } else {
+          toast.error(result.error.message);
         }
-        toast.error(result.error.message);
       } else if (!isLogin && isExistingAccountSignUp(result.data.user, Boolean(result.data.session))) {
         // Supabase sends no email for an address that already has an account.
         setIsLogin(true);
         setPendingConfirmationEmail(null);
-        toast.error(EXISTING_ACCOUNT_MESSAGE, { duration: 8000 });
+        setExistingAccountEmail(email.trim());
       } else if (result.data.user) {
         if (!isLogin && result.data.session) {
           trackMarketingEvent("signup_created", {
@@ -308,7 +323,7 @@ export default function LandingPage() {
 
         if (!isLogin && !result.data.session) {
           setPendingConfirmationEmail(email.trim());
-          toast.success("Please check your email to confirm your account.");
+          startResendCooldown();
         } else {
           toast.success(isLogin ? "Welcome back!" : "Account created.");
           continueAfterAuth();
@@ -334,10 +349,17 @@ export default function LandingPage() {
       });
 
       if (error) {
-        toast.error(error.message);
+        const waitSeconds = getResendWaitSeconds(error.message);
+        if (waitSeconds) {
+          startResendCooldown(waitSeconds);
+          toast.error(`We just sent an email. You can ask for another in ${waitSeconds} seconds.`);
+        } else {
+          toast.error(error.message);
+        }
         return;
       }
 
+      startResendCooldown();
       toast.success("We sent a new confirmation email. Check your inbox and spam folder.");
     } catch (error) {
       console.error("Resend confirmation error:", error);
@@ -1068,6 +1090,65 @@ export default function LandingPage() {
               >
                 <X aria-hidden="true" />
               </button>
+              {pendingConfirmationEmail ? (
+                <div aria-live="polite">
+                  <div className="text-center mt-2 px-2">
+                    <Mail className="mx-auto h-10 w-10 text-ink" aria-hidden="true" />
+                    <h3 ref={confirmationHeadingRef} tabIndex={-1} id="auth-dialog-title" className="mt-4 outline-none text-2xl font-bold text-ink tracking-tight font-outfit mb-1.5">
+                      Check your email
+                    </h3>
+                    <p id="auth-dialog-description" className="text-sm text-ink-muted leading-relaxed">
+                      We sent a confirmation link to
+                      <span className="my-1 block font-semibold text-ink [overflow-wrap:anywhere]">{pendingConfirmationEmail}</span>
+                      Open it to finish creating your account. It opens your dashboard, so you can close this window.
+                    </p>
+                    <p className="mt-3 text-sm text-ink-muted">Not there? Check your spam folder.</p>
+                  </div>
+                  <div className="mt-6 flex flex-col gap-3">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="w-full"
+                      onClick={() => void handleResendConfirmation()}
+                      disabled={isLoading || resendSecondsLeft > 0}
+                    >
+                      {isLoading ? <Loader2 className="animate-spin" aria-hidden="true" /> : resendButtonLabel(resendSecondsLeft)}
+                    </Button>
+                  </div>
+                  <div className="mt-6 flex flex-col items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPendingConfirmationEmail(null);
+                        setIsLogin(true);
+                      }}
+                      className={buttonVariants({ variant: "link", size: "sm" })}
+                    >
+                      Already confirmed? Log in
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPendingConfirmationEmail(null);
+                        setIsLogin(false);
+                        setEmail("");
+                        setPassword("");
+                      }}
+                      className={buttonVariants({ variant: "link", size: "sm" })}
+                    >
+                      Use a different email
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowAuthForm(false)}
+                      className={buttonVariants({ variant: "ghost", size: "sm" })}
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              ) : (
+              <>
               <div className="text-center mb-6 mt-2 px-8">
                 <h3 id="auth-dialog-title" className="text-2xl font-bold text-ink tracking-tight font-outfit mb-1.5">
                   {isLogin ? "Welcome Back" : "Create Your Account"}
@@ -1078,6 +1159,11 @@ export default function LandingPage() {
               </div>
 
               <form onSubmit={handleEmailAuth} className="space-y-4">
+                {existingAccountEmail && existingAccountEmail === email.trim() && (
+                  <div className="rounded-xl border border-line bg-yellow-tint p-4 text-sm text-ink" role="alert">
+                    {EXISTING_ACCOUNT_MESSAGE}
+                  </div>
+                )}
                 <div className="space-y-2">
                   <label htmlFor="auth-email" className="label-caps">Work Email</label>
                   <Input
@@ -1106,17 +1192,32 @@ export default function LandingPage() {
                       </button>
                     )}
                   </div>
-                  <Input
-                    id="auth-password"
-                    type="password"
-                    autoComplete={isLogin ? "current-password" : "new-password"}
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="font-medium"
-                    required
-                    minLength={6}
-                  />
+                  <div className="relative">
+                    <Input
+                      id="auth-password"
+                      type={showPassword ? "text" : "password"}
+                      autoComplete={isLogin ? "current-password" : "new-password"}
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="pr-12 font-medium"
+                      required
+                      minLength={6}
+                      aria-describedby={isLogin ? undefined : "auth-password-hint"}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((visible) => !visible)}
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                      aria-pressed={showPassword}
+                      className="absolute inset-y-0 right-0 flex w-12 items-center justify-center rounded-r-xl text-ink-muted hover:text-ink focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-yellow-strong"
+                    >
+                      {showPassword ? <EyeOff className="h-5 w-5" aria-hidden="true" /> : <Eye className="h-5 w-5" aria-hidden="true" />}
+                    </button>
+                  </div>
+                  {!isLogin && (
+                    <p id="auth-password-hint" className="text-xs text-ink-muted">At least 6 characters.</p>
+                  )}
                 </div>
                 <Button
                   type="submit"
@@ -1130,22 +1231,6 @@ export default function LandingPage() {
                   )}
                 </Button>
               </form>
-
-              {pendingConfirmationEmail && (
-                <div className="mt-4 rounded-xl border border-line bg-yellow-tint p-4 text-sm text-ink-muted" role="status">
-                  <p>
-                    Confirm <span className="font-semibold text-ink">{pendingConfirmationEmail}</span> using the link we emailed you.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => void handleResendConfirmation()}
-                    disabled={isLoading}
-                    className="mt-2 text-sm font-semibold text-ink underline-offset-4 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    Resend confirmation email
-                  </button>
-                </div>
-              )}
 
               <div className="relative my-5">
                 <div className="absolute inset-0 flex items-center">
@@ -1208,6 +1293,8 @@ export default function LandingPage() {
                   Close
                 </button>
               </div>
+              </>
+              )}
             </div>
           </div>
         )}

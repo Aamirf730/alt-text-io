@@ -9,6 +9,7 @@ import { getAccessToken, supabase } from "@/lib/supabase";
 import { getApiBase } from "@/lib/utils";
 import { trackMarketingEvent } from "@/lib/analytics";
 import { EXISTING_ACCOUNT_MESSAGE, isExistingAccountSignUp, isNewlyCreatedUser } from "@/lib/auth-redirect";
+import { getResendWaitSeconds, resendButtonLabel, useResendCooldown } from "@/lib/resend-cooldown";
 import { toast } from "sonner";
 import GoogleIdentityButton from "@/components/GoogleIdentityButton";
 import "./connect-states.css";
@@ -126,6 +127,7 @@ function ConnectPageContent() {
     const [isManualApiKeyVisible, setIsManualApiKeyVisible] = useState(false);
     // Email address of a new account waiting for its confirmation link.
     const [pendingSignupEmail, setPendingSignupEmail] = useState("");
+    const { secondsLeft: resendSecondsLeft, startCooldown: startResendCooldown } = useResendCooldown();
     // The account was confirmed in a tab with no WordPress opener.
     const [isDetachedFromWordPress, setIsDetachedFromWordPress] = useState(false);
     // A signed-in visit without a WordPress callback (direct visit or after cancel).
@@ -708,9 +710,16 @@ function ConnectPageContent() {
                 options: { emailRedirectTo: buildSignupRedirectUrl() },
             });
             if (resendError) {
-                setError(resendError.message);
+                const waitSeconds = getResendWaitSeconds(resendError.message);
+                if (waitSeconds) {
+                    startResendCooldown(waitSeconds);
+                    setError(`We just sent an email. You can ask for another in ${waitSeconds} seconds.`);
+                } else {
+                    setError(resendError.message);
+                }
                 return;
             }
+            startResendCooldown();
             toast.success("We sent a new confirmation email. Open the link in it and this window will continue.");
         } catch {
             setError("Could not resend the confirmation email. Please try again.");
@@ -808,6 +817,7 @@ function ConnectPageContent() {
                     setCanResendConfirmation(true);
                     setError("");
                     setPendingSignupEmail(result.data.user.email || email.trim());
+                    startResendCooldown();
                 } else {
                     if (!isLogin) {
                         trackMarketingEvent("signup_created", {
@@ -1034,6 +1044,7 @@ function ConnectPageContent() {
                             Open the link in the email. This window continues on its own once your
                             email is confirmed, so keep it open.
                         </p>
+                        <p>Not there? Check your spam folder.</p>
                         <div className="connect-actions">
                             {errorBanner}
                             <button
@@ -1049,9 +1060,9 @@ function ConnectPageContent() {
                                 type="button"
                                 className="connect-secondary-btn"
                                 onClick={() => void handleResendConfirmation()}
-                                disabled={isLoading}
+                                disabled={isLoading || resendSecondsLeft > 0}
                             >
-                                Resend confirmation email
+                                {resendButtonLabel(resendSecondsLeft)}
                             </button>
                         </div>
                         <button type="button" className="connect-cancel-btn" onClick={leaveConfirmationWait}>
@@ -1221,7 +1232,7 @@ function ConnectPageContent() {
 
                 {/* Error message */}
                 {error && (
-                    <div className="connect-error">
+                    <div className="connect-error" role="alert">
                         <AlertTriangle size={16} />
                         <span>{error}</span>
                     </div>
@@ -1274,7 +1285,8 @@ function ConnectPageContent() {
                                 type="button"
                                 className="connect-password-toggle"
                                 onClick={() => setShowPassword(!showPassword)}
-                                tabIndex={-1}
+                                aria-label={showPassword ? "Hide password" : "Show password"}
+                                aria-pressed={showPassword}
                             >
                                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                             </button>
@@ -1289,8 +1301,8 @@ function ConnectPageContent() {
                                 </button>
                             )}
                             {canResendConfirmation && (
-                                <button type="button" className="connect-link-btn" onClick={() => void handleResendConfirmation()} disabled={isLoading}>
-                                    Resend confirmation email
+                                <button type="button" className="connect-link-btn" onClick={() => void handleResendConfirmation()} disabled={isLoading || resendSecondsLeft > 0}>
+                                    {resendButtonLabel(resendSecondsLeft)}
                                 </button>
                             )}
                         </div>
