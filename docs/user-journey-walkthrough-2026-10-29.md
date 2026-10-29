@@ -17,15 +17,11 @@ Some steps depend on the 8 new database migrations from the last round, which ar
 
 ## Missing or broken at a glance
 
-There are 186 steps across 16 sections: 175 OK, 5 PARTIAL, 6 MISSING (6 different gaps, 0 of which are listed in two sections) and 0 BROKEN. Before the 29 Oct fixes: 109 OK, 48 PARTIAL, 27 MISSING and 2 BROKEN.
+There are 186 steps across 16 sections: 184 OK, 0 PARTIAL, 2 MISSING (2 different gaps, 0 of which are listed in two sections) and 0 BROKEN. Before the 29 Oct fixes: 109 OK, 48 PARTIAL, 27 MISSING and 2 BROKEN.
 
 | Step | What's missing or broken |
 |---|---|
 | A5 | Reviews, ratings, install count or testimonials on the website |
-| G6 | Bulk runs that keep going without the browser tab open |
-| G14 | Undo a bulk run |
-| G15 | Bulk filters by date, post, category or WooCommerce products |
-| H6 | Approving bulk or auto results before they go live |
 | M9 | Team members |
 
 ---
@@ -39,13 +35,14 @@ Collected during the one-by-one review (sections A and B so far). Tick an item o
 - [ ] **A5:** no reviews, ratings, install count or testimonials on the website. Left out on purpose while the plugin has about 10 installs and no ratings.
 - [ ] **B2:** the 6-character password minimum is a live Supabase setting. Raising it needs approval to change production.
 - [ ] **M9:** team members are not built. A proper version needs new tables (members and invitations), invitation emails, and members spending the owner's credits, which changes the credit-reservation database functions. API keys are stored hashed, so members can't simply be shown the owner's key. Decide whether Agency customers need it before building it.
+- [ ] **G5:** a paused bulk run now holds the site's single run slot for up to 7 days unless its owner or an administrator stops it (it was 15 minutes). Keep, or shorten.
 - [ ] **O4, O5:** the Contact page and the automatic reply now say "We usually reply within one to two business days". Confirm that promise, or change the wording.
 
 **Done in code but not seen working yet**
 
 - [ ] **A3:** the demo resuming after sign-in, and the demo image waiting in the dashboard after an email sign-up. Needs a real account.
 - [ ] **A15:** the tax note in the dashboard upgrade window. Needs a signed-in account.
-- [ ] **Plugin 1.7.28 on a real WordPress site:** A8 (Bulk page credits box), D8 (Connect Account on the dashboard), D11 (storage check in the connect window), E10 ("Connected as"), E11 ("Connect a different account"), and the later plugin steps marked *fixed 29 Oct*. Only a PHP syntax check was possible here (no PHP runtime); the plugin's PHP tests have not been run.
+- [ ] **Plugin 1.7.28 on a real WordPress site:** nothing in the plugin has run in WordPress yet (no PHP runtime here; only syntax checks and two code reviews). Test at least: the logs-table upgrade on an existing site; A8 credits box; D8/D11/E10/E11/M8 connect and reconnect; F2 list-view row and bulk actions; F4 image-block button (post and site editor); F6 draft/saved status; G2 estimate, G5 pause/resume, G6 background runs (also with `DISABLE_WP_CRON`), G12 recent runs, G13 overwrite confirmation, G14 undo, G15 filters (with WooCommerce), G17 CSV; H4 Elementor and Divi; H5 title/caption fill; H6 Review page; H7 WPML and Polylang; H8 decorative checkbox; I5 low-credit notice; K7 failed-payment notice. The plugin's PHP tests in `wordpress-plugin/tests/` have not been run.
 - [ ] **B11:** the welcome email arriving after a real sign-up (needs the functions deployed). It can be previewed first with the admin test-send tool (`signup_welcome`).
 - [ ] **B14:** the getting-started checklist with a real account. It was checked locally against sample account data.
 - [ ] **I6, I7, J9:** the low-credit (per plan, per cycle), out-of-credits and purchase emails with a real account after the functions are deployed. Preview each with the admin test-send tool first (`credits_low_no_purchase`, `credits_out_no_purchase`, `purchase_onboarding`).
@@ -330,8 +327,8 @@ Shrunk to 2048 px. Clear error over 25 MB.
 **G1. Sees how many images are missing alt text**: OK
 "You have N images missing alt text", with a Fix Now button.
 
-**G2. Sees what the run will cost before starting**: PARTIAL
-Credits are shown, but there's no "this will use about N credits" check. The estimated time is calculated but never shown.
+**G2. Sees what the run will cost before starting**: OK
+Credits are shown, but there's no "this will use about N credits" check. The estimated time is calculated but never shown. *Fixed 29 Oct:* before Start, the Bulk page says how many credits the run will use and roughly how long it will take; if credits are short, it says where the run will stop and asks to confirm.
 
 **G3. Starts a run with 150 credits for 800 images**: OK
 Capped at 150, with an explanation and an upgrade link.
@@ -339,11 +336,11 @@ Capped at 150, with an explanation and an upgrade link.
 **G4. Watches progress**: OK
 Progress bar, current image and a log. The log doesn't show the text that was written.
 
-**G5. Closes the tab and comes back later**: PARTIAL
-The run only moves while the tab is open. "Resume run" disappears after 15 minutes idle (`class-bulk-processor.php:27`). Starting a new "missing alt" run does pick up where it left off.
+**G5. Closes the tab and comes back later**: OK
+The run only moves while the tab is open. "Resume run" disappears after 15 minutes idle (`class-bulk-processor.php:27`). Starting a new "missing alt" run does pick up where it left off. *Fixed 29 Oct:* a run left by closing the tab stays paused and resumable for 7 days ("Paused: X of Y done"); its owner can resume it or move it to the background, and any administrator can stop it.
 
-**G6. Lets the run finish without keeping the tab open**: **MISSING**
-800 images means leaving a browser tab open for a long time.
+**G6. Lets the run finish without keeping the tab open**: OK
+800 images means leaving a browser tab open for a long time. *Fixed 29 Oct:* "Keep going in the background" finishes a run after the tab is closed, a few images at a time through WP-Cron, and emails when it is done. The page explains that WP-Cron needs site visits or a server cron job.
 
 **G7. Stops a run**: OK
 "Stop after current image", with accurate credit counts.
@@ -360,23 +357,23 @@ Retries three times, then stops with an explanation.
 **G11. Sees a results summary at the end**: OK
 A Results card appears when a run finishes, stops or is cancelled, with the totals. *Fixed 29 Oct (was broken: the card was never shown).*
 
-**G12. Gets a list of failed images to retry**: PARTIAL
-*Fixed 29 Oct:* the Results card lists the failed images (up to 50) with the reason and a link to each. The list is gone after a page reload, and failed images still aren't in the Logs or the CSV.
+**G12. Gets a list of failed images to retry**: OK
+*Fixed 29 Oct:* the Results card lists the failed images (up to 50) with the reason and a link to each. The list is gone after a page reload, and failed images still aren't in the Logs or the CSV. *Fixed 29 Oct:* failed and skipped images are saved with the reason, listed under "Recent runs" on the Bulk page after a reload, and shown in Logs with a result filter.
 
-**G13. Chooses between overwriting and skipping existing alt text**: PARTIAL
-There's an Overwrite option, but no warning before hand-written alt text is replaced. "Selected" mode always overwrites.
+**G13. Chooses between overwriting and skipping existing alt text**: OK
+There's an Overwrite option, but no warning before hand-written alt text is replaced. "Selected" mode always overwrites. *Fixed 29 Oct:* before a run replaces existing alt text, including in Selected mode, the Bulk page says how many images will change and asks to confirm.
 
-**G14. Undoes a bad run**: **MISSING**
-The previous alt text isn't stored.
+**G14. Undoes a bad run**: OK
+The previous alt text isn't stored. *Fixed 29 Oct:* "Undo this run" puts back the alt text images had before the run, only where it is still what the run wrote, and says how many were restored or kept.
 
-**G15. Narrows the run by date, post, category or WooCommerce products**: **MISSING**
-Only a title/alt search and a missing/has/all filter.
+**G15. Narrows the run by date, post, category or WooCommerce products**: OK
+Only a title/alt search and a missing/has/all filter. *Fixed 29 Oct:* runs can be narrowed by upload date, by what the image is attached to (posts, pages, WooCommerce products) and by that post's category; counts, estimate, Selected list and run all follow the filters.
 
 **G16. Fixes images post by post**: OK
 The Posts list has an "Alt Text" column, including featured and WooCommerce gallery images.
 
-**G17. Exports a report**: PARTIAL
-CSV of successful generations only. Failed and skipped images aren't included.
+**G17. Exports a report**: OK
+CSV of successful generations only. Failed and skipped images aren't included. *Fixed 29 Oct:* the CSV includes failed and skipped images with their result and reason, plus the draft status.
 
 ## H. Alt text reaching visitors and search engines
 
@@ -394,8 +391,8 @@ Only images inside normal post content are covered. Builders that store their ow
 **H5. Image title, caption or description filled too**: OK
 *Fixed 29 Oct:* optional settings (off by default) also fill the image title while it is still the file name, and the caption and description while empty, with new alt text.
 
-**H6. Approves bulk or auto results before they go live**: **MISSING**
-Bulk, auto-upload and post-level runs write straight to the live site. The only check afterwards is the Logs list.
+**H6. Approves bulk or auto results before they go live**: OK
+Bulk, auto-upload and post-level runs write straight to the live site. The only check afterwards is the Logs list. *Fixed 29 Oct:* with "Review alt text before it goes live" on (off by default), bulk, upload and Posts-list alt text waits on a new Review page to approve, edit or reject; images waiting there are not billed again.
 
 **H7. Multilingual site (WPML or Polylang)**: OK
 One language for the whole site. *Fixed 29 Oct:* on WPML and Polylang sites, each image is described in its own language when the language setting follows the site; a chosen language still wins.
