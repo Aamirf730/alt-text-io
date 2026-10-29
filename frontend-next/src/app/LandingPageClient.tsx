@@ -10,14 +10,15 @@ import { trackMarketingEvent } from '@/lib/analytics';
 import { getPolarProductId } from '@/lib/polar-products';
 import { savePendingCheckout } from '@/lib/pending-checkout';
 import { SUBSCRIPTION_EXISTS_CODE } from '@/lib/subscription-status';
+import { prepareImageForUpload } from '@/lib/prepare-image';
 import { EXISTING_ACCOUNT_MESSAGE, isExistingAccountSignUp, isNewlyCreatedUser } from '@/lib/auth-redirect';
 import { toast } from "sonner";
 import {
   Brain, CheckCircle, Star, ArrowRight, Users, Shield, Rocket,
-  Upload, Eye, EyeOff, Download, Check, X, Search,
+  Eye, EyeOff, Download, Check, X, Search,
   CreditCard, Calendar, TrendingUp, Key, Copy, Info, AlertTriangle,
   RefreshCw, Book, FileText, HelpCircle, Settings, Code, DollarSign,
-  Wrench, LogOut, MessageCircle, Image as ImageIcon,
+  Wrench, LogOut, MessageCircle,
   Mail, BarChart3, Clock, Layers, Loader2, ChevronDown
 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -55,6 +56,9 @@ export default function LandingPage() {
   const [openFaq, setOpenFaq] = useState(0);
   const authDialogRef = useRef<HTMLDivElement>(null);
   const emailInputRef = useRef<HTMLInputElement>(null);
+  // Set when the demo asked the visitor to sign in, so their image is
+  // processed after sign-in instead of being lost on the way to the dashboard.
+  const demoAfterAuthRef = useRef(false);
 
   const router = useRouter();
 
@@ -71,6 +75,10 @@ export default function LandingPage() {
       document.body.style.overflow = previousOverflow;
       previousActiveElement?.focus();
     };
+  }, [showAuthForm]);
+
+  useEffect(() => {
+    if (!showAuthForm) demoAfterAuthRef.current = false;
   }, [showAuthForm]);
 
   useEffect(() => {
@@ -137,24 +145,14 @@ export default function LandingPage() {
     return () => window.clearTimeout(timer);
   }, []);
 
-  const handleDemoImageSelect = (file: File) => {
-    const reader = new FileReader();
-
-    reader.onloadend = () => {
-      if (typeof reader.result !== 'string') {
-        toast.error("Could not read that image. Please try another file.");
-        return;
-      }
-
-      setSelectedImage(reader.result);
+  const handleDemoImageSelect = async (file: File) => {
+    try {
+      // Phone photos are too big for the generate endpoint; shrink them first.
+      setSelectedImage(await prepareImageForUpload(file));
       setGeneratedAltText("");
-    };
-
-    reader.onerror = () => {
-      toast.error("Could not read that image. Please try another file.");
-    };
-
-    reader.readAsDataURL(file);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not read that image. Please try another file.");
+    }
   };
 
   const generateDemoAltText = async () => {
@@ -181,6 +179,7 @@ export default function LandingPage() {
       if (!session?.access_token) {
         toast.error("Please sign up or sign in to generate alt text");
         setIsGenerating(false);
+        demoAfterAuthRef.current = true;
         setShowAuthForm(true);
         return;
       }
@@ -218,8 +217,8 @@ export default function LandingPage() {
           setGeneratedAltText(data.alt_text || data.altText);
           trackMarketingEvent("demo_used", {
             source: "landing_page",
-            userId: user?.id,
-            userEmail: user?.email,
+            userId: session.user.id,
+            userEmail: session.user.email,
             properties: {
               context: "landing_page_demo",
               credits_remaining: data.credits_remaining,
@@ -229,6 +228,7 @@ export default function LandingPage() {
         } else {
           if (apiResponse.status === 401) {
             toast.error("Session expired. Please sign in again.");
+            demoAfterAuthRef.current = true;
             setShowAuthForm(true);
           } else if (apiResponse.status === 402) {
             toast.error("No credits remaining. Please upgrade your plan.");
@@ -246,6 +246,17 @@ export default function LandingPage() {
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  // After signing in, finish the demo the visitor started, or go to the dashboard.
+  const continueAfterAuth = () => {
+    const resumeDemo = demoAfterAuthRef.current && Boolean(selectedImage);
+    setShowAuthForm(false);
+    if (resumeDemo) {
+      void generateDemoAltText();
+      return;
+    }
+    router.push("/dashboard");
   };
 
   const handleEmailAuth = async (e: React.FormEvent) => {
@@ -298,8 +309,8 @@ export default function LandingPage() {
           setPendingConfirmationEmail(email.trim());
           toast.success("Please check your email to confirm your account.");
         } else {
-          toast.success("Welcome back!");
-          router.push("/dashboard");
+          toast.success(isLogin ? "Welcome back!" : "Account created.");
+          continueAfterAuth();
         }
       }
     } catch (error) {
@@ -563,7 +574,7 @@ export default function LandingPage() {
                   accept="image/*"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
-                    if (file) handleDemoImageSelect(file);
+                    if (file) void handleDemoImageSelect(file);
                   }}
                 />
 
@@ -671,21 +682,24 @@ export default function LandingPage() {
               {/* ===== END LOCKED SECTION ===== */}
 
               <div className="space-y-24">
-                {/* Step 1 - Upload Image: Image Left, Text Right */}
+                {/* Step 1 - Install + Connect: Image Left, Text Right */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start relative">
                   <div className="lg:order-1 relative z-10 flex justify-center lg:justify-end">
-                    <div className="rounded-3xl p-8 border border-line relative w-full max-w-sm bg-white shadow-notebook group hover:border-line-strong transition-all duration-500">
+                    <div className="rounded-3xl p-8 border border-line relative w-full max-w-sm bg-white shadow-notebook group hover:border-line-strong transition-all duration-500" aria-hidden="true">
                       <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6 bg-yellow-tint border border-line group-hover:scale-110 transition-transform duration-500">
-                        <Upload className="h-8 w-8 text-ink" />
+                        <Key className="h-8 w-8 text-ink" />
                       </div>
-                      <p className="text-ink text-sm mb-2 text-center font-outfit font-medium">Drag your file(s) or <span className="text-ink cursor-pointer hover:underline">browse</span></p>
-                      <p className="text-xs text-ink-muted mb-6 text-center italic">Max 10 MB files are allowed</p>
+                      <p className="text-ink text-sm mb-1 text-center font-outfit font-medium">Alt Text Pro plugin</p>
+                      <p className="text-xs text-ink-muted mb-6 text-center">Sign in or create a free account to connect this site.</p>
+                      <div className="mx-auto flex h-10 w-fit items-center rounded-full bg-brand-yellow px-5 text-sm font-semibold text-ink font-outfit">
+                        Connect Account
+                      </div>
 
-                      {/* Blue file badge */}
+                      {/* Connected badge */}
                       <div className="absolute -top-4 right-6">
-                        <div className="inline-flex h-8 items-center gap-2 rounded-full bg-brand-yellow px-4 text-xs font-semibold text-ink font-outfit whitespace-nowrap">
-                          <ImageIcon className="h-4 w-4 shrink-0" aria-hidden="true" />
-                          marketing-asset-v2.webp
+                        <div className="inline-flex h-8 items-center gap-2 rounded-full border border-line bg-white px-4 text-xs font-semibold text-ink font-outfit whitespace-nowrap">
+                          <CheckCircle className="h-4 w-4 shrink-0" />
+                          Site connected
                         </div>
                       </div>
                     </div>
@@ -701,7 +715,7 @@ export default function LandingPage() {
                         Install + Connect
                       </h3>
                       <p className="text-ink-muted text-lg leading-relaxed relative z-10 font-normal">
-                        Create a free account, install the plugin from WordPress.org, and click Connect. Your API key is saved for you and stored encrypted.
+                        Install the plugin from WordPress.org and click Connect Account. Sign in or create a free account there, and your API key is saved for you and stored encrypted.
                       </p>
                     </div>
                   </div>
@@ -1160,8 +1174,7 @@ export default function LandingPage() {
                     });
                   }
                   toast.success("Signed in with Google.");
-                  setShowAuthForm(false);
-                  router.push("/dashboard");
+                  continueAfterAuth();
                 }}
                 onError={(message) => toast.error(message)}
                 className="rounded-xl"

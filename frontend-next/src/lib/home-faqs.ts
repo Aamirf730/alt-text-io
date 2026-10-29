@@ -12,12 +12,20 @@ export const HOME_FAQS = [
     answer: "Yes. Bulk processing finds images with no alt text and works through them, up to your newest 20,000 images per run. It is available on every plan, including Free. For a one-off backlog, a credit pack lets you pay once instead of changing your plan.",
   },
   {
+    question: "Will it replace alt text I already wrote?",
+    answer: "No. Bulk processing only fills images that have no alt text, unless you turn on Overwrite existing, which is off by default. In the media editor, a new draft is saved only when you apply it.",
+  },
+  {
     question: "Does it work with WooCommerce product images?",
     answer: "Yes. Product and gallery images are stored in the WordPress media library, so they work like any other image.",
   },
   {
     question: "Which AI model writes the descriptions?",
     answer: "Google Gemini, through the Alt Text Pro service. You do not need your own AI account or API key from Google.",
+  },
+  {
+    question: "What happens to my images?",
+    answer: "Each image is sent to Google Gemini to write its description, together with a little context from its page, such as the post title. Alt Text Pro does not keep the image after the description is written. The Privacy Policy has the details.",
   },
   {
     question: "Do unused subscription credits roll over?",

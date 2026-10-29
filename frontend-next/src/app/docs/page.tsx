@@ -145,12 +145,11 @@ export default function DocsPage() {
                                     <h2 className="text-2xl font-bold mt-8 mb-4 text-ink">Quick Start Guide</h2>
                                     <div className="bg-yellow-tint border-l-4 border-brand-yellow p-6 rounded-xl my-6">
                                         <p className="text-ink mb-5">
-                                            Use this path if you want the fastest first result: create the account, install the plugin, connect from WordPress, then generate one manual alt text before starting a bulk job.
+                                            Use this path if you want the fastest first result: install the plugin, connect from WordPress, then generate one manual alt text before starting a bulk job.
                                         </p>
                                         <ol className="list-decimal list-inside space-y-3 text-ink">
-                                            <li><strong>Create your free account</strong> and start with 150 signup credits. No credit card is required.</li>
                                             <li><strong>Install the WordPress plugin</strong> from WordPress.org or download version {PLUGIN_VERSION} from your dashboard.</li>
-                                            <li><strong>Click Connect to Alt Text Pro</strong> inside WordPress so the plugin can save your API key automatically.</li>
+                                            <li><strong>Click Connect Account</strong> inside WordPress and sign in, or create a free account with 150 signup credits. No credit card is required. The plugin saves your API key automatically.</li>
                                             <li><strong>Generate one image alt text</strong> and review it before using bulk processing.</li>
                                         </ol>
                                         <div className="flex flex-col sm:flex-row gap-3 mt-6">
@@ -181,7 +180,7 @@ export default function DocsPage() {
                                 <div className="prose max-w-none">
                                 <h3 className="text-2xl font-bold mt-6 mb-4 text-ink">Step 1: Create Your Account</h3>
                                     <p className="text-ink mb-4">
-                                        Visit <a href="https://www.alt-text.pro" className="font-medium text-ink underline decoration-line-strong decoration-2 underline-offset-4 hover:decoration-ink">www.alt-text.pro</a> and sign up for a free account. You'll receive 150 signup credits, plus 15 more every month - no credit card required.
+                                        Visit <a href="https://www.alt-text.pro" className="font-medium text-ink underline decoration-line-strong decoration-2 underline-offset-4 hover:decoration-ink">www.alt-text.pro</a> and sign up for a free account, or skip this step and create the account when you click Connect Account in step 3. You'll receive 150 signup credits, plus 15 more every month - no credit card required.
                                     </p>
                                 <h3 className="text-2xl font-bold mt-6 mb-4 text-ink">Step 2: Install WordPress Plugin</h3>
                                     <div className="bg-yellow-tint p-6 rounded-xl my-4">
@@ -203,8 +202,8 @@ export default function DocsPage() {
                                     </div>
                                     <h3 className="text-2xl font-bold mt-6 mb-4 text-ink">Step 3: Connect Your Site</h3>
                                     <ol className="list-decimal list-inside space-y-2 text-ink mb-4">
-                                        <li>In WordPress admin, go to <strong>Alt Text Pro</strong></li>
-                                        <li>Click <strong>Connect to Alt Text Pro</strong></li>
+                                        <li>In WordPress admin, go to <strong>Alt Text Pro</strong>. The connect window opens on its own (or click <strong>Start onboarding</strong> on the Settings page)</li>
+                                        <li>Click <strong>Connect Account</strong></li>
                                         <li>Sign in or create your free account</li>
                                         <li>The plugin saves your API key automatically and returns you to WordPress</li>
                                     </ol>
@@ -214,7 +213,7 @@ export default function DocsPage() {
                                             <li>Log in to your dashboard at <a href="https://www.alt-text.pro/dashboard" className="font-medium text-ink underline decoration-line-strong decoration-2 underline-offset-4 hover:decoration-ink">alt-text.pro/dashboard</a></li>
                                             <li>Copy your API key from the API Key section</li>
                                             <li>Paste it into <strong>Alt Text Pro -&gt; Settings</strong> in WordPress</li>
-                                            <li>Click <strong>Test Connection</strong> before running bulk processing</li>
+                                            <li>Click <strong>Test</strong> next to the key before running bulk processing</li>
                                         </ol>
                                     </div>
                                     <h3 className="text-2xl font-bold mt-6 mb-4 text-ink">Step 4: Configure the Plugin</h3>
@@ -223,10 +222,10 @@ export default function DocsPage() {
                                         <li>Confirm the connection status is active</li>
                                         <li>Configure your preferences:
                                             <ul className="list-disc list-inside ml-6 mt-2 space-y-1">
-                                                <li><strong>Auto-generate:</strong> Enable to generate alt-text automatically when uploading images</li>
-                                                <li><strong>Overwrite existing:</strong> Choose whether to replace existing alt-text</li>
-                                                <li><strong>Context-aware:</strong> Include page context in generated drafts</li>
-                                                <li><strong>Batch size:</strong> Kept for older versions. Bulk runs now process one image at a time, so stopping a run is charged accurately</li>
+                                                <li><strong>Auto-generate on upload:</strong> Generate alt text automatically when you upload images (off by default)</li>
+                                                <li><strong>Overwrite existing alt-text:</strong> Choose whether regenerating replaces alt text that is already there (off by default)</li>
+                                                <li><strong>Alt text language:</strong> Follows your site language unless you choose another</li>
+                                                <li><strong>Send image context:</strong> Send the titles of posts that use the image and its file name for more relevant drafts</li>
                                             </ul>
                                         </li>
                                         <li>Click <strong>Save Settings</strong></li>
@@ -257,7 +256,7 @@ export default function DocsPage() {
                                     <Card className="gap-0 p-6">
                                         <RefreshCw className="h-8 w-8 mb-4 text-ink" />
                                         <h3 className="text-xl font-bold mb-3">Bulk Processing</h3>
-                                        <p className="text-ink-muted">Work through existing media-library images in controlled batches.</p>
+                                        <p className="text-ink-muted">Work through existing media-library images one at a time, and stop after the current image whenever you like.</p>
                                     </Card>
                                     <Card className="gap-0 p-6">
                                         <Eye className="h-8 w-8 mb-4 text-ink" />
@@ -298,11 +297,15 @@ export default function DocsPage() {
                                     <div className="bg-yellow-tint p-6 rounded-xl my-4">
                                         <h4 className="font-semibold mb-3">Available Settings:</h4>
                                         <ul className="space-y-2 text-ink">
-                                            <li><strong>API Key:</strong> Your unique API key for authentication</li>
-                                            <li><strong>Auto-generate on Upload:</strong> Automatically generate alt-text when images are uploaded</li>
-                                            <li><strong>Overwrite Existing Alt-Text:</strong> Replace existing alt-text when processing</li>
-                                            <li><strong>Context-Aware Generation:</strong> Include page or post context in a generated draft</li>
-                                            <li><strong>Batch Size:</strong> Kept for older versions; bulk runs process one image at a time</li>
+                                            <li><strong>API Key:</strong> Your unique API key for authentication. Use <strong>Test</strong> to check it, or <strong>Disconnect account</strong> to remove it from this site</li>
+                                            <li><strong>Auto-generate on upload:</strong> Generate alt text automatically when images are uploaded</li>
+                                            <li><strong>Overwrite existing alt-text:</strong> Replace existing alt text when regenerating. When off, bulk runs skip images that already have alt text</li>
+                                            <li><strong>Fill empty alt text in post content:</strong> Images inside posts with empty alt text are shown with their Media Library alt text. Alt text written in the post is never overwritten</li>
+                                            <li><strong>Alt text language:</strong> The language drafts are written in. Follows the site language by default</li>
+                                            <li><strong>Email me when a bulk run finishes:</strong> Your site sends a short summary when a run finishes or stops</li>
+                                            <li><strong>Show context field on images:</strong> Adds a context box to each image&apos;s edit page</li>
+                                            <li><strong>Send image context:</strong> Sends the titles of posts that use the image and its file name with each request</li>
+                                            <li><strong>Blog context:</strong> A short description of your site, sent with every request</li>
                                         </ul>
                                     </div>
                                     <h3 className="text-2xl font-bold mt-6 mb-4 text-ink">Bulk Processing Workflow</h3>
@@ -324,7 +327,7 @@ export default function DocsPage() {
                                         <ul className="space-y-2 text-ink">
                                             <li>✓ Review generated alt-text for accuracy, especially for complex images</li>
                                             <li>✓ Add context when processing product images or specialized content</li>
-                                            <li>✓ Use bulk processing during off-peak hours for large batches</li>
+                                            <li>✓ Start large bulk runs when you can leave the Bulk page open</li>
                                             <li>✓ Monitor your credit usage to avoid running out mid-process</li>
                                             <li>✓ Keep your API key secure and never share it publicly</li>
                                         </ul>
@@ -358,7 +361,7 @@ export default function DocsPage() {
                                         </div>
                                         <h4 className="font-semibold mt-4 mb-2">Response (Error):</h4>
                                         <div className="border border-line bg-yellow-tint text-ink font-mono text-sm p-4 rounded-xl my-2 overflow-x-auto">
-                                            <pre className="text-sm">{`{\n  "error": "Insufficient credits",\n  "details": "You have 0 credits remaining"\n}`}</pre>
+                                            <pre className="text-sm">{`{\n  "code": "no_credits",\n  "error": "No monthly credits remaining. Please upgrade, top up, or wait for your next credit refill."\n}`}</pre>
                                         </div>
                                     </div>
                                     <h3 className="text-2xl font-bold mt-6 mb-4 text-ink">Code Examples</h3>
@@ -386,7 +389,7 @@ export default function DocsPage() {
                                             </thead>
                                             <tbody className="text-ink">
                                                 <tr className="border-b"><td className="py-2">401</td><td className="py-2">Unauthorized</td><td className="py-2">Invalid or missing API key</td></tr>
-                                                <tr className="border-b"><td className="py-2">402</td><td className="py-2">Payment Required</td><td className="py-2">Insufficient credits</td></tr>
+                                                <tr className="border-b"><td className="py-2">402</td><td className="py-2">Payment Required</td><td className="py-2">No credits remaining (code <code>no_credits</code>)</td></tr>
                                                 <tr className="border-b"><td className="py-2">400</td><td className="py-2">Bad Request</td><td className="py-2">Invalid image format or missing parameters</td></tr>
                                                 <tr className="border-b"><td className="py-2">500</td><td className="py-2">Server Error</td><td className="py-2">Internal server error</td></tr>
                                             </tbody>
@@ -476,17 +479,17 @@ export default function DocsPage() {
                                     <h3 className="text-2xl font-bold mt-6 mb-4 text-ink">Common Issues</h3>
                                     <div className="space-y-6">
                                         <Card className="gap-0 p-6">
-                                            <h4 className="font-bold text-lg mb-2">"Error loading API key" or Connection Failed</h4>
+                                            <h4 className="font-bold text-lg mb-2">The plugin cannot connect or says the API key is invalid</h4>
                                             <p className="text-ink mb-2"><strong>Solution:</strong></p>
                                             <ul className="list-disc list-inside space-y-1 text-ink">
-                                                <li>Verify your API key is correct in Settings</li>
-                                                <li>Click "Test Connection" to verify connectivity</li>
+                                                <li>In Alt Text Pro → Settings, click <strong>Disconnect account</strong>, then <strong>Start onboarding</strong> and <strong>Connect Account</strong> again, or paste the key from your dashboard</li>
+                                                <li>Click &quot;Test&quot; next to the key to check the connection</li>
                                                 <li>Check your internet connection</li>
                                                 <li>Ensure your API key hasn't been revoked</li>
                                             </ul>
                                         </Card>
                                         <Card className="gap-0 p-6">
-                                            <h4 className="font-bold text-lg mb-2">"Insufficient credits" Error</h4>
+                                            <h4 className="font-bold text-lg mb-2">&quot;No credits remaining&quot; message</h4>
                                             <p className="text-ink mb-2"><strong>Solution:</strong></p>
                                             <ul className="list-disc list-inside space-y-1 text-ink">
                                                 <li>Check your credit balance in the dashboard</li>
@@ -548,7 +551,7 @@ export default function DocsPage() {
                                     <Card className="gap-0 p-6"><h3 className="font-bold text-lg mb-2">What happens if I run out of credits?</h3><p className="text-ink">If you run out of credits, the plugin will stop generating new alt-text. You can purchase more credits or upgrade your plan from your dashboard.</p></Card>
                                     <Card className="gap-0 p-6"><h3 className="font-bold text-lg mb-2">Does this work with existing images?</h3><p className="text-ink">Yes. Bulk processing fills in alt text for existing images that have none, up to your newest 20,000 images per run.</p></Card>
                                     <Card className="gap-0 p-6"><h3 className="font-bold text-lg mb-2">Is my data secure?</h3><p className="text-ink">Images are sent over HTTPS to Alt Text Pro, passed to Google Gemini to write the description, and not stored by Alt Text Pro afterwards. Your API key is stored encrypted in WordPress. See the <Link href="/privacy" className="font-medium text-ink underline decoration-line-strong decoration-2 underline-offset-4 hover:decoration-ink">privacy policy</Link> for details.</p></Card>
-                                    <Card className="gap-0 p-6"><h3 className="font-bold text-lg mb-2">What image formats are supported?</h3><p className="text-ink">The plugin supports all standard web image formats including JPEG, PNG, GIF, and WebP.</p></Card>
+                                    <Card className="gap-0 p-6"><h3 className="font-bold text-lg mb-2">What image formats are supported?</h3><p className="text-ink">JPEG, PNG, GIF, WebP and AVIF, and HEIC when your server&apos;s image editor can read it. SVG and other vector files are skipped.</p></Card>
                                     <Card className="gap-0 p-6"><h3 className="font-bold text-lg mb-2">Can I cancel my subscription anytime?</h3><p className="text-ink">Yes, you can cancel your subscription at any time from your Alt Text Pro dashboard. You'll continue to have access until the end of your billing period.</p></Card>
                                     <Card className="gap-0 p-6"><h3 className="font-bold text-lg mb-2">Does this help search engines understand images?</h3><p className="text-ink">Descriptive alt text can give search engines useful text context for an image. Search rankings depend on many factors, so no ranking outcome is guaranteed.</p></Card>
                                     <Card className="gap-0 p-6"><h3 className="font-bold text-lg mb-2">Can I use the API without WordPress?</h3><p className="text-ink">Yes. You can call the API from any application or website. See the API Documentation section above for code examples.</p></Card>

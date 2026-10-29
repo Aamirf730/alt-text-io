@@ -139,6 +139,42 @@ if (!defined('ABSPATH')) {
                         </div>
                     <?php endif; ?>
 
+                    <?php
+                    // Compare the backlog with the credits shown above so the
+                    // site owner knows whether to buy more before starting.
+                    if ($bulk_display_credits_remaining !== null && !$alt_text_pro_out_of_credits && !$alt_text_pro_account_blocked && $total_without_alt > 0):
+                        $alt_text_pro_credits_short = $total_without_alt - $bulk_display_credits_remaining;
+                    ?>
+                        <div class="atp-info-box">
+                            <span class="dashicons dashicons-calculator" aria-hidden="true"></span>
+                            <span>
+                            <?php if ($alt_text_pro_credits_short > 0): ?>
+                                <?php
+                                echo esc_html(
+                                    sprintf(
+                                        /* translators: 1: Images missing alt text, 2: Credits available, 3: Credits still needed */
+                                        __('%1$s images need alt text and you have %2$s credits, so you need about %3$s more credits to finish them all.', 'alt-text-pro'),
+                                        number_format_i18n($total_without_alt),
+                                        number_format_i18n($bulk_display_credits_remaining),
+                                        number_format_i18n($alt_text_pro_credits_short)
+                                    )
+                                );
+                                ?>
+                            <?php else: ?>
+                                <?php
+                                echo esc_html(
+                                    sprintf(
+                                        /* translators: %s: Images missing alt text */
+                                        __('You have enough credits for all %s images missing alt text.', 'alt-text-pro'),
+                                        number_format_i18n($total_without_alt)
+                                    )
+                                );
+                                ?>
+                            <?php endif; ?>
+                            </span>
+                        </div>
+                    <?php endif; ?>
+
                     <?php if ($alt_text_pro_out_of_credits): ?>
                         <div class="atp-info-box is-error" role="alert">
                             <span class="dashicons dashicons-warning" aria-hidden="true"></span>

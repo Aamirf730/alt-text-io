@@ -50,7 +50,7 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     annualMonthlyPrice: "$4.17",
     creditCount: 500,
     credits: "500 credits / month",
-    features: ["$0.010 per image", ...SHARED_PLAN_FEATURES],
+    features: SHARED_PLAN_FEATURES,
     cta: "Choose Starter",
   },
   {
@@ -61,7 +61,7 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     annualMonthlyPrice: "$10",
     creditCount: 1500,
     credits: "1,500 credits / month",
-    features: ["$0.008 per image", ...SHARED_PLAN_FEATURES],
+    features: SHARED_PLAN_FEATURES,
     cta: "Choose Growth",
     featured: true,
   },
@@ -73,7 +73,7 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     annualMonthlyPrice: "$24.17",
     creditCount: 5000,
     credits: "5,000 credits / month",
-    features: ["$0.0058 per image", ...SHARED_PLAN_FEATURES],
+    features: SHARED_PLAN_FEATURES,
     cta: "Choose Agency",
   },
 ];

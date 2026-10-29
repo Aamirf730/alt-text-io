@@ -27,7 +27,7 @@ const scenarios = {
         displayAlt: '""',
         fileName: "red-fox.png",
         srText: "The image is skipped because its alt attribute is empty.",
-        googleKeywords: ["image", "jpg", "file", "unknown"],
+        googleKeywords: ["image", "png", "file", "unknown"],
         confidence: 15,
         confidenceLabel: "Low context",
         explanation: "An empty alt attribute tells assistive technology to treat the image as decorative. Search systems receive little useful text beyond the filename and surrounding page content."
@@ -395,6 +395,19 @@ export default function AltTextSimulatorPage() {
                     <div className="bg-yellow-tint p-6 md:p-8 text-center text-sm text-ink-muted font-medium border-t border-line">
                         Clear descriptions help people who cannot see the image, and give search engines useful text too. Want drafts for your own images? See the{' '}
                         <Link href="/ai-alt-text-generator-for-wordpress" className="font-medium text-ink underline decoration-line-strong decoration-2 underline-offset-4 hover:decoration-ink">AI alt text generator for WordPress</Link>.
+                        <div className="mt-6 flex flex-col sm:flex-row justify-center gap-3">
+                            <Link href="/?auth=signup" className={buttonVariants()}>
+                                Start with 150 free credits
+                            </Link>
+                            <a
+                                href="https://wordpress.org/plugins/alt-text-pro/"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={buttonVariants({ variant: 'secondary' })}
+                            >
+                                Install the WordPress plugin
+                            </a>
+                        </div>
                     </div>
                 </div>
 

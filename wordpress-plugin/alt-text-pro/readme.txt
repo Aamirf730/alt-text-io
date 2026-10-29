@@ -89,11 +89,11 @@ New accounts include 150 free signup credits plus 15 free credits every month. E
 
 ### Setup
 
-1. Go to Alt Text Pro -> Settings in your WordPress admin
-2. Click "Connect to Alt Text Pro"
+1. Go to Alt Text Pro in your WordPress admin. The connect window opens on its own (or click "Start onboarding" on the Settings page)
+2. Click "Connect Account"
 3. Sign in or create a free account
 4. The plugin saves your API key automatically
-5. Test the connection to ensure everything works
+5. Click "Test" next to the key on the Settings page to check the connection
 6. Generate alt text for a test image before running a larger batch.
 
 Manual API key setup is still available from the settings page if your browser blocks the connect popup.
@@ -181,6 +181,7 @@ Yes, you can cancel your subscription at any time from your Alt Text Pro dashboa
 * New: "Buy credits or upgrade" links on the dashboard, the Bulk page and every out-of-credits message. Bulk "Start" is disabled at 0 credits, with an explanation.
 * New: a Generate button in the media modal and the Media Library grid.
 * New: a bulk run survives a page reload. The Bulk page shows the running run so its owner can resume it and any administrator can stop it, and the browser warns before leaving a running run.
+* New: the Bulk page compares the images missing alt text with your credits and says how many more credits you need, or that you have enough.
 * New: "Selected" mode lets you search and page through all images, including ones that already have alt text, to regenerate them.
 * New: "Email me when a bulk run finishes" setting (on by default). The email is now proper plain text.
 * New: the "Send image context" setting is shown on the Settings page. The unused batch-size field was removed.

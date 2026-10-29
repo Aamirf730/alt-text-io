@@ -52,34 +52,34 @@ There are 186 steps across 16 sections: 116 OK, 45 PARTIAL, 25 MISSING (22 diffe
 The headline says what it is. Two buttons: "Start with 150 free credits" and "Install the WordPress plugin".
 
 **A2. Sees how it works**: OK
-A three-step section (install and connect, generate, review and save) with example alt text.
+A three-step section (install and connect, generate, review and save) with example alt text. *Fixed 29 Oct:* the step 1 picture was a website file-upload box, which suggested images are uploaded on the website. It now shows the plugin's Connect Account card, and the text no longer says to create an account first.
 
 **A3. Tries it on their own image before signing up**: PARTIAL
-They can pick an image on the homepage, but generating needs an account. After signing up they're sent to the dashboard and the image is lost (`LandingPageClient.tsx:179-186, 302`).
+They can pick an image on the homepage, but generating needs an account. After signing up they're sent to the dashboard and the image is lost (`LandingPageClient.tsx:179-186, 302`). *Fixed 29 Oct:* when the sign-in form was opened from the demo, signing in (email or Google) now keeps them on the homepage and generates alt text for their image. Email sign-ups that need confirmation still lose the image.
 
 **A4. Tries a large phone photo in the homepage demo (signed in)**: PARTIAL
-The homepage sends the full-size image without resizing. The dashboard resizes to 1600 px / 3 MB because of the server's size limit. A big photo will likely fail with "Invalid response from server." (not tried) (`LandingPageClient.tsx:140-213`, `dashboard/page.tsx:42-43`).
+The homepage sends the full-size image without resizing. The dashboard resizes to 1600 px / 3 MB because of the server's size limit. A big photo will likely fail with "Invalid response from server." (not tried) (`LandingPageClient.tsx:140-213`, `dashboard/page.tsx:42-43`). *Fixed 29 Oct:* the homepage now uses the same shrink step as the dashboard (`lib/prepare-image.ts`). A 39 MB test image was sent as a 0.67 MB, 1600 × 1200 JPEG.
 
 **A5. Sees reviews, star ratings, install count or testimonials**: **MISSING**
 The footer only says "Available on WordPress.org / Payments by Polar / Secure connection".
 
 **A6. Compares plans, monthly vs annual**: OK
-Free, Starter $5, Growth $12 and Agency $29, with an annual toggle showing "2 months free".
+Free, Starter $5, Growth $12 and Agency $29, with an annual toggle showing "2 months free". *Changed 29 Oct:* the per-image price line was removed from the plan cards (it showed the monthly rate even on annual).
 
 **A7. Understands the free tier**: OK
 150 credits on sign-up that never expire, plus 15 each month.
 
 **A8. Works out what to buy for 800 images**: PARTIAL
-Credit packs are shown ($12 for 1,000 and up). There's no "how many credits do I need" helper.
+Credit packs are shown ($12 for 1,000 and up). There's no "how many credits do I need" helper. *Fixed 29 Oct:* the pricing section now has a worked example (800 images: 150 free credits plus the $12 pack), and the plugin's Bulk page compares images missing alt text with credits and says how many more are needed.
 
 **A9. Reads the FAQ**: OK
-Six questions on the homepage, more in the docs.
+Six questions on the homepage, more in the docs. *Changed 29 Oct:* two questions added, "Will it replace alt text I already wrote?" and "What happens to my images?", so there are now eight.
 
 **A10. Tries the Alt Text Simulator**: PARTIAL
-A scripted demo. It doesn't generate anything real and has no sign-up button.
+A scripted demo. It doesn't generate anything real and has no sign-up button. *Fixed 29 Oct:* the page now ends with "Start with 150 free credits" and "Install the WordPress plugin" buttons, and the "No alt text" keywords say png instead of jpg. It stays a teaching page, not a generator.
 
 **A11. Reads the docs**: OK
-Getting started, installation, features, pricing, troubleshooting and FAQ.
+Getting started, installation, features, pricing, troubleshooting and FAQ. *Fixed 29 Oct:* the button is now called "Connect Account" (docs and readme), the settings list matches the plugin (batch size removed, five newer settings added, the "Test" button named correctly), AVIF and HEIC are listed, the API error example matches the real reply, the two misleading troubleshooting headings were renamed, the quick start no longer says to create an account first, and bulk is described as one image at a time.
 
 **A12. Opens the WordPress.org listing**: OK
 Linked from the hero, footer and guide pages.
