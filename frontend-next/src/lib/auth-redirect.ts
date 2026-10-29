@@ -66,6 +66,21 @@ export function isExistingAccountSignUp(user: SignUpUser, hasSession: boolean): 
   return Array.isArray(user.identities) && user.identities.length === 0;
 }
 
+type CreatedUser = { created_at?: string | null; last_sign_in_at?: string | null } | null | undefined;
+
+/**
+ * True when this sign-in created the account (Google sign-in returns no
+ * separate "sign-up" result). Supabase stamps last_sign_in_at seconds after
+ * created_at for a brand-new account.
+ */
+export function isNewlyCreatedUser(user: CreatedUser, windowMs = 60_000): boolean {
+  if (!user?.created_at || !user.last_sign_in_at) return false;
+  const created = Date.parse(user.created_at);
+  const signedIn = Date.parse(user.last_sign_in_at);
+  if (!Number.isFinite(created) || !Number.isFinite(signedIn)) return false;
+  return Math.abs(signedIn - created) <= windowMs;
+}
+
 type IdentityUser = {
   identities?: Array<{ provider?: string | null }> | null;
   app_metadata?: { provider?: string; providers?: string[] } | null;

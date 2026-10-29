@@ -10,7 +10,7 @@ import { trackMarketingEvent } from '@/lib/analytics';
 import { getPolarProductId } from '@/lib/polar-products';
 import { savePendingCheckout } from '@/lib/pending-checkout';
 import { SUBSCRIPTION_EXISTS_CODE } from '@/lib/subscription-status';
-import { EXISTING_ACCOUNT_MESSAGE, isExistingAccountSignUp } from '@/lib/auth-redirect';
+import { EXISTING_ACCOUNT_MESSAGE, isExistingAccountSignUp, isNewlyCreatedUser } from '@/lib/auth-redirect';
 import { toast } from "sonner";
 import {
   Brain, CheckCircle, Star, ArrowRight, Users, Shield, Rocket,
@@ -1144,7 +1144,21 @@ export default function LandingPage() {
               <GoogleIdentityButton
                 text={isLogin ? "signin_with" : "signup_with"}
                 disabled={isLoading}
-                onSuccess={() => {
+                onSuccess={async () => {
+                  // Google has no separate sign-up step; record new accounts
+                  // so they get the same funnel and "connect your site" email.
+                  const { data: { user: googleUser } } = await supabase.auth.getUser();
+                  if (googleUser && isNewlyCreatedUser(googleUser)) {
+                    trackMarketingEvent("signup_created", {
+                      source: "landing_page",
+                      userId: googleUser.id,
+                      userEmail: googleUser.email,
+                      properties: {
+                        signup_method: "google",
+                        selected_plan: selectedPlan?.id || "free",
+                      },
+                    });
+                  }
                   toast.success("Signed in with Google.");
                   setShowAuthForm(false);
                   router.push("/dashboard");
@@ -1152,6 +1166,15 @@ export default function LandingPage() {
                 onError={(message) => toast.error(message)}
                 className="rounded-xl"
               />
+
+              {!isLogin && (
+                <p className="mt-4 text-center text-xs leading-5 text-ink-muted">
+                  By creating an account you agree to the{" "}
+                  <Link href="/terms" target="_blank" className="font-semibold text-ink underline underline-offset-2">Terms</Link>
+                  {" "}and{" "}
+                  <Link href="/privacy" target="_blank" className="font-semibold text-ink underline underline-offset-2">Privacy Policy</Link>.
+                </p>
+              )}
 
               <div className="mt-6 flex flex-col items-center gap-1">
                 <button

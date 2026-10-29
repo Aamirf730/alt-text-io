@@ -14,6 +14,7 @@ export type UsageStats = {
     billing_cycle: string | null;
     monthly_credit_allowance: number | null;
     plugin_connected: boolean;
+    credits_last_renewed_at?: string | null;
 };
 
 export type UsageLoadResult =
@@ -38,7 +39,21 @@ export function mapUsageData(data: Record<string, any>): UsageStats {
         billing_cycle: data.billing_cycle || null,
         monthly_credit_allowance: data.monthly_credit_allowance || null,
         plugin_connected: data.plugin_connected === true,
+        credits_last_renewed_at: data.credits_last_renewed_at || null,
     };
+}
+
+export const FREE_REFILL_DAYS = 30;
+
+/**
+ * When the next Free refill is due: a daily job adds the free credits once the
+ * last refill is 30 days old. Null when the start of the cycle is unknown.
+ */
+export function getFreeRefillDate(lastRenewedAt: string | null | undefined): Date | null {
+    if (!lastRenewedAt) return null;
+    const last = Date.parse(lastRenewedAt);
+    if (!Number.isFinite(last)) return null;
+    return new Date(last + FREE_REFILL_DAYS * 24 * 60 * 60 * 1000);
 }
 
 /**

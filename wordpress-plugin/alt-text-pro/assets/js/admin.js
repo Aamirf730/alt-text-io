@@ -509,9 +509,11 @@
             $success.find('.alt-text-pro-apply-btn').data('alt-text', data.alt_text);
             $success.css('display', 'block').show();
 
-            // Update credits display if present
-            if (data.credits_remaining !== undefined) {
-                $('.credits-remaining').text(data.credits_remaining + ' credits remaining');
+            // Credits the customer can still spend, shown under this draft
+            if (data.credits_remaining !== undefined && data.credits_remaining !== null) {
+                $success.find('.credits-remaining')
+                    .text(sprintf(t('creditsLeft', 'Credits left: %d'), parseInt(data.credits_remaining, 10) || 0))
+                    .show();
             }
         },
 
@@ -1873,6 +1875,45 @@
                     window.AltTextProAdmin.showNotification(attentionMessage, 'warning');
                 }
             }
+
+            this.showResults(data, processed, successful, errors);
+        },
+
+        // Results card: totals for the run and the images that failed, so
+        // they can be found and retried after the activity log scrolls away.
+        showResults: function (data, processed, successful, errorCount) {
+            var $summary = $('#results-summary').empty();
+            var $errors = $('#results-errors').empty();
+
+            $('<p>').text(sprintf(t('resultsSummary', '%1$d images processed: %2$d got alt text, %3$d failed.'), processed, successful, errorCount)).appendTo($summary);
+
+            var failed = Array.isArray(data.errors) ? data.errors : [];
+            if (failed.length) {
+                var shown = failed.slice(0, 50);
+                $('<p>').append($('<strong>').text(t('resultsFailedHeading', 'Images that failed'))).appendTo($errors);
+                var $list = $('<ul class="atp-results-failed">');
+                shown.forEach(function (entry) {
+                    var id = entry && entry.image_id ? parseInt(entry.image_id, 10) : 0;
+                    var name = (entry && entry.filename) || (id ? sprintf(t('imageIdLabel', 'Image #%d'), id) : t('imageNotProcessed', 'Image could not be processed.'));
+                    var $item = $('<li>');
+                    if (id && window.altTextAI && altTextAI.adminUrl) {
+                        $('<a>', { href: altTextAI.adminUrl + 'post.php?post=' + id + '&action=edit', text: name }).appendTo($item);
+                    } else {
+                        $item.text(name);
+                    }
+                    if (entry && entry.error) {
+                        $item.append(document.createTextNode(': ' + String(entry.error)));
+                    }
+                    $list.append($item);
+                });
+                $errors.append($list);
+                if (failed.length > shown.length) {
+                    $('<p class="description">').text(sprintf(t('resultsMoreFailed', 'And %d more.'), failed.length - shown.length)).appendTo($errors);
+                }
+                $('<p class="description">').text(t('resultsRetryHint', 'Run the bulk process again to retry these images.')).appendTo($errors);
+            }
+
+            $('#results-card').show();
         },
 
         resetUI: function () {

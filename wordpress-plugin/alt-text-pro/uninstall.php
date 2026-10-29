@@ -98,3 +98,4 @@ if (is_multisite()) {
 // Review-request answers are stored per user, once for the whole network.
 delete_metadata('user', 0, 'alt_text_pro_review_prompt', '', true);
 delete_metadata('user', 0, 'alt_text_pro_onboarding_dismissed', '', true);
+delete_metadata('user', 0, 'alt_text_pro_key_notice_hidden', '', true);

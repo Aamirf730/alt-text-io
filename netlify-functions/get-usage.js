@@ -296,6 +296,8 @@ exports.handler = async (event, context) => {
           subscription_status: profile.subscription_status || 'active',
           billing_cycle: profile.billing_cycle || null,
           monthly_credit_allowance: profile.monthly_credit_allowance || null,
+          // Start of the current credit cycle; Free refills 30 days later.
+          credits_last_renewed_at: profile.credits_last_renewed_at || null,
           plugin_connected: pluginConnection.connected,
           plugin_connected_at: pluginConnection.connectedAt,
           plugin_connection_source: pluginConnection.source,

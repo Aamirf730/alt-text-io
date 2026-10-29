@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getSafeAuthRedirect, hasPasswordIdentity, isExistingAccountSignUp } from "./auth-redirect";
+import { getSafeAuthRedirect, hasPasswordIdentity, isExistingAccountSignUp, isNewlyCreatedUser } from "./auth-redirect";
 
 describe("getSafeAuthRedirect", () => {
   it("preserves first-party confirmation destinations", () => {
@@ -74,6 +74,19 @@ describe("isExistingAccountSignUp", () => {
     expect(isExistingAccountSignUp({ identities: [] }, true)).toBe(false);
     expect(isExistingAccountSignUp({}, false)).toBe(false);
     expect(isExistingAccountSignUp(null, false)).toBe(false);
+  });
+});
+
+describe("isNewlyCreatedUser", () => {
+  it("is true when the first sign-in happened as the account was created", () => {
+    expect(isNewlyCreatedUser({ created_at: "2026-10-29T10:00:00.000Z", last_sign_in_at: "2026-10-29T10:00:02.500Z" })).toBe(true);
+  });
+
+  it("is false for a returning account or missing timestamps", () => {
+    expect(isNewlyCreatedUser({ created_at: "2026-01-01T10:00:00.000Z", last_sign_in_at: "2026-10-29T10:00:00.000Z" })).toBe(false);
+    expect(isNewlyCreatedUser({ created_at: "2026-10-29T10:00:00.000Z" })).toBe(false);
+    expect(isNewlyCreatedUser({ created_at: "not a date", last_sign_in_at: "2026-10-29T10:00:00.000Z" })).toBe(false);
+    expect(isNewlyCreatedUser(null)).toBe(false);
   });
 });
 

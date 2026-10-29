@@ -8,7 +8,7 @@ import type { Session } from "@supabase/supabase-js";
 import { getAccessToken, supabase } from "@/lib/supabase";
 import { getApiBase } from "@/lib/utils";
 import { trackMarketingEvent } from "@/lib/analytics";
-import { EXISTING_ACCOUNT_MESSAGE, isExistingAccountSignUp } from "@/lib/auth-redirect";
+import { EXISTING_ACCOUNT_MESSAGE, isExistingAccountSignUp, isNewlyCreatedUser } from "@/lib/auth-redirect";
 import { toast } from "sonner";
 import GoogleIdentityButton from "@/components/GoogleIdentityButton";
 import "./connect-states.css";
@@ -843,7 +843,7 @@ function ConnectPageContent() {
             throw new Error("Google sign-in completed without a usable session.");
         }
 
-        if (hasWordPressConnectContext(queryCallbackUrl, querySource)) {
+        if (hasWordPressConnectContext(queryCallbackUrl, querySource) && isNewlyCreatedUser(session.user)) {
             trackMarketingEvent("signup_created", {
                 source: "wordpress_connect",
                 properties: {
@@ -1315,6 +1315,13 @@ function ConnectPageContent() {
                     </button>
                 </form>
 
+                <p className="connect-terms">
+                    By continuing you agree to the{" "}
+                    <a href="/terms" target="_blank" rel="noopener noreferrer">Terms</a>
+                    {" "}and{" "}
+                    <a href="/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>.
+                </p>
+
                 {/* Toggle login/signup */}
                 <div className="connect-toggle">
                     <span>
@@ -1497,6 +1504,21 @@ function ConnectPageContent() {
           margin-top: 24px;
           font-size: 14px;
           color: #6B6B73;
+        }
+
+        .connect-terms {
+          margin-top: 16px;
+          text-align: center;
+          font-size: 12px;
+          line-height: 1.5;
+          color: #6B6B73;
+        }
+
+        .connect-terms a {
+          color: #3F3F46;
+          font-weight: 600;
+          text-decoration: underline;
+          text-underline-offset: 2px;
         }
 
         .connect-toggle button {

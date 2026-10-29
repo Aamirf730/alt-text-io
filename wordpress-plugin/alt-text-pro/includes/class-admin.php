@@ -28,10 +28,14 @@ class AltTextPro_Admin
         add_action('admin_post_alt_text_pro_export_logs', array($this, 'export_logs_csv'));
         add_action('admin_post_alt_text_pro_review_prompt', array($this, 'handle_review_prompt'));
         add_action('wp_ajax_alt_text_pro_dismiss_onboarding', array($this, 'ajax_dismiss_onboarding'));
+        add_action('admin_post_alt_text_pro_hide_key_notice', array($this, 'handle_hide_key_notice'));
     }
 
     // Per-user flag: the onboarding modal was closed with "I'll do this later".
     public const ONBOARDING_DISMISSED_META = 'alt_text_pro_onboarding_dismissed';
+
+    // Per-user flag: the site-wide "configure your API key" notice was hidden.
+    public const KEY_NOTICE_HIDDEN_META = 'alt_text_pro_key_notice_hidden';
 
     // Per-user transient holding automatic-generation failures to report.
     public const AUTO_GENERATE_ERROR_TRANSIENT = 'alt_text_pro_error_';
@@ -380,9 +384,14 @@ class AltTextPro_Admin
 
         $settings = get_option('alt_text_pro_settings', array());
 
-        // Show notice if API key is not configured
-        if (empty($settings['api_key'])) {
-            echo '<div class="notice notice-warning is-dismissible">';
+        // Show notice if API key is not configured, until this user hides it.
+        // The plugin's own pages keep their connect prompts either way.
+        if (empty($settings['api_key']) && !get_user_meta(get_current_user_id(), self::KEY_NOTICE_HIDDEN_META, true)) {
+            $hide_url = wp_nonce_url(
+                admin_url('admin-post.php?action=alt_text_pro_hide_key_notice'),
+                'alt_text_pro_hide_key_notice'
+            );
+            echo '<div class="notice notice-warning">';
             echo '<p><strong>' . esc_html__('Alt Text Pro:', 'alt-text-pro') . '</strong> ';
             echo wp_kses_post(
                 sprintf(
@@ -391,6 +400,7 @@ class AltTextPro_Admin
                     esc_url(admin_url('admin.php?page=alt-text-pro-settings'))
                 )
             );
+            echo ' <a href="' . esc_url($hide_url) . '">' . esc_html__("Don't show again", 'alt-text-pro') . '</a>';
             echo '</p></div>';
         }
     }
@@ -473,6 +483,23 @@ class AltTextPro_Admin
     /**
      * Record the answer to the review request and continue.
      */
+    /**
+     * Hide the site-wide "configure your API key" notice for this user.
+     */
+    public function handle_hide_key_notice()
+    {
+        if (!current_user_can('manage_options')) {
+            wp_die(esc_html__('You do not have permission to perform this action.', 'alt-text-pro'), '', array('response' => 403));
+        }
+
+        check_admin_referer('alt_text_pro_hide_key_notice');
+        update_user_meta(get_current_user_id(), self::KEY_NOTICE_HIDDEN_META, time());
+
+        $back = wp_get_referer();
+        wp_safe_redirect($back ? $back : admin_url('index.php'));
+        exit;
+    }
+
     public function handle_review_prompt()
     {
         if (!current_user_can('manage_options')) {
@@ -837,6 +864,7 @@ class AltTextPro_Admin
                     <div class="alt-text-pro-success" style="display: none !important;">
                         <p class="generated-alt-text"></p>
                         <p class="description"><?php esc_html_e('Review this draft before applying it to the WordPress alt-text field.', 'alt-text-pro'); ?></p>
+                        <p class="description credits-remaining" style="display: none;"></p>
                         <button type="button" class="button button-secondary-custom atp-btn-sm atp-btn-block alt-text-pro-apply-btn">
                             <span class="dashicons dashicons-yes" aria-hidden="true"></span>
                             <span><?php esc_html_e('Apply Alt-Text', 'alt-text-pro'); ?></span>

@@ -23,7 +23,7 @@ export type SubscriptionProfile = {
 
 export const SUBSCRIPTION_EXISTS_CODE = "subscription_exists";
 export const SUBSCRIPTION_EXISTS_MESSAGE =
-  "You already have a subscription. Change or resume your plan from Manage billing in your dashboard.";
+  "You already have a subscription. Change or resume your plan from Billing & receipts in your dashboard.";
 
 /**
  * True when the account still has a running paid subscription. Such accounts

@@ -194,6 +194,9 @@ Yes, you can cancel your subscription at any time from your Alt Text Pro dashboa
 * Fix: Posts list generation uses your blog context.
 * Fix: the Logs search covers the whole history, not only the visible page.
 * Fix: "I'll do this later" in the setup window is remembered.
+* Fix: the "configure your API key" notice on other admin pages has a "Don't show again" link that is remembered.
+* Fix: after generating alt text for one image, the credits left are shown under the draft.
+* Fix: a finished, stopped or cancelled bulk run shows a Results card with the totals and the images that failed, linked to each image.
 * Fix: Disconnect and uninstall tell Alt Text Pro this site stopped using the key. The key itself stays valid for your other sites. Uninstall does not wait for the answer, so large multisite networks uninstall quickly.
 * Fix: permission errors in admin requests return JSON, and most interface text can now be translated.
 

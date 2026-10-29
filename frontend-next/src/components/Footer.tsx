@@ -66,6 +66,7 @@ const Footer = () => {
                         <Link href="/woocommerce-product-image-alt-text" className="hover:text-ink hover:underline underline-offset-4 transition-colors">WooCommerce Guide</Link>
                         <Link href="/bulk-generate-alt-text-wordpress" className="hover:text-ink hover:underline underline-offset-4 transition-colors">Bulk Alt Text Guide</Link>
                         <a href="https://wordpress.org/plugins/alt-text-pro/" target="_blank" rel="noopener noreferrer" className="hover:text-ink hover:underline underline-offset-4 transition-colors">WordPress Plugin</a>
+                        <Link href="/about" className="hover:text-ink hover:underline underline-offset-4 transition-colors">About</Link>
                         <Link href="/contact" className="hover:text-ink hover:underline underline-offset-4 transition-colors">Contact</Link>
                         <Link href="/alt-text-simulator" className="hover:text-ink hover:underline underline-offset-4 transition-colors">Simulator</Link>
                         <Link href="/terms" className="hover:text-ink hover:underline underline-offset-4 transition-colors">Terms</Link>

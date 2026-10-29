@@ -5,6 +5,7 @@ import {
     fetchUsageStats,
     formatRelativeTime,
     formatSiteUrl,
+    getFreeRefillDate,
     getHistoryPageRange,
     getHistoryPageSummary,
     hasNextHistoryPage,
@@ -103,5 +104,16 @@ describe("emailsMatch", () => {
         expect(emailsMatch(" Me@Example.com ", "me@example.com")).toBe(true);
         expect(emailsMatch("other@example.com", "me@example.com")).toBe(false);
         expect(emailsMatch("me@example.com", null)).toBe(false);
+    });
+});
+
+describe("getFreeRefillDate", () => {
+    it("is 30 days after the last refill", () => {
+        expect(getFreeRefillDate("2026-10-01T02:00:00.000Z")?.toISOString()).toBe("2026-10-31T02:00:00.000Z");
+    });
+
+    it("is null when the cycle start is unknown", () => {
+        expect(getFreeRefillDate(null)).toBeNull();
+        expect(getFreeRefillDate("not a date")).toBeNull();
     });
 });

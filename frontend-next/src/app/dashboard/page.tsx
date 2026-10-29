@@ -21,7 +21,7 @@ import {
     type AccountSnapshot,
 } from '@/lib/pending-checkout';
 import { hasPasswordIdentity } from '@/lib/auth-redirect';
-import { fetchUsageStats, snapshotFromUsage, type UsageStats } from './dashboard-helpers';
+import { fetchUsageStats, getFreeRefillDate, snapshotFromUsage, type UsageStats } from './dashboard-helpers';
 import GenerationHistory from './GenerationHistory';
 import ConnectedSites from './ConnectedSites';
 import AccountSettings from './AccountSettings';
@@ -183,7 +183,6 @@ export default function Dashboard() {
         : billingCycle === 'annual' && monthlyCreditAllowance > 0
         ? `Credits left this month. Annual plan provides ${planAllowance.toLocaleString()} credits each month.`
         : 'Credits left this month';
-    const hasApiKeyReady = Boolean(apiKey);
     const hasGeneratedFirstAltText = Number(usageStats?.total_generated ?? usageStats?.total_processed ?? 0) > 0 || history.length > 0;
     const isPluginConnected = usageStats?.plugin_connected === true;
     const showFirstRunOnboarding = !isPluginConnected || !hasGeneratedFirstAltText;
@@ -191,10 +190,15 @@ export default function Dashboard() {
     const canUsePassword = hasPasswordIdentity(user?.authUser);
     const firstName = String(user?.email || 'there').split('@')[0].split(/[._-]/)[0] || 'there';
     const renewalDateValue = subscriptionData?.subscription?.next_billing_date || null;
+    const formatShortDate = (value: string | number | Date) =>
+        new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value));
+    const freeRefillDate = getFreeRefillDate(usageStats?.credits_last_renewed_at);
     const renewalDateLabel = renewalDateValue
-        ? new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(renewalDateValue))
+        ? formatShortDate(renewalDateValue)
         : currentPlan === 'free'
-        ? 'No renewal scheduled'
+        ? freeRefillDate
+            ? `Free credits refill around ${formatShortDate(freeRefillDate)}`
+            : 'Free credits refill every 30 days'
         : 'Billing date unavailable';
     const dashboardNavItems = [
         { label: 'Overview', href: '#overview', icon: LayoutDashboard },
@@ -769,7 +773,7 @@ export default function Dashboard() {
         if (usageStats?.credits_remaining <= 0) {
             if (isSubscribed) {
                 // Subscribers change plans in the customer portal; offer packs here.
-                toast.error("No credits remaining. Top up with a credit pack or change your plan in Manage billing.");
+                toast.error("No credits remaining. Top up with a credit pack or change your plan in Billing & receipts.");
                 setUpgradeModalView("credit-packs");
             } else {
                 toast.error("No credits remaining. Please upgrade your plan to continue.");
@@ -1080,7 +1084,7 @@ export default function Dashboard() {
                                 Operations Console
                             </h1>
                             <p className="mt-2 text-sm text-ink-muted sm:text-base">
-                                Welcome back, <span className="capitalize">{firstName}</span>. Monitor alt text generation and manage your workflow.
+                                {isPluginConnected || hasGeneratedFirstAltText ? 'Welcome back' : 'Welcome'}, <span className="capitalize">{firstName}</span>. Monitor alt text generation and manage your workflow.
                             </p>
                         </div>
 
@@ -1166,9 +1170,7 @@ export default function Dashboard() {
                                     <p className="mt-1 max-w-2xl text-sm leading-6 text-ink-muted">
                                         {isPluginConnected
                                             ? 'Your account is connected. Try one image before starting a larger media-library batch.'
-                                            : hasApiKeyReady
-                                            ? 'Your API key is ready. Open Alt Text Pro in WordPress and finish connecting the plugin.'
-                                            : 'Install Alt Text Pro, connect your account, and your dashboard will begin tracking activity.'}
+                                            : 'Install Alt Text Pro from WordPress.org, then click Connect Account in WordPress and sign in. Your site connects automatically.'}
                                     </p>
                                 </div>
                             </div>

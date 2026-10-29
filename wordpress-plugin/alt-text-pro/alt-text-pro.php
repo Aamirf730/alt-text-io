@@ -474,6 +474,7 @@ class AltTextPro
 
         wp_localize_script('alt-text-pro-admin', 'altTextAI', array(
             'ajaxUrl' => admin_url('admin-ajax.php'),
+            'adminUrl' => admin_url(),
             'nonce' => wp_create_nonce('alt_text_pro_nonce'),
             'version' => ALT_TEXT_PRO_VERSION,
             'pricingUrl' => ALT_TEXT_PRO_PRICING_URL,
@@ -569,6 +570,8 @@ class AltTextPro
             'connecting' => __('Connecting...', 'alt-text-pro'),
             'copied' => __('Copied!', 'alt-text-pro'),
             'creditsExhausted' => __('Credits Exhausted', 'alt-text-pro'),
+            // translators: %d: credits the account can still spend.
+            'creditsLeft' => __('Credits left: %d', 'alt-text-pro'),
             // translators: %d: number of images processed.
             'creditsRanOutSummary' => __('Processed %d images before available credits ran out.', 'alt-text-pro'),
             'creditsUsedUp' => __('Credits Used Up', 'alt-text-pro'),
@@ -586,6 +589,8 @@ class AltTextPro
             'generatingState' => __('Generating', 'alt-text-pro'),
             // translators: %d: position of the image in the run.
             'imageN' => __('Image %d', 'alt-text-pro'),
+            // translators: %d: attachment ID of an image without a file name.
+            'imageIdLabel' => __('Image #%d', 'alt-text-pro'),
             'imageNotProcessed' => __('Image could not be processed.', 'alt-text-pro'),
             'imageTooLarge' => __('Image too large to process.', 'alt-text-pro'),
             // translators: %d: number of images the run can process.
@@ -626,6 +631,12 @@ class AltTextPro
             'ranOutLog' => __('Bulk optimization stopped because the account ran out of credits.', 'alt-text-pro'),
             'readyNext' => __('Ready to start after the latest update.', 'alt-text-pro'),
             'recordingFailed' => __('Recording the failed image and continuing.', 'alt-text-pro'),
+            'resultsFailedHeading' => __('Images that failed', 'alt-text-pro'),
+            // translators: %d: number of failed images not listed.
+            'resultsMoreFailed' => __('And %d more.', 'alt-text-pro'),
+            'resultsRetryHint' => __('Run the bulk process again to retry these images.', 'alt-text-pro'),
+            // translators: 1: images processed, 2: images that got alt text, 3: images that failed.
+            'resultsSummary' => __('%1$d images processed: %2$d got alt text, %3$d failed.', 'alt-text-pro'),
             'resumeRun' => __('Resuming your bulk run...', 'alt-text-pro'),
             'runCancelled' => __('The bulk run was stopped.', 'alt-text-pro'),
             'runStoppedTitle' => __('Run stopped', 'alt-text-pro'),
