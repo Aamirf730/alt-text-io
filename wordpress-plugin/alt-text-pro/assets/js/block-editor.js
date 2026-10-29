@@ -94,8 +94,14 @@
         return null;
     }
 
+    // The panel unmounts when the block is deselected, so its status lives
+    // here: a request still running keeps the button busy when the block is
+    // selected again, instead of allowing a second, billed request.
+    var statusByBlock = {};
+    var inFlight = {};
+
     function GeneratePanel(props) {
-        var statusState = useState(null);
+        var statusState = useState(statusByBlock[props.clientId] || null);
         var status = statusState[0];
         var setStatus = statusState[1];
         var mounted = useRef(true);
@@ -109,6 +115,7 @@
         }, []);
 
         function update(next) {
+            statusByBlock[props.clientId] = next;
             if (mounted.current) {
                 setStatus(next);
             }
@@ -116,6 +123,10 @@
 
         function generate() {
             var requestedId = attachmentId;
+            if (inFlight[requestedId]) {
+                return;
+            }
+            inFlight[requestedId] = true;
             update({ id: requestedId, busy: true });
 
             post({
@@ -156,6 +167,8 @@
                 });
             }).catch(function () {
                 update({ id: requestedId, type: 'error', message: str('error', 'Alt text could not be generated. Please try again.') });
+            }).then(function () {
+                delete inFlight[requestedId];
             });
         }
 
@@ -172,7 +185,7 @@
         } else {
             // Status of an earlier image in this block is not shown.
             var current = status && status.id === attachmentId ? status : null;
-            var busy = !!(current && current.busy);
+            var busy = !!(current && current.busy) || !!inFlight[attachmentId];
 
             children.push(el(Button, {
                 key: 'generate',

@@ -380,14 +380,25 @@ class AltTextPro
      */
     public function maybe_upgrade()
     {
-        if (get_option('alt_text_pro_db_version') !== self::DB_VERSION) {
-            $this->upgrade_schema();
-        }
+        $needs_schema = get_option('alt_text_pro_db_version') !== self::DB_VERSION;
+        $needs_log_columns = !AltTextPro_Bulk_Processor::log_columns_ready();
 
-        // Bulk-run log columns: their own version, so this step and changes
-        // to create_tables() stay independent.
-        if (!AltTextPro_Bulk_Processor::log_columns_ready()) {
-            AltTextPro_Bulk_Processor::upgrade_log_table();
+        // A failed upgrade (for example a database user without ALTER rights)
+        // is retried hourly, not on every admin request.
+        if (($needs_schema || $needs_log_columns) && !get_transient('alt_text_pro_schema_retry')) {
+            if ($needs_schema) {
+                $this->upgrade_schema();
+            }
+
+            // Bulk-run log columns: their own version, so this step and
+            // changes to create_tables() stay independent.
+            if ($needs_log_columns) {
+                AltTextPro_Bulk_Processor::upgrade_log_table();
+            }
+
+            if (get_option('alt_text_pro_db_version') !== self::DB_VERSION || !AltTextPro_Bulk_Processor::log_columns_ready()) {
+                set_transient('alt_text_pro_schema_retry', 1, HOUR_IN_SECONDS);
+            }
         }
 
         if (!wp_next_scheduled('alt_text_pro_cleanup')) {
@@ -429,6 +440,7 @@ class AltTextPro
         wp_clear_scheduled_hook('alt_text_pro_bulk_process_batch');
         wp_unschedule_hook('alt_text_pro_generate_background');
         wp_clear_scheduled_hook('alt_text_pro_bulk_background_tick');
+        wp_clear_scheduled_hook('alt_text_pro_refresh_credit_status');
     }
 
     /**
@@ -507,8 +519,13 @@ class AltTextPro
             processing_time float DEFAULT NULL,
             status varchar(20) NOT NULL DEFAULT 'saved',
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (id),
-            KEY attachment_id (attachment_id)
+            outcome varchar(20) NOT NULL DEFAULT 'generated',
+            outcome_reason text NULL,
+            run_ref varchar(40) NULL,
+            previous_alt text NULL,
+            PRIMARY KEY  (id),
+            KEY attachment_id (attachment_id),
+            KEY run_ref (run_ref)
         ) $charset_collate;";
 
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');

@@ -3333,6 +3333,8 @@ class AltTextPro_Bulk_Processor
         $table_name = $wpdb->prefix . 'alt_text_pro_logs';
         $charset_collate = $wpdb->get_charset_collate();
 
+        // The draft "status" column is left to the main schema upgrade, which
+        // must see it missing on old sites to mark their rows "not recorded".
         $sql = "CREATE TABLE $table_name (
             id mediumint(9) NOT NULL AUTO_INCREMENT,
             attachment_id bigint(20) NOT NULL,

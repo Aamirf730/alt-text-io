@@ -89,13 +89,20 @@ class AltTextPro_Quick_Generate
 
         // Generating here replaces a queued upload job for this image, so the
         // image is billed once.
-        AltTextPro_Media_Handler::claim_pending_upload($attachment_id);
+        $pending_upload = get_post_meta($attachment_id, AltTextPro_Media_Handler::PENDING_META, true);
+        $claimed_upload = AltTextPro_Media_Handler::claim_pending_upload($attachment_id);
 
         $api_client = new AltTextPro_API_Client();
         $result = $api_client->generate_alt_text($attachment_id, $context, $blog_context);
         $alt_text = sanitize_text_field((string) ($result['alt_text'] ?? ''));
 
         if (empty($result['success']) || $alt_text === '') {
+            // A timeout or service error must not cancel the upload's own
+            // generation; account problems would only fail again there.
+            $final_codes = array('no_credits', 'invalid_api_key', 'account_not_found', 'account_suspended', 'decorative_image');
+            if ($claimed_upload && !in_array($result['code'] ?? '', $final_codes, true)) {
+                AltTextPro_Media_Handler::restore_pending_upload($attachment_id, $pending_upload);
+            }
             $this->send_generation_error($result);
         }
 
@@ -210,6 +217,8 @@ class AltTextPro_Quick_Generate
             || !current_user_can('upload_files')
             || !AltTextPro_API_Client::is_supported_image($post->ID)
             || !current_user_can('edit_post', $post->ID)
+            // Decorative images keep an empty alt on purpose.
+            || AltTextPro_Image_Details::is_decorative($post->ID)
         ) {
             return $actions;
         }
@@ -283,6 +292,7 @@ class AltTextPro_Quick_Generate
             'unsupported' => 0,
             'no_permission' => 0,
             'has_alt' => 0,
+            'decorative' => 0,
         );
 
         foreach ($ids as $id) {
@@ -290,6 +300,8 @@ class AltTextPro_Quick_Generate
                 $selection['unsupported']++;
             } elseif (!current_user_can('edit_post', $id)) {
                 $selection['no_permission']++;
+            } elseif (AltTextPro_Image_Details::is_decorative($id)) {
+                $selection['decorative']++;
             } elseif (!$overwrite && trim((string) get_post_meta($id, '_wp_attachment_image_alt', true)) !== '') {
                 $selection['has_alt']++;
             } else {
@@ -407,7 +419,8 @@ class AltTextPro_Quick_Generate
                 count($ids),
                 intval($selection['has_alt'] ?? 0),
                 intval($selection['unsupported'] ?? 0),
-                intval($selection['no_permission'] ?? 0)
+                intval($selection['no_permission'] ?? 0),
+                intval($selection['decorative'] ?? 0)
             ),
         ));
     }
@@ -419,8 +432,9 @@ class AltTextPro_Quick_Generate
      * @param int $has_alt       Left out: already have alt text.
      * @param int $unsupported   Left out: SVG or other unsupported files.
      * @param int $no_permission Left out: the user cannot edit them.
+     * @param int $decorative    Left out: marked as decorative images.
      */
-    public static function get_selection_message($selected, $has_alt, $unsupported, $no_permission)
+    public static function get_selection_message($selected, $has_alt, $unsupported, $no_permission, $decorative = 0)
     {
         $parts = array();
 
@@ -475,6 +489,19 @@ class AltTextPro_Quick_Generate
                     'alt-text-pro'
                 ),
                 number_format_i18n($no_permission)
+            );
+        }
+
+        if ($decorative > 0) {
+            $parts[] = sprintf(
+                /* translators: %s: number of images */
+                _n(
+                    '%s is marked as a decorative image and was left out.',
+                    '%s are marked as decorative images and were left out.',
+                    $decorative,
+                    'alt-text-pro'
+                ),
+                number_format_i18n($decorative)
             );
         }
 

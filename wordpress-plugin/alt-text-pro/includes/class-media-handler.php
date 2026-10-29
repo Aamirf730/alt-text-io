@@ -109,6 +109,30 @@ class AltTextPro_Media_Handler
     }
 
     /**
+     * Put back an upload's queued generation that a Generate button claimed
+     * but could not finish (timeout or service error), so the image still
+     * gets alt text automatically. It runs again in a few minutes.
+     *
+     * @param int   $attachment_id Image.
+     * @param array $pending       The pending record read before the claim.
+     */
+    public static function restore_pending_upload($attachment_id, $pending)
+    {
+        $attachment_id = absint($attachment_id);
+        if (!$attachment_id || !is_array($pending)) {
+            return;
+        }
+
+        update_post_meta($attachment_id, self::PENDING_META, $pending);
+
+        $settings = get_option('alt_text_pro_settings', array());
+        $args = array($attachment_id, is_array($settings) && !empty($settings['overwrite_existing']), get_current_user_id());
+        if (!wp_next_scheduled('alt_text_pro_generate_background', $args)) {
+            wp_schedule_single_event(time() + 5 * MINUTE_IN_SECONDS, 'alt_text_pro_generate_background', $args);
+        }
+    }
+
+    /**
      * True while an upload's automatic generation is waiting for the service.
      *
      * @param int $attachment_id Image to check.
@@ -135,32 +159,34 @@ class AltTextPro_Media_Handler
             return;
         }
 
-        $pending = get_post_meta($attachment_id, self::PENDING_META, true);
-        if (!self::claim_pending_upload($attachment_id)) {
-            // Already done, or a bulk run or a person generated it meanwhile.
-            return;
-        }
-
-        // A person, a bulk run or an import wrote alt text after the upload:
-        // keep it.
-        $current_alt = (string) get_post_meta($attachment_id, '_wp_attachment_image_alt', true);
-        if (is_array($pending) && array_key_exists('alt', $pending) && $current_alt !== (string) $pending['alt']) {
-            return;
-        }
-
-        // Follow the settings as they are now, not as they were at upload.
-        $settings = get_option('alt_text_pro_settings', array());
-        if (!is_array($settings) || empty($settings['auto_generate'])) {
-            return;
-        }
-        $force_overwrite = (bool) $force_overwrite && !empty($settings['overwrite_existing']);
-        if (!$force_overwrite && trim($current_alt) !== '') {
-            return;
-        }
-
+        // Marked running before the claim, so a Generate button pressed at the
+        // same moment sees it and does not bill the image a second time.
         $running_key = self::RUNNING_TRANSIENT_PREFIX . $attachment_id;
         set_transient($running_key, 1, 3 * MINUTE_IN_SECONDS);
         try {
+            $pending = get_post_meta($attachment_id, self::PENDING_META, true);
+            if (!self::claim_pending_upload($attachment_id)) {
+                // Already done, or a bulk run or a person generated it meanwhile.
+                return;
+            }
+
+            // A person, a bulk run or an import wrote alt text after the
+            // upload: keep it.
+            $current_alt = (string) get_post_meta($attachment_id, '_wp_attachment_image_alt', true);
+            if (is_array($pending) && array_key_exists('alt', $pending) && $current_alt !== (string) $pending['alt']) {
+                return;
+            }
+
+            // Follow the settings as they are now, not as they were at upload.
+            $settings = get_option('alt_text_pro_settings', array());
+            if (!is_array($settings) || empty($settings['auto_generate'])) {
+                return;
+            }
+            $force_overwrite = (bool) $force_overwrite && !empty($settings['overwrite_existing']);
+            if (!$force_overwrite && trim($current_alt) !== '') {
+                return;
+            }
+
             $this->generate_alt_text_background($attachment_id, $force_overwrite, absint($user_id));
         } finally {
             delete_transient($running_key);
