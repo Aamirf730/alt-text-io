@@ -57,28 +57,56 @@ if (!defined('ABSPATH')) {
                     <div class="atp-callout-body">
                         <h3>
                             <?php
-                            echo esc_html(!empty($active_run['is_owner'])
-                                ? __('Your bulk run is still in progress', 'alt-text-pro')
-                                : sprintf(
-                                    /* translators: %s: name of the user who started the run */
-                                    __('A bulk run started by %s is in progress', 'alt-text-pro'),
-                                    $active_run['started_by'] !== '' ? $active_run['started_by'] : __('another user', 'alt-text-pro')
-                                ));
+                            $alt_text_pro_run_done = sprintf(
+                                /* translators: 1: images processed, 2: images in the run */
+                                __('%1$s of %2$s done', 'alt-text-pro'),
+                                number_format_i18n(intval($active_run['processed'])),
+                                number_format_i18n(intval($active_run['processable_images']))
+                            );
+                            if (($active_run['status'] ?? '') === 'cancelling') {
+                                /* translators: %s: "X of Y done" */
+                                $alt_text_pro_run_title = sprintf(__('Stopping: %s', 'alt-text-pro'), $alt_text_pro_run_done);
+                            } elseif (($active_run['mode'] ?? '') === 'background') {
+                                /* translators: %s: "X of Y done" */
+                                $alt_text_pro_run_title = sprintf(__('Running in the background: %s', 'alt-text-pro'), $alt_text_pro_run_done);
+                            } elseif (!empty($active_run['is_paused'])) {
+                                /* translators: %s: "X of Y done" */
+                                $alt_text_pro_run_title = sprintf(__('Paused: %s', 'alt-text-pro'), $alt_text_pro_run_done);
+                            } else {
+                                /* translators: %s: "X of Y done" */
+                                $alt_text_pro_run_title = sprintf(__('In progress: %s', 'alt-text-pro'), $alt_text_pro_run_done);
+                            }
+                            echo esc_html($alt_text_pro_run_title);
                             ?>
                         </h3>
                         <p>
                             <?php
-                            echo esc_html(sprintf(
-                                /* translators: 1: images processed, 2: images in the run */
-                                __('%1$s of %2$s images processed. Only one bulk run can be active on a site.', 'alt-text-pro'),
-                                number_format_i18n(intval($active_run['processed'])),
-                                number_format_i18n(intval($active_run['processable_images']))
-                            ));
+                            echo esc_html(!empty($active_run['is_owner'])
+                                ? __('This is your bulk run.', 'alt-text-pro')
+                                : sprintf(
+                                    /* translators: %s: name of the user who started the run */
+                                    __('Started by %s.', 'alt-text-pro'),
+                                    $active_run['started_by'] !== '' ? $active_run['started_by'] : __('another user', 'alt-text-pro')
+                                ));
                             ?>
-                            <?php if ($alt_text_pro_run_resumable): ?>
-                                <?php esc_html_e('Resume it here, or stop it to start a different run.', 'alt-text-pro'); ?>
+                            <?php if (!empty($active_run['last_activity'])): ?>
+                                <?php
+                                echo esc_html(sprintf(
+                                    /* translators: %s: time since the run last made progress, such as "2 hours" */
+                                    __('Last progress %s ago.', 'alt-text-pro'),
+                                    $active_run['last_activity']
+                                ));
+                                ?>
+                            <?php endif; ?>
+                            <?php esc_html_e('Only one bulk run can be active on a site.', 'alt-text-pro'); ?>
+                            <?php if ($alt_text_pro_run_resumable && ($active_run['mode'] ?? '') === 'background'): ?>
+                                <?php esc_html_e('It keeps going while WP-Cron runs (site visits or a server cron job). Show its progress here, or stop it.', 'alt-text-pro'); ?>
+                            <?php elseif ($alt_text_pro_run_resumable): ?>
+                                <?php esc_html_e('A paused run stays resumable for 7 days. Resume it here, let it keep going in the background, or stop it to start a different run.', 'alt-text-pro'); ?>
                             <?php elseif (!empty($active_run['is_owner'])): ?>
                                 <?php esc_html_e('It is stopping after its last image. Stop it to finish.', 'alt-text-pro'); ?>
+                            <?php elseif (empty($active_run['can_cancel'])): ?>
+                                <?php esc_html_e('Ask the user who started it, or an administrator, to resume or stop it.', 'alt-text-pro'); ?>
                             <?php endif; ?>
                         </p>
                     </div>
@@ -86,8 +114,14 @@ if (!defined('ABSPATH')) {
                         <?php if ($alt_text_pro_run_resumable): ?>
                             <button type="button" class="button-primary-custom" id="resume-bulk-process">
                                 <span class="dashicons dashicons-controls-play" aria-hidden="true"></span>
-                                <span><?php esc_html_e('Resume run', 'alt-text-pro'); ?></span>
+                                <span><?php echo esc_html(($active_run['mode'] ?? '') === 'background' ? __('Show progress', 'alt-text-pro') : __('Resume run', 'alt-text-pro')); ?></span>
                             </button>
+                            <?php if (($active_run['mode'] ?? '') !== 'background'): ?>
+                                <button type="button" class="button-secondary-custom" id="resume-bulk-background">
+                                    <span class="dashicons dashicons-clock" aria-hidden="true"></span>
+                                    <span><?php esc_html_e('Keep going in the background', 'alt-text-pro'); ?></span>
+                                </button>
+                            <?php endif; ?>
                         <?php endif; ?>
                         <?php if (!empty($active_run['can_cancel'])): ?>
                             <button type="button" class="button-secondary-custom atp-btn-danger" id="cancel-active-run">
@@ -105,7 +139,9 @@ if (!defined('ABSPATH')) {
                 <h3><?php esc_html_e('Bulk Generation', 'alt-text-pro'); ?></h3>
             </div>
             <div class="card-content">
-                <form id="bulk-process-form">
+                <form id="bulk-process-form"
+                    data-credit-limit="<?php echo esc_attr($run_credit_limit === null ? '' : (string) intval($run_credit_limit)); ?>"
+                    data-review-mode="<?php echo esc_attr(!empty($review_enabled) ? '1' : '0'); ?>">
                     <?php if ($bulk_display_credits_remaining !== null): ?>
                         <div class="atp-info-box">
                             <span class="dashicons dashicons-chart-pie" aria-hidden="true"></span>
@@ -197,15 +233,25 @@ if (!defined('ABSPATH')) {
                             <input type="radio" name="process_type" value="missing" checked>
                             <span
                                 class="checkbox-label"><?php esc_html_e('Process images missing alt-text', 'alt-text-pro'); ?></span>
-                            <span class="atp-choice-meta">(<?php echo esc_html($total_without_alt); ?>
-                                images)</span>
+                            <span class="atp-choice-meta" id="bulk-count-missing">(<?php
+                                echo esc_html(sprintf(
+                                    /* translators: %s: number of images */
+                                    __('%s images', 'alt-text-pro'),
+                                    number_format_i18n($total_without_alt)
+                                ));
+                            ?>)</span>
                         </label>
 
                         <label class="checkbox-group">
                             <input type="radio" name="process_type" value="all">
                             <span class="checkbox-label"><?php esc_html_e('Process all images', 'alt-text-pro'); ?></span>
-                            <span class="atp-choice-meta">(<?php echo esc_html($total_images); ?>
-                                images)</span>
+                            <span class="atp-choice-meta" id="bulk-count-all">(<?php
+                                echo esc_html(sprintf(
+                                    /* translators: %s: number of images */
+                                    __('%s images', 'alt-text-pro'),
+                                    number_format_i18n($total_images)
+                                ));
+                            ?>)</span>
                         </label>
 
                         <label class="checkbox-group">
@@ -222,7 +268,10 @@ if (!defined('ABSPATH')) {
                             <input type="checkbox" id="overwrite_existing" name="overwrite_existing" <?php checked($alt_text_pro_settings['overwrite_existing'] ?? false); ?>>
                             <span class="checkbox-label"><?php esc_html_e('Overwrite existing', 'alt-text-pro'); ?></span>
                         </label>
+                        <p class="description atp-help"><?php esc_html_e('The alt text a run replaces is saved, so you can undo the run from Recent runs.', 'alt-text-pro'); ?></p>
                     </div>
+
+                    <?php include ALT_TEXT_PRO_PLUGIN_PATH . 'templates/partials/bulk-run-options.php'; ?>
 
                     <p class="description atp-help">
                         <?php
@@ -331,6 +380,14 @@ if (!defined('ABSPATH')) {
 
                 <p class="bulk-stop-hint"><span class="dashicons dashicons-info-outline" aria-hidden="true"></span><?php esc_html_e('Stopping prevents the next image from starting. If one is already generating, it will finish and be included in the final count.', 'alt-text-pro'); ?></p>
 
+                <div class="atp-bulk-mode" id="bulk-mode-panel" style="display: none;">
+                    <p class="description atp-help" id="bulk-mode-note"></p>
+                    <button type="button" class="button-secondary-custom atp-btn-sm" id="bulk-to-background">
+                        <span class="dashicons dashicons-clock" aria-hidden="true"></span>
+                        <span><?php esc_html_e('Keep going in the background', 'alt-text-pro'); ?></span>
+                    </button>
+                </div>
+
                 <div class="bulk-activity">
                     <div class="bulk-activity-header"><span><?php esc_html_e('Activity', 'alt-text-pro'); ?></span><small><?php esc_html_e('Newest events appear here', 'alt-text-pro'); ?></small></div>
                     <div id="progress-log" role="log" aria-live="polite" aria-relevant="additions text">
@@ -355,6 +412,8 @@ if (!defined('ABSPATH')) {
                 </div>
             </div>
         </div>
+
+        <?php include ALT_TEXT_PRO_PLUGIN_PATH . 'templates/partials/bulk-recent-runs.php'; ?>
 
         <!-- Image Selection Sidebar (Hidden by default). Loaded page by page
              so any image can be found and regenerated. -->

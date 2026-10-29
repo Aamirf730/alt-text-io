@@ -22,9 +22,50 @@ class AltTextPro_Bulk_Processor
     // both reach images still in flight in the other run and pay twice.
     private const ACTIVE_RUN_OPTION = 'alt_text_pro_active_bulk_run';
 
-    // A run with no progress for this long (for example a closed tab) no
-    // longer blocks a new one.
+    // A run that is stopping and makes no progress for this long no longer
+    // blocks a new one.
     private const ACTIVE_RUN_STALE_SECONDS = 900;
+
+    // A running run left by a closed tab (or a background run whose WP-Cron
+    // stopped) stays paused and resumable for this long (7 days). It keeps
+    // the site's one run slot; its owner or any administrator can stop it.
+    private const RESUMABLE_RUN_SECONDS = 604800;
+
+    // A tab-driven run with no progress for this long is shown as paused.
+    private const PAUSED_AFTER_SECONDS = 120;
+
+    // Summaries of the latest finished runs (for "Recent runs" and undo).
+    public const RUN_HISTORY_OPTION = 'alt_text_pro_bulk_runs';
+    private const RUN_HISTORY_LIMIT = 10;
+
+    // Failed or skipped images listed per run on the Bulk page.
+    private const RUN_ITEMS_LIMIT = 200;
+
+    // Log rows one undo request restores.
+    private const UNDO_CHUNK = 100;
+
+    // WP-Cron event that continues a run in the background.
+    public const BACKGROUND_HOOK = 'alt_text_pro_bulk_background_tick';
+
+    // Option prefix marking a run as continuing in the background. Kept
+    // outside the run state so switching mode never races a batch that is
+    // saving that state.
+    private const BACKGROUND_OPTION_PREFIX = 'alt_text_pro_bulk_bg_';
+
+    // Seconds of work one background tick starts images for.
+    private const BACKGROUND_TICK_BUDGET = 30;
+
+    // Additive logs-table columns for bulk runs (outcome, reason, run,
+    // previous alt text). Upgraded separately from the base table.
+    public const LOG_SCHEMA_OPTION = 'alt_text_pro_bulk_log_db_version';
+    public const LOG_SCHEMA_VERSION = '1';
+
+    // Attachment meta set by the "decorative image" flag; such images are
+    // never queued.
+    public const DECORATIVE_META = '_alt_text_pro_decorative';
+
+    // Log outcomes that are not generations (no credit used).
+    private const NOT_GENERATED_OUTCOMES = array('failed', 'skipped');
 
     // The daily cleanup removes saved state for runs that ended, or that have
     // made no progress for this long (3 days).
@@ -56,6 +97,11 @@ class AltTextPro_Bulk_Processor
         add_action('wp_ajax_alt_text_pro_bulk_skip_failed_image', array($this, 'ajax_skip_failed_image'));
         add_action('wp_ajax_alt_text_pro_bulk_cancel', array($this, 'ajax_cancel_bulk_process'));
         add_action('wp_ajax_alt_text_pro_bulk_list_images', array($this, 'ajax_list_images'));
+        add_action('wp_ajax_alt_text_pro_bulk_estimate', array($this, 'ajax_estimate'));
+        add_action('wp_ajax_alt_text_pro_bulk_set_mode', array($this, 'ajax_set_mode'));
+        add_action('wp_ajax_alt_text_pro_bulk_run_items', array($this, 'ajax_run_items'));
+        add_action('wp_ajax_alt_text_pro_bulk_undo_run', array($this, 'ajax_undo_run'));
+        add_action(self::BACKGROUND_HOOK, array(__CLASS__, 'run_background_tick'));
     }
 
     /**
@@ -82,8 +128,15 @@ class AltTextPro_Bulk_Processor
         $owner_id = intval($process_data['user_id'] ?? 0);
         $is_owner = $owner_id === get_current_user_id();
         $owner = get_userdata($owner_id);
+        $is_background = $processor->is_background_run($process_id);
+        $idle_seconds = $processor->get_idle_seconds($process_data);
 
         return array(
+            'mode' => $is_background ? 'background' : 'foreground',
+            // A tab-driven run that stopped moving (tab closed or reloaded).
+            'is_paused' => !$is_background && $idle_seconds > self::PAUSED_AFTER_SECONDS,
+            'idle_seconds' => $idle_seconds,
+            'last_activity' => $idle_seconds > 0 ? human_time_diff(time() - $idle_seconds, time()) : '',
             // Only the user who started the run gets its token back.
             'process_id' => $is_owner ? $process_id : '',
             'is_owner' => $is_owner,
@@ -94,6 +147,96 @@ class AltTextPro_Bulk_Processor
             'status' => (string) ($process_data['status'] ?? 'running'),
             'processed' => intval($process_data['processed'] ?? 0),
             'processable_images' => intval($process_data['processable_images'] ?? count($process_data['images'] ?? array())),
+        );
+    }
+
+    /**
+     * Script and styles for the Bulk, Review and Logs pages (estimate,
+     * filters, background runs, recent runs and undo, review actions).
+     */
+    public static function enqueue_page_assets()
+    {
+        wp_enqueue_style(
+            'alt-text-pro-bulk-tools',
+            ALT_TEXT_PRO_PLUGIN_URL . 'assets/css/bulk-tools.css',
+            array('alt-text-pro-admin'),
+            ALT_TEXT_PRO_VERSION
+        );
+        wp_enqueue_script(
+            'alt-text-pro-bulk-tools',
+            ALT_TEXT_PRO_PLUGIN_URL . 'assets/js/bulk-tools.js',
+            array('jquery', 'alt-text-pro-admin'),
+            ALT_TEXT_PRO_VERSION,
+            true
+        );
+        wp_localize_script('alt-text-pro-bulk-tools', 'altTextProBulkTools', array(
+            'strings' => self::get_js_strings(),
+        ));
+    }
+
+    /**
+     * Translated text for bulk-tools.js and the bulk parts of admin.js.
+     *
+     * @return array<string, string>
+     */
+    private static function get_js_strings()
+    {
+        return array(
+            // translators: 1: suggestions waiting, 2: those that replace existing alt text.
+            'approveAllConfirm' => __('Approve all %1$s suggestions as written? %2$s of them replace alt text the image already has. Edits you typed but did not approve are ignored.', 'alt-text-pro'),
+            // translators: %s: number of suggestions approved.
+            'approveAllDone' => __('%s suggestions approved.', 'alt-text-pro'),
+            'backgroundNote' => __('Running in the background with WP-Cron. You can close this tab. WP-Cron runs when someone visits the site (or on your host\'s schedule), so progress can pause on a quiet site.', 'alt-text-pro'),
+            'backgroundState' => __('Background', 'alt-text-pro'),
+            'backgroundStatus' => __('Running in the background', 'alt-text-pro'),
+            'backgroundTask' => __('Images are processed in the background a few at a time.', 'alt-text-pro'),
+            // translators: %s: number of images whose alt text the run replaces.
+            'confirmReplace' => __('%s images in this run already have alt text, and the run will replace it. The old alt text is saved, so you can undo the run from Recent runs.', 'alt-text-pro'),
+            // translators: 1: images the credits cover, 2: images in the run.
+            'confirmShort' => __('You have credits for %1$s of the %2$s images, so the run will stop after %1$s images.', 'alt-text-pro'),
+            'confirmStart' => __('Start the run?', 'alt-text-pro'),
+            'estimateCapped' => __('One run takes the newest 20,000 images; start another run afterwards for older ones.', 'alt-text-pro'),
+            // translators: 1: credits (images) the run uses, 2: estimated time such as "5 minutes".
+            'estimateFull' => __('This run will use about %1$s credits (1 per image) and take about %2$s.', 'alt-text-pro'),
+            'estimateNone' => __('No images match these choices, so this run would use no credits.', 'alt-text-pro'),
+            // translators: %s: number of images that already have alt text.
+            'estimateReplace' => __('%s of these images already have alt text, which will be replaced (you can undo the run).', 'alt-text-pro'),
+            // translators: %s: number of images that already have alt text.
+            'estimateReplaceReview' => __('%s of these images already have alt text; new suggestions replace it only when you approve them.', 'alt-text-pro'),
+            'estimateReview' => __('The new alt text waits on the Review page until you approve it.', 'alt-text-pro'),
+            'estimateSelectFirst' => __('Select images to see what the run will cost.', 'alt-text-pro'),
+            // translators: 1: matching images, 2: images the credits cover, 3: estimated time.
+            'estimateShort' => __('%1$s images match, but you have credits for %2$s. The run will stop after %2$s images (about %3$s) and use about %2$s credits.', 'alt-text-pro'),
+            // translators: %s: estimated time such as "5 minutes".
+            'estimatedTimeLog' => __('Estimated time: about %s.', 'alt-text-pro'),
+            // translators: %d: number of filters in use.
+            'filtersActive' => __('(%d active)', 'alt-text-pro'),
+            'foregroundNote' => __('This tab is running the bulk job. Keep it open, or let it keep going in the background.', 'alt-text-pro'),
+            // translators: %s: number of images.
+            'imagesCount' => __('%s images', 'alt-text-pro'),
+            'movedToBackground' => __('The run keeps going in the background. You can close this tab; you will get an email when it finishes if completion emails are on.', 'alt-text-pro'),
+            'movedToTab' => __('The run continues in this tab. Keep it open.', 'alt-text-pro'),
+            'reviewEmpty' => __('Alt text cannot be empty. Reject the suggestion instead.', 'alt-text-pro'),
+            // translators: %s: number of suggestions.
+            'reviewRemaining' => __('%s suggestions are waiting for review.', 'alt-text-pro'),
+            // translators: %s: number of suggestions (1).
+            'reviewRemainingOne' => __('%s suggestion is waiting for review.', 'alt-text-pro'),
+            'runInTab' => __('Run in this tab instead', 'alt-text-pro'),
+            // translators: %d: number of images listed.
+            'runItemsLimit' => __('The first %d are listed. Logs and the CSV export have all of them.', 'alt-text-pro'),
+            'runItemsNone' => __('No failed or skipped images were recorded for this run.', 'alt-text-pro'),
+            'statusSuggested' => __('Saved for review', 'alt-text-pro'),
+            // translators: %s: number of images the run changed.
+            'undoConfirm' => __('Undo this run? Up to %s images get back the alt text they had before it. Images whose alt text was changed since keep the newer text. No credits are used.', 'alt-text-pro'),
+            // translators: 1: images restored, 2: images kept because they changed after the run.
+            'undoDone' => __('Done. %1$s images got their previous alt text back. %2$s kept their alt text because it was changed after the run.', 'alt-text-pro'),
+            'undoing' => __('Undoing the run...', 'alt-text-pro'),
+            // translators: %s: number of images that could not be changed.
+            'undoNotAllowed' => __('%s images were skipped because you cannot edit them.', 'alt-text-pro'),
+            // translators: %s: number of images restored so far.
+            'undoProgress' => __('Undoing the run... %s images restored so far.', 'alt-text-pro'),
+            // translators: %s: number of suggestions withdrawn.
+            'undoWithdrawn' => __('%s suggestions waiting for review were withdrawn.', 'alt-text-pro'),
         );
     }
 
@@ -123,6 +266,11 @@ class AltTextPro_Bulk_Processor
         $overwrite_existing = isset($_POST['overwrite_existing']) ? (bool) sanitize_text_field(wp_unslash($_POST['overwrite_existing'])) : false;
         $process_type = isset($_POST['process_type']) ? sanitize_text_field(wp_unslash($_POST['process_type'])) : 'missing'; // 'missing', 'all', or 'selected'
         $selected_images = isset($_POST['selected_images']) ? array_slice(array_map('intval', (array) $_POST['selected_images']), 0, self::MAX_BULK_QUEUE) : array();
+        // Date, "attached to" and category filters (sanitized in parse_filters()).
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- each field is sanitized in parse_filters()
+        $filters = self::parse_filters(isset($_POST['filters']) ? wp_unslash($_POST['filters']) : array());
+        // Continue with WP-Cron instead of this browser tab.
+        $background = !empty($_POST['background']);
 
         if ($this->get_live_active_run()) {
             wp_send_json_error(esc_html__('Another bulk run is already in progress on this site. Wait for it to finish or cancel it before starting a new one.', 'alt-text-pro'));
@@ -147,10 +295,10 @@ class AltTextPro_Bulk_Processor
             $images_to_process = $this->get_selected_images($selected_images, true);
         } elseif ($process_type === 'all') {
             // Process all images (regardless of alt-text status)
-            $images_to_process = $this->get_images_without_alt_text(true); // true = include all images
+            $images_to_process = $this->get_images_without_alt_text(true, $filters); // true = include all images
         } else {
             // Default: Process only images missing alt-text
-            $images_to_process = $this->get_images_without_alt_text(false); // false = only images without alt-text
+            $images_to_process = $this->get_images_without_alt_text(false, $filters); // false = only images without alt-text
         }
 
         // The queries already return unique, editable IDs: "missing" filters
@@ -183,15 +331,11 @@ class AltTextPro_Bulk_Processor
             wp_send_json_error(esc_html__('Failed to check credits. Please verify your API key.', 'alt-text-pro'));
         }
 
-        $credits_remaining = isset($usage_stats['data']['credits_remaining']) ? intval($usage_stats['data']['credits_remaining']) : 0;
-        $credits_used = isset($usage_stats['data']['credits_used']) ? intval($usage_stats['data']['credits_used']) : 0;
-        $total_credits = isset($usage_stats['data']['total_credits']) ? intval($usage_stats['data']['total_credits']) : 0;
-        $monthly_credit_allowance = isset($usage_stats['data']['monthly_credit_allowance']) ? intval($usage_stats['data']['monthly_credit_allowance']) : 0;
-        $monthly_credit_limit = isset($usage_stats['data']['monthly_credit_limit']) ? intval($usage_stats['data']['monthly_credit_limit']) : 0;
-        $monthly_credits_remaining = isset($usage_stats['data']['monthly_credits_remaining']) ? intval($usage_stats['data']['monthly_credits_remaining']) : null;
-        $monthly_credits_used = isset($usage_stats['data']['monthly_credits_used']) ? intval($usage_stats['data']['monthly_credits_used']) : $credits_used;
-        $subscription_plan = isset($usage_stats['data']['subscription_plan']) ? sanitize_text_field($usage_stats['data']['subscription_plan']) : 'free';
-        $subscription_plans = array('free', 'tier1', 'tier2', 'tier3', 'tier4', 'lite', 'standard', 'pro', 'agency');
+        $credit_limits = self::get_run_credit_limits(is_array($usage_stats['data'] ?? null) ? $usage_stats['data'] : array());
+        $credits_remaining = $credit_limits['credits_remaining'];
+        $monthly_credits_used = $credit_limits['plan_credits_used'];
+        $plan_allowance = $credit_limits['plan_allowance'];
+        $credit_limit_for_run = $credit_limits['run_limit'];
 
         if ($credits_remaining <= 0) {
             wp_send_json_error(array(
@@ -201,13 +345,6 @@ class AltTextPro_Bulk_Processor
         }
 
         $total_images = count($images_to_process);
-        $plan_allowance = $monthly_credit_limit > 0 ? $monthly_credit_limit : ($monthly_credit_allowance > 0 ? $monthly_credit_allowance : $total_credits);
-        $plan_remaining = $monthly_credits_remaining !== null
-            ? $monthly_credits_remaining
-            : ($plan_allowance > 0 ? max(0, $plan_allowance - $monthly_credits_used) : $credits_remaining);
-        $credit_limit_for_run = in_array($subscription_plan, $subscription_plans, true)
-            ? min($credits_remaining, $plan_remaining)
-            : $credits_remaining;
         $processable_images = min($total_images, $credit_limit_for_run);
 
         if ($processable_images <= 0) {
@@ -218,7 +355,7 @@ class AltTextPro_Bulk_Processor
         }
 
         // Create bulk process record
-        $process_id = $this->create_bulk_process_record($images_to_process, $batch_size, $overwrite_existing, $credits_remaining, $processable_images, $plan_allowance, $monthly_credits_used);
+        $process_id = $this->create_bulk_process_record($images_to_process, $batch_size, $overwrite_existing, $credits_remaining, $processable_images, $plan_allowance, $monthly_credits_used, array('filters' => $filters));
 
         if (!$this->claim_active_run($process_id)) {
             // Another request started a run between the check above and now.
@@ -227,8 +364,13 @@ class AltTextPro_Bulk_Processor
             wp_send_json_error(esc_html__('Another bulk run is already in progress on this site. Wait for it to finish or cancel it before starting a new one.', 'alt-text-pro'));
         }
 
+        if ($background) {
+            $this->set_background_mode($process_id, true);
+        }
+
         wp_send_json_success(array(
             'process_id' => $process_id,
+            'mode' => $background ? 'background' : 'foreground',
             'total_images' => $total_images,
             'queue_total_images' => $total_images,
             'processable_images' => $processable_images,
@@ -287,7 +429,9 @@ class AltTextPro_Bulk_Processor
             wp_send_json_error(esc_html__('Process not found.', 'alt-text-pro'));
         }
 
-        if (in_array($process_data['status'] ?? '', self::TERMINAL_STATUSES, true)) {
+        // A run continuing in the background is driven by WP-Cron only; an
+        // open tab just shows its progress.
+        if (in_array($process_data['status'] ?? '', self::TERMINAL_STATUSES, true) || $this->is_background_run($process_id)) {
             $status = $this->get_bulk_process_status($process_id);
             $status['batch_results'] = array();
             wp_send_json_success($status);
@@ -486,6 +630,7 @@ class AltTextPro_Bulk_Processor
             if ($can_edit_image) {
                 $batch_result['filename'] = basename((string) get_attached_file($image_id));
             }
+            $this->log_batch_outcomes(self::get_run_ref($process_data), array($batch_result));
 
             if (!$process_data['needs_next_batch']) {
                 $this->complete_bulk_process($process_id);
@@ -562,10 +707,13 @@ class AltTextPro_Bulk_Processor
         $search = isset($_POST['search']) ? trim(sanitize_text_field(wp_unslash($_POST['search']))) : '';
         $filter = isset($_POST['filter']) ? sanitize_key(wp_unslash($_POST['filter'])) : 'missing';
         $offset = ($page - 1) * self::SELECTION_PAGE_SIZE;
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- each field is sanitized in parse_filters()
+        $filters = self::parse_filters(isset($_POST['filters']) ? wp_unslash($_POST['filters']) : array());
 
         $where = "p.post_type = 'attachment'"
             . AltTextPro_API_Client::get_supported_mime_sql_clause('p')
-            . self::get_editable_media_sql_clause('p');
+            . self::get_editable_media_sql_clause('p')
+            . self::get_filter_sql($filters, 'p');
 
         if ($search !== '') {
             $like = '%' . $wpdb->esc_like($search) . '%';
@@ -619,11 +767,469 @@ class AltTextPro_Bulk_Processor
     }
 
     /**
+     * What a run with the current Bulk page choices would cost: images it
+     * would process, how many of them already have alt text (replaced when
+     * overwriting), and the time estimate. Read-only; no credits involved.
+     */
+    public function ajax_estimate()
+    {
+        check_ajax_referer('alt_text_pro_nonce', 'nonce');
+
+        if (!current_user_can('upload_files')) {
+            AltTextPro::send_permission_error();
+        }
+
+        $process_type = isset($_POST['process_type']) ? sanitize_key(wp_unslash($_POST['process_type'])) : 'missing';
+        $overwrite = !empty($_POST['overwrite_existing']);
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- each field is sanitized in parse_filters()
+        $filters = self::parse_filters(isset($_POST['filters']) ? wp_unslash($_POST['filters']) : array());
+        // Credits a run may use, as shown on the page (display only; the
+        // run itself checks the account again when it starts).
+        $credit_limit = isset($_POST['credit_limit']) && $_POST['credit_limit'] !== '' ? max(0, intval($_POST['credit_limit'])) : null;
+
+        $counts = self::count_images($filters);
+        $with_alt = 0;
+
+        if ($process_type === 'selected') {
+            $selected = isset($_POST['selected_images']) ? array_slice(array_map('intval', (array) $_POST['selected_images']), 0, self::MAX_BULK_QUEUE) : array();
+            $ids = !empty($selected) ? $this->get_selected_images($selected, true) : array();
+            $images = count($ids);
+            $with_alt = $this->count_images_with_alt($ids);
+        } elseif ($process_type === 'all' && $overwrite) {
+            $images = $counts['all'];
+            $with_alt = max(0, $counts['all'] - $counts['missing']);
+        } else {
+            $images = $counts['missing'];
+        }
+
+        $images = min($images, self::MAX_BULK_QUEUE);
+        $with_alt = min($with_alt, $images);
+        $will_process = $credit_limit === null ? $images : min($images, $credit_limit);
+
+        wp_send_json_success(array(
+            'counts' => $counts,
+            'images' => $images,
+            'with_alt' => $with_alt,
+            'will_process' => $will_process,
+            'credit_limit' => $credit_limit,
+            'estimated_time' => $this->estimate_processing_time($will_process),
+            'queue_capped' => $images >= self::MAX_BULK_QUEUE,
+            'review_mode' => class_exists('AltTextPro_Review') && AltTextPro_Review::is_enabled(),
+        ));
+    }
+
+    /**
+     * How many of these images already have alt text.
+     *
+     * @param int[] $image_ids Attachment IDs.
+     */
+    private function count_images_with_alt(array $image_ids)
+    {
+        global $wpdb;
+
+        $count = 0;
+        foreach (array_chunk(array_values(array_filter(array_map('intval', $image_ids))), 1000) as $chunk) {
+            $placeholders = implode(',', array_fill(0, count($chunk), '%d'));
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- placeholders match the values
+            $count += (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(DISTINCT post_id) FROM {$wpdb->postmeta}
+                 WHERE meta_key = '_wp_attachment_image_alt' AND TRIM(meta_value) != '' AND post_id IN ({$placeholders})",
+                $chunk
+            ));
+        }
+
+        return $count;
+    }
+
+    /**
+     * Switch the current user's run between "keep going in the background"
+     * (WP-Cron) and this tab.
+     */
+    public function ajax_set_mode()
+    {
+        check_ajax_referer('alt_text_pro_nonce', 'nonce');
+
+        if (!current_user_can('upload_files')) {
+            AltTextPro::send_permission_error();
+        }
+
+        $process_id = isset($_POST['process_id']) ? sanitize_text_field(wp_unslash($_POST['process_id'])) : '';
+        $mode = isset($_POST['mode']) ? sanitize_key(wp_unslash($_POST['mode'])) : '';
+        $process_data = $this->get_bulk_process_data($process_id, true);
+
+        if (!$process_data || !in_array($mode, array('background', 'foreground'), true)) {
+            wp_send_json_error(esc_html__('Process not found.', 'alt-text-pro'));
+        }
+
+        if (($process_data['status'] ?? '') !== 'running') {
+            wp_send_json_error(esc_html__('This bulk run has already finished.', 'alt-text-pro'));
+        }
+
+        $this->set_background_mode($process_id, $mode === 'background');
+        wp_send_json_success($this->get_bulk_process_status($process_id));
+    }
+
+    /**
+     * Latest finished runs the current user may see: their own, or every
+     * run for administrators. Counts come from the logs table.
+     *
+     * @return array[]
+     */
+    public static function get_recent_runs_for_page()
+    {
+        global $wpdb;
+
+        $history = get_option(self::RUN_HISTORY_OPTION, array());
+        $history = is_array($history) ? $history : array();
+        $runs = array();
+
+        foreach ($history as $entry) {
+            if (is_array($entry) && !empty($entry['ref']) && self::can_access_run($entry)) {
+                $runs[$entry['ref']] = $entry;
+            }
+        }
+
+        if (empty($runs)) {
+            return array();
+        }
+
+        $counts = array();
+        if (self::log_columns_ready()) {
+            $refs = array_keys($runs);
+            $placeholders = implode(',', array_fill(0, count($refs), '%s'));
+            $logs_table = $wpdb->prefix . 'alt_text_pro_logs';
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- placeholders match the values
+            $rows = $wpdb->get_results($wpdb->prepare(
+                "SELECT run_ref, outcome, COUNT(*) AS total FROM {$logs_table} WHERE run_ref IN ({$placeholders}) GROUP BY run_ref, outcome",
+                $refs
+            ));
+            foreach ((array) $rows as $row) {
+                $counts[(string) $row->run_ref][(string) $row->outcome] = (int) $row->total;
+            }
+        }
+
+        $active_ref = self::get_active_run_ref();
+        foreach ($runs as $ref => $entry) {
+            $run_counts = wp_parse_args($counts[$ref] ?? array(), array(
+                'generated' => 0,
+                'suggested' => 0,
+                'failed' => 0,
+                'skipped' => 0,
+                'undone' => 0,
+                'rejected' => 0,
+            ));
+            $owner = get_userdata(intval($entry['user_id'] ?? 0));
+            $runs[$ref]['counts'] = $run_counts;
+            $runs[$ref]['started_by'] = $owner ? $owner->display_name : '';
+            $runs[$ref]['can_undo'] = $ref !== $active_ref && ($run_counts['generated'] + $run_counts['suggested']) > 0;
+        }
+
+        return array_values($runs);
+    }
+
+    /**
+     * Reference of the run that holds the site's run slot, '' when none.
+     */
+    private static function get_active_run_ref()
+    {
+        $marker = get_option(self::ACTIVE_RUN_OPTION, null);
+
+        return is_array($marker) && !empty($marker['process_id'])
+            ? substr(hash('sha256', (string) $marker['process_id']), 0, 20)
+            : '';
+    }
+
+    /**
+     * The run's owner and administrators may see and undo a run.
+     *
+     * @param array $entry Run history entry.
+     */
+    private static function can_access_run(array $entry)
+    {
+        return current_user_can('upload_files')
+            && (current_user_can('manage_options') || intval($entry['user_id'] ?? 0) === get_current_user_id());
+    }
+
+    /**
+     * Run history entry by reference, when the current user may access it.
+     *
+     * @return array|null
+     */
+    private static function find_accessible_run($ref)
+    {
+        if (!is_string($ref) || !preg_match('/^[a-f0-9]{20}$/', $ref)) {
+            return null;
+        }
+
+        $history = get_option(self::RUN_HISTORY_OPTION, array());
+        foreach (is_array($history) ? $history : array() as $entry) {
+            if (is_array($entry) && ($entry['ref'] ?? '') === $ref) {
+                return self::can_access_run($entry) ? $entry : null;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Failed and skipped images of a finished run, with the reason.
+     */
+    public function ajax_run_items()
+    {
+        check_ajax_referer('alt_text_pro_nonce', 'nonce');
+
+        if (!current_user_can('upload_files')) {
+            AltTextPro::send_permission_error();
+        }
+
+        $ref = isset($_POST['run_ref']) ? sanitize_key(wp_unslash($_POST['run_ref'])) : '';
+        if (!self::find_accessible_run($ref)) {
+            AltTextPro::send_permission_error();
+        }
+
+        if (!self::log_columns_ready()) {
+            wp_send_json_success(array('items' => array(), 'limit' => self::RUN_ITEMS_LIMIT));
+        }
+
+        global $wpdb;
+        $logs_table = $wpdb->prefix . 'alt_text_pro_logs';
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table names come from $wpdb
+        $rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT l.attachment_id, l.outcome, l.outcome_reason, p.post_title
+             FROM {$logs_table} l
+             LEFT JOIN {$wpdb->posts} p ON p.ID = l.attachment_id
+             WHERE l.run_ref = %s AND l.outcome IN ('failed', 'skipped')
+             ORDER BY l.outcome ASC, l.id ASC
+             LIMIT %d",
+            $ref,
+            self::RUN_ITEMS_LIMIT
+        ));
+
+        $items = array();
+        foreach ((array) $rows as $row) {
+            $attachment_id = intval($row->attachment_id);
+            $title = trim(wp_strip_all_tags(html_entity_decode((string) $row->post_title, ENT_QUOTES | ENT_HTML5, 'UTF-8')));
+            $items[] = array(
+                'id' => $attachment_id,
+                /* translators: %d: attachment ID */
+                'title' => $title !== '' ? $title : sprintf(__('Image #%d', 'alt-text-pro'), $attachment_id),
+                'outcome' => (string) $row->outcome,
+                'reason' => (string) $row->outcome_reason,
+                'edit_url' => current_user_can('edit_post', $attachment_id) ? get_edit_post_link($attachment_id, 'raw') : '',
+            );
+        }
+
+        wp_send_json_success(array('items' => $items, 'limit' => self::RUN_ITEMS_LIMIT));
+    }
+
+    /**
+     * Undo a finished run in chunks: put back the alt text each image had
+     * before the run, only where the alt text is still exactly what the run
+     * wrote. Suggestions of the run still waiting for review are withdrawn.
+     * No credits are involved.
+     */
+    public function ajax_undo_run()
+    {
+        check_ajax_referer('alt_text_pro_nonce', 'nonce');
+
+        if (!current_user_can('upload_files')) {
+            AltTextPro::send_permission_error();
+        }
+
+        $ref = isset($_POST['run_ref']) ? sanitize_key(wp_unslash($_POST['run_ref'])) : '';
+        $after_id = isset($_POST['after_id']) ? absint($_POST['after_id']) : 0;
+
+        if (!self::find_accessible_run($ref)) {
+            AltTextPro::send_permission_error();
+        }
+
+        if ($ref === self::get_active_run_ref()) {
+            wp_send_json_error(esc_html__('This run is still active. Stop it or let it finish before undoing it.', 'alt-text-pro'));
+        }
+
+        if (!self::log_columns_ready()) {
+            wp_send_json_error(esc_html__('This run cannot be undone because its history was not saved.', 'alt-text-pro'));
+        }
+
+        global $wpdb;
+        $logs_table = $wpdb->prefix . 'alt_text_pro_logs';
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name comes from $wpdb
+        $rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT id, attachment_id, alt_text, previous_alt, outcome
+             FROM {$logs_table}
+             WHERE run_ref = %s AND outcome IN ('generated', 'suggested') AND id > %d
+             ORDER BY id ASC
+             LIMIT %d",
+            $ref,
+            $after_id,
+            self::UNDO_CHUNK
+        ));
+        $rows = (array) $rows;
+
+        $result = array('restored' => 0, 'changed' => 0, 'not_allowed' => 0, 'withdrawn' => 0);
+        $last_id = $after_id;
+
+        foreach ($rows as $row) {
+            $log_id = intval($row->id);
+            $attachment_id = intval($row->attachment_id);
+            $last_id = max($last_id, $log_id);
+
+            if (!current_user_can('edit_post', $attachment_id)) {
+                $result['not_allowed']++;
+                continue;
+            }
+
+            if ($row->outcome === 'suggested') {
+                // Still waiting for review: withdraw the suggestion.
+                $suggestion = class_exists('AltTextPro_Review') ? AltTextPro_Review::get_suggestion($attachment_id) : null;
+                if ($suggestion && intval($suggestion['log_id'] ?? 0) === $log_id) {
+                    delete_post_meta($attachment_id, AltTextPro_Review::META);
+                    self::update_log_outcome($log_id, 'rejected', __('Withdrawn by undoing the run.', 'alt-text-pro'));
+                    $result['withdrawn']++;
+                }
+                continue;
+            }
+
+            if ($row->previous_alt === null) {
+                $result['changed']++;
+                continue;
+            }
+
+            $current_alt = (string) get_post_meta($attachment_id, '_wp_attachment_image_alt', true);
+            if ($current_alt !== (string) $row->alt_text) {
+                // Edited since the run: keep the newer alt text.
+                $result['changed']++;
+                continue;
+            }
+
+            if ((string) $row->previous_alt === '') {
+                delete_post_meta($attachment_id, '_wp_attachment_image_alt');
+            } else {
+                update_post_meta($attachment_id, '_wp_attachment_image_alt', wp_slash((string) $row->previous_alt));
+            }
+            self::update_log_outcome($log_id, 'undone', '');
+            $result['restored']++;
+        }
+
+        $done = count($rows) < self::UNDO_CHUNK;
+        $this->record_undo($ref, $result, $done);
+
+        wp_send_json_success(array_merge($result, array(
+            'done' => $done,
+            'after_id' => $last_id,
+        )));
+    }
+
+    /**
+     * Change the outcome of one log row (approve, reject, undo).
+     *
+     * @param int    $log_id  Log row ID.
+     * @param string $outcome New outcome.
+     * @param string $reason  Reason shown in Logs and the CSV.
+     * @param array  $fields  Other columns to set (alt_text, previous_alt).
+     */
+    public static function update_log_outcome($log_id, $outcome, $reason = '', array $fields = array())
+    {
+        global $wpdb;
+
+        if (!$log_id || !self::log_columns_ready()) {
+            return;
+        }
+
+        $data = array('outcome' => sanitize_key($outcome), 'outcome_reason' => (string) $reason);
+        foreach (array('alt_text', 'previous_alt') as $column) {
+            if (array_key_exists($column, $fields)) {
+                $data[$column] = (string) $fields[$column];
+            }
+        }
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+        $wpdb->update($wpdb->prefix . 'alt_text_pro_logs', $data, array('id' => intval($log_id)), array_fill(0, count($data), '%s'), array('%d'));
+    }
+
+    /**
+     * Add one undo request's counts to the run's history entry.
+     */
+    private function record_undo($ref, array $result, $done)
+    {
+        $history = get_option(self::RUN_HISTORY_OPTION, array());
+        if (!is_array($history)) {
+            return;
+        }
+
+        foreach ($history as $index => $entry) {
+            if (!is_array($entry) || ($entry['ref'] ?? '') !== $ref) {
+                continue;
+            }
+            foreach ($result as $key => $count) {
+                $history[$index]['undo_' . $key] = intval($entry['undo_' . $key] ?? 0) + intval($count);
+            }
+            if ($done) {
+                $history[$index]['undone_at'] = current_time('mysql');
+            }
+            update_option(self::RUN_HISTORY_OPTION, $history, false);
+            return;
+        }
+    }
+
+    /**
      * Process batch synchronously (for immediate processing)
      */
     public function process_batch_sync($process_id, $batch_offset)
     {
-        return $this->process_batch_background($process_id, $batch_offset);
+        $run_ref = $this->get_run_ref_for($process_id);
+        $batch_results = $this->process_batch_background($process_id, $batch_offset);
+
+        // Failed and skipped images go to the logs table with the run, so the
+        // Bulk page, the Logs page and the CSV keep them after a reload.
+        $this->log_batch_outcomes($run_ref, is_array($batch_results) ? $batch_results : array());
+
+        return $batch_results;
+    }
+
+    /**
+     * Run reference of a run the current user can read, '' when unknown.
+     */
+    private function get_run_ref_for($process_id)
+    {
+        $process_data = $this->get_bulk_process_data($process_id, true);
+        return is_array($process_data) ? self::get_run_ref($process_data) : '';
+    }
+
+    /**
+     * Short, non-secret reference of a run, stored with its log rows. Runs
+     * started before 1.7.28 get the same value from their ID.
+     */
+    private static function get_run_ref(array $process_data)
+    {
+        if (!empty($process_data['run_ref']) && is_string($process_data['run_ref'])) {
+            return $process_data['run_ref'];
+        }
+
+        return substr(hash('sha256', (string) ($process_data['id'] ?? '')), 0, 20);
+    }
+
+    /**
+     * Record failed and skipped images of one batch in the logs table.
+     *
+     * @param string  $run_ref       Run reference.
+     * @param array[] $batch_results Results returned to the browser.
+     */
+    private function log_batch_outcomes($run_ref, array $batch_results)
+    {
+        foreach ($batch_results as $result) {
+            $status = is_array($result) ? (string) ($result['status'] ?? '') : '';
+            $image_id = is_array($result) ? intval($result['id'] ?? 0) : 0;
+            if ($image_id <= 0 || !in_array($status, array('error', 'skipped'), true)) {
+                continue;
+            }
+
+            self::write_log($image_id, '', 0, array(
+                'outcome' => $status === 'error' ? 'failed' : 'skipped',
+                'outcome_reason' => (string) ($status === 'error' ? ($result['error'] ?? '') : ($result['reason'] ?? '')),
+                'run_ref' => $run_ref,
+            ));
+        }
     }
 
     /**
@@ -709,7 +1315,8 @@ class AltTextPro_Bulk_Processor
                 $batch_results[] = array(
                     'id' => $image_id,
                     'filename' => basename((string) get_attached_file($image_id)),
-                    'status' => 'skipped'
+                    'status' => 'skipped',
+                    'reason' => __('Already done earlier in this run.', 'alt-text-pro')
                 );
                 continue;
             }
@@ -725,10 +1332,32 @@ class AltTextPro_Bulk_Processor
                     $batch_results[] = array(
                         'id' => $image_id,
                         'filename' => basename((string) get_attached_file($image_id)),
-                        'status' => 'skipped'
+                        'status' => 'skipped',
+                        'reason' => __('Already has alt text.', 'alt-text-pro')
                     );
                     continue;
                 }
+            }
+
+            // Marked decorative (empty alt on purpose) or waiting on the
+            // Review page since the run was queued: never describe or bill
+            // it again.
+            $skip_reason = '';
+            if ((string) get_post_meta($image_id, self::DECORATIVE_META, true) === '1') {
+                $skip_reason = __('Marked as decorative.', 'alt-text-pro');
+            } elseif (class_exists('AltTextPro_Review') && AltTextPro_Review::has_suggestion($image_id)) {
+                $skip_reason = __('Suggested alt text is waiting for review.', 'alt-text-pro');
+            }
+            if ($skip_reason !== '') {
+                $skipped++;
+                $processed++;
+                $batch_results[] = array(
+                    'id' => $image_id,
+                    'filename' => basename((string) get_attached_file($image_id)),
+                    'status' => 'skipped',
+                    'reason' => $skip_reason
+                );
+                continue;
             }
 
             // The automatic generation of a fresh upload is describing this
@@ -739,7 +1368,8 @@ class AltTextPro_Bulk_Processor
                 $batch_results[] = array(
                     'id' => $image_id,
                     'filename' => basename((string) get_attached_file($image_id)),
-                    'status' => 'skipped'
+                    'status' => 'skipped',
+                    'reason' => __('Being described by automatic generation for the upload.', 'alt-text-pro')
                 );
                 continue;
             }
@@ -817,6 +1447,20 @@ class AltTextPro_Bulk_Processor
                     'status' => 'cancelled'
                 );
                 break;
+            }
+
+            // The API client refuses images marked decorative (no request,
+            // no credit): a skip, not a failure.
+            if (empty($result['success']) && ($result['code'] ?? '') === 'decorative_image') {
+                $skipped++;
+                $processed++;
+                $batch_results[] = array(
+                    'id' => $image_id,
+                    'filename' => basename((string) get_attached_file($image_id)),
+                    'status' => 'skipped',
+                    'reason' => __('Marked as decorative.', 'alt-text-pro')
+                );
+                continue;
             }
 
             // Oversized images are a per-image failure, not a bulk-run failure.
@@ -1001,13 +1645,26 @@ class AltTextPro_Bulk_Processor
             }
 
             if ($result['success'] && !empty($result['alt_text'])) {
-                // Update attachment alt text
                 $alt_text = sanitize_text_field((string) $result['alt_text']);
-                update_post_meta($image_id, '_wp_attachment_image_alt', $alt_text);
+                $run_ref = self::get_run_ref($process_data);
+                $suggested = $alt_text !== '' && class_exists('AltTextPro_Review') && AltTextPro_Review::is_enabled();
 
-                // Log generation (only if alt_text exists)
-                if ($alt_text !== '') {
-                    $this->log_generation($image_id, $alt_text, $result['credits_used'] ?? 1);
+                if ($suggested) {
+                    // "Review alt text before it goes live": keep it as a
+                    // suggestion; the live alt text is unchanged until approved.
+                    AltTextPro_Review::store_suggestion($image_id, $alt_text, 'bulk', $run_ref, $result['credits_used'] ?? 1);
+                } else {
+                    // Keep the alt text this run replaces so the run can be undone.
+                    $previous_alt = (string) get_post_meta($image_id, '_wp_attachment_image_alt', true);
+                    update_post_meta($image_id, '_wp_attachment_image_alt', $alt_text);
+
+                    // Log generation (only if alt_text exists)
+                    if ($alt_text !== '') {
+                        $this->log_generation($image_id, $alt_text, $result['credits_used'] ?? 1, array(
+                            'run_ref' => $run_ref,
+                            'previous_alt' => $previous_alt,
+                        ));
+                    }
                 }
 
                 $processed++;
@@ -1017,7 +1674,8 @@ class AltTextPro_Bulk_Processor
                 $batch_results[] = array(
                     'id' => $image_id,
                     'filename' => basename((string) get_attached_file($image_id)),
-                    'status' => 'success'
+                    'status' => 'success',
+                    'suggested' => $suggested
                 );
 
             } else {
@@ -1158,10 +1816,12 @@ class AltTextPro_Bulk_Processor
     /**
      * Get images without alt text
      */
-    private function get_images_without_alt_text($include_existing = false)
+    private function get_images_without_alt_text($include_existing = false, array $filters = array())
     {
         global $wpdb;
-        $editable_clause = self::get_editable_media_sql_clause('p');
+        // Editable media only, without decorative or pending-review images,
+        // narrowed by the Bulk page filters.
+        $editable_clause = self::get_editable_media_sql_clause('p') . self::get_filter_sql($filters, 'p');
         // SVG and other non-raster files are never queued.
         $supported_mime_clause = AltTextPro_API_Client::get_supported_mime_sql_clause('p');
 
@@ -1232,7 +1892,9 @@ class AltTextPro_Bulk_Processor
         // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- IDs are sanitized with intval
         $ids_placeholders = implode(',', array_fill(0, count($ids_escaped), '%d'));
         $prepared_values = $ids_escaped;
-        $supported_mime_clause = AltTextPro_API_Client::get_supported_mime_sql_clause('p');
+        // Decorative and pending-review images are never queued, even when
+        // picked one by one.
+        $supported_mime_clause = AltTextPro_API_Client::get_supported_mime_sql_clause('p') . self::get_filter_sql(array(), 'p');
 
         if ($include_existing) {
             // Include all selected images regardless of alt text
@@ -1298,6 +1960,236 @@ class AltTextPro_Bulk_Processor
     }
 
     /**
+     * Normalize the Bulk page filters: uploaded from/to (Y-m-d), the post
+     * type the image is attached to, and a category of that post
+     * ("taxonomy:term_id"). Anything invalid is dropped.
+     *
+     * @param mixed $input Raw filters (already unslashed).
+     * @return array{date_from: string, date_to: string, parent_type: string, term: string}
+     */
+    public static function parse_filters($input)
+    {
+        $input = is_array($input) ? $input : array();
+        $filters = array('date_from' => '', 'date_to' => '', 'parent_type' => '', 'term' => '');
+
+        foreach (array('date_from', 'date_to') as $key) {
+            $value = isset($input[$key]) ? sanitize_text_field((string) $input[$key]) : '';
+            if (preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $value, $parts) && checkdate((int) $parts[2], (int) $parts[3], (int) $parts[1])) {
+                $filters[$key] = $value;
+            }
+        }
+
+        $parent_type = isset($input['parent_type']) ? sanitize_key((string) $input['parent_type']) : '';
+        if ($parent_type !== '' && array_key_exists($parent_type, self::get_parent_type_options())) {
+            $filters['parent_type'] = $parent_type;
+        }
+
+        $term = isset($input['term']) ? sanitize_text_field((string) $input['term']) : '';
+        if (preg_match('/^([a-z_]+):(\d+)$/', $term, $parts) && array_key_exists($parts[1], self::get_filter_taxonomies()) && (int) $parts[2] > 0) {
+            $filters['term'] = $parts[1] . ':' . (int) $parts[2];
+        }
+
+        return $filters;
+    }
+
+    /**
+     * True when WooCommerce products can be used as a filter.
+     */
+    private static function has_products()
+    {
+        return class_exists('WooCommerce') && post_type_exists('product');
+    }
+
+    /**
+     * "Attached to" choices: post type => label.
+     *
+     * @return array<string, string>
+     */
+    public static function get_parent_type_options()
+    {
+        $options = array(
+            'post' => __('Posts', 'alt-text-pro'),
+            'page' => __('Pages', 'alt-text-pro'),
+        );
+        if (self::has_products()) {
+            $options['product'] = __('WooCommerce products', 'alt-text-pro');
+        }
+
+        return $options;
+    }
+
+    /**
+     * Taxonomies offered in the category filter: taxonomy => label.
+     *
+     * @return array<string, string>
+     */
+    public static function get_filter_taxonomies()
+    {
+        $taxonomies = array('category' => __('Post categories', 'alt-text-pro'));
+        if (self::has_products() && taxonomy_exists('product_cat')) {
+            $taxonomies['product_cat'] = __('Product categories', 'alt-text-pro');
+        }
+
+        return $taxonomies;
+    }
+
+    /**
+     * Category choices for the filter, grouped by taxonomy label.
+     *
+     * @return array<string, array<string, string>> label => ("taxonomy:id" => name)
+     */
+    public static function get_term_filter_options()
+    {
+        $groups = array();
+        foreach (self::get_filter_taxonomies() as $taxonomy => $label) {
+            $terms = get_terms(array(
+                'taxonomy' => $taxonomy,
+                'hide_empty' => true,
+                'number' => 300,
+                'orderby' => 'name',
+            ));
+            if (is_wp_error($terms) || empty($terms)) {
+                continue;
+            }
+            foreach ($terms as $term) {
+                $groups[$label][$taxonomy . ':' . (int) $term->term_id] = $term->name;
+            }
+        }
+
+        return $groups;
+    }
+
+    /**
+     * SQL (prepared, starting with " AND") that applies the Bulk page
+     * filters to attachments aliased $alias, and always leaves out images
+     * marked decorative and images whose suggested alt text waits for review.
+     *
+     * @param array  $filters Output of parse_filters().
+     * @param string $alias   Attachment table alias.
+     */
+    public static function get_filter_sql(array $filters, $alias = 'p')
+    {
+        global $wpdb;
+
+        $sql = $wpdb->prepare(
+            " AND NOT EXISTS (SELECT 1 FROM {$wpdb->postmeta} atp_dec WHERE atp_dec.post_id = {$alias}.ID AND atp_dec.meta_key = %s AND atp_dec.meta_value = %s)",
+            self::DECORATIVE_META,
+            '1'
+        );
+        if (class_exists('AltTextPro_Review')) {
+            $sql .= $wpdb->prepare(
+                " AND NOT EXISTS (SELECT 1 FROM {$wpdb->postmeta} atp_sug WHERE atp_sug.post_id = {$alias}.ID AND atp_sug.meta_key = %s)",
+                AltTextPro_Review::META
+            );
+        }
+
+        if (!empty($filters['date_from'])) {
+            $sql .= $wpdb->prepare(" AND {$alias}.post_date >= %s", $filters['date_from'] . ' 00:00:00');
+        }
+        if (!empty($filters['date_to'])) {
+            $sql .= $wpdb->prepare(" AND {$alias}.post_date <= %s", $filters['date_to'] . ' 23:59:59');
+        }
+        if (!empty($filters['parent_type'])) {
+            $sql .= $wpdb->prepare(
+                " AND EXISTS (SELECT 1 FROM {$wpdb->posts} atp_parent WHERE atp_parent.ID = {$alias}.post_parent AND atp_parent.post_type = %s)",
+                $filters['parent_type']
+            );
+        }
+        if (!empty($filters['term']) && strpos($filters['term'], ':') !== false) {
+            list($taxonomy, $term_id) = explode(':', $filters['term'], 2);
+            // The category and its subcategories.
+            $term_ids = array((int) $term_id);
+            $children = get_term_children((int) $term_id, $taxonomy);
+            if (is_array($children)) {
+                $term_ids = array_merge($term_ids, array_map('intval', $children));
+            }
+            $term_ids = array_values(array_unique(array_filter($term_ids)));
+            $placeholders = implode(',', array_fill(0, count($term_ids), '%d'));
+            // phpcs:ignore WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- placeholders match the values
+            $sql .= $wpdb->prepare(
+                " AND EXISTS (SELECT 1 FROM {$wpdb->term_relationships} atp_tr
+                     INNER JOIN {$wpdb->term_taxonomy} atp_tt ON atp_tt.term_taxonomy_id = atp_tr.term_taxonomy_id
+                     WHERE atp_tr.object_id = {$alias}.post_parent AND {$alias}.post_parent > 0
+                     AND atp_tt.taxonomy = %s AND atp_tt.term_id IN ({$placeholders}))",
+                array_merge(array($taxonomy), $term_ids)
+            );
+        }
+
+        return $sql;
+    }
+
+    /**
+     * Image counts for the Bulk page and the run estimate, with the same
+     * scope, exclusions and filters as the run itself.
+     *
+     * @param array $filters Output of parse_filters().
+     * @return array{missing: int, all: int}
+     */
+    public static function count_images(array $filters = array())
+    {
+        global $wpdb;
+
+        $where = "p.post_type = 'attachment'"
+            . AltTextPro_API_Client::get_supported_mime_sql_clause('p')
+            . self::get_editable_media_sql_clause('p')
+            . self::get_filter_sql($filters, 'p');
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- every variable fragment is prepared above
+        $all = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->posts} p WHERE {$where}");
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        $missing = (int) $wpdb->get_var(
+            "SELECT COUNT(*) FROM {$wpdb->posts} p
+             LEFT JOIN {$wpdb->postmeta} pm ON (
+                 p.ID = pm.post_id
+                 AND pm.meta_key = '_wp_attachment_image_alt'
+                 AND pm.meta_value IS NOT NULL
+                 AND TRIM(pm.meta_value) != ''
+             )
+             WHERE {$where} AND pm.post_id IS NULL"
+        );
+
+        return array(
+            'missing' => $missing,
+            'all' => $all,
+        );
+    }
+
+    /**
+     * Credits one run may use, from the account's usage data. Plans with a
+     * monthly allowance stop at what is left of it this cycle.
+     *
+     * @param array $usage Usage data returned by the service.
+     * @return array{credits_remaining: int, plan_allowance: int, plan_credits_used: int, run_limit: int}
+     */
+    public static function get_run_credit_limits(array $usage)
+    {
+        $credits_remaining = isset($usage['credits_remaining']) ? intval($usage['credits_remaining']) : 0;
+        $credits_used = isset($usage['credits_used']) ? intval($usage['credits_used']) : 0;
+        $total_credits = isset($usage['total_credits']) ? intval($usage['total_credits']) : 0;
+        $monthly_credit_allowance = isset($usage['monthly_credit_allowance']) ? intval($usage['monthly_credit_allowance']) : 0;
+        $monthly_credit_limit = isset($usage['monthly_credit_limit']) ? intval($usage['monthly_credit_limit']) : 0;
+        $monthly_credits_remaining = isset($usage['monthly_credits_remaining']) ? intval($usage['monthly_credits_remaining']) : null;
+        $monthly_credits_used = isset($usage['monthly_credits_used']) ? intval($usage['monthly_credits_used']) : $credits_used;
+        $subscription_plan = isset($usage['subscription_plan']) ? sanitize_text_field($usage['subscription_plan']) : 'free';
+        $subscription_plans = array('free', 'tier1', 'tier2', 'tier3', 'tier4', 'lite', 'standard', 'pro', 'agency');
+
+        $plan_allowance = $monthly_credit_limit > 0 ? $monthly_credit_limit : ($monthly_credit_allowance > 0 ? $monthly_credit_allowance : $total_credits);
+        $plan_remaining = $monthly_credits_remaining !== null
+            ? $monthly_credits_remaining
+            : ($plan_allowance > 0 ? max(0, $plan_allowance - $monthly_credits_used) : $credits_remaining);
+        $run_limit = in_array($subscription_plan, $subscription_plans, true)
+            ? min($credits_remaining, $plan_remaining)
+            : $credits_remaining;
+
+        return array(
+            'credits_remaining' => $credits_remaining,
+            'plan_allowance' => $plan_allowance,
+            'plan_credits_used' => $monthly_credits_used,
+            'run_limit' => max(0, $run_limit),
+        );
+    }
+
+    /**
      * Keep only image attachments the current user may modify.
      */
     private function filter_editable_images($image_ids)
@@ -1327,7 +2219,7 @@ class AltTextPro_Bulk_Processor
     /**
      * Create bulk process record
      */
-    private function create_bulk_process_record($images, $batch_size, $overwrite_existing, $credits_remaining_at_start = 0, $processable_images = null, $plan_allowance = null, $plan_credits_used = null)
+    private function create_bulk_process_record($images, $batch_size, $overwrite_existing, $credits_remaining_at_start = 0, $processable_images = null, $plan_allowance = null, $plan_credits_used = null, array $options = array())
     {
         $process_id = 'bulk_' . wp_generate_password(32, false, false);
         $total_images = count($images);
@@ -1355,7 +2247,10 @@ class AltTextPro_Bulk_Processor
             'needs_next_batch' => true,
             'next_batch_offset' => 0,
             'started_at' => current_time('mysql'),
-            'user_id' => get_current_user_id()
+            'user_id' => get_current_user_id(),
+            // Non-secret reference stored with the run's log rows.
+            'run_ref' => substr(hash('sha256', $process_id), 0, 20),
+            'filters' => isset($options['filters']) && is_array($options['filters']) ? $options['filters'] : array()
         );
 
         // Store durable process data; the transient is only the fast cache.
@@ -1425,7 +2320,11 @@ class AltTextPro_Bulk_Processor
             'needs_next_batch' => isset($process_data['needs_next_batch']) ? $process_data['needs_next_batch'] : false,
             'next_batch_offset' => isset($process_data['next_batch_offset']) ? $process_data['next_batch_offset'] : null,
             'retry_after_seconds' => isset($process_data['retry_after_seconds']) ? intval($process_data['retry_after_seconds']) : null,
-            'retry_message' => isset($process_data['retry_message']) ? $process_data['retry_message'] : null
+            'retry_message' => isset($process_data['retry_message']) ? $process_data['retry_message'] : null,
+            // Driven by WP-Cron ("background") or by the open tab.
+            'mode' => $this->is_background_run($process_id) ? 'background' : 'foreground',
+            'run_ref' => self::get_run_ref($process_data),
+            'idle_seconds' => $this->get_idle_seconds($process_data)
         );
 
         // Add stopped_reason if process was stopped due to credits
@@ -1584,8 +2483,58 @@ class AltTextPro_Bulk_Processor
      */
     private function delete_bulk_process_state($process_id)
     {
+        // Keep a summary of a run that did something, for "Recent runs".
+        $process_data = get_option($this->get_bulk_process_option_name($process_id), false);
+        if (is_array($process_data)) {
+            $this->record_run_history($process_data, $this->is_background_run($process_id));
+        }
+
         delete_option($this->get_bulk_process_option_name($process_id));
+        delete_option($this->get_background_option_name($process_id));
         $this->release_active_run($process_id);
+    }
+
+    /**
+     * Add or update the summary of a finished run in the run history.
+     *
+     * @param array $process_data  Saved run state.
+     * @param bool  $is_background Whether it ran in the background.
+     */
+    private function record_run_history(array $process_data, $is_background)
+    {
+        $status = (string) ($process_data['status'] ?? '');
+        if (intval($process_data['processed'] ?? 0) <= 0 || !in_array($status, array('completed', 'cancelled', 'cancelling', 'stopped_no_credits', 'stopped_error'), true)) {
+            return;
+        }
+
+        $ref = self::get_run_ref($process_data);
+        $history = get_option(self::RUN_HISTORY_OPTION, array());
+        $history = is_array($history) ? $history : array();
+
+        $entry = array(
+            'ref' => $ref,
+            'user_id' => intval($process_data['user_id'] ?? 0),
+            'started_at' => (string) ($process_data['started_at'] ?? ''),
+            'finished_at' => (string) ($process_data['completed_at'] ?? ($process_data['cancelled_at'] ?? current_time('mysql'))),
+            'status' => $status === 'cancelling' ? 'cancelled' : $status,
+            'mode' => $is_background ? 'background' : 'foreground',
+            'processable' => intval($process_data['processable_images'] ?? 0),
+            'processed' => intval($process_data['processed'] ?? 0),
+            'successful' => intval($process_data['successful'] ?? 0),
+            'failed' => is_array($process_data['errors'] ?? null) ? count($process_data['errors']) : 0,
+            'overwrite' => !empty($process_data['overwrite_existing']),
+        );
+
+        foreach ($history as $index => $existing) {
+            if (is_array($existing) && ($existing['ref'] ?? '') === $ref) {
+                // Keep what an undo recorded.
+                $entry = array_merge($existing, $entry);
+                unset($history[$index]);
+            }
+        }
+
+        array_unshift($history, $entry);
+        update_option(self::RUN_HISTORY_OPTION, array_slice(array_values($history), 0, self::RUN_HISTORY_LIMIT), false);
     }
 
     /**
@@ -1666,8 +2615,10 @@ class AltTextPro_Bulk_Processor
             }
 
             delete_option($option_name);
-            // The run's process lock uses the same hash as its state.
+            // The run's process lock and background flag use the same hash
+            // as its state.
             delete_option('alt_text_pro_bulk_lock_' . substr($option_name, strlen($state_prefix)));
+            delete_option(self::BACKGROUND_OPTION_PREFIX . substr($option_name, strlen($state_prefix)));
             if (is_array($process_data) && !empty($process_data['id']) && is_string($process_data['id'])) {
                 delete_transient('alt_text_pro_bulk_' . $process_data['id']);
                 delete_transient('alt_text_pro_bulk_active_' . $process_data['id']);
@@ -1701,12 +2652,238 @@ class AltTextPro_Bulk_Processor
         $last_activity = $process_data['last_updated'] ?? ($process_data['started_at'] ?? '');
         $idle_seconds = strtotime(current_time('mysql')) - strtotime((string) $last_activity);
 
-        if (!$last_activity || $idle_seconds > self::ACTIVE_RUN_STALE_SECONDS) {
+        // A running run that stopped moving (closed tab, or WP-Cron not
+        // firing) is paused: it keeps the slot and stays resumable for a
+        // week. A run that is stopping is released sooner.
+        $stale_after = $status === 'running' ? self::RESUMABLE_RUN_SECONDS : self::ACTIVE_RUN_STALE_SECONDS;
+
+        if (!$last_activity || $idle_seconds > $stale_after) {
             $this->atomic_delete_lock_option(self::ACTIVE_RUN_OPTION, $marker);
             return null;
         }
 
         return $marker;
+    }
+
+    /**
+     * Seconds since the run last made progress.
+     */
+    private function get_idle_seconds(array $process_data)
+    {
+        $last_activity = (string) ($process_data['last_updated'] ?? ($process_data['started_at'] ?? ''));
+        $last_timestamp = $last_activity !== '' ? strtotime($last_activity) : false;
+        if (!$last_timestamp) {
+            return 0;
+        }
+
+        return max(0, strtotime(current_time('mysql')) - $last_timestamp);
+    }
+
+    /**
+     * Option that marks a run as continuing in the background.
+     */
+    private function get_background_option_name($process_id)
+    {
+        return self::BACKGROUND_OPTION_PREFIX . hash('sha256', (string) $process_id);
+    }
+
+    /**
+     * True when WP-Cron, not a browser tab, drives this run.
+     */
+    private function is_background_run($process_id)
+    {
+        $option_name = $this->get_background_option_name($process_id);
+        $this->clear_lock_option_cache($option_name);
+
+        return get_option($option_name, '') === '1';
+    }
+
+    /**
+     * Switch a run between the background (WP-Cron) and this tab.
+     */
+    private function set_background_mode($process_id, $background)
+    {
+        $option_name = $this->get_background_option_name($process_id);
+
+        if ($background) {
+            update_option($option_name, '1', false);
+            self::schedule_background_tick(0);
+            // Start right after this request instead of waiting for a visitor.
+            if (!wp_doing_cron() && !(defined('DISABLE_WP_CRON') && DISABLE_WP_CRON)) {
+                add_action('shutdown', array(__CLASS__, 'spawn_cron_after_request'));
+            }
+        } else {
+            delete_option($option_name);
+            wp_clear_scheduled_hook(self::BACKGROUND_HOOK);
+        }
+        $this->clear_lock_option_cache($option_name);
+    }
+
+    /**
+     * Ask WP-Cron to run due events after this request.
+     */
+    public static function spawn_cron_after_request()
+    {
+        if (function_exists('spawn_cron')) {
+            spawn_cron();
+        }
+    }
+
+    /**
+     * Queue the next background tick (one at a time).
+     *
+     * @param int $delay Seconds from now.
+     */
+    private static function schedule_background_tick($delay)
+    {
+        $next = wp_next_scheduled(self::BACKGROUND_HOOK);
+        $when = time() + max(0, intval($delay));
+
+        if ($next !== false && $next <= $when) {
+            return;
+        }
+        if ($next !== false) {
+            // Replace a later tick with this sooner one.
+            wp_clear_scheduled_hook(self::BACKGROUND_HOOK);
+        }
+
+        wp_schedule_single_event($when, self::BACKGROUND_HOOK);
+    }
+
+    /**
+     * WP-Cron callback: continue the site's background run for a short
+     * slice of time, then queue the next tick.
+     */
+    public static function run_background_tick()
+    {
+        $processor = new self(false);
+        $processor->process_background_tick();
+    }
+
+    /**
+     * One background tick. Works on the run named by the site's active-run
+     * marker, as the user who started it, under the same process lock as
+     * tab-driven batches, so a run is never processed twice at once.
+     */
+    private function process_background_tick()
+    {
+        $marker = $this->get_live_active_run();
+        if (!$marker) {
+            return;
+        }
+
+        $process_id = (string) $marker['process_id'];
+        $process_data = $this->get_bulk_process_data($process_id, true, true);
+        if (!is_array($process_data) || !$this->is_background_run($process_id)) {
+            return;
+        }
+
+        $owner_id = intval($process_data['user_id'] ?? 0);
+        $previous_user_id = get_current_user_id();
+        // Capability checks (and the owner check on the run) use the user
+        // who started the run.
+        wp_set_current_user($owner_id);
+
+        try {
+            if (!$owner_id || !current_user_can('upload_files')) {
+                $this->stop_bulk_process_with_error(
+                    $process_id,
+                    $process_data,
+                    intval($process_data['processed'] ?? 0),
+                    is_array($process_data['successful_image_ids'] ?? null) ? $process_data['successful_image_ids'] : array(),
+                    array(),
+                    array(),
+                    'owner_unavailable',
+                    __('The background run stopped because the user who started it can no longer upload files.', 'alt-text-pro')
+                );
+                return;
+            }
+
+            if (($process_data['status'] ?? '') === 'cancelling') {
+                // Finish a stop once the image in flight has settled.
+                $this->cancel_bulk_process($process_id);
+                $process_data = $this->get_bulk_process_data($process_id, true);
+                if (is_array($process_data) && ($process_data['status'] ?? '') === 'cancelling') {
+                    self::schedule_background_tick(30);
+                }
+                return;
+            }
+
+            $lock_token = $this->acquire_process_lock($process_id);
+            if (!$lock_token) {
+                // A tab or another tick is working on this run right now.
+                self::schedule_background_tick(15);
+                return;
+            }
+
+            $next_delay = 1;
+            $budget = $this->get_background_tick_budget();
+            $started = time();
+
+            try {
+                do {
+                    $process_data = $this->get_bulk_process_data($process_id, true);
+                    if (
+                        !is_array($process_data)
+                        || ($process_data['status'] ?? '') !== 'running'
+                        || empty($process_data['needs_next_batch'])
+                        || !$this->is_background_run($process_id)
+                    ) {
+                        break;
+                    }
+
+                    // Wait out a rate-limit window instead of retrying early.
+                    if (!empty($process_data['retry_after_seconds'])) {
+                        $ready_at = strtotime((string) ($process_data['last_updated'] ?? '')) + intval($process_data['retry_after_seconds']);
+                        $now = strtotime(current_time('mysql'));
+                        if ($ready_at > $now) {
+                            $next_delay = $ready_at - $now;
+                            break;
+                        }
+                    }
+
+                    $offset = isset($process_data['next_batch_offset'])
+                        ? intval($process_data['next_batch_offset'])
+                        : intval($process_data['processed'] ?? 0);
+                    $this->process_batch_sync($process_id, $offset);
+                } while ((time() - $started) < $budget);
+            } finally {
+                $this->release_process_lock($process_id, $lock_token);
+            }
+
+            $process_data = $this->get_bulk_process_data($process_id, true);
+            if (
+                is_array($process_data)
+                && $this->is_background_run($process_id)
+                && ($process_data['status'] ?? '') === 'running'
+                && !empty($process_data['needs_next_batch'])
+            ) {
+                self::schedule_background_tick($next_delay);
+            }
+        } finally {
+            wp_set_current_user($previous_user_id);
+        }
+    }
+
+    /**
+     * Seconds one tick keeps starting images. One image can take up to
+     * about 80 seconds (image download plus the service), which must fit in
+     * the 120-second process lock and in PHP's time limit.
+     */
+    private function get_background_tick_budget()
+    {
+        if (function_exists('set_time_limit')) {
+            // phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged, WordPress.PHP.NoSilencedErrors.Discouraged -- a background tick needs room for the image in flight
+            @set_time_limit(150);
+        }
+
+        $limit = (int) ini_get('max_execution_time');
+        if ($limit <= 0) {
+            return self::BACKGROUND_TICK_BUDGET;
+        }
+
+        // Leave room for the image that is still in flight at the deadline.
+        return max(1, min(self::BACKGROUND_TICK_BUDGET, $limit - 90));
     }
 
     /**
@@ -2014,34 +3191,172 @@ class AltTextPro_Bulk_Processor
     /**
      * Log alt-text generation
      */
-    private function log_generation($attachment_id, $alt_text, $credits_used = 1)
+    private function log_generation($attachment_id, $alt_text, $credits_used = 1, array $extra = array())
     {
-        global $wpdb;
-
         // Don't log if alt_text is empty
         if (empty($alt_text)) {
             return;
         }
 
-        $table_name = $wpdb->prefix . 'alt_text_pro_logs';
+        self::write_log($attachment_id, $alt_text, $credits_used, $extra);
+    }
 
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery
-        $wpdb->insert(
-            $table_name,
-            array(
-                'attachment_id' => $attachment_id,
-                'alt_text' => $alt_text,
-                'credits_used' => $credits_used,
-                'created_at' => current_time('mysql')
-            ),
-            array('%d', '%s', '%d', '%s')
+    /**
+     * Insert one row in the logs table.
+     *
+     * $extra may hold outcome (generated, suggested, failed, skipped),
+     * outcome_reason, run_ref and previous_alt. Those columns are added by
+     * upgrade_log_table(); until it has run, only generations are logged,
+     * in the original columns.
+     *
+     * @return int Row ID, or 0 when nothing was written.
+     */
+    public static function write_log($attachment_id, $alt_text, $credits_used = 1, array $extra = array())
+    {
+        global $wpdb;
+
+        $outcome = isset($extra['outcome']) ? sanitize_key((string) $extra['outcome']) : 'generated';
+        $data = array(
+            'attachment_id' => absint($attachment_id),
+            'alt_text' => (string) $alt_text,
+            'credits_used' => intval($credits_used),
+            'created_at' => current_time('mysql'),
         );
+        $formats = array('%d', '%s', '%d', '%s');
 
-        if ($wpdb->last_error) {
+        if (self::log_columns_ready()) {
+            $data['outcome'] = $outcome !== '' ? $outcome : 'generated';
+            $formats[] = '%s';
+            foreach (array('outcome_reason', 'run_ref', 'previous_alt') as $column) {
+                if (!isset($extra[$column])) {
+                    continue;
+                }
+                $value = (string) $extra[$column];
+                // An empty previous alt text is kept: the run filled an image
+                // that had none, and undo empties it again.
+                if ($value === '' && $column !== 'previous_alt') {
+                    continue;
+                }
+                $data[$column] = $value;
+                $formats[] = '%s';
+            }
+        } elseif (in_array($outcome, self::NOT_GENERATED_OUTCOMES, true)) {
+            return 0;
+        }
+
+        $table_name = $wpdb->prefix . 'alt_text_pro_logs';
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+        $inserted = $wpdb->insert($table_name, $data, $formats);
+
+        if (!$inserted) {
             if (defined('WP_DEBUG') && WP_DEBUG) {
                 // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
                 error_log('Alt Text Pro Bulk: Generation history could not be saved.');
             }
+            return 0;
+        }
+
+        return (int) $wpdb->insert_id;
+    }
+
+    /**
+     * True once the bulk-run log columns exist on this site.
+     */
+    public static function log_columns_ready()
+    {
+        return get_option(self::LOG_SCHEMA_OPTION) === self::LOG_SCHEMA_VERSION;
+    }
+
+    /**
+     * Readable names of log outcomes, for the Logs page and the CSV.
+     *
+     * @return array<string, string>
+     */
+    public static function get_outcome_labels()
+    {
+        return array(
+            'generated' => __('Generated', 'alt-text-pro'),
+            'suggested' => __('Waiting for review', 'alt-text-pro'),
+            'failed' => __('Failed', 'alt-text-pro'),
+            'skipped' => __('Skipped', 'alt-text-pro'),
+            'undone' => __('Undone', 'alt-text-pro'),
+            'rejected' => __('Rejected', 'alt-text-pro'),
+        );
+    }
+
+    /**
+     * Logs page / CSV filter on one outcome (" AND ..."), '' for all rows.
+     *
+     * @param string $outcome Outcome key, validated here.
+     * @param string $alias   Logs table alias.
+     */
+    public static function outcome_filter_sql($outcome, $alias = 'l')
+    {
+        global $wpdb;
+
+        if ($outcome === '' || !self::log_columns_ready() || !array_key_exists($outcome, self::get_outcome_labels())) {
+            return '';
+        }
+
+        return $wpdb->prepare(" AND {$alias}.outcome = %s", $outcome);
+    }
+
+    /**
+     * SQL condition (" AND ...") keeping log rows that are generations, so
+     * failed and skipped rows do not count as generated.
+     *
+     * @param string $alias Logs table alias, '' for none.
+     */
+    public static function generated_logs_sql($alias = 'l')
+    {
+        if (!self::log_columns_ready()) {
+            return '';
+        }
+
+        $column = ($alias !== '' ? $alias . '.' : '') . 'outcome';
+        return " AND ({$column} IS NULL OR {$column} NOT IN ('failed', 'skipped'))";
+    }
+
+    /**
+     * Add the bulk-run columns to the logs table: outcome (generated,
+     * suggested, failed, skipped, undone, rejected), its reason, the run
+     * reference and the alt text the run replaced.
+     *
+     * Kept apart from AltTextPro::create_tables(): dbDelta() only adds what
+     * is missing and never drops a column, so this step and changes to the
+     * base table do not interfere. Old rows default to "generated".
+     */
+    public static function upgrade_log_table()
+    {
+        global $wpdb;
+
+        $table_name = $wpdb->prefix . 'alt_text_pro_logs';
+        $charset_collate = $wpdb->get_charset_collate();
+
+        $sql = "CREATE TABLE $table_name (
+            id mediumint(9) NOT NULL AUTO_INCREMENT,
+            attachment_id bigint(20) NOT NULL,
+            alt_text text NOT NULL,
+            credits_used int(11) DEFAULT 1,
+            processing_time float DEFAULT NULL,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            outcome varchar(20) NOT NULL DEFAULT 'generated',
+            outcome_reason text NULL,
+            run_ref varchar(40) NULL,
+            previous_alt text NULL,
+            PRIMARY KEY  (id),
+            KEY attachment_id (attachment_id),
+            KEY run_ref (run_ref)
+        ) $charset_collate;";
+
+        require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+        dbDelta($sql);
+
+        // Only mark the step done when the columns are really there.
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name comes from $wpdb
+        $columns = (array) $wpdb->get_col("SHOW COLUMNS FROM {$table_name}", 0);
+        if (in_array('outcome', $columns, true) && in_array('run_ref', $columns, true) && in_array('previous_alt', $columns, true) && in_array('outcome_reason', $columns, true)) {
+            update_option(self::LOG_SCHEMA_OPTION, self::LOG_SCHEMA_VERSION, true);
         }
     }
 

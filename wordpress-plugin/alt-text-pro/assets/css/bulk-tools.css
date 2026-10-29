@@ -1,0 +1,142 @@
+/* Alt Text Pro: Bulk page tools, Recent runs, Review page and log results. */
+
+/* ===== Filters ("Narrow the run") ===== */
+.atp-ui .atp-bulk-filters summary {
+    cursor: pointer;
+    color: var(--atp-ink);
+    font-weight: 600;
+}
+
+.atp-ui .atp-bulk-filters[open] summary {
+    margin-bottom: 12px;
+}
+
+.atp-bulk-filter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px 16px;
+}
+
+.atp-ui .atp-bulk-filter-grid .atp-field {
+    margin: 0;
+}
+
+.atp-ui .atp-bulk-filter-grid input,
+.atp-ui .atp-bulk-filter-grid select {
+    width: 100%;
+    max-width: 100%;
+}
+
+/* ===== Background option and estimate ===== */
+.atp-ui .atp-bulk-background .checkbox-group {
+    margin: 0 0 4px;
+}
+
+.atp-ui .atp-bulk-estimate {
+    align-items: flex-start;
+}
+
+.atp-bulk-mode {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    margin: 12px 0;
+}
+
+.atp-ui .atp-bulk-mode .description {
+    flex: 1 1 280px;
+    margin: 0;
+}
+
+/* ===== Recent runs ===== */
+.atp-recent-runs {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.atp-recent-run {
+    margin: 0;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--atp-line);
+}
+
+.atp-recent-run:first-child {
+    padding-top: 0;
+}
+
+.atp-recent-run-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+}
+
+.atp-ui .atp-recent-run-summary {
+    margin: 6px 0 8px;
+    color: var(--atp-ink-muted);
+}
+
+.atp-run-items {
+    margin-top: 10px;
+}
+
+.atp-ui .atp-run-undo-status:empty {
+    display: none;
+}
+
+/* ===== Result badges (Logs, Recent runs) ===== */
+.atp-ui .atp-badge.atp-outcome.is-failed {
+    border-color: var(--atp-error-line);
+    background: var(--atp-error-bg);
+    color: var(--atp-error);
+}
+
+.atp-ui .atp-badge.atp-outcome.is-skipped,
+.atp-ui .atp-badge.atp-outcome.is-suggested {
+    border-color: var(--atp-warning-line);
+    background: var(--atp-warning-bg);
+    color: var(--atp-warning);
+}
+
+.atp-ui .atp-badge.atp-outcome.is-undone,
+.atp-ui .atp-badge.atp-outcome.is-rejected {
+    background: var(--atp-white);
+    color: var(--atp-ink-muted);
+}
+
+.atp-ui .atp-log-status-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin: 0 0 6px;
+}
+
+/* ===== Review page ===== */
+.atp-ui .atp-review-text {
+    width: 100%;
+    min-width: 200px;
+}
+
+.atp-ui .atp-review-status {
+    font-weight: 600;
+}
+
+.atp-review-table td {
+    vertical-align: top;
+}
+
+@media (max-width: 782px) {
+    .atp-review-table thead {
+        display: none;
+    }
+
+    .atp-review-table tr,
+    .atp-review-table td {
+        display: block;
+        width: 100%;
+        box-sizing: border-box;
+    }
+}

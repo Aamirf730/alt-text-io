@@ -149,6 +149,8 @@ class AltTextPro_Settings
             // '' follows the site language (get_locale()).
             'language' => '',
             'email_bulk_complete' => true,
+            // Bulk, upload and Posts-list alt text waits on the Review page.
+            'review_before_live' => false,
         );
     }
 
@@ -390,6 +392,9 @@ class AltTextPro_Settings
             $sanitized['email_bulk_complete'] = array_key_exists('email_bulk_complete', $input)
                 ? !empty($input['email_bulk_complete'])
                 : $sanitized['email_bulk_complete'];
+            $sanitized['review_before_live'] = array_key_exists('review_before_live', $input)
+                ? !empty($input['review_before_live'])
+                : !empty($sanitized['review_before_live']);
         }
 
         // Output language: '' (site language) or one of the offered locales.

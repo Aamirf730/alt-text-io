@@ -164,6 +164,7 @@ class AltTextPro
         require_once ALT_TEXT_PRO_PLUGIN_PATH . 'includes/class-media-handler.php';
         require_once ALT_TEXT_PRO_PLUGIN_PATH . 'includes/class-bulk-processor.php';
         require_once ALT_TEXT_PRO_PLUGIN_PATH . 'includes/class-settings.php';
+        require_once ALT_TEXT_PRO_PLUGIN_PATH . 'includes/class-review.php';
     }
 
     /**
@@ -175,6 +176,7 @@ class AltTextPro
         if (is_admin()) {
             new AltTextPro_Admin();
             new AltTextPro_Settings();
+            new AltTextPro_Review();
 
             // Posts list columns
             add_filter('manage_posts_columns', array($this, 'add_alt_text_column'));
@@ -290,6 +292,10 @@ class AltTextPro
         $this->create_tables();
         update_option('alt_text_pro_db_version', self::DB_VERSION, true);
 
+        // Bulk-run log columns (separate, additive upgrade step).
+        require_once ALT_TEXT_PRO_PLUGIN_PATH . 'includes/class-bulk-processor.php';
+        AltTextPro_Bulk_Processor::upgrade_log_table();
+
         // Set default options
         if (!get_option('alt_text_pro_settings')) {
             add_option('alt_text_pro_settings', AltTextPro_Settings::defaults());
@@ -355,6 +361,12 @@ class AltTextPro
             update_option('alt_text_pro_db_version', self::DB_VERSION, true);
         }
 
+        // Bulk-run log columns: their own version, so this step and changes
+        // to create_tables() stay independent.
+        if (!AltTextPro_Bulk_Processor::log_columns_ready()) {
+            AltTextPro_Bulk_Processor::upgrade_log_table();
+        }
+
         if (!wp_next_scheduled('alt_text_pro_cleanup')) {
             wp_schedule_event(time() + HOUR_IN_SECONDS, 'daily', 'alt_text_pro_cleanup');
         }
@@ -393,6 +405,7 @@ class AltTextPro
         wp_clear_scheduled_hook('alt_text_pro_cleanup');
         wp_clear_scheduled_hook('alt_text_pro_bulk_process_batch');
         wp_unschedule_hook('alt_text_pro_generate_background');
+        wp_clear_scheduled_hook('alt_text_pro_bulk_background_tick');
     }
 
     /**
@@ -461,6 +474,12 @@ class AltTextPro
             ALT_TEXT_PRO_VERSION,
             true
         );
+
+        // Bulk, Review and Logs pages: run estimate, filters, background
+        // runs, recent runs with undo, and the review actions.
+        if (preg_match('/_page_alt-text-pro-(bulk|review|logs)$/', (string) $hook)) {
+            AltTextPro_Bulk_Processor::enqueue_page_assets();
+        }
 
         // Localize script
         $settings_handler = new AltTextPro_Settings();
@@ -1619,6 +1638,17 @@ class AltTextPro
             }
 
             foreach ($attachments as $attachment_id) {
+                // Waiting on the Review page: never generate (or bill) again.
+                if (AltTextPro_Review::has_suggestion($attachment_id)) {
+                    $results['skipped']++;
+                    $results['details'][] = array(
+                        'id' => $attachment_id,
+                        'status' => 'skipped',
+                        'message' => __('Suggested alt text is waiting for review.', 'alt-text-pro')
+                    );
+                    continue;
+                }
+
                 // Check if already has alt-text
                 $existing_alt = get_post_meta($attachment_id, '_wp_attachment_image_alt', true);
 
@@ -1665,6 +1695,18 @@ class AltTextPro
                 $result = $api_client->generate_alt_text($attachment_id, $context, $blog_context);
                 $alt_text = sanitize_text_field((string) ($result['alt_text'] ?? ''));
 
+                if (!empty($result['success']) && $alt_text !== '' && AltTextPro_Review::is_enabled()) {
+                    // "Review alt text before it goes live": a suggestion only.
+                    AltTextPro_Review::store_suggestion($attachment_id, $alt_text, 'post', '', $result['credits_used'] ?? 1);
+                    $results['processed']++;
+                    $results['details'][] = array(
+                        'id' => $attachment_id,
+                        'status' => 'suggested',
+                        'alt_text' => $alt_text
+                    );
+                    continue;
+                }
+
                 if (!empty($result['success']) && $alt_text !== '') {
                     update_post_meta($attachment_id, '_wp_attachment_image_alt', $alt_text);
                     $this->log_generation($attachment_id, $alt_text, $result['credits_used'] ?? 1);
@@ -1706,6 +1748,24 @@ class AltTextPro
         }
 
         $results['done'] = $sync_only || !empty($results['no_credits']) || !empty($results['stopped']) || $results['remaining'] === 0;
+
+        // Say where alt text waiting for approval can be found.
+        $pending_review = 0;
+        foreach ($attachments as $attachment_id) {
+            if (AltTextPro_Review::has_suggestion($attachment_id)) {
+                $pending_review++;
+            }
+        }
+        if ($pending_review > 0) {
+            $results['warnings'][] = array(
+                'code' => 'review',
+                'message' => sprintf(
+                    /* translators: %d: number of images */
+                    _n('%d image in this post has suggested alt text waiting on the Alt Text Pro Review page.', '%d images in this post have suggested alt text waiting on the Alt Text Pro Review page.', $pending_review, 'alt-text-pro'),
+                    $pending_review
+                ),
+            );
+        }
 
         // Keep the post in step with the Media Library: on the final request,
         // on an explicit sync request, or on every request when the caller
