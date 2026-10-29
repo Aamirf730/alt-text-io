@@ -286,3 +286,39 @@ describe('lifecycle usage reads', () => {
     expect(counts.get('user-199')).toBe(2);
   });
 });
+
+describe('repeatable credit emails', () => {
+  const repeatable = (eventId, triggerAt) => ({
+    ...candidate('credits_low_no_purchase', 'user:u1', triggerAt),
+    source_event_id: eventId,
+    repeat_per_trigger: true,
+  });
+
+  it('sends again for a newer low-credit event in a later cycle', () => {
+    const plan = planLifecycleSends([repeatable('event-2', hoursAgo(30))], [
+      { id: 'row-1', automation_key: 'credits_low_no_purchase', actor_key: 'user:u1', source_event_id: 'event-1', status: 'sent', attempts: 1, sent_at: hoursAgo(24 * 30) },
+    ], { now: NOW });
+
+    expect(plan.sends).toHaveLength(1);
+    expect(plan.sends[0].existing.id).toBe('row-1');
+  });
+
+  it('does not resend for the same event it was already sent for', () => {
+    const plan = planLifecycleSends([repeatable('event-1', hoursAgo(30))], [
+      { id: 'row-1', automation_key: 'credits_low_no_purchase', actor_key: 'user:u1', source_event_id: 'event-1', status: 'sent', attempts: 1, sent_at: hoursAgo(29) },
+    ], { now: NOW });
+
+    expect(plan.sends).toHaveLength(0);
+    expect(plan.done).toBe(1);
+  });
+
+  it('keeps one-time emails one-time even with a newer event', () => {
+    const oneTime = { ...candidate('signup_welcome', 'user:u1', hoursAgo(30)), source_event_id: 'event-2' };
+    const plan = planLifecycleSends([oneTime], [
+      { id: 'row-1', automation_key: 'signup_welcome', actor_key: 'user:u1', source_event_id: 'event-1', status: 'sent', attempts: 1, sent_at: hoursAgo(24 * 30) },
+    ], { now: NOW });
+
+    expect(plan.sends).toHaveLength(0);
+  });
+});
+

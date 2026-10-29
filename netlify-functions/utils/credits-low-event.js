@@ -1,4 +1,13 @@
+// The smallest "running low" level. Larger plans are warned earlier: at 10%
+// of the monthly allowance, up to 100 credits.
 const LOW_CREDIT_THRESHOLD = 5;
+const MAX_LOW_CREDIT_THRESHOLD = 100;
+
+function getLowCreditThreshold(monthlyAllowance) {
+  const allowance = Number(monthlyAllowance);
+  if (!Number.isFinite(allowance) || allowance <= 0) return LOW_CREDIT_THRESHOLD;
+  return Math.min(MAX_LOW_CREDIT_THRESHOLD, Math.max(LOW_CREDIT_THRESHOLD, Math.ceil(allowance * 0.1)));
+}
 
 async function fetchLatestEvent(supabase, userId, eventName) {
   const { data, error } = await supabase
@@ -16,10 +25,18 @@ async function fetchLatestEvent(supabase, userId, eventName) {
   return { event: data?.[0] || null, error: null };
 }
 
-async function recordCreditsLowEvent(supabase, {
+/**
+ * Records "credits_low" or "credits_exhausted" at most once per credit cycle.
+ * A cycle starts at the later of the last purchase and the last credit refill
+ * (cycleStartedAt), so subscribers are warned again in later months.
+ */
+async function recordCreditEvent(supabase, {
+  eventName = 'credits_low',
   userId,
   userEmail,
   creditsRemaining,
+  monthlyAllowance = null,
+  cycleStartedAt = null,
   occurredAt = new Date().toISOString(),
   source = 'wordpress_plugin_usage',
 } = {}) {
@@ -27,13 +44,17 @@ async function recordCreditsLowEvent(supabase, {
     return { recorded: false, reason: 'missing_context' };
   }
 
-  if (!Number.isFinite(Number(creditsRemaining)) || Number(creditsRemaining) > LOW_CREDIT_THRESHOLD) {
+  const credits = Number(creditsRemaining);
+  if (!Number.isFinite(credits)) {
+    return { recorded: false, reason: 'not_low_credit' };
+  }
+  if (eventName === 'credits_exhausted' ? credits > 0 : credits > getLowCreditThreshold(monthlyAllowance)) {
     return { recorded: false, reason: 'not_low_credit' };
   }
 
   try {
     const [{ event: latestLowCredit, error: lowCreditError }, { event: latestPurchase, error: purchaseError }] = await Promise.all([
-      fetchLatestEvent(supabase, userId, 'credits_low'),
+      fetchLatestEvent(supabase, userId, eventName),
       fetchLatestEvent(supabase, userId, 'purchase_completed'),
     ]);
 
@@ -50,8 +71,10 @@ async function recordCreditsLowEvent(supabase, {
     if (latestLowCredit) {
       const latestLowCreditAt = new Date(latestLowCredit.occurred_at || 0).getTime();
       const latestPurchaseAt = latestPurchase ? new Date(latestPurchase.occurred_at || 0).getTime() : 0;
+      const cycleStartAt = cycleStartedAt ? new Date(cycleStartedAt).getTime() : 0;
+      const currentCycleStart = Math.max(latestPurchaseAt, Number.isFinite(cycleStartAt) ? cycleStartAt : 0);
 
-      if (!latestPurchase || latestLowCreditAt >= latestPurchaseAt) {
+      if (latestLowCreditAt >= currentCycleStart) {
         return { recorded: false, reason: 'already_recorded_current_cycle' };
       }
     }
@@ -59,7 +82,7 @@ async function recordCreditsLowEvent(supabase, {
     const { error: insertError } = await supabase
       .from('marketing_events')
       .insert({
-        event_name: 'credits_low',
+        event_name: eventName,
         source,
         user_id: userId,
         user_email: userEmail || null,
@@ -82,7 +105,13 @@ async function recordCreditsLowEvent(supabase, {
   }
 }
 
+function recordCreditsLowEvent(supabase, options = {}) {
+  return recordCreditEvent(supabase, { ...options, eventName: 'credits_low' });
+}
+
 module.exports = {
   LOW_CREDIT_THRESHOLD,
+  getLowCreditThreshold,
+  recordCreditEvent,
   recordCreditsLowEvent,
 };

@@ -22,7 +22,7 @@ import {
 } from '@/lib/pending-checkout';
 import { consumePendingDemoImage } from '@/lib/pending-demo-image';
 import { hasPasswordIdentity } from '@/lib/auth-redirect';
-import { fetchUsageStats, getFreeRefillDate, snapshotFromUsage, type UsageStats } from './dashboard-helpers';
+import { fetchUsageStats, getBillingSummary, snapshotFromUsage, type UsageStats } from './dashboard-helpers';
 import GenerationHistory from './GenerationHistory';
 import ConnectedSites from './ConnectedSites';
 import GettingStarted from './GettingStarted';
@@ -135,14 +135,14 @@ export default function Dashboard() {
     const renewalDateValue = subscriptionData?.subscription?.next_billing_date || null;
     const formatShortDate = (value: string | number | Date) =>
         new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value));
-    const freeRefillDate = getFreeRefillDate(usageStats?.credits_last_renewed_at);
-    const renewalDateLabel = renewalDateValue
-        ? formatShortDate(renewalDateValue)
-        : currentPlan === 'free'
-        ? freeRefillDate
-            ? `Free credits refill around ${formatShortDate(freeRefillDate)}`
-            : 'Free credits refill every 30 days'
-        : 'Billing date unavailable';
+    const billingSummary = getBillingSummary({
+        plan: currentPlan,
+        status: currentSubscriptionStatus,
+        billingCycle,
+        nextBillingDate: renewalDateValue,
+        creditsLastRenewedAt: usageStats?.credits_last_renewed_at,
+        formatDate: formatShortDate,
+    });
     const dashboardNavItems = [
         { label: 'Overview', href: '#overview', icon: LayoutDashboard },
         { label: 'Generate', href: '#generate', icon: Sparkles },
@@ -961,7 +961,8 @@ export default function Dashboard() {
                                 {basePlanLabel}
                             </span>
                         </div>
-                        <p className="mt-3 text-xs font-medium text-ink">{renewalDateLabel}</p>
+                        <p className={cn('mt-3 text-xs font-semibold', billingSummary.tone === 'warning' ? 'text-error' : 'text-ink')}>{billingSummary.title}</p>
+                        <p className="mt-1 text-xs leading-5 text-ink-muted">{billingSummary.detail}</p>
                     </div>
 
                     <div className="border-t border-line pt-4">
@@ -1118,6 +1119,21 @@ export default function Dashboard() {
                         </div>
                     )}
 
+                    {billingSummary.tone === 'warning' && (
+                        <div role="alert" className="mb-6 flex flex-col gap-3 rounded-2xl border border-red-200 bg-red-50 p-5 sm:flex-row sm:items-center sm:justify-between">
+                            <p className="flex items-start gap-2 text-sm leading-6 text-ink">
+                                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-error" aria-hidden />
+                                <span>
+                                    <strong>Your last renewal payment failed.</strong> Polar will try again, and your plan stays active meanwhile.
+                                    Update your card to keep your plan and monthly credits.
+                                </span>
+                            </p>
+                            <button type="button" onClick={openCustomerPortal} className={cn(buttonVariants(), 'shrink-0')}>
+                                <CreditCard className="h-4 w-4" /> Update card in Billing &amp; receipts
+                            </button>
+                        </div>
+                    )}
+
                     {showFirstRunOnboarding && usageStats && user?.id && (
                         <GettingStarted
                             userId={user.id}
@@ -1256,6 +1272,10 @@ export default function Dashboard() {
                                     aria-label={`${creditUsagePercent.toFixed(0)} percent of available credits used`}
                                 />
                                 <p className="mt-3 text-xs leading-5 text-ink-muted">{creditCardDescription}</p>
+                                <div className={cn('mt-4 rounded-xl border p-3', billingSummary.tone === 'warning' ? 'border-red-200 bg-red-50' : 'border-line bg-yellow-tint')}>
+                                    <p className={cn('text-sm font-semibold', billingSummary.tone === 'warning' ? 'text-error' : 'text-ink')}>{billingSummary.title}</p>
+                                    <p className="mt-1 text-xs leading-5 text-ink-muted">{billingSummary.detail}</p>
+                                </div>
 
                                 <ul className="mt-5 space-y-3 border-t border-line pt-5 text-sm text-ink-muted">
                                     <li className="flex items-center gap-2"><CircleCheck className="h-4 w-4 shrink-0 text-ink" /> WordPress plugin included</li>
@@ -1273,6 +1293,13 @@ export default function Dashboard() {
                                     <button type="button" onClick={openCustomerPortal} className={cn(buttonVariants({ variant: 'secondary' }), 'w-full')}>
                                         <CreditCard className="h-4 w-4" /> Billing &amp; receipts
                                     </button>
+                                    {isSubscribed && (
+                                        <p className="text-xs leading-5 text-ink-muted">
+                                            Change or cancel your plan in Billing &amp; receipts. A plan change applies straight away:
+                                            your monthly credits switch to the new plan&apos;s allowance minus what you have used this
+                                            month, and Polar adjusts the charge. Cancelling keeps your plan until the end of the period.
+                                        </p>
+                                    )}
                                     <button
                                         type="button"
                                         onClick={openCreditPacks}

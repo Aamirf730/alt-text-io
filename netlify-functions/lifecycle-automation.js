@@ -183,6 +183,14 @@ function classifyExistingSend(row, now = Date.now()) {
  * higher-priority email no longer blocks the next one. A person who got any
  * lifecycle email in the last day, or has one in flight, is skipped.
  */
+function isRenewal(existing, candidate) {
+  if (!candidate?.repeat_per_trigger || !existing) return false;
+  if (!['sent', 'skipped', 'unknown'].includes(String(existing.status || ''))) return false;
+  if (!candidate.source_event_id || String(existing.source_event_id || '') === String(candidate.source_event_id)) return false;
+  const lastSendAt = toTime(existing.sent_at || existing.last_attempt_at || existing.updated_at || existing.created_at);
+  return toTime(candidate.trigger_occurred_at) > lastSendAt;
+}
+
 function planLifecycleSends(candidates, existingRows = [], { now = Date.now(), maxPerRun = DEFAULT_MAX_SENDS_PER_RUN } = {}) {
   const existingByKey = new Map();
   const blockedActors = new Set();
@@ -203,7 +211,10 @@ function planLifecycleSends(candidates, existingRows = [], { now = Date.now(), m
   const open = [];
   for (const candidate of candidates) {
     const existing = existingByKey.get(sendKey(candidate.automation_key, candidate.actor_key));
-    const state = existing ? classifyExistingSend(existing, now) : 'new';
+    let state = existing ? classifyExistingSend(existing, now) : 'new';
+    // A repeatable email (one per credit cycle) reuses the person's row for
+    // a newer trigger event than the one it was last sent for.
+    if (state === 'done' && isRenewal(existing, candidate)) state = 'renew';
     if (state === 'done' || state === 'stale_pending') { counts.done += 1; continue; }
     if (state === 'in_flight') { counts.in_flight += 1; continue; }
     if (blockedActors.has(candidate.actor_key)) { counts.cooldown += 1; continue; }
@@ -236,7 +247,7 @@ async function getExistingSendRows(candidates) {
     const data = await fetchAllRows(
       (from, to) => supabase
         .from('marketing_automation_sends')
-        .select('id,automation_key,actor_key,status,attempts,sent_at,last_attempt_at,updated_at,created_at')
+        .select('id,automation_key,actor_key,source_event_id,status,attempts,sent_at,last_attempt_at,updated_at,created_at')
         .in('automation_key', automationKeys)
         .in('actor_key', actorKeyChunk)
         .order('automation_key', { ascending: true })
@@ -317,17 +328,21 @@ async function reserveSend(candidate) {
  */
 async function claimRetry(existing, candidate) {
   const nowIso = new Date().toISOString();
+  // A renewal is a new email for a newer trigger, so its attempts restart.
+  const isRenewalClaim = isRenewal(existing, candidate);
   const { data, error } = await supabase
     .from('marketing_automation_sends')
     .update({
       status: 'pending',
-      attempts: Number(existing.attempts || 1) + 1,
+      attempts: isRenewalClaim ? 1 : Number(existing.attempts || 1) + 1,
       last_attempt_at: nowIso,
       updated_at: nowIso,
+      sent_at: isRenewalClaim ? null : existing.sent_at ?? null,
       error_message: null,
       user_email: candidate.user_email,
+      source_event_id: candidate.source_event_id,
       subject: candidate.subject,
-      metadata: { ...sendMetadata(candidate), retry: true },
+      metadata: { ...sendMetadata(candidate), ...(isRenewalClaim ? { renewal: true } : { retry: true }) },
     })
     .eq('id', existing.id)
     .eq('status', existing.status)

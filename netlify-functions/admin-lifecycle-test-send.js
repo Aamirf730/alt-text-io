@@ -33,6 +33,7 @@ const ALLOWED_TEST_RULES = new Set([
   'checkout_no_purchase',
   'purchase_onboarding',
   'credits_low_no_purchase',
+  'credits_out_no_purchase',
 ]);
 const LOW_CREDIT_THRESHOLD = 5;
 
@@ -343,6 +344,29 @@ async function buildSingleUserCandidate(email, automationKey) {
       preview: 'You started checkout but did not finish. Your selected plan is still available.',
       cta_text: 'View Plans',
       cta_url: 'https://www.alt-text.pro/#pricing',
+    };
+  }
+
+  if (automationKey === 'credits_out_no_purchase') {
+    const outEvent = latestEvent(targetEvents, 'credits_exhausted');
+    if (!outEvent) return null;
+    const outAt = outEvent.occurred_at || outEvent.created_at;
+    if (hasEventAfter(targetEvents, 'purchase_completed', outAt)) return null;
+    const rule = LIFECYCLE_RULES.find(candidateRule => candidateRule.key === 'credits_out_no_purchase');
+
+    return {
+      automation_key: 'credits_out_no_purchase',
+      actor_key: actorKey,
+      user_id: profile.id,
+      user_email: email,
+      source_event_id: outEvent.id,
+      trigger_event_name: 'credits_exhausted',
+      trigger_occurred_at: new Date(outAt).toISOString(),
+      subject: rule.subject,
+      preview: rule.preview,
+      body_lines: rule.bodyLines || [],
+      cta_text: rule.ctaText,
+      cta_url: rule.ctaUrl,
     };
   }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-const { recordCreditsLowEvent } = require('./credits-low-event.js');
+const { getLowCreditThreshold, recordCreditEvent, recordCreditsLowEvent } = require('./credits-low-event.js');
 
 function createSupabaseMock({
   latestLowCredit = null,
@@ -84,5 +84,54 @@ describe('credits low event recording', () => {
 
     expect(result).toEqual({ recorded: true, reason: 'inserted' });
     expect(calls.insert).toHaveBeenCalledTimes(1);
+  });
+
+  it('warns larger plans earlier: 10% of the allowance, between 5 and 100', () => {
+    expect(getLowCreditThreshold(15)).toBe(5);
+    expect(getLowCreditThreshold(500)).toBe(50);
+    expect(getLowCreditThreshold(5000)).toBe(100);
+    expect(getLowCreditThreshold(null)).toBe(5);
+  });
+
+  it('records a new low-credit event after a monthly refill, not only after a purchase', async () => {
+    const { supabase, calls } = createSupabaseMock({
+      latestLowCredit: { id: 'low-1', occurred_at: '2026-09-20T00:00:00.000Z' },
+    });
+
+    const result = await recordCreditsLowEvent(supabase, {
+      userId: 'user-1',
+      creditsRemaining: 40,
+      monthlyAllowance: 500,
+      cycleStartedAt: '2026-10-01T00:00:00.000Z',
+    });
+
+    expect(result).toEqual({ recorded: true, reason: 'inserted' });
+    expect(calls.insert).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not record twice in the same refill cycle', async () => {
+    const { supabase, calls } = createSupabaseMock({
+      latestLowCredit: { id: 'low-1', occurred_at: '2026-10-05T00:00:00.000Z' },
+    });
+
+    const result = await recordCreditsLowEvent(supabase, {
+      userId: 'user-1',
+      creditsRemaining: 3,
+      cycleStartedAt: '2026-10-01T00:00:00.000Z',
+    });
+
+    expect(result.reason).toBe('already_recorded_current_cycle');
+    expect(calls.insert).not.toHaveBeenCalled();
+  });
+
+  it('records credits_exhausted only at zero credits', async () => {
+    const low = createSupabaseMock();
+    expect((await recordCreditEvent(low.supabase, { eventName: 'credits_exhausted', userId: 'user-1', creditsRemaining: 2 })).reason)
+      .toBe('not_low_credit');
+
+    const out = createSupabaseMock();
+    const result = await recordCreditEvent(out.supabase, { eventName: 'credits_exhausted', userId: 'user-1', creditsRemaining: 0 });
+    expect(result.recorded).toBe(true);
+    expect(out.calls.insert.mock.calls[0][0]).toMatchObject({ event_name: 'credits_exhausted' });
   });
 });

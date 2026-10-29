@@ -127,6 +127,36 @@ describe('lifecycle automation candidate selection', () => {
     expect(candidates.map(candidate => candidate.automation_key)).toEqual(['purchase_onboarding']);
   });
 
+  it('thanks a buyer without plugin download steps when a site was connected before the purchase', () => {
+    const purchase = {
+      id: 'purchase-1',
+      event_name: 'purchase_completed',
+      user_id: 'user-1',
+      user_email: 'lead@example.com',
+      source: 'polar_webhook',
+      properties: {},
+      occurred_at: '2026-06-25T10:00:00.000Z',
+    };
+    const connect = {
+      id: 'connect-1',
+      event_name: 'connect_completed',
+      user_id: 'user-1',
+      user_email: 'lead@example.com',
+      source: 'wordpress_plugin_auth',
+      properties: {},
+      occurred_at: '2026-06-20T10:00:00.000Z',
+    };
+
+    const connected = buildLifecycleCandidates([connect, purchase], { now: '2026-06-25T10:30:00.000Z' })
+      .find(candidate => candidate.automation_key === 'purchase_onboarding');
+    expect(connected.cta_url).toBe('https://www.alt-text.pro/dashboard');
+    expect(connected.body_lines.join(' ')).not.toContain('Install');
+
+    const notConnected = buildLifecycleCandidates([purchase], { now: '2026-06-25T10:30:00.000Z' })
+      .find(candidate => candidate.automation_key === 'purchase_onboarding');
+    expect(notConnected.body_lines[0]).toContain('Install Alt Text Pro from WordPress.org');
+  });
+
   it('does not select a signup if the user connected after signup', () => {
     const candidates = buildLifecycleCandidates([
       {

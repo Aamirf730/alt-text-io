@@ -95,6 +95,116 @@ export function snapshotFromUsage(stats: Pick<UsageStats, "plan" | "subscription
     };
 }
 
+/** Adds calendar months, clamping to the month's last day like Postgres does. */
+export function addMonthsClamped(date: Date, months: number): Date {
+    const result = new Date(date.getTime());
+    const day = result.getUTCDate();
+    result.setUTCDate(1);
+    result.setUTCMonth(result.getUTCMonth() + months);
+    const lastDay = new Date(Date.UTC(result.getUTCFullYear(), result.getUTCMonth() + 1, 0)).getUTCDate();
+    result.setUTCDate(Math.min(day, lastDay));
+    return result;
+}
+
+/** Whole calendar months from start to now, like Postgres age(). */
+function wholeMonthsBetween(start: Date, now: Date): number {
+    let months = (now.getUTCFullYear() - start.getUTCFullYear()) * 12 + (now.getUTCMonth() - start.getUTCMonth());
+    if (addMonthsClamped(start, months).getTime() > now.getTime()) months -= 1;
+    return months;
+}
+
+/**
+ * When an annual plan's next monthly credits arrive. The daily job grants
+ * month n at (period start + n months), where the period starts a year
+ * before next_billing_date; after month 11 the next grant is the renewal.
+ */
+export function getAnnualNextRefillDate(nextBillingDate: string | null | undefined, now = new Date()): Date | null {
+    if (!nextBillingDate) return null;
+    const renewal = new Date(nextBillingDate);
+    if (!Number.isFinite(renewal.getTime()) || renewal.getTime() <= now.getTime()) return null;
+    const periodStart = addMonthsClamped(renewal, -12);
+    const elapsed = Math.max(0, wholeMonthsBetween(periodStart, now));
+    if (elapsed + 1 >= 12) return renewal;
+    return addMonthsClamped(periodStart, elapsed + 1);
+}
+
+export type BillingSummary = { title: string; detail: string; tone: "normal" | "warning" };
+
+const ONE_TIME_PLANS = new Set(["free", "small_pack", "credit_pack", "bulk_pack", "pay_as_go"]);
+
+/** The plan line in the dashboard: renews, ends, refills, or payment failed. */
+export function getBillingSummary({
+    plan,
+    status,
+    billingCycle,
+    nextBillingDate,
+    creditsLastRenewedAt,
+    formatDate,
+    now = new Date(),
+}: {
+    plan: string;
+    status: string | null | undefined;
+    billingCycle: string | null | undefined;
+    nextBillingDate: string | null | undefined;
+    creditsLastRenewedAt: string | null | undefined;
+    formatDate: (value: Date) => string;
+    now?: Date;
+}): BillingSummary {
+    const normalizedStatus = String(status || "").toLowerCase();
+
+    if (ONE_TIME_PLANS.has(plan)) {
+        const refill = getFreeRefillDate(creditsLastRenewedAt);
+        return {
+            title: refill ? `Free credits refill around ${formatDate(refill)}` : "Free credits refill every 30 days",
+            detail: "Bonus and credit pack credits never expire.",
+            tone: "normal",
+        };
+    }
+
+    if (normalizedStatus === "past_due") {
+        return {
+            title: "Renewal payment failed",
+            detail: "Update your card in Billing & receipts. Polar retries the charge, and your plan stays active meanwhile.",
+            tone: "warning",
+        };
+    }
+
+    const renewal = nextBillingDate ? new Date(nextBillingDate) : null;
+    const hasRenewalDate = Boolean(renewal && Number.isFinite(renewal.getTime()));
+
+    if (normalizedStatus === "cancelled" || normalizedStatus === "canceled") {
+        if (hasRenewalDate && renewal!.getTime() > now.getTime()) {
+            return {
+                title: `Ends on ${formatDate(renewal!)}`,
+                detail: "Cancelled: no further charges. Your plan and its credits stay until then.",
+                tone: "normal",
+            };
+        }
+        return { title: "Plan ended", detail: "Your credit packs and bonus credits still work.", tone: "normal" };
+    }
+
+    if (!hasRenewalDate) {
+        return { title: "Billing date unavailable", detail: "Billing & receipts shows your next charge.", tone: "normal" };
+    }
+
+    if (billingCycle === "annual") {
+        const nextRefill = getAnnualNextRefillDate(nextBillingDate, now);
+        return {
+            title: `Renews yearly on ${formatDate(renewal!)}`,
+            detail: nextRefill && nextRefill.getTime() < renewal!.getTime()
+                ? `Next monthly credits on ${formatDate(nextRefill)}.`
+                : "Your next monthly credits come with the renewal.",
+            tone: "normal",
+        };
+    }
+
+    return {
+        title: `Renews on ${formatDate(renewal!)}`,
+        detail: "Your monthly credits refill when the plan renews.",
+        tone: "normal",
+    };
+}
+
 export const HISTORY_PAGE_SIZE = 20;
 
 /** Inclusive row range for Supabase `.range()` (pages start at 0). */

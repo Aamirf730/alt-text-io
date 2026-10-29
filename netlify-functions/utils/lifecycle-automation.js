@@ -76,18 +76,54 @@ const LIFECYCLE_RULES = [
     trustedSources: ['polar_webhook'],
     missingAfterTrigger: [],
     delayHours: 0,
-    subject: 'Welcome to Alt Text Pro',
-    preview: 'Your purchase is complete. Here are the fastest setup steps for WordPress.',
-    ctaText: 'Download Plugin',
-    ctaUrl: `${SITE_URL}/wordpress-plugin/alt-text-pro-plugin.zip`,
+    subject: 'Thank you: your Alt Text Pro credits are ready',
+    preview: 'Your purchase is complete and the credits are on your account now. Polar emails your receipt separately.',
+    bodyLines: [
+      'Install Alt Text Pro from WordPress.org: in WordPress, go to Plugins, Add New, and search for "Alt Text Pro".',
+      'Click Connect Account in the plugin and sign in with this email address.',
+      'Open the plugin\'s Bulk page to fill in alt text across your library.',
+    ],
+    ctaText: 'Open Dashboard',
+    ctaUrl: `${SITE_URL}/dashboard`,
+    // Most buyers connected a site before paying; skip the setup steps then.
+    connectedVariantIfEverConnected: true,
+    connectedVariant: {
+      preview: 'Your purchase is complete and the credits are on your account now. Your connected WordPress sites can use them straight away. Polar emails your receipt separately.',
+      bodyLines: [
+        'Open the plugin\'s Bulk page to fill in alt text across your library.',
+        'Your dashboard shows your credits and has Billing & receipts for invoices.',
+      ],
+    },
+  },
+  {
+    // Sent again in a later credit cycle: each cycle records a new event.
+    key: 'credits_out_no_purchase',
+    trigger: 'credits_exhausted',
+    allowVerifiedIdentity: true,
+    trustedSources: ['wordpress_plugin_usage', 'dashboard_usage'],
+    missingAfterTrigger: ['purchase_completed'],
+    delayHours: 0,
+    maxAgeHours: 72,
+    repeatPerTrigger: true,
+    subject: "You're out of Alt Text Pro credits",
+    preview: 'Alt text generation has stopped because your account has no credits left. Images you add now will not get alt text until you add credits.',
+    bodyLines: [
+      'Buy a credit pack: credits never expire and work on every plan, including Free.',
+      'Or upgrade your plan for more credits every month.',
+      'Or wait for your next monthly refill. Your dashboard shows when it is due.',
+    ],
+    ctaText: 'Add Credits',
+    ctaUrl: `${SITE_URL}/dashboard`,
   },
   {
     key: 'credits_low_no_purchase',
     trigger: 'credits_low',
     allowVerifiedIdentity: true,
     trustedSources: ['wordpress_plugin_usage', 'dashboard_usage'],
-    missingAfterTrigger: ['purchase_completed'],
+    missingAfterTrigger: ['purchase_completed', 'credits_exhausted'],
     delayHours: 0,
+    maxAgeHours: 72,
+    repeatPerTrigger: true,
     subject: 'Your Alt Text Pro credits are running low',
     preview: 'Add credits or upgrade your plan before your image workflow slows down.',
     ctaText: 'Add Credits',
@@ -101,6 +137,7 @@ const LIFECYCLE_RULES = [
 // from being sent to the same customer in one or consecutive scheduled runs.
 const LIFECYCLE_PRIORITY = [
   'purchase_onboarding',
+  'credits_out_no_purchase',
   'signup_welcome',
   'credits_low_no_purchase',
   'checkout_no_purchase',
@@ -246,7 +283,10 @@ function buildLifecycleCandidates(events, options = {}) {
         continue;
       }
 
-      const content = rule.connectedVariant && hasAnyEventAfter(actor, ['connect_completed'], triggerAt)
+      const isConnected = rule.connectedVariantIfEverConnected
+        ? (actor.eventsByName.get('connect_completed') || []).length > 0
+        : hasAnyEventAfter(actor, ['connect_completed'], triggerAt);
+      const content = rule.connectedVariant && isConnected
         ? { ...rule, ...rule.connectedVariant }
         : rule;
 
@@ -263,6 +303,7 @@ function buildLifecycleCandidates(events, options = {}) {
         body_lines: content.bodyLines || [],
         cta_text: content.ctaText,
         cta_url: content.ctaUrl,
+        repeat_per_trigger: rule.repeatPerTrigger === true,
       });
     }
   }

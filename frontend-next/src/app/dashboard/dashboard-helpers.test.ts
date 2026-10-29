@@ -5,6 +5,9 @@ import {
     fetchUsageStats,
     formatRelativeTime,
     formatSiteUrl,
+    addMonthsClamped,
+    getAnnualNextRefillDate,
+    getBillingSummary,
     getFreeRefillDate,
     getHistoryPageRange,
     getHistoryPageSummary,
@@ -117,3 +120,39 @@ describe("getFreeRefillDate", () => {
         expect(getFreeRefillDate("not a date")).toBeNull();
     });
 });
+
+describe("billing summary", () => {
+    const formatDate = (value: Date) => value.toISOString().slice(0, 10);
+    const now = new Date("2026-10-29T12:00:00Z");
+
+    it("clamps month ends like Postgres", () => {
+        expect(addMonthsClamped(new Date("2026-01-31T00:00:00Z"), 1).toISOString()).toBe("2026-02-28T00:00:00.000Z");
+    });
+
+    it("finds an annual plan's next monthly refill from its renewal date", () => {
+        // Period started 2026-03-15; month 7 began 2026-10-15, so month 8 is next.
+        expect(getAnnualNextRefillDate("2027-03-15T00:00:00Z", now)?.toISOString()).toBe("2026-11-15T00:00:00.000Z");
+        // In the last month the next credits come with the renewal.
+        expect(getAnnualNextRefillDate("2026-11-10T00:00:00Z", now)?.toISOString()).toBe("2026-11-10T00:00:00.000Z");
+    });
+
+    it("labels a monthly renewal, an annual plan, a cancellation and a failed payment", () => {
+        const base = { plan: "tier2", creditsLastRenewedAt: null, formatDate, now };
+        expect(getBillingSummary({ ...base, status: "active", billingCycle: "monthly", nextBillingDate: "2026-11-20T00:00:00Z" }).title)
+            .toBe("Renews on 2026-11-20");
+        expect(getBillingSummary({ ...base, status: "active", billingCycle: "annual", nextBillingDate: "2027-03-15T00:00:00Z" }))
+            .toMatchObject({ title: "Renews yearly on 2027-03-15", detail: "Next monthly credits on 2026-11-15." });
+        expect(getBillingSummary({ ...base, status: "cancelled", billingCycle: "monthly", nextBillingDate: "2026-11-20T00:00:00Z" }).title)
+            .toBe("Ends on 2026-11-20");
+        expect(getBillingSummary({ ...base, status: "past_due", billingCycle: "monthly", nextBillingDate: "2026-10-20T00:00:00Z" }))
+            .toMatchObject({ title: "Renewal payment failed", tone: "warning" });
+    });
+
+    it("keeps the free refill wording for free and credit-pack accounts", () => {
+        expect(getBillingSummary({
+            plan: "free", status: null, billingCycle: null, nextBillingDate: null,
+            creditsLastRenewedAt: "2026-10-01T00:00:00Z", formatDate, now,
+        }).title).toBe("Free credits refill around 2026-10-31");
+    });
+});
+

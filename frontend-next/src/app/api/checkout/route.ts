@@ -95,6 +95,9 @@ export async function GET(request: NextRequest) {
         const polarAccessToken = process.env.POLAR_ACCESS_TOKEN;
         const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || "https://www.alt-text.pro").replace(/\/$/, "");
         const successUrl = `${siteUrl}/payment-success?checkout_id={CHECKOUT_ID}`;
+        // Polar shows a back button to this page, so backing out of checkout
+        // explains that nothing was charged.
+        const returnUrl = `${siteUrl}/payment-cancelled`;
 
         if (!polarAccessToken) {
             return NextResponse.json({ error: "POLAR_ACCESS_TOKEN not configured" }, { status: 500 });
@@ -108,6 +111,7 @@ export async function GET(request: NextRequest) {
         const checkout = await polar.checkouts.create({
             products: [productId],
             successUrl,
+            returnUrl,
             customerEmail,
             metadata: {
                 user_id: user.id,

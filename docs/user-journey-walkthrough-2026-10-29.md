@@ -17,7 +17,7 @@ Some steps depend on the 8 new database migrations from the last round, which ar
 
 ## Missing or broken at a glance
 
-There are 186 steps across 16 sections: 137 OK, 30 PARTIAL, 19 MISSING (17 different gaps, 2 of which are listed in two sections) and 0 BROKEN. Before the 29 Oct fixes: 109 OK, 48 PARTIAL, 27 MISSING and 2 BROKEN.
+There are 186 steps across 16 sections: 149 OK, 21 PARTIAL, 16 MISSING (15 different gaps, 1 of which are listed in two sections) and 0 BROKEN. Before the 29 Oct fixes: 109 OK, 48 PARTIAL, 27 MISSING and 2 BROKEN.
 
 | Step | What's missing or broken |
 |---|---|
@@ -30,8 +30,6 @@ There are 186 steps across 16 sections: 137 OK, 30 PARTIAL, 19 MISSING (17 diffe
 | H6 | Approving bulk or auto results before they go live |
 | H7 | Multilingual sites (WPML or Polylang) |
 | H8 | Marking one image as decorative |
-| I7 | "You've run out of credits" email |
-| K7 | In-app warning when a renewal payment fails |
 | M4 | Self-service data export |
 | M9 | Team members |
 | N10 | Reminder before an annual renewal (unless Polar sends one) |
@@ -58,6 +56,8 @@ Collected during the one-by-one review (sections A and B so far). Tick an item o
 - [ ] **Plugin 1.7.28 on a real WordPress site:** A8 (Bulk page credits box), D8 (Connect Account on the dashboard), D11 (storage check in the connect window), E10 ("Connected as"), E11 ("Connect a different account"), and the later plugin steps marked *fixed 29 Oct*. Only a PHP syntax check was possible here (no PHP runtime); the plugin's PHP tests have not been run.
 - [ ] **B11:** the welcome email arriving after a real sign-up (needs the functions deployed). It can be previewed first with the admin test-send tool (`signup_welcome`).
 - [ ] **B14:** the getting-started checklist with a real account. It was checked locally against sample account data.
+- [ ] **I6, I7, J9:** the low-credit (per plan, per cycle), out-of-credits and purchase emails with a real account after the functions are deployed. Preview each with the admin test-send tool first (`credits_low_no_purchase`, `credits_out_no_purchase`, `purchase_onboarding`).
+- [ ] **J5, K2, K7, K9, L2:** the checkout back button (Polar `returnUrl`) and the dashboard billing lines with real Polar data. The dashboard states were checked locally against sample data (failed payment, annual, cancelled).
 - [ ] **B6:** that production still sends the repo's branded template. Last confirmed with a real test email on 12 Aug (`progress.md`).
 - [ ] **B4, B5, B7, C10:** the real Supabase replies (account already exists, sign-up, resend, rate limit, wrong password), and a plugin sign-up confirmed on a phone finishing with "I've confirmed — continue". The screens were checked in the browser by setting their state by hand.
 
@@ -424,10 +424,11 @@ A notice with a buy link on the next admin page.
 **I5. Gets a low-credit warning in WordPress**: PARTIAL
 At 10 or fewer, but only on the plugin's own dashboard page.
 
-**I6. Gets a low-credit email**: PARTIAL
-Sent at 5 credits, the same threshold for every plan, and only once per person ever, so a subscriber is never warned again in later months (`bootstrap_schema.sql:218`).
+**I6. Gets a low-credit email**: OK
+Sent at 5 credits, the same threshold for every plan, and only once per person ever, so a subscriber is never warned again in later months (`bootstrap_schema.sql:218`). *Fixed 29 Oct:* the warning level now follows the plan (10% of the monthly allowance, at least 5 and at most 100 credits), and it can be sent again in each new credit cycle (after a refill or a purchase), once per cycle.
 
-**I7. Gets a "you've run out" email**: **MISSING**
+**I7. Gets a "you've run out" email**: OK
+*Fixed 29 Oct:* a "You're out of Alt Text Pro credits" email goes out when the last credit is used or a generation is refused for no credits, once per credit cycle, with the three ways to continue (pack, upgrade, wait for the refill).
 
 **I8. Goes from the plugin to paying**: OK
 Links go to the pricing section. The chosen plan is remembered through sign-in.
@@ -443,11 +444,11 @@ Polar checkout. A second subscription is blocked.
 **J3. Uses a discount code**: OK
 Polar-hosted. Depends on Polar settings.
 
-**J4. Gets correct VAT and a company invoice**: PARTIAL
-Polar handles tax and invoices. Our site never mentions tax (see A15).
+**J4. Gets correct VAT and a company invoice**: OK
+Polar handles tax and invoices. Our site never mentions tax (see A15). *Fixed 29 Oct:* prices say tax may be added at checkout (A15), and the docs FAQ explains how to get an invoice with a company VAT number through Polar.
 
-**J5. Backs out of checkout**: PARTIAL
-A /payment-cancelled page exists, but nothing links to it and checkout doesn't return there.
+**J5. Backs out of checkout**: OK
+A /payment-cancelled page exists, but nothing links to it and checkout doesn't return there. *Fixed 29 Oct:* checkout now has a back button (Polar's return URL) to the cancelled page, which says nothing was charged and the plan and credits are unchanged, with links to the dashboard and plans.
 
 **J6. Card is declined**: OK
 Handled in Polar checkout, and the success page handles failed or expired payments.
@@ -458,8 +459,8 @@ Waits until the account is updated. If it takes longer, the dashboard keeps chec
 **J8. Gets a receipt**: OK
 From Polar.
 
-**J9. Gets our post-purchase email**: PARTIAL
-"Welcome to Alt Text Pro" includes a plugin download link, although they already have the plugin.
+**J9. Gets our post-purchase email**: OK
+"Welcome to Alt Text Pro" includes a plugin download link, although they already have the plugin. *Fixed 29 Oct:* the purchase email now says the credits are ready and links to the dashboard. Setup steps (install from WordPress.org, Connect Account) appear only if the account has never connected a site.
 
 **J10. Abandons checkout and gets a reminder**: OK
 Sent after 1 hour.
@@ -468,8 +469,8 @@ Sent after 1 hour.
 
 **K1. Monthly renewal refills credits**: OK
 
-**K2. Annual plan refills every month**: PARTIAL
-12 refills a year *(needs new migration)*. The next monthly refill date isn't shown.
+**K2. Annual plan refills every month**: OK
+12 refills a year *(needs new migration)*. The next monthly refill date isn't shown. *Fixed 29 Oct:* the dashboard shows "Renews yearly on …" and "Next monthly credits on …", worked out the same way as the refill job.
 
 **K3. Checks usage**: OK
 Used, limit and extra balance, plus full history.
@@ -477,28 +478,28 @@ Used, limit and extra balance, plus full history.
 **K4. Knows whether unused credits roll over**: OK
 Plan credits reset; bonus and pack credits stay. Stated in the terms and the dashboard.
 
-**K5. Upgrades or downgrades**: PARTIAL
-Only through Polar's billing page. A downgrade cuts credits at once. *Fixed 29 Oct:* messages now name the "Billing & receipts" button instead of "Manage billing".
+**K5. Upgrades or downgrades**: OK
+Only through Polar's billing page. A downgrade cuts credits at once. *Fixed 29 Oct:* messages now name the "Billing & receipts" button instead of "Manage billing". *Changed 29 Oct:* the dashboard explains before a plan change that it applies straight away (the allowance switches to the new plan minus what was used this month, and Polar adjusts the charge), and that cancelling keeps the plan until the period ends.
 
 **K6. Buys extra credits while subscribed**: OK
 "Top up credits".
 
-**K7. Is told in the app that a renewal payment failed**: **MISSING**
-The failed status is stored *(needs new migration)*, but neither the dashboard nor the plugin shows it, and there's no "update your card" prompt. Only Polar's emails reach them.
+**K7. Is told in the app that a renewal payment failed**: OK
+The failed status is stored *(needs new migration)*, but neither the dashboard nor the plugin shows it, and there's no "update your card" prompt. Only Polar's emails reach them. *Fixed 29 Oct:* when a renewal payment fails, the dashboard shows a banner with "Update card in Billing & receipts", the plan card says "Renewal payment failed", and the plugin dashboard shows the same warning.
 
 **K8. Updates their card**: OK
 In Polar's billing page.
 
-**K9. Sees "renews on" vs "ends on"**: PARTIAL
-One bare date with no label, the same whether the plan renews or ends.
+**K9. Sees "renews on" vs "ends on"**: OK
+One bare date with no label, the same whether the plan renews or ends. *Fixed 29 Oct:* the date is labelled: "Renews on …", "Renews yearly on …", "Ends on … no further charges" for a cancelled plan, or the Free refill date.
 
 ## L. Cancelling and refunds
 
 **L1. Cancels**: OK
 In Polar's billing page.
 
-**L2. Sees the cancellation confirmed**: PARTIAL
-Polar's email only. The dashboard shows the same bare date (K9).
+**L2. Sees the cancellation confirmed**: OK
+Polar's email only. The dashboard shows the same bare date (K9). *Fixed 29 Oct:* after cancelling, the dashboard says "Ends on …" with "Cancelled: no further charges. Your plan and its credits stay until then."
 
 **L3. Period ends**: OK
 Drops to Free and keeps bonus and pack credits.
@@ -566,11 +567,11 @@ See B11. *Fixed 29 Oct* (B11).
 **N3. "Connect your site" nudge after 4 hours**: OK
 Now also reaches homepage Google sign-ups (B10).
 
-**N4. Low-credit email**: PARTIAL
-See I6.
+**N4. Low-credit email**: OK
+See I6. *Fixed 29 Oct* (I6).
 
-**N5. "You've run out" email**: **MISSING**
-See I7.
+**N5. "You've run out" email**: OK
+See I7. *Fixed 29 Oct* (I7).
 
 **N6. Bulk run finished email**: OK
 Counts only.

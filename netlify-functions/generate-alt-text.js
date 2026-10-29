@@ -16,7 +16,7 @@ const {
   getMonthlyCreditState,
   getCurrentCycleCreditsUsedResult,
 } = require('./utils/api-key-validator');
-const { recordCreditsLowEvent } = require('./utils/credits-low-event');
+const { getLowCreditThreshold, recordCreditEvent } = require('./utils/credits-low-event');
 const {
   getCorsHeaders,
   handlePreflight,
@@ -994,6 +994,17 @@ exports.handler = async (event, context) => {
     // Check if user has sufficient credits for this billing cycle.
     const monthlyCreditState = getMonthlyCreditState(user);
     if (!user || monthlyCreditState.monthly_credits_remaining <= 0) {
+      if (user?.id) {
+        // Drives the "you're out of credits" email (once per credit cycle).
+        await recordCreditEvent(supabase, {
+          eventName: 'credits_exhausted',
+          userId: user.id,
+          userEmail: user.email,
+          creditsRemaining: 0,
+          cycleStartedAt: user.credits_last_renewed_at,
+          source: isApiKeyAuth ? 'wordpress_plugin_usage' : 'dashboard_usage',
+        });
+      }
       return noCreditsResponse(headers);
     }
     // Parse request body with size limit (25MB for base64 images)
@@ -1251,11 +1262,16 @@ exports.handler = async (event, context) => {
       total_processed: planCreditsUsedAfter,
     });
 
-    if (updatedMonthlyCreditState.monthly_credits_remaining <= 5) {
-      await recordCreditsLowEvent(supabase, {
+    const creditsLeftAfter = updatedMonthlyCreditState.monthly_credits_remaining;
+    if (creditsLeftAfter <= getLowCreditThreshold(user.monthly_credit_allowance)) {
+      // At zero the "out of credits" email replaces the "running low" one.
+      await recordCreditEvent(supabase, {
+        eventName: creditsLeftAfter <= 0 ? 'credits_exhausted' : 'credits_low',
         userId: user.id,
         userEmail: user.email,
-        creditsRemaining: updatedMonthlyCreditState.monthly_credits_remaining,
+        creditsRemaining: creditsLeftAfter,
+        monthlyAllowance: user.monthly_credit_allowance,
+        cycleStartedAt: user.credits_last_renewed_at,
         source: isApiKeyAuth ? 'wordpress_plugin_usage' : 'dashboard_usage',
       });
     }

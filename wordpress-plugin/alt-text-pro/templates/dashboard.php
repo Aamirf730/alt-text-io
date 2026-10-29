@@ -228,6 +228,25 @@ else: ?>
             <?php endif; ?>
         </div>
 
+        <?php if ($usage_stats !== null && sanitize_key($usage_stats['subscription_status'] ?? '') === 'past_due'): ?>
+            <!-- A renewal charge failed; Polar retries it while the plan stays active. -->
+            <div class="alt-text-pro-card is-warning">
+                <div class="atp-callout">
+                    <span class="atp-icon-chip is-warning" aria-hidden="true"><span class="dashicons dashicons-warning"></span></span>
+                    <div class="atp-callout-body">
+                        <h3><?php esc_html_e('Your last renewal payment failed', 'alt-text-pro'); ?></h3>
+                        <p><?php esc_html_e('Your plan stays active while the payment is retried. Update your card in Billing & receipts on your Alt Text Pro dashboard to keep your plan and monthly credits.', 'alt-text-pro'); ?></p>
+                    </div>
+                    <div class="atp-actions">
+                        <a href="<?php echo esc_url(ALT_TEXT_PRO_DASHBOARD_URL); ?>" target="_blank" rel="noopener noreferrer" class="button-primary-custom">
+                            <span><?php esc_html_e('Update card', 'alt-text-pro'); ?></span>
+                            <span class="dashicons dashicons-external" aria-hidden="true"></span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        <?php endif; ?>
+
         <?php if ($usage_stats !== null && $alt_text_pro_low_credits): ?>
             <!-- Zero or low credits: the way to pay is right here. -->
             <div class="alt-text-pro-card is-warning">
