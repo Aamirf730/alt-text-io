@@ -17,13 +17,11 @@ Some steps depend on the 8 new database migrations from the last round, which ar
 
 ## Missing or broken at a glance
 
-There are 186 steps across 16 sections: 123 OK, 39 PARTIAL, 24 MISSING (21 different gaps, 3 of which are listed in two sections) and 0 BROKEN. Before the 29 Oct fixes: 109 OK, 48 PARTIAL, 27 MISSING and 2 BROKEN.
+There are 186 steps across 16 sections: 128 OK, 37 PARTIAL, 21 MISSING (19 different gaps, 2 of which are listed in two sections) and 0 BROKEN. Before the 29 Oct fixes: 109 OK, 48 PARTIAL, 27 MISSING and 2 BROKEN.
 
 | Step | What's missing or broken |
 |---|---|
 | A5 | Reviews, ratings, install count or testimonials on the website |
-| B11 | Welcome email after a free sign-up |
-| B14 | Getting-started checklist in the dashboard |
 | C11 | "Set a password" for Google-only accounts |
 | E10 | Plugin showing which account the site is connected to |
 | F2 | Generate from the Media Library list view (row or bulk action) |
@@ -60,6 +58,8 @@ Collected during the one-by-one review (sections A and B so far). Tick an item o
 - [ ] **A3:** the demo resuming after sign-in, and the demo image waiting in the dashboard after an email sign-up. Needs a real account.
 - [ ] **A15:** the tax note in the dashboard upgrade window. Needs a signed-in account.
 - [ ] **A8:** the plugin Bulk page's "credits needed" box. Needs a WordPress site. The plugin's PHP tests have not been run (no PHP on this machine).
+- [ ] **B11:** the welcome email arriving after a real sign-up (needs the functions deployed). It can be previewed first with the admin test-send tool (`signup_welcome`).
+- [ ] **B14:** the getting-started checklist with a real account. It was checked locally against sample account data.
 - [ ] **B6:** that production still sends the repo's branded template. Last confirmed with a real test email on 12 Aug (`progress.md`).
 - [ ] **B4, B5, B7, C10:** the real Supabase replies (account already exists, sign-up, resend, rate limit, wrong password), and a plugin sign-up confirmed on a phone finishing with "I've confirmed — continue". The screens were checked in the browser by setting their state by hand.
 
@@ -153,8 +153,8 @@ The repo has a branded template. Whether production uses it can't be confirmed f
 **B7. Clicks the link, possibly on another device**: OK
 Works across devices, then goes to /email-confirmed and on to the dashboard. *Fixed 29 Oct:* for plugin sign-ups confirmed on a phone or another device, both connect windows said the WordPress window "continues on its own", which only happens in the same browser. They now say to click "I've confirmed — continue" in that case. The phone tab's "Close this tab" button, which browsers usually block for tabs opened from email, now falls back to "You can close this tab now." The homepage line about the saved demo image now says it waits "when you sign in on this computer".
 
-**B8. Goes back to the original tab after confirming in another one**: PARTIAL
-That tab stays on "Confirm your email" and doesn't move on. The plugin's connect window handles this; the homepage doesn't.
+**B8. Goes back to the original tab after confirming in another one**: OK
+That tab stays on "Confirm your email" and doesn't move on. The plugin's connect window handles this; the homepage doesn't. *Fixed 29 Oct:* the homepage "Check your email" panel now notices a confirmation in another tab of the same browser and carries on (finishes the demo or opens the dashboard), like the connect window.
 
 **B9. Clicks an expired or used link**: OK
 Clear message, a resend form and a sign-in button. *Changed 29 Oct:* the resend button counts down 60 seconds after sending.
@@ -162,16 +162,17 @@ Clear message, a resend form and a sign-in button. *Changed 29 Oct:* the resend 
 **B10. Signs up with Google on the homepage**: OK
 New Google accounts are now recorded as sign-ups, so they get the "connect your site" email and appear in the funnel. Returning Google users aren't counted again, on the homepage or in the connect window. *Fixed 29 Oct.*
 
-**B11. Gets a welcome email right after signing up**: **MISSING**
-The first email is a "connect your site" nudge 4 hours later, only if they haven't connected.
+**B11. Gets a welcome email right after signing up**: OK
+The first email is a "connect your site" nudge 4 hours later, only if they haven't connected. *Fixed 29 Oct:* a "Welcome to Alt Text Pro" email goes out with the next scheduled run (every two hours) with three setup steps, or the next steps for people who signed up from the plugin. Not sent to anyone who bought first, or more than two days after sign-up.
 
 **B12. Picks a paid plan before having an account**: OK
 The choice is kept for 24 hours and reopens in the dashboard. It's lost if they confirm in a different browser.
 
-**B13. Sees the dashboard for the first time**: PARTIAL
-*Fixed 29 Oct:* new users now see "Welcome", and the banner says to install from WordPress.org and click Connect Account. Still only one banner linking to the docs (see B14).
+**B13. Sees the dashboard for the first time**: OK
+*Fixed 29 Oct:* new users now see "Welcome", and the banner says to install from WordPress.org and click Connect Account. Still only one banner linking to the docs (see B14). *Fixed 29 Oct:* the banner became a getting-started checklist (B14).
 
-**B14. Follows a getting-started checklist (install, connect, first image, bulk)**: **MISSING**
+**B14. Follows a getting-started checklist (install, connect, first image, bulk)**: OK
+*Fixed 29 Oct:* the dashboard shows "Get started": create account, install the plugin, connect the site, generate a first image (each ticked from the account), then a pointer to the plugin's Bulk page. It can be hidden.
 
 **B15. Tries generating in the dashboard before installing the plugin**: OK
 Upload one image; it's resized and alt text is generated.
@@ -560,8 +561,8 @@ Normal WordPress updates. No "what's new" notice.
 **N1. Confirmation email**: OK
 Branded template in the repo; production use can't be confirmed from code.
 
-**N2. Welcome email**: **MISSING**
-See B11.
+**N2. Welcome email**: OK
+See B11. *Fixed 29 Oct* (B11).
 
 **N3. "Connect your site" nudge after 4 hours**: OK
 Now also reaches homepage Google sign-ups (B10).

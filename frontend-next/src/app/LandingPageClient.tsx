@@ -277,6 +277,49 @@ export default function LandingPage() {
     }
     router.push("/dashboard");
   };
+  const continueAfterAuthRef = useRef(continueAfterAuth);
+  useEffect(() => {
+    continueAfterAuthRef.current = continueAfterAuth;
+  });
+
+  // While "Check your email" waits, the confirmation link usually opens in
+  // another tab of this browser. Supabase shares that session across tabs,
+  // so continue here once it appears (event first, poll as a fallback).
+  useEffect(() => {
+    if (!pendingConfirmationEmail) return;
+    let active = true;
+    let handled = false;
+
+    const continueIfSignedIn = (signedIn: boolean) => {
+      if (!active || handled || !signedIn) return;
+      handled = true;
+      setPendingConfirmationEmail(null);
+      toast.success("Email confirmed. You're signed in.");
+      continueAfterAuthRef.current();
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+        // Supabase must not be awaited inside its own callback.
+        window.setTimeout(() => continueIfSignedIn(Boolean(session?.user)), 0);
+      }
+    });
+
+    const pollTimer = window.setInterval(async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        continueIfSignedIn(Boolean(session?.user));
+      } catch {
+        // Keep waiting; the next poll or the auth event will retry.
+      }
+    }, 3000);
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+      window.clearInterval(pollTimer);
+    };
+  }, [pendingConfirmationEmail]);
 
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1103,7 +1146,7 @@ export default function LandingPage() {
                     <p id="auth-dialog-description" className="text-sm text-ink-muted leading-relaxed">
                       We sent a confirmation link to
                       <span className="my-1 block font-semibold text-ink [overflow-wrap:anywhere]">{pendingConfirmationEmail}</span>
-                      Open it to finish creating your account. It opens your dashboard, so you can close this window.
+                      Open it to finish creating your account. If you open it in this browser, this page continues on its own.
                     </p>
                     {demoImageKept && (
                       <p className="mt-3 text-sm text-ink-muted">Your image will be waiting in the dashboard when you sign in on this computer, ready to generate.</p>

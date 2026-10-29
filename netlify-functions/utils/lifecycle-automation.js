@@ -4,6 +4,36 @@ const { fetchAllRows } = require('./paginated-query');
 
 const LIFECYCLE_RULES = [
   {
+    // The first email after sign-up. maxAgeHours stops a new deploy from
+    // welcoming everyone in the 30-day event window at once.
+    key: 'signup_welcome',
+    trigger: 'signup_created',
+    allowVerifiedIdentity: true,
+    trustedSources: [],
+    missingAfterTrigger: ['purchase_completed'],
+    delayHours: 0,
+    maxAgeHours: 48,
+    subject: 'Welcome to Alt Text Pro: your 150 free credits are ready',
+    preview: 'Your account has 150 free credits, one per image. Here is how to get alt text onto your WordPress images in a few minutes.',
+    bodyLines: [
+      'Install Alt Text Pro from WordPress.org: in WordPress, go to Plugins, Add New, and search for "Alt Text Pro".',
+      'Click Connect Account in the plugin and sign in. Your API key is saved for you.',
+      'Open the plugin\'s Bulk page to see how many images need alt text, or click Generate on any image.',
+    ],
+    ctaText: 'Get the plugin',
+    ctaUrl: 'https://wordpress.org/plugins/alt-text-pro/',
+    // Signed up from the plugin's connect window, so the site is already connected.
+    connectedVariant: {
+      preview: 'Your account has 150 free credits, one per image, and your WordPress site is connected.',
+      bodyLines: [
+        'Open the plugin\'s Bulk page to see how many images need alt text and start a run.',
+        'Or click Generate on any image in the Media Library.',
+      ],
+      ctaText: 'Open Dashboard',
+      ctaUrl: `${SITE_URL}/dashboard`,
+    },
+  },
+  {
     key: 'signup_no_connect',
     trigger: 'signup_created',
     allowVerifiedIdentity: true,
@@ -71,6 +101,7 @@ const LIFECYCLE_RULES = [
 // from being sent to the same customer in one or consecutive scheduled runs.
 const LIFECYCLE_PRIORITY = [
   'purchase_onboarding',
+  'signup_welcome',
   'credits_low_no_purchase',
   'checkout_no_purchase',
   'connect_no_first_image',
@@ -194,8 +225,10 @@ function buildLifecycleCandidates(events, options = {}) {
       if (!triggerEvent) continue;
 
       const triggerAt = new Date(triggerEvent.occurred_at || triggerEvent.created_at);
-      const isMature = now.getTime() - triggerAt.getTime() >= rule.delayHours * 60 * 60 * 1000;
+      const ageMs = now.getTime() - triggerAt.getTime();
+      const isMature = ageMs >= rule.delayHours * 60 * 60 * 1000;
       if (!isMature) continue;
+      if (rule.maxAgeHours && ageMs > rule.maxAgeHours * 60 * 60 * 1000) continue;
 
       // The WordPress plugin records usage in user_usage_stats but does not
       // emit the dashboard-only first_image_processed event. Keep scheduled
@@ -213,6 +246,10 @@ function buildLifecycleCandidates(events, options = {}) {
         continue;
       }
 
+      const content = rule.connectedVariant && hasAnyEventAfter(actor, ['connect_completed'], triggerAt)
+        ? { ...rule, ...rule.connectedVariant }
+        : rule;
+
       candidates.push({
         automation_key: rule.key,
         actor_key: getPreferredActorKey(actor),
@@ -221,10 +258,11 @@ function buildLifecycleCandidates(events, options = {}) {
         source_event_id: triggerEvent.id,
         trigger_event_name: rule.trigger,
         trigger_occurred_at: triggerAt.toISOString(),
-        subject: rule.subject,
-        preview: rule.preview,
-        cta_text: rule.ctaText,
-        cta_url: rule.ctaUrl,
+        subject: content.subject,
+        preview: content.preview,
+        body_lines: content.bodyLines || [],
+        cta_text: content.ctaText,
+        cta_url: content.ctaUrl,
       });
     }
   }
@@ -295,6 +333,10 @@ function filterCandidatesByAuthUsers(candidates, authUsers) {
 }
 
 function renderLifecycleEmail(candidate, { unsubscribeUrl = getLifecycleUnsubscribeUrl(candidate) } = {}) {
+  const bodyLines = Array.isArray(candidate.body_lines) ? candidate.body_lines : [];
+  const bodyHtml = bodyLines.length > 0
+    ? `<ol style="margin:16px 0 0;padding-left:20px;font-size:16px;line-height:1.6;color:#6B6B73;">${bodyLines.map(line => `<li style="margin:0 0 8px;">${line}</li>`).join('')}</ol>`
+    : '';
   const unsubscribeHtml = unsubscribeUrl
     ? `<p style="margin:20px 0 0;font-size:12px;line-height:1.6;color:#6B6B73;">Prefer not to receive these emails? <a href="${unsubscribeUrl}" style="color:#3F3F46;text-decoration:underline;">Unsubscribe</a>.</p>`
     : '';
@@ -309,6 +351,7 @@ function renderLifecycleEmail(candidate, { unsubscribeUrl = getLifecycleUnsubscr
         <div style="padding:12px 32px 32px;">
           <h1 style="margin:0 0 12px;font-size:22px;line-height:1.35;font-weight:700;color:#3F3F46;">${candidate.subject}</h1>
           <p style="margin:0;font-size:16px;line-height:1.6;color:#6B6B73;">${candidate.preview}</p>
+          ${bodyHtml}
           <a href="${candidate.cta_url}" style="display:inline-block;margin-top:24px;background:#FEE11C;color:#3F3F46;text-decoration:none;padding:14px 24px;border-radius:12px;font-size:16px;font-weight:700;line-height:1;">${candidate.cta_text}</a>
           <p style="margin:24px 0 0;font-size:14px;line-height:1.6;color:#6B6B73;">Need help? Reply to this email and we will help you finish the setup.</p>
           ${unsubscribeHtml}
@@ -323,6 +366,7 @@ function renderLifecycleEmail(candidate, { unsubscribeUrl = getLifecycleUnsubscr
     '',
     candidate.subject,
     candidate.preview,
+    ...bodyLines.map((line, index) => `${index + 1}. ${line}`),
     '',
     `${candidate.cta_text}: ${candidate.cta_url}`,
     '',

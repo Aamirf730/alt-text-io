@@ -14,6 +14,7 @@ const {
 const { authenticateAdmin } = require('./utils/admin-auth');
 const { withErrorReporting } = require('./utils/error-reporter');
 const {
+  LIFECYCLE_RULES,
   buildLifecycleCandidates,
   buildLifecycleMailOptions,
   fetchRecentMarketingEvents,
@@ -26,6 +27,7 @@ const supabase = supabaseUrl && supabaseServiceKey
   : null;
 
 const ALLOWED_TEST_RULES = new Set([
+  'signup_welcome',
   'signup_no_connect',
   'connect_no_first_image',
   'checkout_no_purchase',
@@ -274,6 +276,33 @@ async function buildSingleUserCandidate(email, automationKey) {
       preview: 'Your WordPress site is connected. The next step is processing your first image.',
       cta_text: 'Open Dashboard',
       cta_url: 'https://www.alt-text.pro/dashboard',
+    };
+  }
+
+  if (automationKey === 'signup_welcome') {
+    // A test send previews the email for any account with a sign-up, ignoring
+    // the 48-hour window the scheduled run uses.
+    const signupEvent = latestEvent(targetEvents, 'signup_created');
+    if (!signupEvent) return null;
+    const signupAt = signupEvent.occurred_at || signupEvent.created_at;
+    const rule = LIFECYCLE_RULES.find(candidateRule => candidateRule.key === 'signup_welcome');
+    const content = hasEventAfter(targetEvents, 'connect_completed', signupAt)
+      ? { ...rule, ...rule.connectedVariant }
+      : rule;
+
+    return {
+      automation_key: 'signup_welcome',
+      actor_key: actorKey,
+      user_id: profile.id,
+      user_email: email,
+      source_event_id: signupEvent.id,
+      trigger_event_name: 'signup_created',
+      trigger_occurred_at: new Date(signupAt).toISOString(),
+      subject: content.subject,
+      preview: content.preview,
+      body_lines: content.bodyLines || [],
+      cta_text: content.ctaText,
+      cta_url: content.ctaUrl,
     };
   }
 

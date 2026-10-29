@@ -45,12 +45,86 @@ describe('lifecycle automation candidate selection', () => {
       now: '2026-06-25T05:00:00.000Z',
     });
 
-    expect(candidates).toHaveLength(1);
-    expect(candidates[0]).toMatchObject({
-      automation_key: 'signup_no_connect',
+    expect(candidates.map(candidate => candidate.automation_key).sort()).toEqual(['signup_no_connect', 'signup_welcome']);
+    expect(candidates.find(candidate => candidate.automation_key === 'signup_no_connect')).toMatchObject({
       actor_key: 'user:user-1',
       user_email: 'lead@example.com',
     });
+  });
+
+  const signupEvent = (occurredAt, extra = {}) => ({
+    id: 'signup-1',
+    event_name: 'signup_created',
+    user_id: 'user-1',
+    user_email: 'lead@example.com',
+    source: 'landing_page',
+    properties: { identity_verified: true },
+    occurred_at: occurredAt,
+    ...extra,
+  });
+
+  it('welcomes a new sign-up straight away with the setup steps', () => {
+    const candidates = buildLifecycleCandidates([signupEvent('2026-06-25T00:00:00.000Z')], {
+      now: '2026-06-25T00:30:00.000Z',
+    });
+
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]).toMatchObject({
+      automation_key: 'signup_welcome',
+      cta_url: 'https://wordpress.org/plugins/alt-text-pro/',
+    });
+    expect(candidates[0].body_lines).toHaveLength(3);
+
+    const message = renderLifecycleEmail(candidates[0], { unsubscribeUrl: null });
+    expect(message.html).toContain('<ol');
+    expect(message.text).toContain('1. Install Alt Text Pro from WordPress.org');
+  });
+
+  it('does not send a late welcome to sign-ups older than two days', () => {
+    const candidates = buildLifecycleCandidates([signupEvent('2026-06-20T00:00:00.000Z')], {
+      now: '2026-06-25T00:00:00.000Z',
+    });
+
+    expect(candidates.map(candidate => candidate.automation_key)).toEqual(['signup_no_connect']);
+  });
+
+  it('skips setup steps in the welcome when the sign-up came from the plugin and is connected', () => {
+    const candidates = buildLifecycleCandidates([
+      signupEvent('2026-06-25T00:00:00.000Z'),
+      {
+        id: 'connect-1',
+        event_name: 'connect_completed',
+        user_id: 'user-1',
+        user_email: 'lead@example.com',
+        source: 'wordpress_plugin_auth',
+        properties: {},
+        occurred_at: '2026-06-25T00:01:00.000Z',
+      },
+    ], { now: '2026-06-25T00:30:00.000Z' });
+
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]).toMatchObject({
+      automation_key: 'signup_welcome',
+      cta_url: 'https://www.alt-text.pro/dashboard',
+    });
+    expect(candidates[0].body_lines.join(' ')).not.toContain('Install');
+  });
+
+  it('does not welcome someone who already bought, since the purchase email covers it', () => {
+    const candidates = buildLifecycleCandidates([
+      signupEvent('2026-06-25T00:00:00.000Z'),
+      {
+        id: 'purchase-1',
+        event_name: 'purchase_completed',
+        user_id: 'user-1',
+        user_email: 'lead@example.com',
+        source: 'polar_webhook',
+        properties: {},
+        occurred_at: '2026-06-25T00:05:00.000Z',
+      },
+    ], { now: '2026-06-25T00:30:00.000Z' });
+
+    expect(candidates.map(candidate => candidate.automation_key)).toEqual(['purchase_onboarding']);
   });
 
   it('does not select a signup if the user connected after signup', () => {

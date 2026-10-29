@@ -12,7 +12,8 @@ describe("dashboard operations console", () => {
     expect(dashboardSource).toContain(
       "const showFirstRunOnboarding = !isPluginConnected || !hasGeneratedFirstAltText",
     );
-    expect(dashboardSource).toContain("{showFirstRunOnboarding && (");
+    expect(dashboardSource).toContain("{showFirstRunOnboarding && usageStats && user?.id && (");
+    expect(dashboardSource).toContain("<GettingStarted");
   });
 
   it("keeps the core operations sections and responsive navigation available", () => {

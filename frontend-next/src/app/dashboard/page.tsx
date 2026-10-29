@@ -25,6 +25,7 @@ import { hasPasswordIdentity } from '@/lib/auth-redirect';
 import { fetchUsageStats, getFreeRefillDate, snapshotFromUsage, type UsageStats } from './dashboard-helpers';
 import GenerationHistory from './GenerationHistory';
 import ConnectedSites from './ConnectedSites';
+import GettingStarted from './GettingStarted';
 import AccountSettings from './AccountSettings';
 import DeleteAccountCard from './DeleteAccountCard';
 import { hasLivePaidSubscription, SUBSCRIPTION_EXISTS_CODE, SUBSCRIPTION_EXISTS_MESSAGE } from '@/lib/subscription-status';
@@ -1116,34 +1117,12 @@ export default function Dashboard() {
                         </div>
                     )}
 
-                    {showFirstRunOnboarding && (
-                        <section
-                            aria-labelledby="setup-heading"
-                            className="mb-6 flex flex-col gap-4 rounded-2xl border border-line-strong bg-yellow-tint p-6 sm:flex-row sm:items-center sm:justify-between"
-                        >
-                            <div className="flex items-start gap-4">
-                                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand-yellow text-ink">
-                                    {isPluginConnected ? <Sparkles className="h-5 w-5" /> : <PlugZap className="h-5 w-5" />}
-                                </span>
-                                <div>
-                                    <h2 id="setup-heading" className="font-lato text-lg font-semibold text-ink">
-                                        {isPluginConnected ? 'Generate your first alt text' : 'Connect your WordPress plugin'}
-                                    </h2>
-                                    <p className="mt-1 max-w-2xl text-sm leading-6 text-ink-muted">
-                                        {isPluginConnected
-                                            ? 'Your account is connected. Try one image before starting a larger media-library batch.'
-                                            : 'Install Alt Text Pro from WordPress.org, then click Connect Account in WordPress and sign in. Your site connects automatically.'}
-                                    </p>
-                                </div>
-                            </div>
-                            <a
-                                href={isPluginConnected ? '#generate' : '/docs#installation'}
-                                className={cn(buttonVariants({ variant: 'secondary' }), 'self-start sm:self-auto')}
-                            >
-                                {isPluginConnected ? 'Generate an image' : 'Open setup guide'}
-                                <ChevronRight className="h-4 w-4" />
-                            </a>
-                        </section>
+                    {showFirstRunOnboarding && usageStats && user?.id && (
+                        <GettingStarted
+                            userId={user.id}
+                            isPluginConnected={isPluginConnected}
+                            hasGeneratedFirstAltText={hasGeneratedFirstAltText}
+                        />
                     )}
 
                     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
