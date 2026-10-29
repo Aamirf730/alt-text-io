@@ -152,9 +152,29 @@ Alt Text Pro supports JPEG, PNG, GIF, WebP and AVIF, and HEIC when your server's
 
 Yes. By default alt text is written in your site's language. Choose another language under Alt Text Pro > Settings > Alt text language. Languages the service does not support yet fall back to English.
 
+= Does it work with WPML or Polylang? =
+
+Yes. With Alt text language set to "Same as the site language", an image that WPML or Polylang assigns a language is described in that language; images without a language use the site language. A language you choose in Settings applies to every image. Each translated copy of an image is its own Media Library item with its own alt text, so it is described separately, in its own language, and uses its own credit. Alt text is not copied between translations. With Polylang, images have a language only when "Media" is turned on under Languages > Settings.
+
 = Will images already inside my posts get the new alt text? =
 
 Yes. With "Fill empty alt text in post content" on (the default), images in posts whose alt attribute is empty or missing are shown with the alt text saved in the Media Library. Alt text written in the post is never replaced. The Posts list also offers "Copy alt text into post" to save it into the post itself, which uses no credits.
+
+= Does it work with Elementor, Divi and other page builders? =
+
+Mostly. Elementor's image widgets read alt text from the Media Library, so they use the alt text Alt Text Pro saves there. With "Fill empty alt text in post content" on, an image with an empty or missing alt is also given its Media Library alt text when the page is shown in: post content (including builders that save their layout there, such as Divi), Elementor pages, and Elementor and Divi Theme Builder templates and Elementor popups. This works for Media Library images that carry their image ID in the page (the wp-image-123 class WordPress adds), which covers most images these builders output. Alt text you typed in the builder is never replaced, and nothing is saved into your layouts. Not covered: images inserted by URL, CSS background images, and builders that render pages without WordPress's content filters (for example Bricks or Oxygen).
+
+= How do I keep an image's alt text empty on purpose? =
+
+Open the image in the Media Library and tick "Decorative image (empty alt on purpose)". Alt Text Pro then never writes alt text for it (Generate explains why, and uploads, bulk runs and the Posts list skip it), leaves its alt="" in posts and builder layouts, and does not count it as missing alt text. If the Alternative Text field already has text, clear it too.
+
+= Can it also fill the image title, caption or description? =
+
+Yes, if you want. Under Settings > Image title, caption and description, choose which fields to fill (all are off by default). When Alt Text Pro saves new alt text for an image, it copies it into the title while the title is still the file name, and into the caption and description while they are empty. Text someone wrote is never replaced. A generated draft you edit before saving is not copied.
+
+= Does WordPress warn me when credits run low? =
+
+Yes. At 10 credits or fewer, administrators see a notice on the Media Library screens and the Alt Text Pro pages, and another when credits run out. It uses the balance the plugin already knows from your last generation or account check, refreshed in the background at most every 6 hours, so it never slows down admin pages. Dismiss it and it stays hidden until credits run out or run low again.
 
 = Does the plugin send emails? =
 
@@ -185,6 +205,11 @@ Yes, you can cancel your subscription at any time from your Alt Text Pro dashboa
 * New: the plugin dashboard and Settings show which Alt Text Pro account the site is connected to.
 * New: "Connect a different account" in Settings switches the site to another account without disconnecting first.
 * New: the plugin dashboard has a Connect Account button when the site is not connected yet.
+* New: "Fill empty alt text in post content" also covers Elementor and Divi content shown outside the post content, such as Theme Builder headers, footers, templates and Elementor popups. Alt text typed in the builder is never replaced.
+* New: optional settings to also fill the image title (while it is still the file name), caption and description (while empty) with new alt text. All off by default. Text someone wrote is never replaced.
+* New: on WPML and Polylang sites, each image is described in its own language when Alt text language is "Same as the site language".
+* New: "Decorative image (empty alt on purpose)" checkbox on each image. Decorative images are never described or billed, keep alt="" in posts, and are not counted as missing alt text.
+* New: a dismissible "Only N credits left" or "You are out of credits" notice on the Media Library screens and Alt Text Pro pages, using the last known balance, so it adds no request to the service on page loads.
 * New: the connect window checks first that this site can store the API key (OpenSSL and a unique AUTH_KEY), and explains what to fix before you sign in.
 * New: "Selected" mode lets you search and page through all images, including ones that already have alt text, to regenerate them.
 * New: "Email me when a bulk run finishes" setting (on by default). The email is now proper plain text.

@@ -180,6 +180,11 @@ class AltTextPro_Media_Handler
             return;
         }
 
+        // Marked as decorative after the upload: keep its alt empty, quietly.
+        if (AltTextPro_Image_Details::is_decorative($attachment_id)) {
+            return;
+        }
+
         $user_id = $user_id ? absint($user_id) : get_current_user_id();
 
         // Old versions scheduled a second callback after running immediately.
@@ -263,6 +268,10 @@ class AltTextPro_Media_Handler
         // Only raster images the service can describe (no SVG).
         if (!AltTextPro_API_Client::is_supported_image($attachment_id)) {
             wp_send_json_error(esc_html__('This file type is not supported. Alt Text Pro can describe JPEG, PNG, GIF, WebP, AVIF and HEIC images.', 'alt-text-pro'));
+        }
+
+        if (AltTextPro_Image_Details::is_decorative($attachment_id)) {
+            wp_send_json_error(esc_html(AltTextPro_Image_Details::get_decorative_message()));
         }
 
         // Check if alt-text exists and we shouldn't overwrite

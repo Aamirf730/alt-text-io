@@ -168,7 +168,7 @@ echo wp_kses_post(
                         </span>
                     </label>
                     <p class="checkbox-desc">
-                        <?php esc_html_e('When a page is shown, images inside posts whose alt text is empty or missing get the alt text saved in the Media Library. Alt text written in the post is never overwritten, and the saved post is not changed. Turn this off if you leave alt text empty on purpose for decorative images.', 'alt-text-pro'); ?>
+                        <?php esc_html_e('When a page is shown, images inside posts whose alt text is empty or missing get the alt text saved in the Media Library. This also works for most Elementor and Divi images, including Theme Builder templates. Alt text written in the post or the builder is never overwritten, and the saved post is not changed. To keep one image\'s alt empty on purpose, tick "Decorative image" for it in the Media Library.', 'alt-text-pro'); ?>
                     </p>
                 </div>
 
@@ -193,7 +193,7 @@ echo wp_kses_post(
                         <?php endforeach; ?>
                     </select>
                     <p class="description atp-help">
-                        <?php esc_html_e('Alt text is written in this language. Languages the service does not support yet fall back to English.', 'alt-text-pro'); ?>
+                        <?php esc_html_e('Alt text is written in this language. Languages the service does not support yet fall back to English. With "Same as the site language" on a WPML or Polylang site, an image that has its own language is described in that language.', 'alt-text-pro'); ?>
                     </p>
                 </div>
 
@@ -256,6 +256,62 @@ echo wp_kses_post(
                         placeholder="<?php esc_attr_e('e.g., travel blog about New Zealand, food blog focusing on Italian cuisine', 'alt-text-pro'); ?>"><?php echo esc_textarea($settings['blog_context'] ?? ''); ?></textarea>
                     <p class="description atp-help">
                         <?php esc_html_e('Provide general context about your blog to help AI generate more relevant alt text. This context will be included with every image generation request.', 'alt-text-pro'); ?>
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Image details filled from new alt text (title, caption, description). -->
+        <div class="alt-text-pro-card alt-text-pro-image-details-card">
+            <div class="card-header">
+                <h3>
+                    <?php esc_html_e('Image title, caption and description', 'alt-text-pro'); ?>
+                </h3>
+            </div>
+            <div class="card-content">
+                <p class="description atp-help">
+                    <?php esc_html_e('When Alt Text Pro saves new alt text for an image (on upload, in a bulk run, from the Posts list, or when you apply a generated draft without changing it), it can copy the same text into these fields. Text someone wrote there is never replaced.', 'alt-text-pro'); ?>
+                </p>
+
+                <div class="settings-field">
+                    <label class="checkbox-group">
+                        <input type="hidden" name="alt_text_pro_settings[fill_title_from_alt]" value="0" />
+                        <input type="checkbox" id="fill_title_from_alt" name="alt_text_pro_settings[fill_title_from_alt]"
+                            value="1" <?php checked(1, !empty($settings['fill_title_from_alt'])); ?> />
+                        <span class="checkbox-label">
+                            <?php esc_html_e('Fill the image title', 'alt-text-pro'); ?>
+                        </span>
+                    </label>
+                    <p class="checkbox-desc">
+                        <?php esc_html_e('Only while the title is still the file name WordPress gave it, such as "IMG_1234".', 'alt-text-pro'); ?>
+                    </p>
+                </div>
+
+                <div class="settings-field">
+                    <label class="checkbox-group">
+                        <input type="hidden" name="alt_text_pro_settings[fill_caption_from_alt]" value="0" />
+                        <input type="checkbox" id="fill_caption_from_alt" name="alt_text_pro_settings[fill_caption_from_alt]"
+                            value="1" <?php checked(1, !empty($settings['fill_caption_from_alt'])); ?> />
+                        <span class="checkbox-label">
+                            <?php esc_html_e('Fill the caption', 'alt-text-pro'); ?>
+                        </span>
+                    </label>
+                    <p class="checkbox-desc">
+                        <?php esc_html_e('Only when the caption is empty. Some themes show the caption under the image, next to the same alt text for screen readers.', 'alt-text-pro'); ?>
+                    </p>
+                </div>
+
+                <div class="settings-field">
+                    <label class="checkbox-group">
+                        <input type="hidden" name="alt_text_pro_settings[fill_description_from_alt]" value="0" />
+                        <input type="checkbox" id="fill_description_from_alt" name="alt_text_pro_settings[fill_description_from_alt]"
+                            value="1" <?php checked(1, !empty($settings['fill_description_from_alt'])); ?> />
+                        <span class="checkbox-label">
+                            <?php esc_html_e('Fill the description', 'alt-text-pro'); ?>
+                        </span>
+                    </label>
+                    <p class="checkbox-desc">
+                        <?php esc_html_e('Only when the description is empty. The description appears on the image\'s attachment page.', 'alt-text-pro'); ?>
                     </p>
                 </div>
             </div>

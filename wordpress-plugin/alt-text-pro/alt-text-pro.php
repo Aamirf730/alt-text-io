@@ -164,6 +164,8 @@ class AltTextPro
         require_once ALT_TEXT_PRO_PLUGIN_PATH . 'includes/class-media-handler.php';
         require_once ALT_TEXT_PRO_PLUGIN_PATH . 'includes/class-bulk-processor.php';
         require_once ALT_TEXT_PRO_PLUGIN_PATH . 'includes/class-settings.php';
+        require_once ALT_TEXT_PRO_PLUGIN_PATH . 'includes/class-image-details.php';
+        require_once ALT_TEXT_PRO_PLUGIN_PATH . 'includes/class-credit-notice.php';
     }
 
     /**
@@ -188,6 +190,21 @@ class AltTextPro
         if (!is_admin() && self::supports_content_img_tag_filter()) {
             add_filter('wp_content_img_tag', array($this, 'fill_content_image_alt'), 10, 3);
         }
+
+        // Page builders: content they render outside the_content (Elementor
+        // Theme Builder templates and popups, Divi Theme Builder layouts).
+        if (!is_admin()) {
+            add_filter('elementor/frontend/the_content', array($this, 'fill_builder_content_alt'), 20);
+            add_filter('et_builder_render_layout', array($this, 'fill_builder_content_alt'), 20);
+        }
+
+        // Decorative images and image title, caption and description
+        // filled from new alt text (front end too: uploads and cron save
+        // alt text outside wp-admin).
+        new AltTextPro_Image_Details();
+
+        // Low-credit notice and its background refresh.
+        new AltTextPro_Credit_Notice();
 
         // Media hooks
         new AltTextPro_Media_Handler();
@@ -692,6 +709,9 @@ class AltTextPro
                         context_enabled: $('#context_enabled').is(':checked'),
                         fill_post_content_alt: $('#fill_post_content_alt').is(':checked'),
                         email_bulk_complete: $('#email_bulk_complete').is(':checked'),
+                        fill_title_from_alt: $('#fill_title_from_alt').is(':checked'),
+                        fill_caption_from_alt: $('#fill_caption_from_alt').is(':checked'),
+                        fill_description_from_alt: $('#fill_description_from_alt').is(':checked'),
                         language: $('#language').val() || ''
                     }
                 };
@@ -721,6 +741,9 @@ class AltTextPro
                             if (settings.settings.context_enabled !== undefined) $('#context_enabled').prop('checked', settings.settings.context_enabled);
                             if (settings.settings.fill_post_content_alt !== undefined) $('#fill_post_content_alt').prop('checked', settings.settings.fill_post_content_alt);
                             if (settings.settings.email_bulk_complete !== undefined) $('#email_bulk_complete').prop('checked', settings.settings.email_bulk_complete);
+                            $.each(['fill_title_from_alt', 'fill_caption_from_alt', 'fill_description_from_alt'], function(i, key) {
+                                if (settings.settings[key] !== undefined) $('#' + key).prop('checked', !!settings.settings[key]);
+                            });
                             if (typeof settings.settings.language === 'string' && $('#language option').filter(function() { return this.value === settings.settings.language; }).length) $('#language').val(settings.settings.language);
                             alert(altTextAI.strings.settingsImported);
                         }
@@ -780,6 +803,14 @@ class AltTextPro
 
         if (!wp_attachment_is_image($attachment_id)) {
             wp_send_json_error(esc_html__('Alt Text Pro can only describe photos and other raster images (JPEG, PNG, GIF, WebP, AVIF, HEIC). SVG and other file types are not supported.', 'alt-text-pro'));
+        }
+
+        // A decorative image keeps its empty alt on purpose; no credit used.
+        if (AltTextPro_Image_Details::is_decorative($attachment_id)) {
+            wp_send_json_error(array(
+                'message' => AltTextPro_Image_Details::get_decorative_message(),
+                'code' => 'decorative_image',
+            ));
         }
 
         // Get blog context from settings
@@ -953,11 +984,12 @@ class AltTextPro
             return;
         }
 
-        // Count images missing alt-text
+        // Count images missing alt-text. Decorative images stay empty on
+        // purpose and are not counted.
         $missing = 0;
         foreach ($attachments as $att_id) {
             $alt = get_post_meta($att_id, '_wp_attachment_image_alt', true);
-            if (empty($alt)) {
+            if (empty($alt) && !AltTextPro_Image_Details::is_decorative($att_id)) {
                 $missing++;
             }
         }
@@ -1381,7 +1413,7 @@ class AltTextPro
         $editable = array_flip(array_map('intval', $attachments));
         $count = 0;
         foreach ($this->get_content_empty_alt_attachment_ids($post->post_content) as $attachment_id) {
-            if (!isset($editable[$attachment_id])) {
+            if (!isset($editable[$attachment_id]) || AltTextPro_Image_Details::is_decorative($attachment_id)) {
                 continue;
             }
 
@@ -1427,12 +1459,72 @@ class AltTextPro
             return $filtered_image;
         }
 
+        // A decorative image keeps alt="" on purpose.
+        if (AltTextPro_Image_Details::is_decorative($attachment_id)) {
+            return $filtered_image;
+        }
+
         $library_alt = trim((string) get_post_meta($attachment_id, '_wp_attachment_image_alt', true));
         if ($library_alt === '') {
             return $filtered_image;
         }
 
         return $this->sync_html_image_alt_text($filtered_image, array($attachment_id => $library_alt));
+    }
+
+    /**
+     * Front end, page builders: fill empty alt attributes in HTML that a
+     * builder renders outside the_content, such as Elementor Theme Builder
+     * templates and popups ("elementor/frontend/the_content") and Divi
+     * Theme Builder layouts ("et_builder_render_layout").
+     *
+     * Same rules as fill_content_image_alt(): only <img> tags that name a
+     * Media Library image (wp-image-{ID} class or data-id) and whose alt is
+     * empty or missing get that image's alt text. Decorative images and alt
+     * text written in the builder are left alone, and nothing is saved.
+     * Running twice on the same HTML changes nothing the second time.
+     *
+     * @param string $content Rendered HTML.
+     * @return string
+     */
+    public function fill_builder_content_alt($content)
+    {
+        if (!is_string($content) || stripos($content, '<img') === false || !AltTextPro_Settings::is_enabled('fill_post_content_alt')) {
+            return $content;
+        }
+
+        $attachment_ids = array_values(array_unique($this->get_content_empty_alt_attachment_ids($content)));
+        if (empty($attachment_ids)) {
+            return $content;
+        }
+
+        // One query for the alt text and decorative flags of every image.
+        update_meta_cache('post', $attachment_ids);
+
+        $content_updates = array();
+        foreach ($attachment_ids as $attachment_id) {
+            $library_alt = trim((string) get_post_meta($attachment_id, '_wp_attachment_image_alt', true));
+            if ($library_alt === '' || AltTextPro_Image_Details::is_decorative($attachment_id)) {
+                continue;
+            }
+
+            // Builders and sliders also use data-id for their own numbers:
+            // only an ID that is an image in the Media Library counts.
+            if (
+                get_post_type($attachment_id) !== 'attachment'
+                || strpos((string) get_post_mime_type($attachment_id), 'image/') !== 0
+            ) {
+                continue;
+            }
+
+            $content_updates[$attachment_id] = $library_alt;
+        }
+
+        if (empty($content_updates)) {
+            return $content;
+        }
+
+        return $this->sync_html_image_alt_text($content, $content_updates);
     }
 
     /**
@@ -1501,6 +1593,11 @@ class AltTextPro
     {
         $content_updates = array();
         foreach ($attachments as $attachment_id) {
+            // A decorative image keeps alt="" in the post.
+            if (AltTextPro_Image_Details::is_decorative($attachment_id)) {
+                continue;
+            }
+
             $library_alt = (string) get_post_meta($attachment_id, '_wp_attachment_image_alt', true);
             if (trim($library_alt) !== '') {
                 $content_updates[intval($attachment_id)] = $library_alt;
@@ -1619,6 +1716,17 @@ class AltTextPro
             }
 
             foreach ($attachments as $attachment_id) {
+                // Decorative images keep an empty alt on purpose.
+                if (AltTextPro_Image_Details::is_decorative($attachment_id)) {
+                    $results['skipped']++;
+                    $results['details'][] = array(
+                        'id' => $attachment_id,
+                        'status' => 'skipped',
+                        'message' => __('Marked as decorative', 'alt-text-pro')
+                    );
+                    continue;
+                }
+
                 // Check if already has alt-text
                 $existing_alt = get_post_meta($attachment_id, '_wp_attachment_image_alt', true);
 
