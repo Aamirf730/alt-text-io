@@ -10,6 +10,7 @@ import { getApiBase } from "@/lib/utils";
 import { trackMarketingEvent } from "@/lib/analytics";
 import { EXISTING_ACCOUNT_MESSAGE, isExistingAccountSignUp, isNewlyCreatedUser } from "@/lib/auth-redirect";
 import { getResendWaitSeconds, resendButtonLabel, useResendCooldown } from "@/lib/resend-cooldown";
+import { getFriendlyAuthError } from "@/lib/auth-errors";
 import { toast } from "sonner";
 import GoogleIdentityButton from "@/components/GoogleIdentityButton";
 import "./connect-states.css";
@@ -683,7 +684,7 @@ function ConnectPageContent() {
                 redirectTo: `${window.location.origin}/reset-password`,
             });
             if (resetError) {
-                setError(resetError.message);
+                setError(getFriendlyAuthError(resetError.message));
                 return;
             }
             toast.success("If an account exists for that email, a reset link is on its way. Come back here after you set a new password.");
@@ -711,12 +712,8 @@ function ConnectPageContent() {
             });
             if (resendError) {
                 const waitSeconds = getResendWaitSeconds(resendError.message);
-                if (waitSeconds) {
-                    startResendCooldown(waitSeconds);
-                    setError(`We just sent an email. You can ask for another in ${waitSeconds} seconds.`);
-                } else {
-                    setError(resendError.message);
-                }
+                if (waitSeconds) startResendCooldown(waitSeconds);
+                setError(getFriendlyAuthError(resendError.message));
                 return;
             }
             startResendCooldown();
@@ -756,7 +753,7 @@ function ConnectPageContent() {
                 setError(
                     /email not confirmed/i.test(result.error.message)
                         ? `We haven't seen your confirmation yet. Open the link we sent to ${pendingSignupEmail || email}, then try again.`
-                        : result.error.message,
+                        : getFriendlyAuthError(result.error.message),
                 );
                 return;
             }
@@ -803,7 +800,7 @@ function ConnectPageContent() {
             }
 
             if (result.error) {
-                setError(result.error.message);
+                setError(getFriendlyAuthError(result.error.message));
                 setCanResendConfirmation(isLogin && /email not confirmed/i.test(result.error.message));
             } else if (result.data.user) {
                 if (!isLogin && isExistingAccountSignUp(result.data.user, Boolean(result.data.session))) {

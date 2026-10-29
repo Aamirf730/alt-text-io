@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import CreditCalculator from "@/components/CreditCalculator";
 import { CREDIT_PACKS, PRICE_TAX_NOTE, SUBSCRIPTION_PLANS } from "@/lib/pricing-catalog";
 
 type PricingSectionProps = {
@@ -112,10 +113,8 @@ export default function PricingSection({
               Buy credits once. They never expire and work on every plan, including Free.{" "}
               <Link href="/bulk-generate-alt-text-wordpress" className="font-medium text-ink underline decoration-line-strong decoration-2 underline-offset-4 hover:decoration-ink">See how bulk processing works</Link>.
             </p>
-            <p className="mt-3 text-base text-ink-muted">
-              Each image uses 1 credit. For example, for 800 images your 150 free credits plus the {CREDIT_PACKS[0].price} pack is plenty. Once your site is connected, the plugin&apos;s Bulk page shows how many images need alt text and whether your credits cover them.
-            </p>
           </div>
+          <CreditCalculator />
           <div className="mx-auto mt-8 grid max-w-5xl gap-5 md:grid-cols-3">
             {CREDIT_PACKS.map((pack) => (
               <article key={pack.id} className="flex h-full flex-col rounded-2xl border border-line bg-white p-6 shadow-notebook sm:p-8">

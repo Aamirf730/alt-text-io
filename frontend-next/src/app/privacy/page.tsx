@@ -182,7 +182,7 @@ export default function PrivacyPage() {
                                     <div>
                                         <h3 className="text-xl font-semibold text-ink mb-3">5.7 Email delivery</h3>
                                         <p className="text-ink-muted leading-relaxed">
-                                            Our configured email delivery provider processes recipient addresses and message content for account, lifecycle, support, and service communications. Our emails are sent from help@alt-text.pro.
+                                            We send email through Google (Gmail), which processes recipient addresses and message content for account, lifecycle, support, and service communications. This includes the confirmation and password reset emails that Supabase sends for us. Our emails are sent from help@alt-text.pro, and Google&apos;s privacy policy applies to their delivery.
                                         </p>
                                     </div>
 

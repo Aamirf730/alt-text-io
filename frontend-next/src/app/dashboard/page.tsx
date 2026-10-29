@@ -20,6 +20,7 @@ import {
     saveCheckoutBaseline,
     type AccountSnapshot,
 } from '@/lib/pending-checkout';
+import { consumePendingDemoImage } from '@/lib/pending-demo-image';
 import { hasPasswordIdentity } from '@/lib/auth-redirect';
 import { fetchUsageStats, getFreeRefillDate, snapshotFromUsage, type UsageStats } from './dashboard-helpers';
 import GenerationHistory from './GenerationHistory';
@@ -621,6 +622,26 @@ export default function Dashboard() {
             }
         }
     };
+
+    // Load the image picked in the homepage demo before an email sign-up, so
+    // it is waiting here after the confirmation link opens the dashboard.
+    // Generating stays a click, since it uses a credit.
+    const pendingDemoImageHandledRef = useRef(false);
+    useEffect(() => {
+        if (!user?.id || pendingDemoImageHandledRef.current) return;
+        pendingDemoImageHandledRef.current = true;
+
+        const image = consumePendingDemoImage();
+        if (!image) return;
+
+        window.setTimeout(() => {
+            setTestImage(image);
+            setTestResult(null);
+            setGeneratedAltText("");
+            document.getElementById('generate')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            toast.info('Your image from the homepage is ready. Click "Generate alt text" to describe it.');
+        }, 0);
+    }, [user?.id]);
 
     // Reopen a plan or pack chosen on the homepage before sign-up or sign-in.
     const pendingCheckoutHandledRef = useRef(false);

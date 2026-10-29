@@ -155,3 +155,55 @@ export function getPlanDisplayName(planId: string, monthlyCreditAllowance?: numb
   if (current && keepsCatalogueAllowance) return current.name;
   return LEGACY_PLAN_NAMES[normalized] || normalized.replace(/_/g, " ");
 }
+
+export const SIGNUP_BONUS_CREDITS = 150;
+
+export type PackSuggestion = {
+  /** Credits still needed after the sign-up bonus. */
+  creditsNeeded: number;
+  packs: Array<{ pack: CreditPack; count: number }>;
+  totalPrice: number;
+  /** Credits left over after the images are done. */
+  leftover: number;
+};
+
+function packPriceValue(pack: CreditPack) {
+  return Number(pack.price.replace(/[^0-9.]/g, ""));
+}
+
+/**
+ * The cheapest mix of credit packs that, with the sign-up bonus, covers a
+ * one-time library of `images` images (1 credit each).
+ */
+export function suggestCreditPacks(images: number): PackSuggestion {
+  const creditsNeeded = Math.max(0, Math.ceil(images) - SIGNUP_BONUS_CREDITS);
+  const packs = [...CREDIT_PACKS].sort((a, b) => b.creditCount - a.creditCount);
+  let best: PackSuggestion = { creditsNeeded, packs: [], totalPrice: 0, leftover: SIGNUP_BONUS_CREDITS - Math.min(SIGNUP_BONUS_CREDITS, Math.ceil(images)) };
+  if (creditsNeeded === 0) return best;
+
+  const [large, medium, small] = packs;
+  let bestPrice = Infinity;
+  for (let l = 0; l <= Math.ceil(creditsNeeded / large.creditCount); l += 1) {
+    const afterLarge = Math.max(0, creditsNeeded - l * large.creditCount);
+    for (let m = 0; m <= Math.ceil(afterLarge / medium.creditCount); m += 1) {
+      const afterMedium = Math.max(0, afterLarge - m * medium.creditCount);
+      const s = Math.ceil(afterMedium / small.creditCount);
+      const price = l * packPriceValue(large) + m * packPriceValue(medium) + s * packPriceValue(small);
+      const credits = l * large.creditCount + m * medium.creditCount + s * small.creditCount;
+      if (price < bestPrice) {
+        bestPrice = price;
+        best = {
+          creditsNeeded,
+          packs: [
+            { pack: large, count: l },
+            { pack: medium, count: m },
+            { pack: small, count: s },
+          ].filter((entry) => entry.count > 0),
+          totalPrice: price,
+          leftover: credits - creditsNeeded,
+        };
+      }
+    }
+  }
+  return best;
+}

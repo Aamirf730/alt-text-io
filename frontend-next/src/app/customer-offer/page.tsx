@@ -20,6 +20,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { EXISTING_ACCOUNT_MESSAGE, isExistingAccountSignUp } from "@/lib/auth-redirect";
 import { getResendWaitSeconds, resendButtonLabel, useResendCooldown } from "@/lib/resend-cooldown";
+import { getFriendlyAuthError } from "@/lib/auth-errors";
 import GoogleIdentityButton from "@/components/GoogleIdentityButton";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -134,7 +135,7 @@ export default function CustomerOfferPage() {
             }
         } catch (error) {
             setAuthMessage(
-                error instanceof Error ? error.message : "Authentication failed. Please try again."
+                error instanceof Error ? getFriendlyAuthError(error.message) : "Authentication failed. Please try again."
             );
         } finally {
             setIsAuthenticating(false);
@@ -156,7 +157,7 @@ export default function CustomerOfferPage() {
             });
             setAuthMessage(
                 error
-                    ? error.message
+                    ? getFriendlyAuthError(error.message)
                     : "If an account exists for that email, a reset link is on its way. Set a new password, then come back here to claim."
             );
         } catch {
@@ -181,11 +182,9 @@ export default function CustomerOfferPage() {
                 options: { emailRedirectTo: `${window.location.origin}/customer-offer` },
             });
             const waitSeconds = getResendWaitSeconds(error?.message);
-            if (waitSeconds) {
-                startResendCooldown(waitSeconds);
-                setAuthMessage(`We just sent an email. You can ask for another in ${waitSeconds} seconds.`);
-            } else if (error) {
-                setAuthMessage(error.message);
+            if (waitSeconds) startResendCooldown(waitSeconds);
+            if (error) {
+                setAuthMessage(getFriendlyAuthError(error.message));
             } else {
                 startResendCooldown();
                 setAuthMessage("We sent a new confirmation email. Confirm it, then return to this page to claim your credits. Not there? Check your spam folder.");

@@ -7,6 +7,8 @@ import { CheckCircle, Loader2, Mail, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
 import { getSafeAuthRedirect } from "@/lib/auth-redirect";
+import { getFriendlyAuthError } from "@/lib/auth-errors";
+import { getResendWaitSeconds, useResendCooldown } from "@/lib/resend-cooldown";
 import { trackMarketingEvent } from "@/lib/analytics";
 import { supabase } from "@/lib/supabase";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -34,6 +36,7 @@ export default function AuthConfirmPage() {
   const [hasSession, setHasSession] = useState(false);
   const [resendEmail, setResendEmail] = useState("");
   const [isResending, setIsResending] = useState(false);
+  const { secondsLeft: resendSecondsLeft, startCooldown: startResendCooldown } = useResendCooldown();
 
   useEffect(() => {
     let active = true;
@@ -135,10 +138,13 @@ export default function AuthConfirmPage() {
         });
 
       if (error) {
-        toast.error(error.message);
+        const waitSeconds = getResendWaitSeconds(error.message);
+        if (waitSeconds) startResendCooldown(waitSeconds);
+        toast.error(getFriendlyAuthError(error.message));
         return;
       }
 
+      startResendCooldown();
       toast.success(
         isRecoveryLink
           ? "If an account exists for that email, a new reset link is on its way."
@@ -210,9 +216,11 @@ export default function AuthConfirmPage() {
                 required
                 disabled={isResending}
               />
-              <Button type="submit" disabled={isResending} className="w-full">
+              <Button type="submit" disabled={isResending || resendSecondsLeft > 0} className="w-full">
                 {isResending ? <Loader2 className="animate-spin" /> : <Mail />}
-                {isRecoveryLink ? "Send a new reset link" : "Resend confirmation email"}
+                {resendSecondsLeft > 0
+                  ? `Send again in ${resendSecondsLeft}s`
+                  : isRecoveryLink ? "Send a new reset link" : "Resend confirmation email"}
               </Button>
             </form>
             <div className="mt-3 grid gap-3">

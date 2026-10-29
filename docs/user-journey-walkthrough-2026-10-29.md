@@ -17,7 +17,7 @@ Some steps depend on the 8 new database migrations from the last round, which ar
 
 ## Missing or broken at a glance
 
-There are 186 steps across 16 sections: 120 OK, 42 PARTIAL, 24 MISSING (21 different gaps, 3 of which are listed in two sections) and 0 BROKEN. Before the 29 Oct fixes: 109 OK, 48 PARTIAL, 27 MISSING and 2 BROKEN.
+There are 186 steps across 16 sections: 123 OK, 39 PARTIAL, 24 MISSING (21 different gaps, 3 of which are listed in two sections) and 0 BROKEN. Before the 29 Oct fixes: 109 OK, 48 PARTIAL, 27 MISSING and 2 BROKEN.
 
 | Step | What's missing or broken |
 |---|---|
@@ -49,35 +49,35 @@ There are 186 steps across 16 sections: 120 OK, 42 PARTIAL, 24 MISSING (21 diffe
 
 Collected during the one-by-one review (sections A and B so far). Tick an item off when it is done, and add new ones as the review goes on.
 
-**Left as they are for now (decide later)**
+**Waiting on a decision**
 
 - [ ] **A5:** no reviews, ratings, install count or testimonials on the website. Left out on purpose while the plugin has about 10 installs and no ratings.
-- [ ] **A13:** Privacy doesn't name the email delivery provider. Needs the provider's name.
-- [ ] **A3:** email sign-ups that need confirmation still lose the homepage demo image. Only email sign-in and Google keep it.
-- [ ] **A8:** no "how many credits do I need" calculator. A worked example and the plugin's Bulk page cover it for now.
-- [ ] **A10:** the Alt Text Simulator stays a scripted demo, not a real generator.
+- [ ] **A10:** the Alt Text Simulator stays a scripted teaching demo. The homepage demo already generates real alt text, so a second generator is not planned unless wanted.
 - [ ] **B2:** the 6-character password minimum is a live Supabase setting. Raising it needs approval to change production.
 
 **Done in code but not seen working yet**
 
-- [ ] **A3:** the demo resuming after sign-in. Needs a real account.
+- [ ] **A3:** the demo resuming after sign-in, and the demo image waiting in the dashboard after an email sign-up. Needs a real account.
 - [ ] **A15:** the tax note in the dashboard upgrade window. Needs a signed-in account.
 - [ ] **A8:** the plugin Bulk page's "credits needed" box. Needs a WordPress site. The plugin's PHP tests have not been run (no PHP on this machine).
-- [ ] **B4:** the real "account already exists" reply from Supabase.
-- [ ] **B5:** a real sign-up, resend and rate-limit reply from Supabase. The connect window and customer offer page changes were checked by tests only, not looked at in the browser.
+- [ ] **B4, B5, C10:** the real Supabase replies (account already exists, sign-up, resend, rate limit, wrong password). The screens were checked in the browser by setting their state by hand.
 
 **Release steps not done**
 
-- [ ] Commit the B2, B4 and B5 fixes (A2 to A15 are committed).
 - [ ] Push the branch and deploy the website. None of the 29 Oct website fixes are live.
 - [ ] Release plugin 1.7.28 to WordPress.org (Bulk page credits box, readme wording).
 - [ ] Apply the 8 database migrations to production (the steps marked *needs new migration*).
 
-**Noticed during A and B, belongs to a later step**
+**Done**
 
-- [ ] **C:** signing in with the wrong password shows Supabase's bare "Invalid login credentials", with no hint for accounts that use Google.
-- [ ] **B9:** the expired-link page's "Resend confirmation email" button has no 60-second countdown like the sign-up forms now have.
-- [ ] Supabase's project-wide "Email rate limit exceeded" error is shown as is on all sign-up forms.
+- [x] **A13:** Privacy names Google (Gmail) as the email provider, including for Supabase's confirmation and reset emails. *29 Oct.*
+- [x] **A3:** email sign-ups that need confirmation keep the demo image. It is saved in the browser for 24 hours and waits in the dashboard, ready to generate. *29 Oct.*
+- [x] **A8:** a "How many images need alt text?" calculator in the pricing section suggests the cheapest packs. *29 Oct.*
+- [x] **C10:** a wrong password says "That email and password don't match… If you signed up with Google, use the Google button." on all sign-in forms. *29 Oct.*
+- [x] **B9:** the expired-link page's resend button counts down 60 seconds like the sign-up forms. *29 Oct.*
+- [x] Supabase's "Email rate limit exceeded" now reads "We have sent a lot of emails in the last hour. Please try again in a little while." *29 Oct.*
+- [x] The connect window and customer offer page "check your email" changes, looked at in the browser. *29 Oct.*
+- [x] Committed the B2, B4 and B5 fixes (`dcab046`). *29 Oct.*
 
 ---
 
@@ -89,8 +89,8 @@ The headline says what it is. Two buttons: "Start with 150 free credits" and "In
 **A2. Sees how it works**: OK
 A three-step section (install and connect, generate, review and save) with example alt text. *Fixed 29 Oct:* the step 1 picture was a website file-upload box, which suggested images are uploaded on the website. It now shows the plugin's Connect Account card, and the text no longer says to create an account first.
 
-**A3. Tries it on their own image before signing up**: PARTIAL
-They can pick an image on the homepage, but generating needs an account. After signing up they're sent to the dashboard and the image is lost (`LandingPageClient.tsx:179-186, 302`). *Fixed 29 Oct:* when the sign-in form was opened from the demo, signing in (email or Google) now keeps them on the homepage and generates alt text for their image. Email sign-ups that need confirmation still lose the image.
+**A3. Tries it on their own image before signing up**: OK
+They can pick an image on the homepage, but generating needs an account. After signing up they're sent to the dashboard and the image is lost (`LandingPageClient.tsx:179-186, 302`). *Fixed 29 Oct:* when the sign-in form was opened from the demo, signing in (email or Google) now keeps them on the homepage and generates alt text for their image. *Also fixed 29 Oct:* email sign-ups that need confirmation keep the image: it waits in the dashboard after the confirmation link, ready to generate.
 
 **A4. Tries a large phone photo in the homepage demo (signed in)**: OK
 The homepage sends the full-size image without resizing. The dashboard resizes to 1600 px / 3 MB because of the server's size limit. A big photo will likely fail with "Invalid response from server." (not tried) (`LandingPageClient.tsx:140-213`, `dashboard/page.tsx:42-43`). *Fixed 29 Oct:* the homepage now uses the same shrink step as the dashboard (`lib/prepare-image.ts`). A 39 MB test image was sent as a 0.67 MB, 1600 × 1200 JPEG.
@@ -104,8 +104,8 @@ Free, Starter $5, Growth $12 and Agency $29, with an annual toggle showing "2 mo
 **A7. Understands the free tier**: OK
 150 credits on sign-up that never expire, plus 15 each month.
 
-**A8. Works out what to buy for 800 images**: PARTIAL
-Credit packs are shown ($12 for 1,000 and up). There's no "how many credits do I need" helper. *Fixed 29 Oct:* the pricing section now has a worked example (800 images: 150 free credits plus the $12 pack), and the plugin's Bulk page compares images missing alt text with credits and says how many more are needed.
+**A8. Works out what to buy for 800 images**: OK
+Credit packs are shown ($12 for 1,000 and up). There's no "how many credits do I need" helper. *Fixed 29 Oct:* the pricing section now has a worked example (800 images: 150 free credits plus the $12 pack), and the plugin's Bulk page compares images missing alt text with credits and says how many more are needed. *Also fixed 29 Oct:* the worked example became a calculator: type the number of images and it names the cheapest packs.
 
 **A9. Reads the FAQ**: OK
 Six questions on the homepage, more in the docs. *Changed 29 Oct:* two questions added, "Will it replace alt text I already wrote?" and "What happens to my images?", so there are now eight.
@@ -120,7 +120,7 @@ Getting started, installation, features, pricing, troubleshooting and FAQ. *Fixe
 Linked from the hero, footer and guide pages.
 
 **A13. Checks the trust pages (privacy, terms, about, contact)**: OK
-All four exist and are linked from the footer. *Fixed 29 Oct: added the About link.* *Also fixed 29 Oct:* the operator is named (Alt Text Pro, India) on About, Privacy and Terms; Terms gained "governed by the laws of India" and no longer contradict themselves on refunds; Privacy covers Google sign-in and says emails come from help@alt-text.pro; Contact shows the email address. Still open: the email delivery provider is not named.
+All four exist and are linked from the footer. *Fixed 29 Oct: added the About link.* *Also fixed 29 Oct:* the operator is named (Alt Text Pro, India) on About, Privacy and Terms; Terms gained "governed by the laws of India" and no longer contradict themselves on refunds; Privacy covers Google sign-in and says emails come from help@alt-text.pro; Contact shows the email address. *Also fixed 29 Oct:* Privacy names Google (Gmail) as the email provider.
 
 **A14. Types /pricing, /login or /signup**: OK
 All three give the 404 page (which has useful links). There are no redirects. *Fixed 29 Oct:* /pricing goes to the pricing section, /login and /signin open the sign-in form, /signup and /register open the sign-up form. The ?auth= handler was also made safe for React Strict Mode, which kept the form from opening in development.
@@ -155,7 +155,7 @@ Works across devices, then goes to /email-confirmed and on to the dashboard.
 That tab stays on "Confirm your email" and doesn't move on. The plugin's connect window handles this; the homepage doesn't.
 
 **B9. Clicks an expired or used link**: OK
-Clear message, a resend form and a sign-in button.
+Clear message, a resend form and a sign-in button. *Changed 29 Oct:* the resend button counts down 60 seconds after sending.
 
 **B10. Signs up with Google on the homepage**: OK
 New Google accounts are now recorded as sign-ups, so they get the "connect your site" email and appear in the funnel. Returning Google users aren't counted again, on the homepage or in the connect window. *Fixed 29 Oct.*
@@ -179,7 +179,7 @@ Upload one image; it's resized and alt text is generated.
 **C1. Signs in**: OK
 
 **C2. Types the wrong password**: OK
-Shows "Invalid login credentials".
+Shows "Invalid login credentials". *Changed 29 Oct:* now the clearer message described in C10.
 
 **C3. Signs in before confirming their email**: OK
 Shows the resend option.
@@ -202,8 +202,8 @@ Sent to sign in.
 **C9. Signs out on one computer**: PARTIAL
 It signs them out on every device, because the sign-out is global (`Navbar.tsx:90`, `dashboard/page.tsx:263`). Plugin keys aren't affected.
 
-**C10. Google-only account tries a password**: PARTIAL
-Generic "Invalid login credentials", with no "you signed up with Google" hint.
+**C10. Google-only account tries a password**: OK
+Generic "Invalid login credentials", with no "you signed up with Google" hint. *Fixed 29 Oct:* all sign-in forms now say "That email and password don't match. Check them or use Forgot password. If you signed up with Google, use the Google button."
 
 **C11. Google-only account sets a password**: **MISSING**
 Left out on purpose last round. The password section is hidden for these accounts.

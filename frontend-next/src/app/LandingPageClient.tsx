@@ -13,6 +13,8 @@ import { SUBSCRIPTION_EXISTS_CODE } from '@/lib/subscription-status';
 import { prepareImageForUpload } from '@/lib/prepare-image';
 import { EXISTING_ACCOUNT_MESSAGE, isExistingAccountSignUp, isNewlyCreatedUser } from '@/lib/auth-redirect';
 import { getResendWaitSeconds, resendButtonLabel, useResendCooldown } from '@/lib/resend-cooldown';
+import { getFriendlyAuthError } from '@/lib/auth-errors';
+import { consumePendingDemoImage, savePendingDemoImage } from '@/lib/pending-demo-image';
 import { toast } from "sonner";
 import {
   Brain, CheckCircle, Star, ArrowRight, Users, Shield, Rocket,
@@ -49,6 +51,8 @@ export default function LandingPage() {
   // Email waiting for confirmation; shows an inline notice with a resend link.
   const [pendingConfirmationEmail, setPendingConfirmationEmail] = useState<string | null>(null);
   const [existingAccountEmail, setExistingAccountEmail] = useState<string | null>(null);
+  // The demo image was saved for the dashboard while the email is confirmed.
+  const [demoImageKept, setDemoImageKept] = useState(false);
   const { secondsLeft: resendSecondsLeft, startCooldown: startResendCooldown } = useResendCooldown();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [generatedAltText, setGeneratedAltText] = useState("");
@@ -266,6 +270,8 @@ export default function LandingPage() {
     setExistingAccountEmail(null);
     setShowAuthForm(false);
     if (resumeDemo) {
+      // Generated here, so the dashboard should not offer it again.
+      consumePendingDemoImage();
       void generateDemoAltText();
       return;
     }
@@ -301,7 +307,7 @@ export default function LandingPage() {
           setPendingConfirmationEmail(email.trim());
           toast.error("Confirm your email first. Open the link we sent you.");
         } else {
-          toast.error(result.error.message);
+          toast.error(getFriendlyAuthError(result.error.message));
         }
       } else if (!isLogin && isExistingAccountSignUp(result.data.user, Boolean(result.data.session))) {
         // Supabase sends no email for an address that already has an account.
@@ -323,6 +329,7 @@ export default function LandingPage() {
 
         if (!isLogin && !result.data.session) {
           setPendingConfirmationEmail(email.trim());
+          setDemoImageKept(demoAfterAuthRef.current && selectedImage ? savePendingDemoImage(selectedImage) : false);
           startResendCooldown();
         } else {
           toast.success(isLogin ? "Welcome back!" : "Account created.");
@@ -350,12 +357,8 @@ export default function LandingPage() {
 
       if (error) {
         const waitSeconds = getResendWaitSeconds(error.message);
-        if (waitSeconds) {
-          startResendCooldown(waitSeconds);
-          toast.error(`We just sent an email. You can ask for another in ${waitSeconds} seconds.`);
-        } else {
-          toast.error(error.message);
-        }
+        if (waitSeconds) startResendCooldown(waitSeconds);
+        toast.error(getFriendlyAuthError(error.message));
         return;
       }
 
@@ -385,7 +388,7 @@ export default function LandingPage() {
       });
 
       if (error) {
-        toast.error(error.message);
+        toast.error(getFriendlyAuthError(error.message));
         return;
       }
 
@@ -1102,6 +1105,9 @@ export default function LandingPage() {
                       <span className="my-1 block font-semibold text-ink [overflow-wrap:anywhere]">{pendingConfirmationEmail}</span>
                       Open it to finish creating your account. It opens your dashboard, so you can close this window.
                     </p>
+                    {demoImageKept && (
+                      <p className="mt-3 text-sm text-ink-muted">Your image will be waiting in the dashboard, ready to generate.</p>
+                    )}
                     <p className="mt-3 text-sm text-ink-muted">Not there? Check your spam folder.</p>
                   </div>
                   <div className="mt-6 flex flex-col gap-3">
