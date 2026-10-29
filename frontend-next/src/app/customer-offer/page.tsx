@@ -225,7 +225,7 @@ export default function CustomerOfferPage() {
     };
 
     const handleSignOut = async () => {
-        await supabase.auth.signOut();
+        await supabase.auth.signOut({ scope: "local" });
         setUser(null);
         setClaimResult(null);
         setAuthMessage("");

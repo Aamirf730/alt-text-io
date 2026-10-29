@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { EMAIL_RATE_LIMIT_MESSAGE, INVALID_LOGIN_MESSAGE, getFriendlyAuthError } from "./auth-errors";
+import { EMAIL_RATE_LIMIT_MESSAGE, INVALID_LOGIN_MESSAGE, NETWORK_ERROR_MESSAGE, getFriendlyAuthError } from "./auth-errors";
 
 describe("getFriendlyAuthError", () => {
   it("explains a wrong password and points Google accounts to the Google button", () => {
@@ -15,6 +15,11 @@ describe("getFriendlyAuthError", () => {
     expect(getFriendlyAuthError("For security purposes, you can only request this after 41 seconds.")).toBe(
       "We just sent an email. You can ask for another in 41 seconds.",
     );
+  });
+
+  it("explains a network failure instead of the browser's wording", () => {
+    expect(getFriendlyAuthError("Failed to fetch")).toBe(NETWORK_ERROR_MESSAGE);
+    expect(getFriendlyAuthError("Load failed")).toBe(NETWORK_ERROR_MESSAGE);
   });
 
   it("passes other messages through", () => {

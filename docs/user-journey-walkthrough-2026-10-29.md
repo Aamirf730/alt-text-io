@@ -17,12 +17,11 @@ Some steps depend on the 8 new database migrations from the last round, which ar
 
 ## Missing or broken at a glance
 
-There are 186 steps across 16 sections: 128 OK, 37 PARTIAL, 21 MISSING (19 different gaps, 2 of which are listed in two sections) and 0 BROKEN. Before the 29 Oct fixes: 109 OK, 48 PARTIAL, 27 MISSING and 2 BROKEN.
+There are 186 steps across 16 sections: 130 OK, 36 PARTIAL, 20 MISSING (18 different gaps, 2 of which are listed in two sections) and 0 BROKEN. Before the 29 Oct fixes: 109 OK, 48 PARTIAL, 27 MISSING and 2 BROKEN.
 
 | Step | What's missing or broken |
 |---|---|
 | A5 | Reviews, ratings, install count or testimonials on the website |
-| C11 | "Set a password" for Google-only accounts |
 | E10 | Plugin showing which account the site is connected to |
 | F2 | Generate from the Media Library list view (row or bulk action) |
 | G6 | Bulk runs that keep going without the browser tab open |
@@ -68,6 +67,7 @@ Collected during the one-by-one review (sections A and B so far). Tick an item o
 - [ ] Push the branch and deploy the website. None of the 29 Oct website fixes are live.
 - [ ] Release plugin 1.7.28 to WordPress.org (Bulk page credits box, readme wording).
 - [ ] Apply the 8 database migrations to production (the steps marked *needs new migration*).
+- [ ] **C11:** in production Supabase, turn on "Secure password change" (it makes the emailed code required; the repo's `config.toml` now has it on) and apply the new security-code template (`supabase/templates/reauthentication.html`). Then try "Set a password" with a real Google account.
 - [ ] **B6:** apply the updated confirmation and reset email templates (`supabase/templates/`) in production Supabase, and check that production's link expiry is 1 hour, as the emails now say.
 
 **Done**
@@ -202,14 +202,14 @@ Signing out in one tab is followed in the others.
 **C8. Opens /dashboard while signed out**: OK
 Sent to sign in.
 
-**C9. Signs out on one computer**: PARTIAL
-It signs them out on every device, because the sign-out is global (`Navbar.tsx:90`, `dashboard/page.tsx:263`). Plugin keys aren't affected.
+**C9. Signs out on one computer**: OK
+It signs them out on every device, because the sign-out is global (`Navbar.tsx:90`, `dashboard/page.tsx:263`). Plugin keys aren't affected. *Fixed 29 Oct:* Sign out on the website now signs out only this browser. Account settings has a separate "Sign out everywhere" button for all devices.
 
 **C10. Google-only account tries a password**: OK
 Generic "Invalid login credentials", with no "you signed up with Google" hint. *Fixed 29 Oct:* all sign-in forms now say "That email and password don't match. Check them or use Forgot password. If you signed up with Google, use the Google button."
 
-**C11. Google-only account sets a password**: **MISSING**
-Left out on purpose last round. The password section is hidden for these accounts.
+**C11. Google-only account sets a password**: OK
+Left out on purpose last round. The password section is hidden for these accounts. *Fixed 29 Oct:* Google-only accounts see "Set a password" in Account settings. A code is emailed to the account address first (Supabase re-authentication, with a branded template in the repo), then they choose a password and can sign in either way.
 
 ## D. Getting and installing the plugin
 

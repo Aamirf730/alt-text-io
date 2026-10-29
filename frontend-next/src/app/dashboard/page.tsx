@@ -207,7 +207,8 @@ export default function Dashboard() {
     const signOut = async () => {
         signingOutRef.current = true;
         try {
-            const { error } = await supabase.auth.signOut();
+            // Only this browser; "Sign out of all devices" is in Account settings.
+            const { error } = await supabase.auth.signOut({ scope: 'local' });
             if (error) {
                 signingOutRef.current = false;
                 toast.error(`Sign out failed: ${error.message}`);

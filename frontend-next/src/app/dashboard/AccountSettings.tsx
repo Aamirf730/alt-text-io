@@ -1,10 +1,12 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { KeyRound, Loader2, Mail, UserRound } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { KeyRound, Loader2, LogOut, Mail, UserRound } from "lucide-react";
 import { toast } from "sonner";
 
 import { supabase } from "@/lib/supabase";
+import { getFriendlyAuthError } from "@/lib/auth-errors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { emailsMatch } from "./dashboard-helpers";
@@ -18,6 +20,7 @@ type AccountSettingsProps = {
 const MIN_PASSWORD_LENGTH = 6;
 
 export default function AccountSettings({ email, canUsePassword }: AccountSettingsProps) {
+    const router = useRouter();
     const [newEmail, setNewEmail] = useState("");
     const [isSavingEmail, setIsSavingEmail] = useState(false);
     const [emailNotice, setEmailNotice] = useState<string | null>(null);
@@ -28,6 +31,14 @@ export default function AccountSettings({ email, canUsePassword }: AccountSettin
     const [confirmPassword, setConfirmPassword] = useState("");
     const [isSavingPassword, setIsSavingPassword] = useState(false);
     const [passwordError, setPasswordError] = useState<string | null>(null);
+
+    // Google-only accounts: a code sent to the account email proves it is
+    // the owner before a password is added.
+    const [setPasswordStep, setSetPasswordStep] = useState<"start" | "code" | "done">("start");
+    const [reauthCode, setReauthCode] = useState("");
+    const [isSendingCode, setIsSendingCode] = useState(false);
+
+    const [isSigningOutEverywhere, setIsSigningOutEverywhere] = useState(false);
 
     const handleEmailChange = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
@@ -105,6 +116,81 @@ export default function AccountSettings({ email, canUsePassword }: AccountSettin
             setPasswordError("Could not change your password. Please try again.");
         } finally {
             setIsSavingPassword(false);
+        }
+    };
+
+    const sendPasswordCode = async () => {
+        setPasswordError(null);
+        setIsSendingCode(true);
+        try {
+            const { error } = await supabase.auth.reauthenticate();
+            if (error) {
+                setPasswordError(getFriendlyAuthError(error.message));
+                return;
+            }
+            setSetPasswordStep("code");
+            toast.success(`We emailed a code to ${email}.`);
+        } catch {
+            setPasswordError("Could not send the code. Please try again.");
+        } finally {
+            setIsSendingCode(false);
+        }
+    };
+
+    const handleSetPassword = async (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        setPasswordError(null);
+
+        if (!reauthCode.trim()) {
+            setPasswordError("Enter the code from the email.");
+            return;
+        }
+        if (newPassword.length < MIN_PASSWORD_LENGTH) {
+            setPasswordError(`Your password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+            return;
+        }
+        if (newPassword !== confirmPassword) {
+            setPasswordError("The passwords do not match.");
+            return;
+        }
+
+        setIsSavingPassword(true);
+        try {
+            const { error } = await supabase.auth.updateUser({ password: newPassword, nonce: reauthCode.trim() });
+            if (error) {
+                setPasswordError(
+                    /nonce|otp|token/i.test(error.message)
+                        ? "That code is wrong or has expired. Send a new one and try again."
+                        : getFriendlyAuthError(error.message),
+                );
+                return;
+            }
+            setReauthCode("");
+            setNewPassword("");
+            setConfirmPassword("");
+            setSetPasswordStep("done");
+            toast.success("Password set.");
+        } catch {
+            setPasswordError("Could not set your password. Please try again.");
+        } finally {
+            setIsSavingPassword(false);
+        }
+    };
+
+    const signOutEverywhere = async () => {
+        setIsSigningOutEverywhere(true);
+        try {
+            const { error } = await supabase.auth.signOut({ scope: "global" });
+            if (error) {
+                toast.error(`Sign out failed: ${error.message}`);
+                setIsSigningOutEverywhere(false);
+                return;
+            }
+            toast.success("Signed out on all devices.");
+            router.push("/");
+        } catch {
+            toast.error("Sign out failed. Check your connection and try again.");
+            setIsSigningOutEverywhere(false);
         }
     };
 
@@ -195,16 +281,100 @@ export default function AccountSettings({ email, canUsePassword }: AccountSettin
                         </Button>
                     </form>
                 ) : (
-                    <div className="rounded-xl border border-line p-5">
-                        <h3 className="flex items-center gap-2 text-base font-semibold text-ink">
-                            <KeyRound className="h-4 w-4" /> Password
+                    <form onSubmit={handleSetPassword} className="rounded-xl border border-line p-5" aria-labelledby="set-password-heading">
+                        <h3 id="set-password-heading" className="flex items-center gap-2 text-base font-semibold text-ink">
+                            <KeyRound className="h-4 w-4" /> Set a password
                         </h3>
-                        <p className="mt-3 text-sm leading-6 text-ink-muted">
-                            You sign in with Google, so this account has no password to change. Manage your
-                            sign-in security in your Google account.
-                        </p>
-                    </div>
+                        {setPasswordStep === "done" ? (
+                            <p role="status" className="mt-3 rounded-xl border border-line-strong bg-yellow-tint p-3 text-sm leading-6 text-ink">
+                                Password set. You can now sign in with {email} and this password, or with Google as before.
+                            </p>
+                        ) : (
+                            <>
+                                <p className="mt-3 text-sm leading-6 text-ink-muted">
+                                    You sign in with Google. Add a password to also sign in with your email address,
+                                    for example in the WordPress connect window. We email you a code first to check it&apos;s you.
+                                </p>
+                                {setPasswordStep === "start" ? (
+                                    <Button type="button" variant="secondary" onClick={() => void sendPasswordCode()} disabled={isSendingCode} className="mt-4">
+                                        {isSendingCode ? <Loader2 className="animate-spin" /> : <Mail />}
+                                        Email me a code
+                                    </Button>
+                                ) : (
+                                    <>
+                                        <label htmlFor="account-reauth-code" className="mt-4 block text-sm font-semibold text-ink">Code from the email</label>
+                                        <Input
+                                            id="account-reauth-code"
+                                            inputMode="numeric"
+                                            autoComplete="one-time-code"
+                                            value={reauthCode}
+                                            onChange={(event) => setReauthCode(event.target.value)}
+                                            disabled={isSavingPassword}
+                                            className="mt-2"
+                                            required
+                                        />
+                                        <label htmlFor="account-set-password" className="mt-4 block text-sm font-semibold text-ink">New password</label>
+                                        <Input
+                                            id="account-set-password"
+                                            type="password"
+                                            autoComplete="new-password"
+                                            minLength={MIN_PASSWORD_LENGTH}
+                                            value={newPassword}
+                                            onChange={(event) => setNewPassword(event.target.value)}
+                                            disabled={isSavingPassword}
+                                            className="mt-2"
+                                            aria-describedby="account-set-password-hint"
+                                            required
+                                        />
+                                        <p id="account-set-password-hint" className="mt-1 text-xs text-ink-muted">At least {MIN_PASSWORD_LENGTH} characters.</p>
+                                        <label htmlFor="account-set-password-confirm" className="mt-4 block text-sm font-semibold text-ink">Confirm password</label>
+                                        <Input
+                                            id="account-set-password-confirm"
+                                            type="password"
+                                            autoComplete="new-password"
+                                            minLength={MIN_PASSWORD_LENGTH}
+                                            value={confirmPassword}
+                                            onChange={(event) => setConfirmPassword(event.target.value)}
+                                            disabled={isSavingPassword}
+                                            className="mt-2"
+                                            required
+                                        />
+                                        <div className="mt-4 flex flex-wrap items-center gap-3">
+                                            <Button type="submit" variant="secondary" disabled={isSavingPassword}>
+                                                {isSavingPassword ? <Loader2 className="animate-spin" /> : <KeyRound />}
+                                                Set password
+                                            </Button>
+                                            <button
+                                                type="button"
+                                                onClick={() => void sendPasswordCode()}
+                                                disabled={isSendingCode}
+                                                className="text-sm font-semibold text-ink underline-offset-4 hover:underline disabled:opacity-50"
+                                            >
+                                                Send a new code
+                                            </button>
+                                        </div>
+                                    </>
+                                )}
+                                {passwordError && <p role="alert" className="mt-3 text-sm text-error">{passwordError}</p>}
+                            </>
+                        )}
+                    </form>
                 )}
+            </div>
+
+            <div className="mt-6 flex flex-col gap-3 rounded-xl border border-line p-5 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <h3 className="flex items-center gap-2 text-base font-semibold text-ink">
+                        <LogOut className="h-4 w-4" /> Sign out of all devices
+                    </h3>
+                    <p className="mt-1 text-sm leading-6 text-ink-muted">
+                        Signs this account out of every browser, including this one. Connected WordPress sites keep working.
+                    </p>
+                </div>
+                <Button type="button" variant="secondary" onClick={() => void signOutEverywhere()} disabled={isSigningOutEverywhere} className="shrink-0">
+                    {isSigningOutEverywhere ? <Loader2 className="animate-spin" /> : <LogOut />}
+                    Sign out everywhere
+                </Button>
             </div>
         </section>
     );

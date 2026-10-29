@@ -87,7 +87,8 @@ const Navbar = ({ onSignInClick, onSignUpClick }: NavbarProps) => {
 
     const handleSignOut = async () => {
         try {
-            const { error } = await supabase.auth.signOut();
+            // Only this browser; other devices stay signed in.
+            const { error } = await supabase.auth.signOut({ scope: "local" });
             if (error) {
                 toast.error(`Sign out failed: ${error.message}`);
                 return;

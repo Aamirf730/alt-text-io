@@ -432,7 +432,7 @@ export default function AdminDashboard() {
                             </Button>
                             <Button
                                 onClick={async () => {
-                                    await supabase.auth.signOut();
+                                    await supabase.auth.signOut({ scope: "local" });
                                     router.push("/");
                                     toast.success("Signed out");
                                 }}
