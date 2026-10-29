@@ -2,10 +2,10 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { KeyRound, Loader2, LogOut, Mail, UserRound } from "lucide-react";
+import { Download, KeyRound, Loader2, LogOut, Mail, UserRound } from "lucide-react";
 import { toast } from "sonner";
 
-import { supabase } from "@/lib/supabase";
+import { getAccessToken, supabase } from "@/lib/supabase";
 import { getFriendlyAuthError } from "@/lib/auth-errors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,6 +39,7 @@ export default function AccountSettings({ email, canUsePassword }: AccountSettin
     const [isSendingCode, setIsSendingCode] = useState(false);
 
     const [isSigningOutEverywhere, setIsSigningOutEverywhere] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
 
     const handleEmailChange = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
@@ -67,7 +68,7 @@ export default function AccountSettings({ email, canUsePassword }: AccountSettin
             }
             setNewEmail("");
             setEmailNotice(
-                `We sent a confirmation link to ${nextEmail}. If we also emailed ${email}, confirm from both addresses. Your sign-in email changes only after confirmation.`,
+                `We sent a confirmation link to ${nextEmail}. If we also emailed ${email}, confirm from both addresses. Your sign-in email changes only after confirmation, and your receipts and billing emails follow the next time you open this dashboard.`,
             );
         } catch {
             setEmailError("Could not start the email change. Please try again.");
@@ -174,6 +175,38 @@ export default function AccountSettings({ email, canUsePassword }: AccountSettin
             setPasswordError("Could not set your password. Please try again.");
         } finally {
             setIsSavingPassword(false);
+        }
+    };
+
+    const downloadMyData = async () => {
+        setIsExporting(true);
+        try {
+            const accessToken = await getAccessToken();
+            if (!accessToken) {
+                toast.error("Please sign in again to download your data.");
+                return;
+            }
+            const response = await fetch("/api/account/export", {
+                headers: { Authorization: `Bearer ${accessToken}` },
+            });
+            if (!response.ok) {
+                const data = await response.json().catch(() => ({}));
+                toast.error(data.error || "Could not prepare your data. Please try again later.");
+                return;
+            }
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `alt-text-pro-data-${new Date().toISOString().slice(0, 10)}.json`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(url);
+        } catch {
+            toast.error("Could not prepare your data. Check your connection and try again.");
+        } finally {
+            setIsExporting(false);
         }
     };
 
@@ -360,6 +393,22 @@ export default function AccountSettings({ email, canUsePassword }: AccountSettin
                         )}
                     </form>
                 )}
+            </div>
+
+            <div className="mt-6 flex flex-col gap-3 rounded-xl border border-line p-5 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <h3 className="flex items-center gap-2 text-base font-semibold text-ink">
+                        <Download className="h-4 w-4" /> Download my data
+                    </h3>
+                    <p className="mt-1 text-sm leading-6 text-ink-muted">
+                        One file with your account, credits, generation history, payments and connected sites.
+                        Receipts and invoices are in Billing &amp; receipts.
+                    </p>
+                </div>
+                <Button type="button" variant="secondary" onClick={() => void downloadMyData()} disabled={isExporting} className="shrink-0">
+                    {isExporting ? <Loader2 className="animate-spin" /> : <Download />}
+                    Download (JSON)
+                </Button>
             </div>
 
             <div className="mt-6 flex flex-col gap-3 rounded-xl border border-line p-5 sm:flex-row sm:items-center sm:justify-between">

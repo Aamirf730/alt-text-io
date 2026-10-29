@@ -116,6 +116,53 @@ const LIFECYCLE_RULES = [
     ctaUrl: `${SITE_URL}/dashboard`,
   },
   {
+    // Recorded by the scheduled run 7 days before an annual plan renews.
+    key: 'annual_renewal_reminder',
+    trigger: 'renewal_upcoming',
+    allowVerifiedIdentity: false,
+    trustedSources: ['lifecycle_scheduler'],
+    missingAfterTrigger: ['subscription_canceled'],
+    delayHours: 0,
+    maxAgeHours: 72,
+    repeatPerTrigger: true,
+    subject: 'Your yearly Alt Text Pro plan renews soon',
+    preview: 'Your annual plan renews in about a week, and Polar will charge your card for another year then.',
+    bodyLines: [
+      'Nothing to do if you want to keep it: your monthly credits carry on as before.',
+      'To change or cancel before the renewal, open Billing & receipts in your dashboard.',
+    ],
+    ctaText: 'Open Dashboard',
+    ctaUrl: `${SITE_URL}/dashboard`,
+    contentFromEvent: (event) => {
+      const renewsAt = new Date(event?.properties?.next_billing_date || '');
+      if (!Number.isFinite(renewsAt.getTime())) return {};
+      const date = renewsAt.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+      return {
+        subject: `Your yearly Alt Text Pro plan renews on ${date}`,
+        preview: `Your annual plan renews on ${date}, and Polar will charge your card for another year then.`,
+      };
+    },
+  },
+  {
+    // A few days after a cancellation, while the plan is usually still active.
+    key: 'cancellation_winback',
+    trigger: 'subscription_canceled',
+    allowVerifiedIdentity: false,
+    trustedSources: ['polar_webhook'],
+    missingAfterTrigger: ['subscription_uncanceled', 'purchase_completed'],
+    delayHours: 72,
+    maxAgeHours: 14 * 24,
+    repeatPerTrigger: true,
+    subject: 'Sorry to see you go',
+    preview: 'Your plan stays until the end of the period you paid for. After that your account moves to Free, with 15 credits a month, and any credit packs keep working.',
+    bodyLines: [
+      'Changed your mind? You can resume the plan in Billing & receipts before it ends.',
+      'If something did not work for you, reply to this email and tell us. We read every reply.',
+    ],
+    ctaText: 'Open Dashboard',
+    ctaUrl: `${SITE_URL}/dashboard`,
+  },
+  {
     key: 'credits_low_no_purchase',
     trigger: 'credits_low',
     allowVerifiedIdentity: true,
@@ -140,9 +187,11 @@ const LIFECYCLE_PRIORITY = [
   'credits_out_no_purchase',
   'signup_welcome',
   'credits_low_no_purchase',
+  'annual_renewal_reminder',
   'checkout_no_purchase',
   'connect_no_first_image',
   'signup_no_connect',
+  'cancellation_winback',
 ];
 
 function getActorAliases(event) {
@@ -286,9 +335,12 @@ function buildLifecycleCandidates(events, options = {}) {
       const isConnected = rule.connectedVariantIfEverConnected
         ? (actor.eventsByName.get('connect_completed') || []).length > 0
         : hasAnyEventAfter(actor, ['connect_completed'], triggerAt);
-      const content = rule.connectedVariant && isConnected
+      const baseContent = rule.connectedVariant && isConnected
         ? { ...rule, ...rule.connectedVariant }
         : rule;
+      const content = rule.contentFromEvent
+        ? { ...baseContent, ...rule.contentFromEvent(triggerEvent) }
+        : baseContent;
 
       candidates.push({
         automation_key: rule.key,
@@ -459,6 +511,44 @@ async function fetchRecentMarketingEvents(supabase, { days = 30 } = {}) {
   );
 }
 
+const RENEWAL_REMINDER_DAYS = 7;
+
+/**
+ * Records "renewal_upcoming" for active annual plans renewing within the
+ * next 7 days, once per paid period (dedupe_key), for the reminder rule.
+ */
+async function recordUpcomingAnnualRenewals(supabase, { now = new Date() } = {}) {
+  const until = new Date(now.getTime() + RENEWAL_REMINDER_DAYS * 24 * 60 * 60 * 1000);
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id,email,next_billing_date')
+    .eq('billing_cycle', 'annual')
+    .eq('subscription_status', 'active')
+    .gt('next_billing_date', now.toISOString())
+    .lte('next_billing_date', until.toISOString());
+  if (error) throw new Error(`Failed to read upcoming renewals: ${error.message}`);
+
+  let recorded = 0;
+  for (const profile of data || []) {
+    if (!profile?.id || !profile.email || !profile.next_billing_date) continue;
+    const renewsAt = new Date(profile.next_billing_date).toISOString();
+    const { error: insertError } = await supabase
+      .from('marketing_events')
+      .upsert({
+        event_name: 'renewal_upcoming',
+        source: 'lifecycle_scheduler',
+        user_id: profile.id,
+        user_email: String(profile.email).toLowerCase(),
+        properties: { next_billing_date: renewsAt },
+        occurred_at: now.toISOString(),
+        dedupe_key: `lifecycle:renewal_upcoming:${profile.id}:${renewsAt}`,
+      }, { onConflict: 'dedupe_key', ignoreDuplicates: true });
+    if (insertError) throw new Error(`Failed to record an upcoming renewal: ${insertError.message}`);
+    recorded += 1;
+  }
+  return recorded;
+}
+
 // PostgREST filters travel in the URL, so long ID lists are split.
 const USAGE_ID_CHUNK_SIZE = 150;
 
@@ -511,6 +601,7 @@ module.exports = {
   fetchLifecycleUsageCounts,
   fetchRecentMarketingEvents,
   filterCandidatesByAuthUsers,
+  recordUpcomingAnnualRenewals,
   isTrustedTriggerEvent,
   renderLifecycleEmail,
   selectLifecycleCandidatePerActor,

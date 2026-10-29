@@ -7,6 +7,7 @@ const {
   filterCandidatesByAuthUsers,
   selectLifecycleCandidatePerActor,
   renderLifecycleEmail,
+  recordUpcomingAnnualRenewals,
 } = require('./lifecycle-automation.js');
 
 describe('lifecycle automation candidate selection', () => {
@@ -155,6 +156,62 @@ describe('lifecycle automation candidate selection', () => {
     const notConnected = buildLifecycleCandidates([purchase], { now: '2026-06-25T10:30:00.000Z' })
       .find(candidate => candidate.automation_key === 'purchase_onboarding');
     expect(notConnected.body_lines[0]).toContain('Install Alt Text Pro from WordPress.org');
+  });
+
+  it('sends a win-back email three days after a cancellation, unless it was undone', () => {
+    const cancel = {
+      id: 'cancel-1',
+      event_name: 'subscription_canceled',
+      user_id: 'user-1',
+      user_email: 'lead@example.com',
+      source: 'polar_webhook',
+      properties: {},
+      occurred_at: '2026-06-20T00:00:00.000Z',
+    };
+    expect(buildLifecycleCandidates([cancel], { now: '2026-06-21T00:00:00.000Z' })).toHaveLength(0);
+    expect(buildLifecycleCandidates([cancel], { now: '2026-06-23T01:00:00.000Z' })[0])
+      .toMatchObject({ automation_key: 'cancellation_winback', repeat_per_trigger: true });
+
+    const undone = { ...cancel, id: 'uncancel-1', event_name: 'subscription_uncanceled', occurred_at: '2026-06-21T00:00:00.000Z' };
+    expect(buildLifecycleCandidates([cancel, undone], { now: '2026-06-23T01:00:00.000Z' })).toHaveLength(0);
+  });
+
+  it('reminds annual subscribers of the renewal date from the scheduler event', () => {
+    const [reminder] = buildLifecycleCandidates([{
+      id: 'renewal-1',
+      event_name: 'renewal_upcoming',
+      user_id: 'user-1',
+      user_email: 'lead@example.com',
+      source: 'lifecycle_scheduler',
+      properties: { next_billing_date: '2027-03-15T00:00:00.000Z' },
+      occurred_at: '2027-03-08T00:00:00.000Z',
+    }], { now: '2027-03-08T01:00:00.000Z' });
+
+    expect(reminder).toMatchObject({
+      automation_key: 'annual_renewal_reminder',
+      subject: 'Your yearly Alt Text Pro plan renews on 15 March 2027',
+    });
+  });
+
+  it('records one upcoming-renewal event per annual profile and period', async () => {
+    const upsert = vi.fn(() => Promise.resolve({ error: null }));
+    const lte = vi.fn(() => Promise.resolve({
+      data: [{ id: 'user-1', email: 'Lead@Example.com', next_billing_date: '2027-03-15T00:00:00Z' }],
+      error: null,
+    }));
+    const query = { select: vi.fn(() => query), eq: vi.fn(() => query), gt: vi.fn(() => query), lte };
+    const supabase = { from: vi.fn(table => (table === 'profiles' ? query : { upsert })) };
+
+    const recorded = await recordUpcomingAnnualRenewals(supabase, { now: new Date('2027-03-09T00:00:00Z') });
+
+    expect(recorded).toBe(1);
+    expect(upsert.mock.calls[0][0]).toMatchObject({
+      event_name: 'renewal_upcoming',
+      source: 'lifecycle_scheduler',
+      user_email: 'lead@example.com',
+      dedupe_key: 'lifecycle:renewal_upcoming:user-1:2027-03-15T00:00:00.000Z',
+    });
+    expect(upsert.mock.calls[0][1]).toEqual({ onConflict: 'dedupe_key', ignoreDuplicates: true });
   });
 
   it('does not select a signup if the user connected after signup', () => {

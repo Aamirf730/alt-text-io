@@ -17,7 +17,7 @@ Some steps depend on the 8 new database migrations from the last round, which ar
 
 ## Missing or broken at a glance
 
-There are 186 steps across 16 sections: 149 OK, 21 PARTIAL, 16 MISSING (15 different gaps, 1 of which are listed in two sections) and 0 BROKEN. Before the 29 Oct fixes: 109 OK, 48 PARTIAL, 27 MISSING and 2 BROKEN.
+There are 186 steps across 16 sections: 164 OK, 12 PARTIAL, 10 MISSING (10 different gaps, 0 of which are listed in two sections) and 0 BROKEN. Before the 29 Oct fixes: 109 OK, 48 PARTIAL, 27 MISSING and 2 BROKEN.
 
 | Step | What's missing or broken |
 |---|---|
@@ -30,12 +30,7 @@ There are 186 steps across 16 sections: 149 OK, 21 PARTIAL, 16 MISSING (15 diffe
 | H6 | Approving bulk or auto results before they go live |
 | H7 | Multilingual sites (WPML or Polylang) |
 | H8 | Marking one image as decorative |
-| M4 | Self-service data export |
 | M9 | Team members |
-| N10 | Reminder before an annual renewal (unless Polar sends one) |
-| N12 | Win-back email after cancelling |
-| N13 | "Your account was deleted" email |
-| O5 | Auto-reply after contacting support |
 
 ---
 
@@ -48,6 +43,8 @@ Collected during the one-by-one review (sections A and B so far). Tick an item o
 - [ ] **A5:** no reviews, ratings, install count or testimonials on the website. Left out on purpose while the plugin has about 10 installs and no ratings.
 - [ ] **A10:** the Alt Text Simulator stays a scripted teaching demo. The homepage demo already generates real alt text, so a second generator is not planned unless wanted.
 - [ ] **B2:** the 6-character password minimum is a live Supabase setting. Raising it needs approval to change production.
+- [ ] **M9:** team members are not built. A proper version needs new tables (members and invitations), invitation emails, and members spending the owner's credits, which changes the credit-reservation database functions. API keys are stored hashed, so members can't simply be shown the owner's key. Decide whether Agency customers need it before building it.
+- [ ] **O4, O5:** the Contact page and the automatic reply now say "We usually reply within one to two business days". Confirm that promise, or change the wording.
 
 **Done in code but not seen working yet**
 
@@ -58,6 +55,7 @@ Collected during the one-by-one review (sections A and B so far). Tick an item o
 - [ ] **B14:** the getting-started checklist with a real account. It was checked locally against sample account data.
 - [ ] **I6, I7, J9:** the low-credit (per plan, per cycle), out-of-credits and purchase emails with a real account after the functions are deployed. Preview each with the admin test-send tool first (`credits_low_no_purchase`, `credits_out_no_purchase`, `purchase_onboarding`).
 - [ ] **J5, K2, K7, K9, L2:** the checkout back button (Polar `returnUrl`) and the dashboard billing lines with real Polar data. The dashboard states were checked locally against sample data (failed payment, annual, cancelled).
+- [ ] **M1, M4, N10, N12, N13, O5, O6, P9, P10:** with real accounts after deploying: an email change (both links, then receipts moving to the new address in Polar), Download my data, the renewal reminder, the win-back and account-deleted emails, the contact auto-reply with a signed-in account attached, the deleted-account warning in the admin queue, and a checkout for an email that had a deleted account.
 - [ ] **B6:** that production still sends the repo's branded template. Last confirmed with a real test email on 12 Aug (`progress.md`).
 - [ ] **B4, B5, B7, C10:** the real Supabase replies (account already exists, sign-up, resend, rate limit, wrong password), and a plugin sign-up confirmed on a phone finishing with "I've confirmed — continue". The screens were checked in the browser by setting their state by hand.
 
@@ -66,6 +64,7 @@ Collected during the one-by-one review (sections A and B so far). Tick an item o
 - [ ] Push the branch and deploy the website. None of the 29 Oct website fixes are live.
 - [ ] Release plugin 1.7.28 to WordPress.org (Bulk page credits box, readme wording).
 - [ ] Apply the 8 database migrations to production (the steps marked *needs new migration*).
+- [ ] **M1:** apply the new email-change template in production Supabase (`supabase/templates/email_change.html`, set in `config.toml`).
 - [ ] **C11:** in production Supabase, turn on "Secure password change" (it makes the emailed code required; the repo's `config.toml` now has it on) and apply the new security-code template (`supabase/templates/reauthentication.html`). Then try "Set a password" with a real Google account.
 - [ ] **B6:** apply the updated confirmation and reset email templates (`supabase/templates/`) in production Supabase, and check that production's link expiry is 1 hour, as the emails now say.
 
@@ -520,8 +519,8 @@ From Polar.
 
 ## M. Managing the account
 
-**M1. Changes their email**: PARTIAL
-Uses Supabase's plain default email. The link only works in the same browser. The stored profile email and the Polar billing email aren't updated, so receipts keep going to the old address.
+**M1. Changes their email**: OK
+Uses Supabase's plain default email. The link only works in the same browser. The stored profile email and the Polar billing email aren't updated, so receipts keep going to the old address. *Fixed 29 Oct:* a branded "Confirm your new email address" template whose link works on any device (token through /auth/confirm, which also handles the first of the two confirmations), and the dashboard now moves the profile email and the Polar billing email to the new address, so receipts follow.
 
 **M2. Changes their password**: OK
 Asks for the current password first.
@@ -529,20 +528,20 @@ Asks for the current password first.
 **M3. Views generation history**: OK
 Full and paginated. No site, image name or search.
 
-**M4. Downloads all their data**: **MISSING**
-The privacy policy promises it on request. Only the plugin's per-site CSV exists.
+**M4. Downloads all their data**: OK
+The privacy policy promises it on request. Only the plugin's per-site CSV exists. *Fixed 29 Oct:* Account settings has "Download my data": one JSON file with the account, credits, generation history, payments, connected sites, activity and emails sent (no internal keys or IP addresses). The Privacy policy points to it.
 
 **M5. Sees connected sites**: OK
 Last seen, plugin version and language *(needs new migration)*.
 
-**M6. Disconnects one site from the website**: PARTIAL
-Not possible. Rotating the single key disconnects every site. Left this way on purpose last round.
+**M6. Disconnects one site from the website**: OK
+Not possible. Rotating the single key disconnects every site. Left this way on purpose last round. *Changed 29 Oct:* the connected-sites card explains how to disconnect one site (Disconnect account in that site's plugin Settings) and that rotating the shared key disconnects all of them. Per-site keys stay out of scope by design.
 
 **M7. Views, copies or rotates the key**: OK
 Rotating warns that every site will disconnect.
 
-**M8. Reconnects WordPress after rotating the key**: PARTIAL
-The plugin says "Reconnect account", but that leads to Settings, where only Disconnect or a paste field are offered.
+**M8. Reconnects WordPress after rotating the key**: OK
+The plugin says "Reconnect account", but that leads to Settings, where only Disconnect or a paste field are offered. *Fixed 29 Oct:* after a rotation, the plugin's Settings says the saved key no longer works and offers "Reconnect account", which opens the connect window and saves the new key.
 
 **M9. Invites team members**: **MISSING**
 Worth noting for the Agency plan.
@@ -584,16 +583,17 @@ From Polar.
 **N9. Failed-payment emails**: PARTIAL
 Polar only, nothing in the app (K7).
 
-**N10. Reminder before the yearly charge on annual plans**: **MISSING**
-Nothing in our code. Polar may send one, but that can't be checked from code. Some countries require it.
+**N10. Reminder before the yearly charge on annual plans**: OK
+Nothing in our code. Polar may send one, but that can't be checked from code. Some countries require it. *Fixed 29 Oct:* annual subscribers get "Your yearly Alt Text Pro plan renews on …" about a week before the renewal, with how to change or cancel. Not sent after a cancellation.
 
 **N11. Cancellation confirmation**: OK
 From Polar.
 
-**N12. Win-back email after cancelling**: **MISSING**
-Cancel events are recorded, but no email uses them.
+**N12. Win-back email after cancelling**: OK
+Cancel events are recorded, but no email uses them. *Fixed 29 Oct:* three days after a cancellation a short email explains what happens next (plan until the period ends, then Free, packs keep working), how to resume, and asks what went wrong. Not sent if the cancellation is undone or they buy again.
 
-**N13. "Your account was deleted" email**: **MISSING**
+**N13. "Your account was deleted" email**: OK
+*Fixed 29 Oct:* deleting an account sends "Your Alt Text Pro account has been deleted" with what was removed and kept, and whether the subscription was cancelled.
 
 **N14. Unsubscribes**: OK
 One click from the email. There's no setting in the dashboard to see or undo it.
@@ -609,13 +609,14 @@ Connection, credits, bulk, auto-processing and plugin conflicts.
 **O3. Uses the contact form**: OK
 Reaches support, and replying goes straight to the customer.
 
-**O4. Sees a support email and response time on the Contact page**: PARTIAL
-The email is shown elsewhere but not on the Contact page. No response time anywhere.
+**O4. Sees a support email and response time on the Contact page**: OK
+The email is shown elsewhere but not on the Contact page. No response time anywhere. *Fixed 29 Oct:* the Contact page shows help@alt-text.pro and "We usually reply within one to two business days".
 
-**O5. Gets an auto-reply after contacting support**: **MISSING**
+**O5. Gets an auto-reply after contacting support**: OK
+*Fixed 29 Oct:* the contact form sends an automatic "We got your message" reply with the expected reply time and two quick fixes. It never repeats what was typed.
 
-**O6. Contacts support while signed in**: PARTIAL
-Their email isn't filled in and the account isn't attached to the message.
+**O6. Contacts support while signed in**: OK
+Their email isn't filled in and the account isn't attached to the message. *Fixed 29 Oct:* signed in, the form fills in the account email, says so, and attaches the verified account to the message for support.
 
 **O7. Hits a broken link**: OK
 404 page with useful links.
@@ -646,17 +647,17 @@ Type the email to confirm.
 **P5. Subscription stops when the account is deleted**: OK
 Cancelled at once, with a daily retry if that fails. The remaining paid time is lost, and the card says so.
 
-**P6. Is told what's deleted and what's kept**: PARTIAL
-The card only says "payment records are kept". It doesn't mention Polar invoices or that alt text stays on the site.
+**P6. Is told what's deleted and what's kept**: OK
+The card only says "payment records are kept". It doesn't mention Polar invoices or that alt text stays on the site. *Fixed 29 Oct:* the delete card lists what is removed and what is kept (payment records, Polar's receipts and invoices), says alt text stays on the sites, and points to Download my data first.
 
-**P7. Gets a confirmation email**: **MISSING**
-See N13.
+**P7. Gets a confirmation email**: OK
+See N13. *Fixed 29 Oct* (N13).
 
-**P8. Knows how long data is kept**: PARTIAL
-The privacy policy gives no retention period.
+**P8. Knows how long data is kept**: OK
+The privacy policy gives no retention period. *Fixed 29 Oct:* the Privacy policy's Data Retention section now says how long each kind of data is kept.
 
-**P9. Polar's follow-up events after deletion**: PARTIAL
-This is an admin-side issue. They land in the admin "Unmatched payments" queue, where they could be assigned to the wrong account by mistake.
+**P9. Polar's follow-up events after deletion**: OK
+This is an admin-side issue. They land in the admin "Unmatched payments" queue, where they could be assigned to the wrong account by mistake. *Fixed 29 Oct:* the admin queue marks rows from a deleted account ("From a deleted account"), asks again before assigning one, and the server refuses unless that is confirmed (assigning to a new account with the same email is allowed).
 
-**P10. Signs up again later with the same email**: PARTIAL
-A new account and checkout work. A clash with the old Polar customer record is possible but can't be checked from code.
+**P10. Signs up again later with the same email**: OK
+A new account and checkout work. A clash with the old Polar customer record is possible but can't be checked from code. *Fixed 29 Oct:* checkout reuses an existing Polar customer with the same email instead of failing on Polar's unique-email rule. Payments still go to the new account through the checkout's user ID.

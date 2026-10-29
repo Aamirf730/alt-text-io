@@ -185,6 +185,12 @@ content_path = "./supabase/templates/confirmation.html"
 subject = "Reset your Alt Text Pro password"
 content_path = "./supabase/templates/recovery.html"
 
+# Email changes use token_hash through /auth/confirm, so the link works on
+# any device (a PKCE link only works in the browser that asked for it).
+[auth.email.template.email_change]
+subject = "Confirm your new Alt Text Pro email address"
+content_path = "./supabase/templates/email_change.html"
+
 # The code a Google-only account enters before setting a password.
 [auth.email.template.reauthentication]
 subject = "Your Alt Text Pro security code"

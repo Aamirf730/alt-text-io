@@ -699,14 +699,18 @@ class AltTextPro_Admin
     {
         $settings = wp_parse_args(get_option('alt_text_pro_settings', array()), AltTextPro_Settings::defaults());
 
-        // Which Alt Text Pro account the saved key belongs to.
+        // Which Alt Text Pro account the saved key belongs to, or whether the
+        // service rejected it (rotated key or deleted account).
         $account_email = '';
+        $key_rejected = false;
         $usable_settings = (new AltTextPro_Settings())->get_settings();
         if (!empty($usable_settings['api_key']) && AltTextPro_API_Client::validate_api_key_format($usable_settings['api_key'])) {
             $usage_response = (new AltTextPro_API_Client())->get_usage_stats();
             if (!empty($usage_response['success']) && !empty($usage_response['data']['account_email'])) {
                 $account_email = sanitize_email($usage_response['data']['account_email']);
             }
+            $key_rejected = empty($usage_response['success'])
+                && in_array($usage_response['code'] ?? '', array('invalid_api_key', 'account_not_found'), true);
         }
 
         include ALT_TEXT_PRO_PLUGIN_PATH . 'templates/settings.php';

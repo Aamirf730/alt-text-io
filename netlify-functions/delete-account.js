@@ -19,6 +19,7 @@ const {
 } = require('./utils/cors');
 const { getBearerToken, isSuperuserEmail, normalizeEmail } = require('./utils/admin-auth');
 const { deleteAccount } = require('./utils/account-deletion');
+const { buildAccountDeletedEmail, sendTransactionalEmail } = require('./utils/transactional-email');
 const { withErrorReporting } = require('./utils/error-reporter');
 
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -67,6 +68,7 @@ function createHandler({
   supabaseClient = supabase,
   checkRateLimitFn = checkRateLimit,
   deleteAccountFn = deleteAccount,
+  sendEmailFn = sendTransactionalEmail,
 } = {}) {
   return async (event) => {
     const requestHeaders = event.headers || {};
@@ -141,12 +143,28 @@ function createHandler({
       return errorResponse(FAILURE_STATUS[code] || 500, headers, code, outcome.message || 'Your account could not be deleted. Try again or contact support.');
     }
 
+    // Confirmation to the deleted address. The account is already gone, so a
+    // failed email is reported, never turned into a failed deletion.
+    let confirmationEmailSent = false;
+    try {
+      const message = buildAccountDeletedEmail({
+        email: accountEmail,
+        subscriptionCancellation: outcome.subscriptionCancellation,
+      });
+      await sendEmailFn({ to: accountEmail, subject: message.subject, content: message.content });
+      confirmationEmailSent = true;
+    } catch (emailError) {
+      const { reportError } = require('./utils/error-reporter');
+      reportError(emailError, { functionName: 'delete-account', extra: { reason: 'confirmation_email_failed' } });
+    }
+
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({
         success: true,
         subscription_cancellation: outcome.subscriptionCancellation || 'not_needed',
+        confirmation_email_sent: confirmationEmailSent,
       }),
     };
   };

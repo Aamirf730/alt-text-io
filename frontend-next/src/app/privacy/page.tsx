@@ -32,7 +32,7 @@ export default function PrivacyPage() {
 
                     <div className="relative z-10">
                         <h1 className="text-4xl md:text-5xl font-bold text-ink mb-4 tracking-tight">Privacy Policy</h1>
-                        <p className="text-ink-muted mb-12 font-medium tracking-wide">Last updated: October 29, 2026</p>
+                        <p className="text-ink-muted mb-12 font-medium tracking-wide">Last updated: October 30, 2026</p>
 
                         <div className="prose prose-slate max-w-none space-y-12">
                             <section>
@@ -225,7 +225,7 @@ export default function PrivacyPage() {
                                     <li><strong>Restriction:</strong> Request restriction of processing in certain circumstances</li>
                                 </ul>
                                 <p className="text-ink-muted leading-relaxed mt-4">
-                                    To exercise these rights, please contact us at help@alt-text.pro. We will respond to your request within 30 days.
+                                    You can download a copy of your data at any time with <strong>Download my data</strong> in your dashboard&apos;s Account settings, and delete your account there too. For anything else, contact us at help@alt-text.pro. We will respond to your request within 30 days.
                                 </p>
                             </section>
 
@@ -240,8 +240,15 @@ export default function PrivacyPage() {
                                     <li>Resolve disputes and enforce our agreements</li>
                                 </ul>
                                 <p className="text-ink-muted leading-relaxed mt-4">
-                                    When you delete your account, we will delete or anonymize your personal information, except where we are required to retain it for legal or legitimate business purposes.
+                                    In practice:
                                 </p>
+                                <ul className="list-disc list-inside text-ink-muted space-y-2 ml-4 mt-2">
+                                    <li><strong>Your account</strong> (profile, credits, API key, generation history and connected sites) is kept while the account exists and deleted straight away when you delete it.</li>
+                                    <li><strong>Images</strong> are not stored after their alt text is written.</li>
+                                    <li><strong>Payment records</strong> and a record that the account was deleted are kept for as long as tax and accounting law requires us to keep them, which can be up to eight years. Polar keeps its own records of your payments.</li>
+                                    <li><strong>Usage and website activity records</strong> are kept to understand how the Service is used. When you delete your account, your email address and IP address are removed from them.</li>
+                                    <li><strong>Error reports and server logs</strong> are kept for a limited time by our hosting and error-monitoring providers.</li>
+                                </ul>
                             </section>
 
                             <section>

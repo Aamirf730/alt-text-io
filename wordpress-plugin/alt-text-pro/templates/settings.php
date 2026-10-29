@@ -72,6 +72,12 @@ echo wp_kses_post(
 )
 ); ?>
                     </p>
+                    <?php if ($alt_text_pro_has_key && !empty($key_rejected)): ?>
+                    <p class="description atp-help atp-key-rejected" role="alert">
+                        <strong><?php esc_html_e('The saved API key no longer works.', 'alt-text-pro'); ?></strong>
+                        <?php esc_html_e('It was probably rotated in your Alt Text Pro dashboard, or the account was deleted. Click Reconnect account to sign in and save the current key.', 'alt-text-pro'); ?>
+                    </p>
+                    <?php endif; ?>
                     <?php if ($alt_text_pro_has_key): ?>
                     <?php if (!empty($account_email)): ?>
                     <p class="description atp-help atp-connected-as">
@@ -106,9 +112,13 @@ echo wp_kses_post(
                             <span class="dashicons dashicons-admin-links" aria-hidden="true"></span>
                             <span>
                                 <?php
-                                echo esc_html($alt_text_pro_has_key
-                                    ? __('Connect a different account', 'alt-text-pro')
-                                    : __('Start onboarding', 'alt-text-pro'));
+                                if (!$alt_text_pro_has_key) {
+                                    esc_html_e('Start onboarding', 'alt-text-pro');
+                                } elseif (!empty($key_rejected)) {
+                                    esc_html_e('Reconnect account', 'alt-text-pro');
+                                } else {
+                                    esc_html_e('Connect a different account', 'alt-text-pro');
+                                }
                                 ?>
                             </span>
                         </button>

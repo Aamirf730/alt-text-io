@@ -93,6 +93,6 @@ describe("dashboard operations console", () => {
     const deleteCard = read("DeleteAccountCard.tsx");
     expect(deleteCard).toContain("fetch(`${getApiBase()}/delete-account`");
     expect(deleteCard).toContain("confirm_email: confirmEmail.trim()");
-    expect(deleteCard).toContain("Payment records are kept");
+    expect(deleteCard).toContain("Kept: payment records");
   });
 });

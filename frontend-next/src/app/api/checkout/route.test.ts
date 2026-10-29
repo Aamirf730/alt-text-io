@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => {
         } | null;
         profileError: Error | null;
         checkoutArgs: Record<string, unknown> | null;
+        existingCustomers: Array<{ id: string }>;
     } = {
         user: { id: "user_1", email: "Verified@Example.com" },
         authError: null,
@@ -24,6 +25,7 @@ const mocks = vi.hoisted(() => {
         },
         profileError: null,
         checkoutArgs: null,
+        existingCustomers: [],
     };
 
     const profileQuery = {
@@ -50,8 +52,10 @@ const mocks = vi.hoisted(() => {
         return { url: "https://sandbox.polar.sh/checkout/chk_1" };
     });
 
+    const listCustomers = vi.fn(async () => ({ result: { items: state.existingCustomers } }));
     const Polar = vi.fn(() => ({
         checkouts: { create: createCheckout },
+        customers: { list: listCustomers },
     }));
 
     return { state, client, createCheckout, Polar };
@@ -145,6 +149,26 @@ describe("checkout identity binding", () => {
             metadata: { user_id: "user_1" },
         });
         expect(mocks.state.checkoutArgs).not.toHaveProperty("customerEmail", "attacker@example.com");
+    });
+
+    it("reuses an existing Polar customer with the same email, e.g. after an account was deleted", async () => {
+        mocks.state.existingCustomers = [{ id: "cus_old" }];
+        try {
+            const response = await GET(new NextRequest(
+                "http://localhost/api/checkout?products=prod_1&format=json",
+                { headers: { Authorization: "Bearer verified-session-token" } },
+            ));
+
+            expect(response.status).toBe(200);
+            expect(mocks.state.checkoutArgs).toMatchObject({
+                customerId: "cus_old",
+                metadata: { user_id: "user_1" },
+                returnUrl: "http://localhost:3000/payment-cancelled",
+            });
+            expect(mocks.state.checkoutArgs).not.toHaveProperty("externalCustomerId");
+        } finally {
+            mocks.state.existingCustomers = [];
+        }
     });
 
     it("rejects legacy products that are no longer on sale", async () => {

@@ -81,6 +81,14 @@ export default function AuthConfirmPage() {
       });
 
       if (!active) return;
+      // An email change confirms both addresses. The first link accepted
+      // returns no session yet: it is a success, with one step left.
+      if (!error && !data.session && type === "email_change") {
+        window.history.replaceState({}, document.title, "/auth/confirm");
+        setState("success");
+        setMessage("Confirmed. Now open the link we sent to your other email address to finish the change.");
+        return;
+      }
       if (error || !data.session) {
         await showFailure(
           "This link has expired or was already used. Request a new one below, or sign in if you already confirmed your email.",

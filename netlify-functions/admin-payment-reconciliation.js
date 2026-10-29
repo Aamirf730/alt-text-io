@@ -90,6 +90,42 @@ function toRow(row) {
   };
 }
 
+/**
+ * Rows whose Polar customer or email belonged to an account that was deleted
+ * (Polar keeps sending refunds and subscription ends after a deletion). The
+ * admin tab warns before such a row is assigned to another account.
+ */
+async function findDeletedAccountMatches(rows) {
+  const emails = [...new Set(rows.map(row => String(row.customer_email || '').trim().toLowerCase()).filter(Boolean))];
+  const customerIds = [...new Set(rows.map(row => row.customer_id).filter(Boolean).map(String))];
+  const matches = new Map();
+  if (emails.length === 0 && customerIds.length === 0) return matches;
+
+  const lookups = [];
+  if (emails.length > 0) {
+    lookups.push(supabase.from('audit_logs').select('created_at,details').eq('action', 'account.deleted').in('details->>email', emails));
+  }
+  if (customerIds.length > 0) {
+    lookups.push(supabase.from('audit_logs').select('created_at,details').eq('action', 'account.deleted').in('details->>polar_customer_id', customerIds));
+  }
+  for (const { data, error } of await Promise.all(lookups)) {
+    if (error) throw new Error(`Failed to check deleted accounts: ${error.message}`);
+    for (const audit of data || []) {
+      const email = String(audit.details?.email || '').toLowerCase();
+      const customerId = audit.details?.polar_customer_id ? String(audit.details.polar_customer_id) : '';
+      if (email) matches.set(`email:${email}`, audit.created_at);
+      if (customerId) matches.set(`customer:${customerId}`, audit.created_at);
+    }
+  }
+  return matches;
+}
+
+function deletedAccountMatch(row, matches) {
+  return matches.get(`customer:${row.customer_id}`)
+    || matches.get(`email:${String(row.customer_email || '').trim().toLowerCase()}`)
+    || null;
+}
+
 async function handler(event) {
   const headers = getCorsHeaders(event.headers, ['GET', 'OPTIONS']);
   const preflightResponse = handlePreflight(event);
@@ -122,6 +158,7 @@ async function handler(event) {
       .range(offset, offset + limit - 1);
 
     if (error) throw new Error(`Failed to read payment reconciliation rows: ${error.message}`);
+    const deletedMatches = await findDeletedAccountMatches(data || []);
 
     return {
       statusCode: 200,
@@ -133,7 +170,10 @@ async function handler(event) {
           total: count ?? (data || []).length,
           limit,
           offset,
-          rows: (data || []).map(toRow),
+          rows: (data || []).map(row => ({
+            ...toRow(row),
+            from_deleted_account_at: deletedAccountMatch(row, deletedMatches),
+          })),
         },
       }),
     };
@@ -152,4 +192,4 @@ async function handler(event) {
 }
 
 exports.handler = withErrorReporting('admin-payment-reconciliation', handler);
-exports._private = { summarizePayload, toRow };
+exports._private = { summarizePayload, toRow, deletedAccountMatch };

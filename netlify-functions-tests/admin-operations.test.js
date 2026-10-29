@@ -101,6 +101,30 @@ describe('self-service delete-account', () => {
     expect(deleteAccountFn).toHaveBeenCalledWith(expect.objectContaining({ userId: 'user-1', actorType: 'self' }));
   });
 
+  it('emails a deletion confirmation, and a failed email does not fail the deletion', async () => {
+    const deleteAccountFn = vi.fn(async () => ({ ok: true, status: 'deleted', subscriptionCancellation: 'cancelled' }));
+    const sendEmailFn = vi.fn(async () => {});
+    const handler = deleteAccount._private.createHandler({ supabaseClient, checkRateLimitFn: allow, deleteAccountFn, sendEmailFn });
+
+    const response = await handler(request({ confirm_email: 'buyer@example.com' }));
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body)).toMatchObject({ confirmation_email_sent: true });
+    const [{ to, subject, content }] = sendEmailFn.mock.calls[0];
+    expect(to).toBe('buyer@example.com');
+    expect(subject).toBe('Your Alt Text Pro account has been deleted');
+    expect(content.paragraphs.join(' ')).toContain('no further charges');
+
+    const failing = deleteAccount._private.createHandler({
+      supabaseClient,
+      checkRateLimitFn: allow,
+      deleteAccountFn,
+      sendEmailFn: vi.fn(async () => { throw new Error('smtp down'); }),
+    });
+    const stillOk = await failing(request({ confirm_email: 'buyer@example.com' }));
+    expect(stillOk.statusCode).toBe(200);
+    expect(JSON.parse(stillOk.body)).toMatchObject({ success: true, confirmation_email_sent: false });
+  });
+
   it('refuses superusers', async () => {
     const previous = process.env.SUPERUSER_EMAILS;
     process.env.SUPERUSER_EMAILS = 'buyer@example.com';

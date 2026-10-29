@@ -53,6 +53,28 @@ function isClaimable(row: { status?: unknown; updated_at?: unknown }): boolean {
     return Number.isFinite(updatedAt) && Date.now() - updatedAt >= PROCESSING_STALE_MS;
 }
 
+const normalizeEmail = (value: unknown) => String(value || "").trim().toLowerCase();
+
+/** When the email or Polar customer belonged to a deleted account, its deletion time. */
+async function findDeletedAccountFor(
+    supabase: ReturnType<typeof getSupabaseClient>,
+    email: unknown,
+    customerId: unknown,
+): Promise<string | null> {
+    const checks = [];
+    if (normalizeEmail(email)) {
+        checks.push(supabase.from("audit_logs").select("created_at").eq("action", "account.deleted").eq("details->>email", normalizeEmail(email)).limit(1));
+    }
+    if (customerId) {
+        checks.push(supabase.from("audit_logs").select("created_at").eq("action", "account.deleted").eq("details->>polar_customer_id", String(customerId)).limit(1));
+    }
+    for (const { data, error } of await Promise.all(checks)) {
+        if (error) throw error;
+        if (data && data.length > 0) return String(data[0].created_at);
+    }
+    return null;
+}
+
 function jsonError(status: number, error: string, extra: Record<string, unknown> = {}) {
     return NextResponse.json({ success: false, error, ...extra }, { status });
 }
@@ -65,7 +87,7 @@ export async function POST(request: NextRequest) {
         return jsonError(auth.status, auth.error);
     }
 
-    let body: { reconciliation_id?: unknown; user_id?: unknown };
+    let body: { reconciliation_id?: unknown; user_id?: unknown; confirm_deleted_account?: unknown };
     try {
         body = await request.json();
     } catch {
@@ -81,7 +103,7 @@ export async function POST(request: NextRequest) {
     try {
         const { data: row, error: rowError } = await supabase
             .from("payment_reconciliation")
-            .select("id, event_name, status, payload, payment_id, subscription_id, reason, updated_at")
+            .select("id, event_name, status, payload, payment_id, subscription_id, reason, updated_at, customer_email, customer_id")
             .eq("id", reconciliationId)
             .maybeSingle();
 
@@ -102,6 +124,19 @@ export async function POST(request: NextRequest) {
         const profile = await loadBillingProfileById(userId);
         if (!profile) {
             return jsonError(404, "User profile not found");
+        }
+
+        // Events for an account that was deleted (refunds, subscription ends)
+        // must not be applied to someone else by mistake.
+        if (body.confirm_deleted_account !== true) {
+            const deletedAt = await findDeletedAccountFor(supabase, row.customer_email, row.customer_id);
+            const sameAccountAgain = deletedAt && normalizeEmail(profile.email) === normalizeEmail(row.customer_email);
+            if (deletedAt && !sameAccountAgain) {
+                return jsonError(409, "This payment belongs to an account that was deleted. Assign it only if you are sure.", {
+                    code: "from_deleted_account",
+                    deleted_at: deletedAt,
+                });
+            }
         }
 
         // Claim the row before replaying, so two admins cannot replay the

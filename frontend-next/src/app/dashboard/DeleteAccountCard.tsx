@@ -98,10 +98,14 @@ export default function DeleteAccountCard({ email, onDeleted }: DeleteAccountCar
                         <li>cancels any active subscription, so it won&apos;t renew;</li>
                         <li>removes all remaining credits, including purchased and bonus credits, with no refund;</li>
                         <li>stops your API key, so every connected WordPress site is disconnected;</li>
+                        <li>deletes your generation history and connected-sites list;</li>
                         <li>removes your sign-in, so you can&apos;t log back in to this account.</li>
                     </ul>
                     <p className="mt-3 text-sm leading-6 text-ink-muted">
-                        Payment records are kept for accounting and tax purposes. This can&apos;t be undone.
+                        Kept: payment records, for as long as tax law requires, and Polar&apos;s own receipts and invoices
+                        (download any you need from Billing &amp; receipts first). Alt text already saved on your WordPress images
+                        stays on your sites. We email you a confirmation. Want a copy of your data? Use Download my data above first.
+                        This can&apos;t be undone.
                     </p>
 
                     <label htmlFor="delete-confirm-email" className="mt-5 block text-sm font-semibold text-ink">

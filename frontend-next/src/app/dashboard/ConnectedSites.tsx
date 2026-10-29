@@ -155,6 +155,13 @@ export default function ConnectedSites() {
                     </ul>
                 )}
             </div>
+            {state === "ready" && sites.length > 0 && (
+                <p className="mt-4 text-xs leading-5 text-ink-muted">
+                    To disconnect one site, open Alt Text Pro, then Settings, in that site&apos;s WordPress admin and click
+                    Disconnect account. All your sites share one API key, so rotating the key in API settings disconnects
+                    every site at once.
+                </p>
+            )}
         </section>
     );
 }

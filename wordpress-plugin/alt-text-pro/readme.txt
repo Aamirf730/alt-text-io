@@ -186,6 +186,7 @@ Yes, you can cancel your subscription at any time from your Alt Text Pro dashboa
 * New: "Connect a different account" in Settings switches the site to another account without disconnecting first.
 * New: the plugin dashboard has a Connect Account button when the site is not connected yet.
 * New: the plugin dashboard warns when a renewal payment failed, with a link to update the card.
+* New: when the saved API key stops working (rotated key or deleted account), Settings says so and offers Reconnect account.
 * New: the connect window checks first that this site can store the API key (OpenSSL and a unique AUTH_KEY), and explains what to fix before you sign in.
 * New: "Selected" mode lets you search and page through all images, including ones that already have alt text, to regenerate them.
 * New: "Email me when a bulk run finishes" setting (on by default). The email is now proper plain text.

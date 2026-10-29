@@ -79,10 +79,15 @@ export default function UnmatchedPaymentsTab({ onResolved }: Props) {
             if (!window.confirm(`Assign this ${row.event_type} (${row.customer_email || "no email"}) to account ${userId}? Credits or plan changes are applied immediately.`)) {
                 return;
             }
+            const fromDeleted = Boolean(row.from_deleted_account_at);
+            if (fromDeleted && !window.confirm(`This payment came from an account that was deleted on ${formatDate(row.from_deleted_account_at)}. Usually it should be left unassigned. Assign it anyway?`)) {
+                return;
+            }
 
             const result = await nextApiPost("/api/admin/reconcile-payment", {
                 reconciliation_id: row.id,
                 user_id: userId,
+                ...(fromDeleted ? { confirm_deleted_account: true } : {}),
             });
             const outcome = result?.result?.outcome;
             toast.success(outcome ? `Assigned (${outcome})` : "Payment assigned");
@@ -140,6 +145,9 @@ export default function UnmatchedPaymentsTab({ onResolved }: Props) {
                                         <div className="space-y-1 min-w-0">
                                             <div className="flex flex-wrap items-center gap-2">
                                                 <Badge>{row.event_type}</Badge>
+                                                {row.from_deleted_account_at && (
+                                                    <Badge className="border-red-200 bg-red-50 text-error">From a deleted account</Badge>
+                                                )}
                                                 <span className="font-semibold text-ink">
                                                     {row.amount !== null && row.amount !== undefined ? formatCurrency(row.amount, row.currency || "USD") : "Amount unknown"}
                                                 </span>

@@ -18,6 +18,23 @@ function getSupabaseClient() {
     );
 }
 
+/**
+ * A Polar customer that already has this email, for example from an account
+ * that was deleted and then signed up again. Polar emails are unique, so a
+ * new checkout must reuse that customer. Payments are matched to accounts by
+ * the checkout's metadata.user_id, never by the customer's old external ID.
+ */
+async function findCustomerIdByEmail(polar: Polar, email: string): Promise<string | null> {
+    try {
+        const page = await polar.customers.list({ email, limit: 1 });
+        const customer = page?.result?.items?.[0];
+        return customer?.id ? String(customer.id) : null;
+    } catch {
+        // Fall back to creating the customer with this account's external ID.
+        return null;
+    }
+}
+
 export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const productId = searchParams.get("products");
@@ -108,6 +125,10 @@ export async function GET(request: NextRequest) {
             server: getPolarServer(),
         });
 
+        const existingCustomerId = profile.polar_customer_id
+            ? null
+            : await findCustomerIdByEmail(polar, customerEmail);
+
         const checkout = await polar.checkouts.create({
             products: [productId],
             successUrl,
@@ -118,6 +139,8 @@ export async function GET(request: NextRequest) {
             },
             ...(profile.polar_customer_id
                 ? { customerId: profile.polar_customer_id }
+                : existingCustomerId
+                ? { customerId: existingCustomerId }
                 : { externalCustomerId: user.id }),
         });
 

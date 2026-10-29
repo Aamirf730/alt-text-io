@@ -625,6 +625,33 @@ export default function Dashboard() {
         }
     };
 
+    // After an email change the profile and Polar customer still have the old
+    // address; bring them in line once per session (a no-op when they match).
+    useEffect(() => {
+        const accountEmail = user?.email;
+        if (!user?.id || !accountEmail) return;
+        const syncKey = `altTextPro.emailSynced.${user.id}.${accountEmail}`;
+        try {
+            if (window.sessionStorage.getItem(syncKey)) return;
+            window.sessionStorage.setItem(syncKey, "1");
+        } catch {
+            // Without sessionStorage it simply runs on each visit.
+        }
+
+        void (async () => {
+            const accessToken = await getAccessToken();
+            if (!accessToken) return;
+            const response = await fetch('/api/account/sync-email', {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${accessToken}` },
+            }).catch(() => null);
+            const result = response?.ok ? await response.json().catch(() => null) : null;
+            if (result?.synced && result.polar_updated) {
+                toast.info(`Receipts and billing emails now go to ${accountEmail}.`);
+            }
+        })();
+    }, [user?.id, user?.email]);
+
     // Load the image picked in the homepage demo before an email sign-up, so
     // it is waiting here after the confirmation link opens the dashboard.
     // Generating stays a click, since it uses a credit.
@@ -678,7 +705,7 @@ export default function Dashboard() {
         } catch {
             // Nothing else to clean up.
         }
-        toast.success("Your account has been deleted.");
+        toast.success("Your account has been deleted. We have emailed you a confirmation.");
         router.replace("/");
     };
 

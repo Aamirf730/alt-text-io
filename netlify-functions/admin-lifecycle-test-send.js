@@ -34,6 +34,8 @@ const ALLOWED_TEST_RULES = new Set([
   'purchase_onboarding',
   'credits_low_no_purchase',
   'credits_out_no_purchase',
+  'annual_renewal_reminder',
+  'cancellation_winback',
 ]);
 const LOW_CREDIT_THRESHOLD = 5;
 

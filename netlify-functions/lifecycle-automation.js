@@ -12,6 +12,7 @@ const {
   fetchLifecycleUsageCounts,
   fetchRecentMarketingEvents,
   filterCandidatesByAuthUsers,
+  recordUpcomingAnnualRenewals,
   selectLifecycleCandidatePerActor,
 } = require('./utils/lifecycle-automation');
 const { fetchAllRows } = require('./utils/paginated-query');
@@ -517,6 +518,18 @@ async function handler(event) {
       MAX_SENDS_PER_RUN_LIMIT
     );
 
+    // Annual plans renewing within a week get a reminder event first. A dry
+    // run must not write, and a failure here must not stop the other emails.
+    let renewalsRecorded = 0;
+    if (!dryRun) {
+      try {
+        renewalsRecorded = await recordUpcomingAnnualRenewals(supabase);
+      } catch (renewalError) {
+        console.error('lifecycle-automation: could not record upcoming renewals');
+        require('./utils/error-reporter').reportError(renewalError, { functionName: 'lifecycle-automation', extra: { reason: 'renewal_upcoming' } });
+      }
+    }
+
     // Reads only the event names the rules use (never page views).
     const events = await fetchRecentMarketingEvents(supabase, { days });
     const connectedUserIds = events
@@ -534,6 +547,7 @@ async function handler(event) {
 
     const summary = {
       mode: auth.mode,
+      renewal_reminders_recorded: renewalsRecorded,
       candidates: candidates.length,
       verified_candidates: verifiedCandidates.length,
       rejected_recipients: candidates.length - verifiedCandidates.length,

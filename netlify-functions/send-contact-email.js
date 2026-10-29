@@ -1,6 +1,9 @@
 // Netlify Function for Sending Contact Form Emails
 const nodemailer = require('nodemailer');
+const { createClient } = require('@supabase/supabase-js');
 const { getEmailFrom, getSupportEmail } = require('./utils/email-config');
+const { getBearerToken } = require('./utils/admin-auth');
+const { buildSupportAutoReply, renderTransactionalEmail } = require('./utils/transactional-email');
 const {
   checkRateLimit,
   getClientIp,
@@ -53,9 +56,32 @@ function createTransporter() {
   });
 }
 
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const defaultSupabase = supabaseUrl && supabaseServiceKey
+  ? createClient(supabaseUrl, supabaseServiceKey)
+  : null;
+
+/**
+ * The account of a signed-in sender, checked from their session token. The
+ * form works without one; a missing or invalid token just means no account.
+ */
+async function getSignedInAccount(requestHeaders, supabaseClient) {
+  const token = getBearerToken({ headers: requestHeaders });
+  if (!token || !supabaseClient) return null;
+  try {
+    const { data, error } = await supabaseClient.auth.getUser(token);
+    if (error || !data?.user?.id) return null;
+    return { id: data.user.id, email: data.user.email || '' };
+  } catch (_error) {
+    return null;
+  }
+}
+
 function createHandler({
   checkRateLimitFn = checkRateLimit,
   transporterFactory = createTransporter,
+  supabaseClient = defaultSupabase,
 } = {}) {
   return async (event) => {
     const requestHeaders = event.headers || {};
@@ -121,6 +147,11 @@ function createHandler({
     });
     if (messageError) return { statusCode: 400, headers, body: JSON.stringify({ error: messageError }) };
 
+    const account = await getSignedInAccount(requestHeaders, supabaseClient);
+    const accountLine = account
+      ? `Account (signed in): ${account.email} · user ID ${account.id}`
+      : 'Account: not signed in';
+
     const name = singleLine(rawName);
     const subject = singleLine(rawSubject);
     const safeName = escapeHtml(name);
@@ -142,6 +173,7 @@ function createHandler({
             <p><strong>Name:</strong> ${safeName}</p>
             <p><strong>Email:</strong> <a href="mailto:${safeEmail}">${safeEmail}</a></p>
             ${subject ? `<p><strong>Subject:</strong> ${safeSubject}</p>` : ''}
+            <p><strong>${escapeHtml(accountLine)}</strong></p>
           </div>
           <div style="background-color: #ffffff; padding: 20px; border-left: 4px solid #FEE11C; margin: 20px 0;">
             <p><strong>Message:</strong></p>
@@ -150,12 +182,31 @@ function createHandler({
           <p style="color: #6B6B73; font-size: 12px;">Sent from the Alt Text Pro contact form.</p>
         </div>
       `,
-      text: `New Contact Form Submission\n\nName: ${name}\nEmail: ${email}\n${subject ? `Subject: ${subject}\n` : ''}\nMessage:\n${message}`,
+      text: `New Contact Form Submission\n\nName: ${name}\nEmail: ${email}\n${subject ? `Subject: ${subject}\n` : ''}${accountLine}\n\nMessage:\n${message}`,
     };
 
     try {
       const transporter = transporterFactory();
       await transporter.sendMail(mailOptions);
+
+      // Acknowledge to the sender. Fixed wording only (nothing they typed),
+      // so the form cannot be used to send arbitrary text to others.
+      try {
+        const reply = buildSupportAutoReply();
+        const { html, text } = renderTransactionalEmail(reply.content);
+        await transporter.sendMail({
+          from: getEmailFrom(),
+          to: email,
+          replyTo: getSupportEmail(),
+          subject: reply.subject,
+          html,
+          text,
+        });
+      } catch (replyError) {
+        const { reportError } = require('./utils/error-reporter');
+        reportError(replyError, { functionName: 'send-contact-email', extra: { reason: 'auto_reply_failed' } });
+      }
+
       return {
         statusCode: 200,
         headers,

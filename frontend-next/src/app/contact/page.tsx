@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Mail, Loader2 } from 'lucide-react';
 import { getApiBase } from '@/lib/utils';
+import { supabase } from '@/lib/supabase';
 
 export default function ContactPage() {
     const [formData, setFormData] = useState({
@@ -18,6 +19,24 @@ export default function ContactPage() {
         website: '',
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [signedInEmail, setSignedInEmail] = useState<string | null>(null);
+
+    // Signed in: fill in the account email, and send the session with the
+    // message so support sees which account it is about.
+    useEffect(() => {
+        let active = true;
+        void supabase.auth.getSession().then(({ data: { session } }) => {
+            const accountEmail = session?.user?.email;
+            if (!active || !accountEmail) return;
+            setSignedInEmail(accountEmail);
+            setFormData(prev => (prev.email ? prev : { ...prev, email: accountEmail }));
+        }).catch(() => {
+            // Not signed in or offline: the form works the same.
+        });
+        return () => {
+            active = false;
+        };
+    }, []);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
@@ -34,10 +53,12 @@ export default function ContactPage() {
         try {
             const url = `${getApiBase()}/send-contact-email`;
 
+            const { data: { session } } = await supabase.auth.getSession().catch(() => ({ data: { session: null } }));
             const response = await fetch(url, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
                 },
                 body: JSON.stringify(formData),
             });
@@ -45,10 +66,10 @@ export default function ContactPage() {
             const data = await response.json();
 
             if (response.ok) {
-                toast.success('Thank you! Your message has been sent successfully. We\'ll get back to you soon.');
+                toast.success('Thanks, your message is on its way. We usually reply within one to two business days, and we have emailed you a confirmation.');
                 setFormData({
                     name: '',
-                    email: '',
+                    email: signedInEmail || '',
                     subject: '',
                     message: '',
                     website: '',
@@ -78,12 +99,17 @@ export default function ContactPage() {
                             Get in Touch
                         </h1>
                         <p className="text-lg text-ink-muted max-w-2xl mx-auto">
-                            Have a question or need help? We'd love to hear from you. Send us a message and we'll respond as soon as possible.
+                            Have a question or need help? Send us a message. We usually reply within one to two business days.
                         </p>
                         <p className="mt-3 text-base text-ink-muted">
                             Prefer email? Write to{' '}
                             <a href="mailto:help@alt-text.pro" className="font-medium text-ink underline decoration-line-strong decoration-2 underline-offset-4 hover:decoration-ink">help@alt-text.pro</a>.
                         </p>
+                        {signedInEmail && (
+                            <p className="mt-3 text-sm text-ink-muted">
+                                You are signed in as <span className="font-semibold text-ink">{signedInEmail}</span>, so we will see which account your message is about.
+                            </p>
+                        )}
                     </div>
 
                     {/* Contact Form */}
