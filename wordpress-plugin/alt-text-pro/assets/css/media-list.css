@@ -1,0 +1,69 @@
+/**
+ * Alt Text Pro: Media Library list view.
+ *
+ * Result of the "Generate alt text" row action, shown under the image
+ * title. Colour tokens come from admin.css (.atp-ui).
+ */
+
+.atp-row-result {
+    max-width: 640px;
+    margin-top: 8px;
+    padding: 8px 12px;
+    border: 1px solid var(--atp-line);
+    border-radius: var(--atp-radius-sm);
+    background: var(--atp-yellow-tint);
+    color: var(--atp-ink);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.atp-row-result p {
+    margin: 0 0 6px;
+}
+
+.atp-row-result p:last-child {
+    margin-bottom: 0;
+}
+
+.atp-row-result.is-success {
+    border-color: var(--atp-success-line);
+    background: var(--atp-success-bg);
+}
+
+.atp-row-result.is-error,
+.atp-row-result .atp-row-result-error {
+    color: var(--atp-error);
+}
+
+.atp-row-result.is-error {
+    border-color: var(--atp-error-line);
+    background: var(--atp-error-bg);
+}
+
+.atp-row-result.is-error a,
+.atp-row-result .atp-row-result-error a {
+    color: inherit;
+}
+
+.atp-row-result .spinner {
+    float: none;
+    margin: 0 6px 0 0;
+    vertical-align: middle;
+}
+
+.atp-row-result .atp-row-result-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.atp-row-result .atp-row-result-meta {
+    color: var(--atp-ink-muted);
+    font-size: 12px;
+}
+
+.row-actions .atp-row-generate.is-busy {
+    opacity: 0.6;
+    pointer-events: none;
+}

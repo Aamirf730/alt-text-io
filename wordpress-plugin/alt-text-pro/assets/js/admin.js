@@ -51,7 +51,37 @@
         });
     }
 
-    window.AltTextProI18n = { t: t, sprintf: sprintf, ajaxErrorMessage: ajaxErrorMessage, upgradeLink: upgradeLink };
+    // Error codes for a rejected key or a deleted account: the fix is to
+    // reconnect on the Settings page.
+    function needsReconnect(code) {
+        return code === 'invalid_api_key' || code === 'account_not_found';
+    }
+
+    // Link to the plugin Settings page ("Connect a different account"), or a
+    // hint for users who cannot open Settings.
+    function settingsLink() {
+        var url = window.altTextAI && altTextAI.settingsUrl;
+        if (!url) {
+            return $('<span>', {
+                'class': 'atp-settings-hint',
+                text: t('askAdminReconnect', 'Ask a site administrator to reconnect Alt Text Pro in its Settings.')
+            });
+        }
+        return $('<a>', {
+            'class': 'atp-upgrade-link atp-settings-link',
+            href: url,
+            text: t('openSettingsReconnect', 'Open Settings to reconnect')
+        });
+    }
+
+    window.AltTextProI18n = {
+        t: t,
+        sprintf: sprintf,
+        ajaxErrorMessage: ajaxErrorMessage,
+        upgradeLink: upgradeLink,
+        needsReconnect: needsReconnect,
+        settingsLink: settingsLink
+    };
 
     // Main Admin Object
     window.AltTextProAdmin = {
@@ -299,6 +329,8 @@
                         AltTextProAdmin.showError(message || altTextAI.strings.error, $container);
                         if (data && data.code === 'no_credits') {
                             $container.find('.alt-text-pro-error').append(' ').append(upgradeLink());
+                        } else if (data && needsReconnect(data.code)) {
+                            $container.find('.alt-text-pro-error').append(' ').append(settingsLink());
                         }
                     }
                 },
@@ -1858,6 +1890,9 @@
                 $('#process-summary-container').show();
                 $('#process-summary-text').text(suspended ? t('accountSuspendedTitle', 'Account suspended') : t('runStoppedTitle', 'Run stopped'));
                 $('#process-summary-details').text(data.stopped_reason || t('stoppedAccount', 'Bulk processing stopped because of an account or service problem.'));
+                if (needsReconnect(data.stopped_code)) {
+                    $('#process-summary-details').append(' ').append(settingsLink());
+                }
                 this.updateLiveTask(null, data.stopped_reason || t('stoppedAccount', 'Bulk processing stopped because of an account or service problem.'), t('stopped', 'Stopped'));
                 $('#progress-log').append($('<div class="atp-log-line is-error is-strong">').text(data.stopped_reason || t('stoppedAccount', 'Bulk processing stopped because of an account or service problem.')));
                 if (window.AltTextProAdmin && typeof window.AltTextProAdmin.showNotification === 'function') {
@@ -1938,6 +1973,8 @@
             var $line = $('<div>').addClass('atp-log-line is-error').text(sprintf(t('errorPrefix', 'Error: %s'), String(msg || '')));
             if (code === 'no_credits') {
                 $line.append(' ').append(upgradeLink());
+            } else if (needsReconnect(code)) {
+                $line.append(' ').append(settingsLink());
             }
             $('#progress-log').append($line);
         },

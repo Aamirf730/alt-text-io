@@ -2420,3 +2420,35 @@
     display: inline-block;
     margin-top: 4px;
 }
+
+/* 1.7.28: credit note under Generate, draft status in the Logs, reconnect links */
+.alt-text-pro-media-field .atp-credit-note {
+    margin: 6px 0 0;
+    color: var(--atp-ink-muted);
+    font-size: 12px;
+}
+
+.atp-ui .atp-log-status-row {
+    margin: 0 0 8px;
+}
+
+.atp-ui .atp-badge.atp-log-status.is-saved {
+    border-color: var(--atp-success-line);
+    background: var(--atp-success-bg);
+    color: var(--atp-success);
+}
+
+.atp-ui .atp-badge.atp-log-status.is-draft {
+    border-color: var(--atp-warning-line);
+    background: var(--atp-warning-bg);
+    color: var(--atp-warning);
+}
+
+.atp-ui .atp-log-status-row .atp-log-meta {
+    margin-top: 4px;
+}
+
+.alt-text-pro-media-field .alt-text-pro-error .atp-settings-hint {
+    display: inline-block;
+    margin-top: 4px;
+}

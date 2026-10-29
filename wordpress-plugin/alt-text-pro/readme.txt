@@ -191,6 +191,9 @@ Yes, you can cancel your subscription at any time from your Alt Text Pro dashboa
 * New: "Selected" mode lets you search and page through all images, including ones that already have alt text, to regenerate them.
 * New: "Email me when a bulk run finishes" setting (on by default). The email is now proper plain text.
 * New: the "Send image context" setting is shown on the Settings page. The unused batch-size field was removed.
+* New: "Generate alt text" in the Media Library list view. Each image row has a link that generates in place and shows the result there, and the bulk action "Generate alt text (Alt Text Pro)" opens the Bulk page with the chosen images selected. Existing alt text is only replaced when "Overwrite existing" is on.
+* New: a "Generate alt text" button for the image block in the block editor sidebar. It fills the block's alternative text and also saves it to the Media Library when the image has none there.
+* New: the Logs show whether generated text was saved to the image or is a draft that was never applied, and Generate says that a draft uses 1 credit even if you do not apply it.
 * Fix: generate-on-upload no longer slows uploads, imports or WooCommerce CSV imports. Generation runs right after the upload in the background and still uses one credit per image. It never replaces alt text written after the upload, and an image that a bulk run or a Generate button already described is not billed again.
 * Fix: failed automatic generation (for example no credits or a rejected key) is shown as an admin notice.
 * Fix: bulk runs stop on an invalid key, a suspended or deleted account, or a service that keeps failing, instead of failing every remaining image.
@@ -206,6 +209,7 @@ Yes, you can cancel your subscription at any time from your Alt Text Pro dashboa
 * Fix: a finished, stopped or cancelled bulk run shows a Results card with the totals and the images that failed, linked to each image.
 * Fix: Disconnect and uninstall tell Alt Text Pro this site stopped using the key. The key itself stays valid for your other sites. Uninstall does not wait for the answer, so large multisite networks uninstall quickly.
 * Fix: permission errors in admin requests return JSON, and most interface text can now be translated.
+* Fix: "Invalid API key" and deleted-account messages link to Settings, where you can reconnect, when generating one image, a post's images or a bulk run.
 
 = 1.7.27 =
 * Readme: clearer plugin name, short description, tags and feature list.
