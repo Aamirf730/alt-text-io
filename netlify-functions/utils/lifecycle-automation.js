@@ -419,9 +419,13 @@ function filterCandidatesByAuthUsers(candidates, authUsers) {
       .map(user => [String(user.id), String(user.email).trim().toLowerCase()])
   );
 
-  return candidates.filter(candidate => {
-    if (!candidate.user_id || !candidate.user_email) return false;
-    return emailsByUserId.get(String(candidate.user_id)) === String(candidate.user_email).trim().toLowerCase();
+  // Send to the account's current confirmed address. The event may carry an
+  // older one (the sign-up address before an email change), and that address
+  // no longer belongs to the account.
+  return candidates.flatMap(candidate => {
+    if (!candidate.user_id) return [];
+    const authEmail = emailsByUserId.get(String(candidate.user_id));
+    return authEmail ? [{ ...candidate, user_email: authEmail }] : [];
   });
 }
 

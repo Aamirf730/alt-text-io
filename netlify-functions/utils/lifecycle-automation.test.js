@@ -436,21 +436,28 @@ describe('lifecycle automation candidate selection', () => {
     expect(candidates[0].automation_key).toBe('purchase_onboarding');
   });
 
-  it('keeps only recipients whose user ID and email match Supabase Auth', () => {
+  it('sends only to the confirmed Supabase Auth address of the candidate user', () => {
     const candidates = [
-      { user_id: 'user-1', user_email: 'Owner@Example.com' },
-      { user_id: 'user-2', user_email: 'wrong@example.com' },
-      { user_id: null, user_email: 'owner@example.com' },
-      { user_id: 'user-4', user_email: 'unconfirmed@example.com' },
+      { user_id: 'user-1', user_email: 'Owner@Example.com', automation_key: 'signup_welcome' },
+      { user_id: 'user-2', user_email: 'old@example.com', automation_key: 'signup_welcome' },
+      { user_id: null, user_email: 'owner@example.com', automation_key: 'signup_welcome' },
+      { user_id: 'user-4', user_email: 'unconfirmed@example.com', automation_key: 'signup_welcome' },
+      { user_id: 'user-5', user_email: 'gone@example.com', automation_key: 'signup_welcome' },
     ];
 
     const verified = filterCandidatesByAuthUsers(candidates, [
       { id: 'user-1', email: 'owner@example.com', email_confirmed_at: '2026-08-05T12:00:00.000Z' },
-      { id: 'user-2', email: 'actual@example.com', email_confirmed_at: '2026-08-05T12:00:00.000Z' },
+      { id: 'user-2', email: 'Changed@Example.com', email_confirmed_at: '2026-08-05T12:00:00.000Z' },
       { id: 'user-4', email: 'unconfirmed@example.com', email_confirmed_at: null },
     ]);
 
-    expect(verified).toEqual([candidates[0]]);
+    // user-2 changed their email after the triggering event: the email goes
+    // to the new address, never the old one. No user ID, an unconfirmed
+    // address or a deleted account sends nothing.
+    expect(verified).toEqual([
+      { user_id: 'user-1', user_email: 'owner@example.com', automation_key: 'signup_welcome' },
+      { user_id: 'user-2', user_email: 'changed@example.com', automation_key: 'signup_welcome' },
+    ]);
   });
 
   it('loads the complete paginated Auth user directory before filtering recipients', async () => {
