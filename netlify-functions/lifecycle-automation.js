@@ -3,7 +3,7 @@
 const nodemailer = require('nodemailer');
 const { timingSafeEqual } = require('node:crypto');
 const { createClient } = require('@supabase/supabase-js');
-const { getEmailFrom, getSupportEmail } = require('./utils/email-config');
+const { getCustomerEmailFrom, getSupportEmail } = require('./utils/email-config');
 const {
   LIFECYCLE_PRIORITY,
   buildLifecycleCandidates,
@@ -477,7 +477,7 @@ async function executeLifecycleSends(sends, {
 
 async function sendLifecycleEmail(transporter, candidate) {
   return transporter.sendMail(buildLifecycleMailOptions(candidate, {
-    from: getEmailFrom(),
+    from: getCustomerEmailFrom(),
     supportEmail: getSupportEmail(),
   }));
 }

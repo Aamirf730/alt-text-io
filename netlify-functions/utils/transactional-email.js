@@ -2,7 +2,7 @@
 // marketing emails live in lifecycle-automation.js and carry an unsubscribe
 // link; these are replies to something the person just did, so they don't.
 const nodemailer = require('nodemailer');
-const { getEmailFrom, getSupportEmail } = require('./email-config');
+const { getCustomerEmailFrom, getSupportEmail } = require('./email-config');
 
 function createTransporter() {
   const emailService = process.env.EMAIL_SERVICE || 'gmail';
@@ -88,7 +88,7 @@ async function sendTransactionalEmail({ to, subject, content, transporter = null
   const { html, text } = renderTransactionalEmail(content);
   const mailer = transporter || createTransporter();
   await mailer.sendMail({
-    from: `"Alt Text Pro" <${getEmailFrom()}>`,
+    from: getCustomerEmailFrom(),
     replyTo: getSupportEmail(),
     to,
     subject,

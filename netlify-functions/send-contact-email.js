@@ -1,7 +1,7 @@
 // Netlify Function for Sending Contact Form Emails
 const nodemailer = require('nodemailer');
 const { createClient } = require('@supabase/supabase-js');
-const { getEmailFrom, getSupportEmail } = require('./utils/email-config');
+const { getCustomerEmailFrom, getEmailFrom, getSupportEmail } = require('./utils/email-config');
 const { getBearerToken } = require('./utils/admin-auth');
 const { buildSupportAutoReply, renderTransactionalEmail } = require('./utils/transactional-email');
 const {
@@ -195,7 +195,7 @@ function createHandler({
         const reply = buildSupportAutoReply();
         const { html, text } = renderTransactionalEmail(reply.content);
         await transporter.sendMail({
-          from: getEmailFrom(),
+          from: getCustomerEmailFrom(),
           to: email,
           replyTo: getSupportEmail(),
           subject: reply.subject,

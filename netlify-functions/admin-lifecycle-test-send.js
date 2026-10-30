@@ -2,7 +2,7 @@
 
 const nodemailer = require('nodemailer');
 const { createClient } = require('@supabase/supabase-js');
-const { getEmailFrom, getSupportEmail } = require('./utils/email-config');
+const { getCustomerEmailFrom, getSupportEmail } = require('./utils/email-config');
 const {
   getCorsHeaders,
   handlePreflight,
@@ -138,7 +138,7 @@ async function markSend(id, patch) {
 
 async function sendLifecycleEmail(candidate) {
   return createTransporter().sendMail(buildLifecycleMailOptions(candidate, {
-    from: getEmailFrom(),
+    from: getCustomerEmailFrom(),
     supportEmail: getSupportEmail(),
   }));
 }
