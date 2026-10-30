@@ -332,6 +332,89 @@ describe('lifecycle automation candidate selection', () => {
     expect(candidates.some(candidate => candidate.automation_key === 'connect_no_first_image')).toBe(true);
   });
 
+  it('keeps two accounts created in the same browser apart', () => {
+    const candidates = buildLifecycleCandidates([
+      {
+        id: 'signup-first',
+        event_name: 'signup_created',
+        user_id: 'user-first',
+        user_email: 'first@example.com',
+        anonymous_id: 'anon-shared',
+        source: 'landing_page',
+        properties: { identity_verified: true },
+        occurred_at: '2026-06-25T00:00:00.000Z',
+      },
+      {
+        id: 'connect-first',
+        event_name: 'connect_completed',
+        user_id: 'user-first',
+        user_email: 'first@example.com',
+        anonymous_id: 'anon-shared',
+        source: 'wordpress_connect',
+        properties: { identity_verified: true },
+        occurred_at: '2026-06-25T00:30:00.000Z',
+      },
+      {
+        id: 'signup-second',
+        event_name: 'signup_created',
+        user_id: 'user-second',
+        user_email: 'second@example.com',
+        anonymous_id: 'anon-shared',
+        source: 'landing_page',
+        properties: { identity_verified: true },
+        occurred_at: '2026-06-25T05:00:00.000Z',
+      },
+    ], {
+      now: '2026-06-25T06:00:00.000Z',
+    });
+
+    const welcomes = candidates.filter(candidate => candidate.automation_key === 'signup_welcome');
+    expect(welcomes.map(candidate => [candidate.actor_key, candidate.user_email, candidate.source_event_id])).toEqual([
+      ['user:user-first', 'first@example.com', 'signup-first'],
+      ['user:user-second', 'second@example.com', 'signup-second'],
+    ]);
+    // The first account's connection does not count for the second one.
+    expect(welcomes[1].cta_url).toBe('https://wordpress.org/plugins/alt-text-pro/');
+  });
+
+  it('joins an event without a user ID only to the one account its browser or address belongs to', () => {
+    const purchase = {
+      id: 'purchase-1',
+      event_name: 'purchase_completed',
+      user_email: 'buyer@example.com',
+      source: 'polar_webhook',
+      occurred_at: '2026-06-25T01:00:00.000Z',
+    };
+    const signup = (userId, email, anonymousId) => ({
+      id: `signup-${userId}`,
+      event_name: 'signup_created',
+      user_id: userId,
+      user_email: email,
+      anonymous_id: anonymousId,
+      source: 'landing_page',
+      properties: { identity_verified: true },
+      occurred_at: '2026-06-25T00:00:00.000Z',
+    });
+
+    const joined = buildLifecycleCandidates([signup('user-buyer', 'buyer@example.com', 'anon-1'), purchase], {
+      now: '2026-06-25T02:00:00.000Z',
+    });
+    expect(joined.find(candidate => candidate.automation_key === 'purchase_onboarding')?.actor_key).toBe('user:user-buyer');
+    expect(joined.some(candidate => candidate.automation_key === 'signup_welcome')).toBe(false);
+
+    const shared = buildLifecycleCandidates([
+      signup('user-a', 'a@example.com', 'anon-shared'),
+      signup('user-b', 'b@example.com', 'anon-shared'),
+      { ...purchase, user_email: null, anonymous_id: 'anon-shared' },
+    ], {
+      now: '2026-06-25T02:00:00.000Z',
+    });
+    expect(shared.filter(candidate => candidate.automation_key === 'signup_welcome').map(candidate => candidate.actor_key))
+      .toEqual(['user:user-a', 'user:user-b']);
+    // Shared by two accounts: it belongs to neither, so nobody gets its email.
+    expect(shared.some(candidate => candidate.automation_key === 'purchase_onboarding')).toBe(false);
+  });
+
   it('does not remind a connected WordPress user who already has plugin usage', () => {
     const candidates = buildLifecycleCandidates([
       {

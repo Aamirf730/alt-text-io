@@ -204,7 +204,23 @@ function getActorAliases(event) {
     : [`event:${event.id || `${event.event_name}:${event.occurred_at}`}`];
 }
 
+// One account is one person. Events with a user ID belong to that account
+// alone: a browser ID or an address can be shared by several accounts (two
+// sign-ups in one browser, an address reused after an email change), and
+// joining on it once sent one account's emails to the other. Events without
+// a user ID join an account only when their browser ID or address belongs to
+// exactly one account.
 function buildActorResolver(events) {
+  const usersByAlias = new Map();
+  for (const event of events) {
+    if (!event.user_id) continue;
+    for (const alias of getActorAliases(event).slice(1)) {
+      const users = usersByAlias.get(alias) || new Set();
+      users.add(String(event.user_id));
+      usersByAlias.set(alias, users);
+    }
+  }
+
   const parent = new Map();
 
   function find(key) {
@@ -222,13 +238,29 @@ function buildActorResolver(events) {
     if (rootA !== rootB) parent.set(rootB, rootA);
   }
 
-  for (const event of events) {
+  const anonymousEvents = events.filter(event => !event.user_id);
+  for (const event of anonymousEvents) {
     const aliases = getActorAliases(event);
     aliases.forEach(alias => find(alias));
     aliases.slice(1).forEach(alias => union(aliases[0], alias));
   }
 
-  return (event) => find(getActorAliases(event)[0]);
+  const ownersByRoot = new Map();
+  for (const event of anonymousEvents) {
+    const root = find(getActorAliases(event)[0]);
+    const owners = ownersByRoot.get(root) || new Set();
+    for (const alias of getActorAliases(event)) {
+      (usersByAlias.get(alias) || []).forEach(userId => owners.add(userId));
+    }
+    ownersByRoot.set(root, owners);
+  }
+
+  return (event) => {
+    if (event.user_id) return `user:${event.user_id}`;
+    const root = find(getActorAliases(event)[0]);
+    const owners = ownersByRoot.get(root);
+    return owners?.size === 1 ? `user:${[...owners][0]}` : root;
+  };
 }
 
 function getPreferredActorKey(actor) {
