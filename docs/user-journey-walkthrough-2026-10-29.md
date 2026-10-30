@@ -33,10 +33,7 @@ Collected during the one-by-one review (sections A and B so far). Tick an item o
 **Waiting on a decision**
 
 - [ ] **A5:** no reviews, ratings, install count or testimonials on the website. Left out on purpose while the plugin has about 10 installs and no ratings.
-- [ ] **B2:** the 6-character password minimum is a live Supabase setting. Raising it needs approval to change production.
 - [ ] **M9:** team members are not built. A proper version needs new tables (members and invitations), invitation emails, and members spending the owner's credits, which changes the credit-reservation database functions. API keys are stored hashed, so members can't simply be shown the owner's key. Decide whether Agency customers need it before building it.
-- [ ] **G5:** a paused bulk run now holds the site's single run slot for up to 7 days unless its owner or an administrator stops it (it was 15 minutes). Keep, or shorten.
-- [ ] **O4, O5:** the Contact page and the automatic reply now say "We usually reply within one to two business days". Confirm that promise, or change the wording.
 
 **Done in code but not seen working yet**
 
@@ -58,6 +55,7 @@ Collected during the one-by-one review (sections A and B so far). Tick an item o
 
 **Done**
 
+- [x] **B2, G5, O4, O5:** decided to keep as they are: the 6-character password minimum, a paused bulk run holding the site's run slot for up to 7 days, and "We usually reply within one to two business days". *30 Oct.*
 - [x] Applied the database migrations to production: the 8 from 29 Oct plus `20261029115000_align_audit_logs_created_at.sql`, in one transaction with their ledger rows. A rolled-back trial run first found that production's `audit_logs` names its time column `timestamp`, not `created_at`; the new migration adds `created_at` and copies the times over. Checked afterwards: 9 ledger rows, `plugin_sites` and `payment_refunds` exist, no audit row without `created_at`. *30 Oct.*
 - [x] Pushed `main` (`c6ff9c0`) and Netlify deployed it. Checked live: the homepage, `/api/health` (healthy), `/api/get-plans`, `/dashboard`, `/auth/confirm`, the `/pricing`, `/login` and `/signup` redirects, both plugin downloads (1.7.28, tested up to 7.1), and the plugin key check (`auth-validate` rejects a bad key with 401). *30 Oct.*
 - [x] **B6, M1, C11:** production Supabase now uses the repo's confirmation, reset, email-change and security-code templates and subjects. Turned on "Secure password change". The email link and code expiry was 10 minutes and is now 1 hour, as the emails say. Site URL is https://www.alt-text.pro. *30 Oct.*
