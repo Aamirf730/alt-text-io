@@ -11,7 +11,7 @@ Checked on 29 October 2026 against commit `4791c4d` (branch `fix/flow-audit-2026
 - **MISSING**: a customer would reasonably expect this step, and the product has nothing for it.
 - **BROKEN**: exists, but doesn't work.
 
-Some steps depend on the 8 new database migrations from the last round, which are not applied to production yet. Those are marked *(needs new migration)*.
+Some steps depend on the 8 new database migrations from the last round. Those are marked *(needs new migration)*. They were applied to production on 30 Oct, so these steps now work there too.
 
 ---
 
@@ -48,19 +48,19 @@ Collected during the one-by-one review (sections A and B so far). Tick an item o
 - [ ] **I6, I7, J9:** the low-credit (per plan, per cycle), out-of-credits and purchase emails with a real account after the functions are deployed. Preview each with the admin test-send tool first (`credits_low_no_purchase`, `credits_out_no_purchase`, `purchase_onboarding`).
 - [ ] **J5, K2, K7, K9, L2:** the checkout back button (Polar `returnUrl`) and the dashboard billing lines with real Polar data. The dashboard states were checked locally against sample data (failed payment, annual, cancelled).
 - [ ] **M1, M4, N10, N12, N13, O5, O6, P9, P10:** with real accounts after deploying: an email change (both links, then receipts moving to the new address in Polar), Download my data, the renewal reminder, the win-back and account-deleted emails, the contact auto-reply with a signed-in account attached, the deleted-account warning in the admin queue, and a checkout for an email that had a deleted account.
-- [ ] **B6:** that production still sends the repo's branded template. Last confirmed with a real test email on 12 Aug (`progress.md`).
+- [ ] **B6:** a real confirmation or reset email from production with the updated template (applied 30 Oct). Last confirmed with a real test email on 12 Aug (`progress.md`).
+- [ ] **C11:** "Set a password" with a real Google account (production now requires the emailed code).
 - [ ] **B4, B5, B7, C10:** the real Supabase replies (account already exists, sign-up, resend, rate limit, wrong password), and a plugin sign-up confirmed on a phone finishing with "I've confirmed — continue". The screens were checked in the browser by setting their state by hand.
 
 **Release steps not done**
 
-- [ ] Push the branch and deploy the website. None of the 29 Oct website fixes are live.
-- [ ] Release plugin 1.7.28 to WordPress.org (Bulk page credits box, readme wording).
-- [ ] Apply the 8 database migrations to production (the steps marked *needs new migration*).
-- [ ] **M1:** apply the new email-change template in production Supabase (`supabase/templates/email_change.html`, set in `config.toml`).
-- [ ] **C11:** in production Supabase, turn on "Secure password change" (it makes the emailed code required; the repo's `config.toml` now has it on) and apply the new security-code template (`supabase/templates/reauthentication.html`). Then try "Set a password" with a real Google account.
-- [ ] **B6:** apply the updated confirmation and reset email templates (`supabase/templates/`) in production Supabase, and check that production's link expiry is 1 hour, as the emails now say.
+- [ ] Release plugin 1.7.28 to WordPress.org (Bulk page credits box, readme wording). On hold until the owner says. The website's plugin download is already 1.7.28.
 
 **Done**
+
+- [x] Applied the database migrations to production: the 8 from 29 Oct plus `20261029115000_align_audit_logs_created_at.sql`, in one transaction with their ledger rows. A rolled-back trial run first found that production's `audit_logs` names its time column `timestamp`, not `created_at`; the new migration adds `created_at` and copies the times over. Checked afterwards: 9 ledger rows, `plugin_sites` and `payment_refunds` exist, no audit row without `created_at`. *30 Oct.*
+- [x] Pushed `main` (`c6ff9c0`) and Netlify deployed it. Checked live: the homepage, `/api/health` (healthy), `/api/get-plans`, `/dashboard`, `/auth/confirm`, the `/pricing`, `/login` and `/signup` redirects, both plugin downloads (1.7.28, tested up to 7.1), and the plugin key check (`auth-validate` rejects a bad key with 401). *30 Oct.*
+- [x] **B6, M1, C11:** production Supabase now uses the repo's confirmation, reset, email-change and security-code templates and subjects. Turned on "Secure password change". The email link and code expiry was 10 minutes and is now 1 hour, as the emails say. Site URL is https://www.alt-text.pro. *30 Oct.*
 
 - [x] **A10:** the simulator links to the real homepage demo ("Try it on your own image"). *30 Oct.*
 - [x] **A13:** Privacy names Google (Gmail) as the email provider, including for Supabase's confirmation and reset emails. *29 Oct.*
