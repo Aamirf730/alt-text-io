@@ -248,7 +248,7 @@ if (!defined('ABSPATH')) {
                             <span class="atp-choice-meta" id="bulk-count-missing">(<?php
                                 echo esc_html(sprintf(
                                     /* translators: %s: number of images */
-                                    __('%s images', 'alt-text-pro'),
+                                    _n('%s image', '%s images', (int) $total_without_alt, 'alt-text-pro'),
                                     number_format_i18n($total_without_alt)
                                 ));
                             ?>)</span>
@@ -260,7 +260,7 @@ if (!defined('ABSPATH')) {
                             <span class="atp-choice-meta" id="bulk-count-all">(<?php
                                 echo esc_html(sprintf(
                                     /* translators: %s: number of images */
-                                    __('%s images', 'alt-text-pro'),
+                                    _n('%s image', '%s images', (int) $total_images, 'alt-text-pro'),
                                     number_format_i18n($total_images)
                                 ));
                             ?>)</span>

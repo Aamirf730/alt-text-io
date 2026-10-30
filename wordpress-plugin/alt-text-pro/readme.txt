@@ -2,7 +2,7 @@
 Contributors: aamirfaiz
 Tags: alt text, ai alt text, image alt text, accessibility, image seo
 Requires at least: 5.0
-Tested up to: 7.0
+Tested up to: 7.1
 Requires PHP: 7.4
 Stable tag: 1.7.28
 License: GPLv2 or later
@@ -246,6 +246,7 @@ Yes, you can cancel your subscription at any time from your Alt Text Pro dashboa
 * New: the Logs CSV export includes failed and skipped images with their result and reason.
 * New: "Review alt text before it goes live" setting (off by default). Alt text from bulk runs, generate-on-upload and the Posts list waits on a new Review page, where you approve it (as written or edited), reject it, or approve all. Images waiting for review are not generated or billed again.
 * Fix: images waiting on the Review page are left out when you send a Media Library selection to the Bulk page, with a note saying so.
+* Compatibility: tested with WordPress 7.1. On WordPress 7, the image block's Alt Text Pro panel sits on the Content tab next to Alternative text.
 
 = 1.7.27 =
 * Readme: clearer plugin name, short description, tags and feature list.

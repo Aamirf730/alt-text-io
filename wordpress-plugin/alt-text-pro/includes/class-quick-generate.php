@@ -164,7 +164,9 @@ class AltTextPro_Quick_Generate
 
     /**
      * Context sent with the image: the context saved for it in the media
-     * window, and the post title when generating inside a post.
+     * window, the post title when generating inside a post and, like bulk
+     * runs and uploads, the posts using the image and its file name when
+     * nothing was saved for it.
      */
     private function get_context($attachment_id, $post_id)
     {
@@ -175,14 +177,21 @@ class AltTextPro_Quick_Generate
             $parts[] = $saved_context;
         }
 
-        if ($post_id && AltTextPro_Settings::is_enabled('context_enabled') && current_user_can('edit_post', $post_id)) {
-            $title = trim(wp_strip_all_tags(html_entity_decode((string) get_the_title($post_id), ENT_QUOTES | ENT_HTML5, 'UTF-8')));
-            if ($title !== '') {
-                $parts[] = $title;
+        if (AltTextPro_Settings::is_enabled('context_enabled')) {
+            if ($post_id && current_user_can('edit_post', $post_id)) {
+                $title = trim(wp_strip_all_tags(html_entity_decode((string) get_the_title($post_id), ENT_QUOTES | ENT_HTML5, 'UTF-8')));
+                if ($title !== '') {
+                    $parts[] = $title;
+                }
+            }
+
+            if ($saved_context === '' && class_exists('AltTextPro_Media_Handler')) {
+                $media_handler = new AltTextPro_Media_Handler();
+                $parts = array_merge($parts, $media_handler->get_context_suggestions($attachment_id));
             }
         }
 
-        return implode(' | ', $parts);
+        return implode(' | ', array_unique($parts));
     }
 
     /**
@@ -552,6 +561,9 @@ class AltTextPro_Quick_Generate
             'flags' => array(
                 'connected' => is_array($settings) && !empty($settings['api_key']),
                 'overwrite' => AltTextPro_Settings::is_enabled('overwrite_existing'),
+                // WordPress 7.0 shows an image block's alternative text on a
+                // Content tab, and lets plugins add panels there.
+                'contentTab' => version_compare(get_bloginfo('version'), '7.0-alpha', '>='),
             ),
             // Only administrators can open Settings to reconnect.
             'settingsUrl' => current_user_can('manage_options') ? admin_url('admin.php?page=alt-text-pro-settings') : '',
@@ -565,8 +577,8 @@ class AltTextPro_Quick_Generate
                 'noAttachment' => __('Alt Text Pro can generate alt text for images from the Media Library. Upload or choose this image from the Media Library first.', 'alt-text-pro'),
                 'notConnected' => __('Connect your Alt Text Pro account to generate alt text.', 'alt-text-pro'),
                 'notConnectedNoAdmin' => __('Alt Text Pro is not connected yet. Ask a site administrator to connect it.', 'alt-text-pro'),
-                'savedBoth' => __('Alt text added to this block and saved to the Media Library. Save the post to keep it in the block.', 'alt-text-pro'),
-                'savedBlock' => __('Alt text added to this block. The Media Library kept its existing alt text ("Overwrite existing" is off). Save the post to keep it.', 'alt-text-pro'),
+                'savedBoth' => __('Alt text added to this block and saved to the Media Library. Save your changes to keep it in the block.', 'alt-text-pro'),
+                'savedBlock' => __('Alt text added to this block. The Media Library kept its existing alt text ("Overwrite existing" is off). Save your changes to keep it.', 'alt-text-pro'),
                 // translators: %d: credits the account can still spend.
                 'creditsLeft' => __('Credits left: %d', 'alt-text-pro'),
                 'imageChanged' => __('The image in this block changed while generating, so the alt text was not added.', 'alt-text-pro'),

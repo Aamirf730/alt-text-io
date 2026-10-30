@@ -128,6 +128,15 @@ class AltTextPro_Credit_Notice
     }
 
     /**
+     * Forget the cached balance, for example when the service rejects the
+     * saved key: the balance is then unknown, and Settings asks to reconnect.
+     */
+    public static function forget_credits()
+    {
+        delete_option(self::STATUS_OPTION);
+    }
+
+    /**
      * WP-Cron: ask the service for the balance. A successful answer is
      * stored by AltTextPro_API_Client::get_usage_stats().
      */

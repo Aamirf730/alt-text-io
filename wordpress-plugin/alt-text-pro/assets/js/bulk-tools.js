@@ -35,6 +35,13 @@
         }
     }
 
+    // "1 image" or "N images".
+    function imagesCount(value) {
+        return parseInt(value, 10) === 1
+            ? sprintf(t('imagesCountOne', '%s image'), formatNumber(value))
+            : sprintf(t('imagesCount', '%s images'), formatNumber(value));
+    }
+
     function notify(message, type) {
         if (window.AltTextProAdmin && typeof window.AltTextProAdmin.showNotification === 'function') {
             window.AltTextProAdmin.showNotification(message, type || 'success');
@@ -142,8 +149,8 @@
             }
 
             if (estimate.counts) {
-                $('#bulk-count-missing').text('(' + sprintf(t('imagesCount', '%s images'), formatNumber(estimate.counts.missing)) + ')');
-                $('#bulk-count-all').text('(' + sprintf(t('imagesCount', '%s images'), formatNumber(estimate.counts.all)) + ')');
+                $('#bulk-count-missing').text('(' + imagesCount(estimate.counts.missing) + ')');
+                $('#bulk-count-all').text('(' + imagesCount(estimate.counts.all) + ')');
             }
 
             var parts = [];
@@ -156,6 +163,8 @@
                     formatNumber(estimate.will_process),
                     estimate.estimated_time
                 ));
+            } else if (parseInt(estimate.will_process, 10) === 1) {
+                parts.push(sprintf(t('estimateFullOne', 'This run will use about 1 credit and take about %s.'), estimate.estimated_time));
             } else {
                 parts.push(sprintf(
                     t('estimateFull', 'This run will use about %1$s credits (1 per image) and take about %2$s.'),

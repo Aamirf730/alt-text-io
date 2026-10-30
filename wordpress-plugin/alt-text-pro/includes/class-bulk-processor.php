@@ -200,6 +200,8 @@ class AltTextPro_Bulk_Processor
             'approveAllConfirm' => __('Approve all %1$s suggestions as written? %2$s of them replace alt text the image already has. Edits you typed but did not approve are ignored.', 'alt-text-pro'),
             // translators: %s: number of suggestions approved.
             'approveAllDone' => __('%s suggestions approved.', 'alt-text-pro'),
+            // translators: 1: images done so far, 2: images in the run.
+            'backgroundProgressLog' => __('Background: %1$s of %2$s images done.', 'alt-text-pro'),
             'backgroundNote' => __('Running in the background with WP-Cron. You can close this tab. WP-Cron runs when someone visits the site (or on your host\'s schedule), so progress can pause on a quiet site.', 'alt-text-pro'),
             'backgroundState' => __('Background', 'alt-text-pro'),
             'backgroundStatus' => __('Running in the background', 'alt-text-pro'),
@@ -212,6 +214,8 @@ class AltTextPro_Bulk_Processor
             'estimateCapped' => __('One run takes the newest 20,000 images; start another run afterwards for older ones.', 'alt-text-pro'),
             // translators: 1: credits (images) the run uses, 2: estimated time such as "5 minutes".
             'estimateFull' => __('This run will use about %1$s credits (1 per image) and take about %2$s.', 'alt-text-pro'),
+            // translators: %s: estimated time such as "8 seconds".
+            'estimateFullOne' => __('This run will use about 1 credit and take about %s.', 'alt-text-pro'),
             'estimateNone' => __('No images match these choices, so this run would use no credits.', 'alt-text-pro'),
             // translators: %s: number of images that already have alt text.
             'estimateReplace' => __('%s of these images already have alt text, which will be replaced (you can undo the run).', 'alt-text-pro'),
@@ -228,6 +232,8 @@ class AltTextPro_Bulk_Processor
             'foregroundNote' => __('This tab is running the bulk job. Keep it open, or let it keep going in the background.', 'alt-text-pro'),
             // translators: %s: number of images.
             'imagesCount' => __('%s images', 'alt-text-pro'),
+            // translators: %s: number of images (1).
+            'imagesCountOne' => __('%s image', 'alt-text-pro'),
             'movedToBackground' => __('The run keeps going in the background. You can close this tab; you will get an email when it finishes if completion emails are on.', 'alt-text-pro'),
             'movedToTab' => __('The run continues in this tab. Keep it open.', 'alt-text-pro'),
             'reviewEmpty' => __('Alt text cannot be empty. Reject the suggestion instead.', 'alt-text-pro'),
@@ -985,7 +991,11 @@ class AltTextPro_Bulk_Processor
             $owner = get_userdata(intval($entry['user_id'] ?? 0));
             $runs[$ref]['counts'] = $run_counts;
             $runs[$ref]['started_by'] = $owner ? $owner->display_name : '';
-            $runs[$ref]['can_undo'] = $ref !== $active_ref && ($run_counts['generated'] + $run_counts['suggested']) > 0;
+            // A finished undo leaves only rows edited after the run, which a
+            // second undo would keep anyway; an interrupted one can resume.
+            $runs[$ref]['can_undo'] = $ref !== $active_ref
+                && empty($entry['undone_at'])
+                && ($run_counts['generated'] + $run_counts['suggested']) > 0;
         }
 
         return array_values($runs);

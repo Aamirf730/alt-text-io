@@ -334,6 +334,10 @@ class AltTextPro_API_Client
             if (is_numeric($credits)) {
                 AltTextPro_Credit_Notice::remember_credits(intval($credits));
             }
+        } elseif (in_array($response['code'] ?? '', array('invalid_api_key', 'account_not_found'), true) && class_exists('AltTextPro_Credit_Notice')) {
+            // A rotated key or deleted account: the old balance no longer
+            // applies, so no low-credit notice is shown from it.
+            AltTextPro_Credit_Notice::forget_credits();
         }
 
         return $response;

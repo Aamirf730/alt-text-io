@@ -18,6 +18,10 @@ function add_action()
 {
 }
 
+function add_filter()
+{
+}
+
 function get_current_user_id()
 {
     global $alt_text_pro_test_user_id;
@@ -350,10 +354,14 @@ alt_text_pro_security_assert(
 );
 // Upload generation runs later in one WP-Cron event. It is billed at most
 // once: the event claims (deletes) the pending flag before calling the
-// service, and bulk and manual generation claim it first. (Behaviour is
-// covered at the end of this file.)
+// service, and bulk and manual generation claim it first. The only other
+// event is the retry restore_pending_upload() queues after a Generate button
+// claimed the upload but failed. (Behaviour is covered at the end of this file.)
+$alt_text_pro_restore_source = substr($media_source, (int) strpos($media_source, 'public static function restore_pending_upload'));
+$alt_text_pro_restore_source = substr($alt_text_pro_restore_source, 0, (int) strpos($alt_text_pro_restore_source, 'public static function is_upload_generation_running'));
 alt_text_pro_security_assert(
-    substr_count($media_source, 'wp_schedule_single_event(') === 1
+    substr_count($media_source, 'wp_schedule_single_event(') === 2
+        && substr_count($alt_text_pro_restore_source, 'wp_schedule_single_event(') === 1
         && strpos($media_source, 'if (!self::claim_pending_upload($attachment_id))') !== false
         && strpos($media_source, "delete_post_meta(\$attachment_id, self::PENDING_META)") !== false,
     'Automatic upload generation must schedule one event that claims the pending flag before billing.'

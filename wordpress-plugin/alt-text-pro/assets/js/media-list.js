@@ -22,9 +22,10 @@
         return typeof helpers.t === 'function' ? helpers.t(key, fallback) : fallback;
     }
 
-    // Result area under the row's title, created on first use.
+    // Result area under the row's title, created on first use. WordPress
+    // 6.x renders the title cell as a td, newer versions as a th.
     function resultBox($link) {
-        var $cell = $link.closest('td');
+        var $cell = $link.closest('td, th');
         var $box = $cell.children('.atp-row-result');
         if (!$box.length) {
             $box = $('<div class="atp-ui atp-row-result" role="status" aria-live="polite">').appendTo($cell);

@@ -1126,6 +1126,7 @@
             if (this.isProcessing || !run || !run.is_owner || !run.process_id) return;
 
             this.processId = run.process_id;
+            this.lastSeenProcessed = 0;
             this.isProcessing = true;
             this.cancelRequested = false;
             this.pendingCancel = false;
@@ -1290,6 +1291,7 @@
             this.cancelRequested = false;
             this.pendingCancel = false;
             this.processId = null;
+            this.lastSeenProcessed = 0;
             this.finishedProcessId = null;
             this.cancelRequest = null;
             this.pendingBatchRequests = [];
@@ -1826,6 +1828,15 @@
             $('#error-count').text(errors);
             $('#remaining-stat-count, #live-remaining-count').text(remaining);
             this.updateProcessLimitNote(data);
+
+            // A background run reports no image names to this tab; note its
+            // progress in the activity list instead.
+            if (this.backgroundMode && processed > (this.lastSeenProcessed || 0)) {
+                $('#progress-log').append($('<div class="atp-log-line">').text(
+                    sprintf(t('backgroundProgressLog', 'Background: %1$s of %2$s images done.'), processed, displayTotal)
+                ));
+            }
+            this.lastSeenProcessed = processed;
 
             if (data.retry_after_seconds) {
                 $('#progress-status').text(t('waitingRateLimit', 'Waiting for the service before retrying...'));

@@ -161,8 +161,8 @@
                     id: requestedId,
                     type: 'success',
                     message: result.saved
-                        ? str('savedBoth', 'Alt text added to this block and saved to the Media Library. Save the post to keep it in the block.')
-                        : str('savedBlock', 'Alt text added to this block. The Media Library kept its existing alt text. Save the post to keep it.'),
+                        ? str('savedBoth', 'Alt text added to this block and saved to the Media Library. Save your changes to keep it in the block.')
+                        : str('savedBlock', 'Alt text added to this block. The Media Library kept its existing alt text. Save your changes to keep it.'),
                     credits: result.credits_remaining
                 });
             }).catch(function () {
@@ -223,9 +223,11 @@
                 return el(BlockEdit, props);
             }
 
+            // Next to the alternative text field on the Content tab where
+            // WordPress has one; older versions have only Settings.
             return el(Fragment, null,
                 el(BlockEdit, props),
-                el(InspectorControls, null, el(GeneratePanel, props))
+                el(InspectorControls, flags.contentTab ? { group: 'content' } : null, el(GeneratePanel, props))
             );
         };
     }, 'withAltTextProGenerateButton');
