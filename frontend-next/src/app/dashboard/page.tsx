@@ -941,7 +941,7 @@ export default function Dashboard() {
 
     return (
         <div className="dashboard-shell min-h-screen bg-yellow-tint text-ink font-lato selection:bg-yellow-soft selection:text-ink">
-            <aside className="fixed inset-y-0 left-0 z-50 hidden w-[248px] flex-col border-r border-line bg-white px-4 py-5 text-ink lg:flex">
+            <aside className="fixed inset-y-0 left-0 z-50 hidden w-[248px] flex-col border-r border-line bg-white px-4 py-5 text-ink overflow-y-auto overscroll-contain lg:flex">
                 <Link href="/" className="flex items-center gap-3 px-2 py-2">
                     <NextImage
                         src="/brand/logo-mark.svg"
@@ -1019,7 +1019,7 @@ export default function Dashboard() {
                         className="absolute inset-0 bg-ink/45"
                         onClick={() => setIsMobileNavOpen(false)}
                     />
-                    <aside id="mobile-dashboard-nav" className="relative flex h-full w-[min(86vw,320px)] flex-col border-r border-line bg-white p-5 text-ink shadow-notebook-lg">
+                    <aside id="mobile-dashboard-nav" className="relative flex h-full w-[min(86vw,320px)] flex-col border-r border-line bg-white p-5 text-ink shadow-notebook-lg overflow-y-auto overscroll-contain">
                         <div className="flex items-center justify-between">
                             <Link href="/" className="flex items-center gap-3" onClick={() => setIsMobileNavOpen(false)}>
                                 <NextImage src="/brand/logo-mark.svg" alt="Alt Text Pro" width={40} height={40} unoptimized className="h-10 w-10 shrink-0" />
