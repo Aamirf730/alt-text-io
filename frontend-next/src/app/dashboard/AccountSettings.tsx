@@ -33,7 +33,9 @@ export default function AccountSettings({ email, canUsePassword }: AccountSettin
     const [passwordError, setPasswordError] = useState<string | null>(null);
 
     // Google-only accounts: a code sent to the account email proves it is
-    // the owner before a password is added.
+    // the owner before a password is added. It is an email sign-in code
+    // checked with verifyOtp: Supabase ignores the re-authentication code for
+    // sessions signed in within the last 24 hours, so any code would pass.
     const [setPasswordStep, setSetPasswordStep] = useState<"start" | "code" | "done">("start");
     const [reauthCode, setReauthCode] = useState("");
     const [isSendingCode, setIsSendingCode] = useState(false);
@@ -124,7 +126,10 @@ export default function AccountSettings({ email, canUsePassword }: AccountSettin
         setPasswordError(null);
         setIsSendingCode(true);
         try {
-            const { error } = await supabase.auth.reauthenticate();
+            const { error } = await supabase.auth.signInWithOtp({
+                email,
+                options: { shouldCreateUser: false },
+            });
             if (error) {
                 setPasswordError(getFriendlyAuthError(error.message));
                 return;
@@ -157,13 +162,19 @@ export default function AccountSettings({ email, canUsePassword }: AccountSettin
 
         setIsSavingPassword(true);
         try {
-            const { error } = await supabase.auth.updateUser({ password: newPassword, nonce: reauthCode.trim() });
+            const { error: codeError } = await supabase.auth.verifyOtp({
+                email,
+                token: reauthCode.trim(),
+                type: "email",
+            });
+            if (codeError) {
+                setPasswordError("That code is wrong or has expired. Send a new one and try again.");
+                return;
+            }
+
+            const { error } = await supabase.auth.updateUser({ password: newPassword });
             if (error) {
-                setPasswordError(
-                    /nonce|otp|token/i.test(error.message)
-                        ? "That code is wrong or has expired. Send a new one and try again."
-                        : getFriendlyAuthError(error.message),
-                );
+                setPasswordError(getFriendlyAuthError(error.message));
                 return;
             }
             setReauthCode("");

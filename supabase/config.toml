@@ -191,7 +191,16 @@ content_path = "./supabase/templates/recovery.html"
 subject = "Confirm your new Alt Text Pro email address"
 content_path = "./supabase/templates/email_change.html"
 
-# The code a Google-only account enters before setting a password.
+# The code a Google-only account enters before setting a password. The
+# dashboard sends it with signInWithOtp and checks it with verifyOtp, because
+# Supabase skips the re-authentication code for sessions under 24 hours old.
+# Nothing else sends sign-in codes or magic links.
+[auth.email.template.magic_link]
+subject = "Your Alt Text Pro security code"
+content_path = "./supabase/templates/magic_link.html"
+
+# No longer sent by the dashboard (see magic_link above); kept branded in
+# case a re-authentication email is ever requested.
 [auth.email.template.reauthentication]
 subject = "Your Alt Text Pro security code"
 content_path = "./supabase/templates/reauthentication.html"
