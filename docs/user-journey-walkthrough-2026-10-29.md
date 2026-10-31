@@ -35,6 +35,8 @@ Collected during the one-by-one review (sections A and B so far). Tick an item o
 - [ ] **A5:** no reviews, ratings, install count or testimonials on the website. Left out on purpose while the plugin has about 10 installs and no ratings.
 - [ ] **M9:** team members are not built. A proper version needs new tables (members and invitations), invitation emails, and members spending the owner's credits, which changes the credit-reservation database functions. API keys are stored hashed, so members can't simply be shown the owner's key. Decide whether Agency customers need it before building it.
 
+- [ ] **Supabase sends at most 2 auth emails per hour for the whole project** (Authentication, Rate Limits, "Rate limit for sending emails" = 2, seen 31 Oct, read-only). This covers confirmations, password resets, email changes and security codes for every customer combined. So a third sign-up in the same hour gets no confirmation email, only "We have sent a lot of emails in the last hour". The B4/C10 test hit it on the third email. Supabase's default with custom SMTP is 30 per hour. The separate 60-second-per-address minimum is fine. Raising it is a production Supabase change and needs the owner's approval.
+
 **Done in code but not seen working yet**
 
 - [ ] **A3:** the demo resuming after sign-in, and the demo image waiting in the dashboard after an email sign-up. Needs a real account.
@@ -43,7 +45,7 @@ Collected during the one-by-one review (sections A and B so far). Tick an item o
 - [ ] **J5, K2, K7, K9, L2:** the checkout back button (Polar `returnUrl`) and the dashboard billing lines with real Polar data. The dashboard states were checked locally against sample data (failed payment, annual, cancelled).
 - [ ] **M1, N10, N12, N13, O6, P9, P10:** with real accounts: receipts moving to the new address in Polar after an email change (needs an account that has paid), the renewal reminder, the win-back and account-deleted emails, the deleted-account warning in the admin queue, and a checkout for an email that had a deleted account.
 - [ ] **C11:** "Set a password" with a real Google account (production now requires the emailed code).
-- [ ] **B4, C10:** the real Supabase replies for an account that already exists, resend, rate limit and a wrong password, and a plugin sign-up confirmed on a phone finishing with "I've confirmed — continue". The screens were checked in the browser by setting their state by hand.
+- [ ] **B4, C10:** a plugin sign-up confirmed on a phone finishing with "I've confirmed — continue". *31 Oct, the rest seen live on alt-text.pro:* signing up with an address that has an account gives "An account with this email already exists. Sign in instead, or reset your password if you have forgotten it. If you signed up with Google, use the Google button." A wrong password gives "That email and password don't match. Check them or use Forgot password. If you signed up with Google, use the Google button." Resend sent a second branded "Confirm your Alt Text Pro email" 66 seconds after the first, with a new link to www.alt-text.pro/auth/confirm. The next resend gave "We have sent a lot of emails in the last hour. Please try again in a little while." These are the app's own wordings for the real Supabase errors. That last message came after only two emails because of the project-wide email limit (see "Waiting on a decision").
 
 **Release steps not done**
 
