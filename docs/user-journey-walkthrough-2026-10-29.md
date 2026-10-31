@@ -47,7 +47,7 @@ Collected during the one-by-one review (sections A and B so far). Tick an item o
 
 **Release steps not done**
 
-- [ ] Release plugin 1.7.28 to WordPress.org (Bulk page credits box, readme wording). On hold until the owner says. The website's plugin download is already 1.7.28.
+- [ ] Release plugin 1.7.28 to WordPress.org (Bulk page credits box, readme wording). On hold until the owner says. The website's plugin download is already 1.7.28. *31 Oct:* the owner approved the release. Prepared and checked: WordPress.org trunk is still 1.7.27 and there is no 1.7.28 tag yet. The 31 files staged for trunk match the website download exactly, and all 21 PHP files pass a syntax check. The commit was refused because svn's saved login was not accepted, so nothing changed on WordPress.org. The owner needs to run the trunk commit and the `tags/1.7.28` copy with their WordPress.org SVN password.
 
 **Done**
 
