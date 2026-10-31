@@ -30,6 +30,25 @@ describe('lifecycle automation candidate selection', () => {
     if (previousSecret === undefined) delete process.env.LIFECYCLE_AUTOMATION_SECRET;
     else process.env.LIFECYCLE_AUTOMATION_SECRET = previousSecret;
   });
+  it('offers to help finish the setup only in setup emails', () => {
+    const base = {
+      user_id: 'user-1',
+      user_email: 'lead@example.com',
+      subject: 'A subject',
+      preview: 'A preview',
+      cta_text: 'Open dashboard',
+      cta_url: 'https://www.alt-text.pro/dashboard',
+    };
+    const setup = renderLifecycleEmail({ ...base, automation_key: 'signup_welcome' }, { unsubscribeUrl: null });
+    expect(setup.html).toContain('we will help you finish the setup');
+    expect(setup.text).toContain('Need help? Reply to this email and we will help you finish the setup.');
+
+    for (const key of ['annual_renewal_reminder', 'cancellation_winback', 'credits_out_no_purchase', 'credits_low_no_purchase', 'checkout_no_purchase']) {
+      const message = renderLifecycleEmail({ ...base, automation_key: key }, { unsubscribeUrl: null });
+      expect(message.html).not.toContain('finish the setup');
+      expect(message.text).toContain('Questions? Reply to this email and we will help.');
+    }
+  });
   it('selects signup users who have not connected after the delay', () => {
     const candidates = buildLifecycleCandidates([
       {

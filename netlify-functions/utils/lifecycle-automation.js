@@ -461,7 +461,23 @@ function filterCandidatesByAuthUsers(candidates, authUsers) {
   });
 }
 
+// "Finish the setup" only fits the emails that walk someone through setup;
+// a renewal reminder or a cancellation email gets a plain offer of help.
+const SETUP_EMAIL_KEYS = new Set([
+  'signup_welcome',
+  'signup_no_connect',
+  'connect_no_first_image',
+  'purchase_onboarding',
+]);
+
+function getHelpLine(candidate) {
+  return SETUP_EMAIL_KEYS.has(candidate.automation_key)
+    ? 'Need help? Reply to this email and we will help you finish the setup.'
+    : 'Questions? Reply to this email and we will help.';
+}
+
 function renderLifecycleEmail(candidate, { unsubscribeUrl = getLifecycleUnsubscribeUrl(candidate) } = {}) {
+  const helpLine = getHelpLine(candidate);
   const bodyLines = Array.isArray(candidate.body_lines) ? candidate.body_lines : [];
   const bodyHtml = bodyLines.length > 0
     ? `<ol style="margin:16px 0 0;padding-left:20px;font-size:16px;line-height:1.6;color:#6B6B73;">${bodyLines.map(line => `<li style="margin:0 0 8px;">${line}</li>`).join('')}</ol>`
@@ -482,7 +498,7 @@ function renderLifecycleEmail(candidate, { unsubscribeUrl = getLifecycleUnsubscr
           <p style="margin:0;font-size:16px;line-height:1.6;color:#6B6B73;">${candidate.preview}</p>
           ${bodyHtml}
           <a href="${candidate.cta_url}" style="display:inline-block;margin-top:24px;background:#FEE11C;color:#3F3F46;text-decoration:none;padding:14px 24px;border-radius:12px;font-size:16px;font-weight:700;line-height:1;">${candidate.cta_text}</a>
-          <p style="margin:24px 0 0;font-size:14px;line-height:1.6;color:#6B6B73;">Need help? Reply to this email and we will help you finish the setup.</p>
+          <p style="margin:24px 0 0;font-size:14px;line-height:1.6;color:#6B6B73;">${helpLine}</p>
           ${unsubscribeHtml}
         </div>
       </div>
@@ -499,7 +515,7 @@ function renderLifecycleEmail(candidate, { unsubscribeUrl = getLifecycleUnsubscr
     '',
     `${candidate.cta_text}: ${candidate.cta_url}`,
     '',
-    'Need help? Reply to this email and we will help you finish the setup.',
+    helpLine,
     ...(unsubscribeUrl ? ['', `Unsubscribe: ${unsubscribeUrl}`] : []),
   ].join('\n');
 
