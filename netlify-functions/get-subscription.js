@@ -12,6 +12,7 @@ const {
 } = require('./utils/cors');
 const { getMonthlyCreditState } = require('./utils/api-key-validator');
 const { fetchAllRows } = require('./utils/paginated-query');
+const { createMissingProfile, isMissingProfile } = require('./utils/ensure-profile');
 const { getPlanCredits } = require('./utils/subscription-plans');
 
 // Initialize Supabase client
@@ -134,7 +135,7 @@ exports.handler = async (event, context) => {
     }
 
     // Get user profile with subscription details
-    const { data: profile, error: profileError } = await supabase
+    const fetchProfile = () => supabase
       .from('profiles')
       .select(`
         subscription_plan,
@@ -154,6 +155,11 @@ exports.handler = async (event, context) => {
       `)
       .eq('id', authUser.id)
       .single();
+    let { data: profile, error: profileError } = await fetchProfile();
+
+    if (isMissingProfile(profile, profileError) && await createMissingProfile(supabase, authUser)) {
+      ({ data: profile, error: profileError } = await fetchProfile());
+    }
 
     if (profileError || !profile) {
       return {

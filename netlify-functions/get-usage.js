@@ -25,6 +25,7 @@ const {
 } = require('./utils/plugin-connect-event');
 const { extractPluginVersion } = require('./utils/plugin-version');
 const { fetchAllRows } = require('./utils/paginated-query');
+const { createMissingProfile, isMissingProfile } = require('./utils/ensure-profile');
 const { getPlanCredits, getPlanDisplayName } = require('./utils/subscription-plans');
 
 // Initialize Supabase client
@@ -196,11 +197,16 @@ exports.handler = async (event, context) => {
     }
 
     // Get user profile
-    const { data: profile, error: profileError } = await supabase
+    const fetchProfile = () => supabase
       .from('profiles')
       .select('*')
       .eq('id', userId || authUser.id)
       .single();
+    let { data: profile, error: profileError } = await fetchProfile();
+
+    if (isMissingProfile(profile, profileError) && await createMissingProfile(supabase, authUser)) {
+      ({ data: profile, error: profileError } = await fetchProfile());
+    }
 
     if (profileError || !profile) {
       return {

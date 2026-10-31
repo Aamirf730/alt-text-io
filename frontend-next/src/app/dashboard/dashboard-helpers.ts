@@ -56,6 +56,14 @@ export function getFreeRefillDate(lastRenewedAt: string | null | undefined): Dat
     return new Date(last + FREE_REFILL_DAYS * 24 * 60 * 60 * 1000);
 }
 
+// The error page adds "Nothing has changed on your account." after this
+// message, so it must end like a sentence.
+function asSentence(message: unknown): string | null {
+    if (typeof message !== "string" || !message.trim()) return null;
+    const text = message.trim();
+    return /[.!?]$/.test(text) ? text : `${text}.`;
+}
+
 /**
  * Loads usage for the dashboard. A failure is reported as such: the caller
  * must never fall back to showing 0 credits on the Free plan.
@@ -72,10 +80,16 @@ export async function fetchUsageStats(apiBase: string, accessToken: string): Pro
         }
 
         const payload = await response.json().catch(() => null);
+        if (response.status === 404) {
+            return {
+                status: "error",
+                message: "We couldn't find your account details. Contact support and we will sort it out.",
+            };
+        }
         if (!response.ok || !payload?.success || !payload.data) {
             return {
                 status: "error",
-                message: payload?.error || `We couldn't load your credits (error ${response.status}).`,
+                message: asSentence(payload?.error) || `We couldn't load your credits (error ${response.status}).`,
             };
         }
 

@@ -35,6 +35,17 @@ describe("fetchUsageStats", () => {
         expect((await fetchUsageStats("/api", "token")).status).toBe("error");
     });
 
+    it("explains a missing account and ends server errors with a full stop", async () => {
+        vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: "User profile not found" }), { status: 404 })));
+        await expect(fetchUsageStats("/api", "token")).resolves.toEqual({
+            status: "error",
+            message: "We couldn't find your account details. Contact support and we will sort it out.",
+        });
+
+        vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: "Service unavailable" }), { status: 503 })));
+        await expect(fetchUsageStats("/api", "token")).resolves.toEqual({ status: "error", message: "Service unavailable." });
+    });
+
     it("maps a successful response", async () => {
         vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
             success: true,
