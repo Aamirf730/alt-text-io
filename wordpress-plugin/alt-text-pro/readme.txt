@@ -8,190 +8,216 @@ Stable tag: 1.7.28
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Alt Text Pro writes AI alt text for your WordPress images. Review each draft, generate on upload, or bulk fix missing alt text in your media library.
+Alt Text Pro is an AI alt text generator for WordPress. Add alt text to every blog image in bulk or on upload, for image SEO and accessibility.
 
 == Description ==
-Alt Text Pro is an AI alt text generator for WordPress. It looks at each image, writes a short, specific description, and saves it as the image's alt text in your media library. You review the draft, add details the AI cannot know (such as a product name), and decide what appears on your site.
 
-Use it to fix missing alt text across an older media library, describe WooCommerce product and gallery images, or write alt text for new images as you upload them.
+**Alt Text Pro is an AI alt text generator for WordPress.** It looks at each image on your blog, writes a short, specific description of what it shows, and saves it as the image's alt text. Fix your whole media library in one bulk run, describe new photos as you upload them, and fill the empty alt text in posts you published years ago.
 
-### What Alt Text Pro does
+Alt text is what screen readers read aloud to people who can't see your photos, and it helps search engines like Google understand what your images show. Most of your images need it, but few bloggers have time to write it for hundreds of photos. Alt Text Pro writes it in seconds, and you decide what gets published.
 
-* Generates alt text for one image in the media editor, so you can review it before saving
-* Optionally writes alt text automatically when you upload new images
-* Bulk fixes missing alt text across your media library, up to your newest 20,000 images per run
-* Adds alt text from the Posts and Pages list, including empty alt attributes inside the post content, without replacing alt text you already wrote
-* Fills empty alt attributes of images inside posts on your pages from the Media Library (optional, on by default), so images already placed in posts benefit from new alt text
-* Writes alt text in your site's language, or in a language you choose
-* Uses optional page and site context for more relevant descriptions
-* Works with WooCommerce product and gallery images, because they live in the media library
-* Shows credit usage and generation history, with CSV export
-* Connects to your Alt Text Pro account in one click and stores your API key encrypted
+**Free to start:** 150 credits when you sign up (they never expire), plus 15 free credits every month. One image uses one credit. No credit card needed.
 
-AI descriptions are a strong starting point, not a final answer. Check the images that matter most and edit where the page needs more context.
+### What Alt Text Pro does for your blog
 
-### Bulk processing experience
+* **Saves you hours.** No more typing a description for every photo in every post.
+* **Helps your images get found.** Descriptive alt text helps search engines match your photos to what people search for, including in Google Images.
+* **Makes your blog accessible.** Screen-reader users hear "Red fox standing in tall dune grass", not silence or a file name.
+* **Fixes old posts without editing them.** Images with empty alt text inside your posts pick up their new alt text automatically.
+* **Keeps you in control.** Alt text you wrote is never replaced unless you ask, and you can review, edit or undo anything.
 
-Bulk processing is designed to keep credit usage and cancellation behavior predictable. The plugin processes one billable image at a time, starts the next image shortly after a successful result, and honors provider rate-limit retry windows when needed.
+### Real examples from Alt Text Pro
 
-During a run, the live panel shows the current image state, overall progress, generated results, issues, remaining images, and recent activity. Choosing "Stop after current image" prevents the next image from starting while allowing an image already being generated to finish and be counted accurately.
+Alt text it wrote for photos on a travel and food blog:
 
-If a run ends with an error, Alt Text Pro shows a compact, dismissible warning in the bottom-right corner and keeps the details in the activity list. A zero-error run does not show an attention warning.
+* "Snow-capped mountain peaks glowing pink at sunrise, mirrored in a still lake ringed by pine forest."
+* "Wooden crate of red and yellow heirloom tomatoes beside bunches of orange and purple carrots."
+* "Red fox standing in tall dune grass, with the sea and a hazy sky behind it."
 
-### Why better alt text matters
+Specific, natural and written for people, not stuffed with keywords. AI can still miss details only you know, like the name of a dish or where a photo was taken, so check the images that matter most.
 
-Alt text gives images a useful text alternative. Good alt text helps screen-reader users understand important visuals, gives search engines more context, and makes your media library easier to maintain.
+### Alt Text Pro features
 
-Alt Text Pro is designed to speed up the repetitive work while still keeping you in control. The generated text is a strong starting point, and you can edit it whenever your page context needs a more specific description.
+**Fix your whole media library**
 
-### Useful for
+* Bulk generate alt text for every image that is missing it, up to 20,000 images per run.
+* See how many credits and how much time a run needs before you start.
+* Stop at any time, or let the run keep going in the background after you close the tab.
+* Narrow a run by upload date, by post category, or to images uploaded to posts, pages or WooCommerce products.
+* "Undo this run" restores the alt text your images had before, free of charge.
 
-* Bloggers and publishers with large image libraries
-* WooCommerce stores with product images missing alt text
-* Agencies preparing accessibility and SEO cleanups for client sites
-* Site owners migrating old content into WordPress
-* Editors who want a faster workflow for image descriptions
+**Add alt text as you work**
 
-### How setup works
+* Turn on "Auto-generate on upload" and every new image gets alt text as soon as you add it.
+* Generate alt text for one image from the Media Library, the media popup, or the Image block in the editor.
+* Add alt text to every image in a post, featured image included, from your Posts and Pages lists.
 
-1. Install and activate the plugin.
-2. Open Alt Text Pro in your WordPress admin.
-3. Connect your Alt Text Pro account or paste your API key.
-4. Generate alt text for one image, a post, or a bulk media-library batch.
-5. Review the generated text and edit where needed.
+**Fix images inside published posts**
 
-### Credits and plans
+* Images in your posts with empty alt text are shown with the alt text from your Media Library, without editing the post (WordPress 6.0 and later).
+* Works with the block editor, the Classic Editor, Elementor and Divi.
+* Want it saved in the post itself? "Copy alt text into post" does that without using credits.
 
-New accounts include 150 free signup credits plus 15 free credits every month. Each successful alt text generation uses 1 credit. Paid plans and credit packs are available from the Alt Text Pro dashboard.
+**Alt text that fits your blog**
 
-### Technical Requirements
+* Writes in your site's language, or in any of 40 languages you choose. Works with WPML and Polylang.
+* Uses your post titles, the image's file name and a short description of your blog to write more relevant alt text.
+* Optional review step: approve, edit or reject suggested alt text before it goes live.
+* Mark decorative images, such as dividers, so they keep an empty alt on purpose.
+* Optionally copy new alt text into image titles, captions and descriptions, without replacing anything you wrote.
 
-* WordPress 5.0 or higher
-* PHP 7.4 or higher
-* Active internet connection for API calls
-* Alt Text Pro account with available credits
+**Works with your site**
+
+* WooCommerce product and gallery images.
+* JPEG, PNG, GIF, WebP and AVIF images, plus HEIC when your server supports it.
+* Images offloaded to S3 or a CDN.
+* Saves alt text in the standard WordPress alt text field, where your theme and WooCommerce already look for it. It stays there if you stop using the plugin.
+* Keeps a history of every alt text it writes, with the credits used and CSV export.
+
+### Get started in minutes
+
+1. Install and activate Alt Text Pro.
+2. Click **Connect Account** and sign in, or create your free account. The plugin saves your API key for you.
+3. Open any image in the Media Library and click **Generate Alt-Text** to see the result.
+4. Go to **Alt Text Pro > Bulk Process** to fix every image that is missing alt text.
+5. Turn on **Auto-generate on upload** in the plugin's Settings so new images are covered too.
+
+### Pricing
+
+The plugin is free. Writing alt text uses credits from your Alt Text Pro account, one credit per image:
+
+* **Free:** 150 credits when you sign up, plus 15 credits every month.
+* **Paid plans:** from $5 a month for 500 credits. Cancel anytime.
+* **Credit packs:** one-time top-ups that never expire, from $12 for 1,000 credits.
+
+Compare plans on the [pricing page](https://www.alt-text.pro/#pricing).
+
+### Help and support
+
+* Read the [setup guide and docs](https://www.alt-text.pro/docs).
+* Ask in the [support forum](https://wordpress.org/support/plugin/alt-text-pro/) or [contact us](https://www.alt-text.pro/contact).
+* Does Alt Text Pro save you time? A [review](https://wordpress.org/support/plugin/alt-text-pro/reviews/#new-post) helps other bloggers find it.
+
+== External services ==
+
+Alt Text Pro needs an Alt Text Pro account. To write alt text, the plugin connects to the Alt Text Pro service at [www.alt-text.pro](https://www.alt-text.pro), which is run by the makers of this plugin. Nothing is sent until you connect an account.
+
+* **Writing alt text** (one image, a post, a bulk run, or on upload): the plugin sends the image (resized if it is large), the alt text language, and any context you add, such as your Blog Context. Unless you turn off "Send image context", it also sends the image's file name and the titles of the posts that use it. Alt Text Pro uses Google Gemini to write the description.
+* **Checking your account:** your API key is checked and your credits are loaded when you open the plugin's pages, start a bulk run or save a key. While administrators use the Media Library or the plugin's pages, the credit balance is also refreshed in the background, at most every 6 hours, for the low-credit notice.
+* **Every request** includes your API key, the plugin version, this site's address and its WordPress language, so your account can list the sites that use your key. When you disconnect the account or uninstall the plugin, the site's address is sent once more so the site is no longer listed.
+* **Connecting your account:** "Connect Account" opens https://www.alt-text.pro/connect with the address of this site's settings page, so your API key can be returned to WordPress after you sign in.
+
+WordPress also sends its standard user agent, which includes your site address, with these requests.
+
+Read the Alt Text Pro [Terms of Service](https://www.alt-text.pro/terms) and [Privacy Policy](https://www.alt-text.pro/privacy).
 
 == Installation ==
 
-### Automatic Installation
+1. In your WordPress admin, go to **Plugins > Add New Plugin** and search for **Alt Text Pro**.
+2. Click **Install Now**, then **Activate**.
+3. Open **Alt Text Pro** in the admin menu. In the setup window, click **Connect Account**, then sign in or create a free account. The plugin saves your API key for you.
+4. Open any image in the Media Library and click **Generate Alt-Text** to check the result, then **Apply Alt-Text** to save it.
+5. Go to **Alt Text Pro > Bulk Process** to fix the images that are missing alt text.
+6. Optional: turn on **Auto-generate on upload** under **Alt Text Pro > Settings**.
 
-1. Go to your WordPress admin dashboard
-2. Navigate to Plugins -> Add New
-3. Search for "Alt Text Pro"
-4. Click "Install Now" and then "Activate"
+If your browser blocks the setup window, copy the API key from your Alt Text Pro dashboard, paste it under **Alt Text Pro > Settings**, then click **Save Settings**.
 
-### Manual Installation
-
-1. Download the plugin zip file
-2. Go to Plugins -> Add New -> Upload Plugin
-3. Choose the zip file and click "Install Now"
-4. Activate the plugin
-
-### Setup
-
-1. Go to Alt Text Pro in your WordPress admin. The connect window opens on its own (or click "Start onboarding" on the Settings page)
-2. Click "Connect Account"
-3. Sign in or create a free account
-4. The plugin saves your API key automatically
-5. Click "Test" next to the key on the Settings page to check the connection
-6. Generate alt text for a test image before running a larger batch.
-
-Manual API key setup is still available from the settings page if your browser blocks the connect popup.
+To install from a ZIP file instead, go to **Plugins > Add New Plugin > Upload Plugin**, choose the file, click **Install Now** and activate the plugin.
 
 == Frequently Asked Questions ==
 
-= What is alt text and why do I need it? =
+= What is Alt Text Pro? =
 
-Alt text is the text alternative saved in an image's alt attribute. It helps screen-reader users understand important visuals and gives search engines more context about the image.
+Alt Text Pro is an AI alt text generator for WordPress. It describes the images in your Media Library and posts in plain language and saves each description as the image's alt text. You can use it on one image, one post, your whole media library, or every new upload.
 
-= Does this guarantee accessibility compliance? =
+= Is Alt Text Pro free? =
 
-No plugin can guarantee compliance by itself. Alt Text Pro helps you fill missing image descriptions faster, but you should still review generated alt text for accuracy, context, and accessibility quality.
-
-= Can it process my existing media library? =
-
-Yes. The bulk processor can generate alt text for existing media-library images that are missing alt text.
-
-= Can I generate alt text for images inside posts and pages? =
-
-Yes. Alt Text Pro includes post and page workflows that find images in content and help add alt text where it is missing.
-
-= Does it work for WooCommerce product images? =
-
-Yes. Product images are a common use case. You should still review the generated text to make sure it matches the product and page context.
+The plugin is free, and so is the starter allowance: 150 credits when you sign up, which never expire, plus 15 credits every month, with no credit card needed. Each image uses one credit. When you need more, paid plans start at $5 a month for 500 credits, and one-time credit packs start at $12 for 1,000 credits.
 
 = Do I need an Alt Text Pro account? =
 
-Yes. The plugin connects to the Alt Text Pro API, so you need an account and available credits. Free credits are available for testing.
+Yes. The AI runs on the Alt Text Pro service, so the plugin needs a free account to connect to. Click **Connect Account** in the plugin, sign in or sign up, and the plugin saves your API key for you. If the popup is blocked, you can paste the key under **Alt Text Pro > Settings**.
 
-= How accurate is the AI-generated alt text? =
+= Why does my blog need alt text? =
 
-AI-generated alt text is usually a strong starting point, but you should review it. The best alt text depends on the page context and the purpose of the image.
+Alt text is the short description stored in an image's alt attribute. Screen readers read it aloud to visitors who can't see the image, and search engines use it to understand what the image shows. Missing alt text is also a common issue in SEO and accessibility audits.
 
-= Can I edit the generated alt text? =
+= Will Alt Text Pro help my SEO? =
 
-Yes. Generated alt text is saved into WordPress and can be edited from the plugin interface, media library, or normal WordPress fields.
+Alt text is one of the ways search engines understand images, so describing every image clearly can help your photos appear in image search, and it helps clear the "images missing alt text" warnings that site audits report. No plugin can promise higher rankings, but it closes a common gap in image SEO.
 
-= What happens if I run out of credits? =
+= Will it overwrite alt text I already wrote? =
 
-New generations stop until you add credits or upgrade your plan. Existing alt text remains in your WordPress site.
+No. The plugin only fills images that are missing alt text, unless you turn on "Overwrite existing", and a bulk run asks you to confirm before it replaces anything. Alt text you wrote inside a post is never replaced. If a bulk run replaced something you liked, "Undo this run" puts it back without using credits.
 
-= Is my data secure? =
+= Can I review alt text before it is published? =
 
-Images are sent securely to the Alt Text Pro service for AI processing. The plugin is designed for service calls such as API key validation, generation, credit checks, and subscription-related requests.
+Yes. When you generate alt text for a single image, you see a draft first and choose whether to apply it. For bulk runs, uploads and the Posts list, turn on "Review alt text before it goes live" in Settings: suggestions then wait on a Review page where you approve, edit or reject them.
 
-= Does the plugin send marketing tracking from wp-admin? =
+= How accurate is the alt text? =
 
-No. The plugin does not send non-essential wp-admin marketing or funnel events. When an API key validates successfully, the Alt Text Pro service may record that the account connected the plugin so onboarding can work correctly.
+It is usually a strong first draft that describes what is actually in the photo. The AI cannot know things that aren't visible, such as a person's name, a recipe's name or where a photo was taken, so add those details to your most important images. Adding a short Blog Context in Settings makes descriptions fit your blog better.
 
-= What image formats are supported? =
+= Can it fix images in posts I already published? =
 
-Alt Text Pro supports JPEG, PNG, GIF, WebP and AVIF, and HEIC when your server's image editor can read it. SVG and other vector files are skipped.
-
-= Does it write alt text in my language? =
-
-Yes. By default alt text is written in your site's language. Choose another language under Alt Text Pro > Settings > Alt text language. Languages the service does not support yet fall back to English.
-
-= Does it work with WPML or Polylang? =
-
-Yes. With Alt text language set to "Same as the site language", an image that WPML or Polylang assigns a language is described in that language; images without a language use the site language. A language you choose in Settings applies to every image. Each translated copy of an image is its own Media Library item with its own alt text, so it is described separately, in its own language, and uses its own credit. Alt text is not copied between translations. With Polylang, images have a language only when "Media" is turned on under Languages > Settings.
-
-= Will images already inside my posts get the new alt text? =
-
-Yes. With "Fill empty alt text in post content" on (the default), images in posts whose alt attribute is empty or missing are shown with the alt text saved in the Media Library. Alt text written in the post is never replaced. The Posts list also offers "Copy alt text into post" to save it into the post itself, which uses no credits.
+Yes, in three ways. With "Fill empty alt text in post content" on (the default, on WordPress 6.0 and later), images in your posts with empty alt text are shown with the alt text from your Media Library, without editing the posts. The Posts and Pages lists show how many images in each post still need alt text, with a button to add it. And "Copy alt text into post" saves Media Library alt text into the post itself, without using credits.
 
 = Does it work with Elementor, Divi and other page builders? =
 
-Mostly. Elementor's image widgets read alt text from the Media Library, so they use the alt text Alt Text Pro saves there. With "Fill empty alt text in post content" on, an image with an empty or missing alt is also given its Media Library alt text when the page is shown in: post content (including builders that save their layout there, such as Divi), Elementor pages, and Elementor and Divi Theme Builder templates and Elementor popups. This works for Media Library images that carry their image ID in the page (the wp-image-123 class WordPress adds), which covers most images these builders output. Alt text you typed in the builder is never replaced, and nothing is saved into your layouts. Not covered: images inserted by URL, CSS background images, and builders that render pages without WordPress's content filters (for example Bricks or Oxygen).
+Mostly. Elementor's image widgets use the alt text from your Media Library, so they pick up the alt text the plugin saves. With "Fill empty alt text in post content" on, empty alt text is also filled when pages are shown for Divi layouts, Elementor pages, Elementor and Divi Theme Builder templates, and Elementor popups. Alt text you typed in the builder is never replaced. Not covered: images added by URL, CSS background images, and builders that skip WordPress's content filters, such as Bricks and Oxygen.
+
+= Does it work with WooCommerce? =
+
+Yes. Product and gallery images are stored in the Media Library, so they can be described one at a time or in a bulk run, and you can limit a run to images uploaded to products. The AI cannot know your exact product names, so review the descriptions of your most important products.
+
+= Which languages does Alt Text Pro support? =
+
+By default, alt text is written in your site's language, or in English if that language isn't supported yet. To use a different one, choose from 40 languages under **Alt Text Pro > Settings > Alt text language**. On WPML and Polylang sites, each image is described in its own language (with Polylang, turn on "Media" under **Languages > Settings**). Each translated copy of an image is a separate Media Library item, so it uses its own credit.
+
+= Which image formats are supported? =
+
+JPEG, PNG, GIF, WebP and AVIF, plus HEIC when your server's image editor can read it. Large photos are resized before they are sent. SVG and other vector files are skipped.
 
 = How do I keep an image's alt text empty on purpose? =
 
-Open the image in the Media Library and tick "Decorative image (empty alt on purpose)". Alt Text Pro then never writes alt text for it (Generate explains why, and uploads, bulk runs and the Posts list skip it), leaves its alt="" in posts and builder layouts, and does not count it as missing alt text. If the Alternative Text field already has text, clear it too.
+For decorative images, such as dividers or background patterns, open the image in the Media Library and tick "Decorative image (empty alt on purpose)". If the image already has alt text, clear that field too. The plugin then skips the image everywhere, never uses a credit on it, and keeps its empty alt text in your posts.
 
 = Can it also fill the image title, caption or description? =
 
-Yes, if you want. Under Settings > Image title, caption and description, choose which fields to fill (all are off by default). When Alt Text Pro saves new alt text for an image, it copies it into the title while the title is still the file name, and into the caption and description while they are empty. Text someone wrote is never replaced. A generated draft you edit before saving is not copied.
+Yes, if you want it to. Under **Alt Text Pro > Settings > Image title, caption and description**, choose which fields to fill (all are off by default). The title is only replaced while it is still the file name, such as "IMG_1234", and the caption and description only while they are empty.
 
-= Does WordPress warn me when credits run low? =
+= What happens when I run out of credits? =
 
-Yes. At 10 credits or fewer, administrators see a notice on the Media Library screens and the Alt Text Pro pages, and another when credits run out. It uses the balance the plugin already knows from your last generation or account check, refreshed in the background at most every 6 hours, so it never slows down admin pages. Dismiss it and it stays hidden until credits run out or run low again.
+Generating stops until you add credits or upgrade, and all the alt text already saved stays on your site. When 10 or fewer credits are left, administrators see a notice in the Media Library and on the Alt Text Pro pages.
 
-= Does the plugin send emails? =
+= What happens to my alt text if I uninstall Alt Text Pro? =
 
-Only one: when a bulk run finishes or stops, WordPress emails a short summary to the user who started it. Turn it off under Alt Text Pro > Settings > "Email me when a bulk run finishes". The email is sent by your site through wp_mail(), not by Alt Text Pro.
+Alt text saved to your Media Library stays, because it is ordinary WordPress content. Uninstalling removes the plugin's settings and generation history. Alt text that is only filled in when a post is shown (see "Fill empty alt text in post content") stops appearing, so use "Copy alt text into post" first if you want it saved in your posts.
+
+= Is my data safe? =
+
+Nothing is sent until you connect an account. After that, images are sent over an encrypted connection to the Alt Text Pro service to write their alt text, and your API key is stored encrypted in WordPress. The plugin sends no marketing or tracking events from your admin. The External services section of the plugin description lists exactly what is sent and when.
+
+= Does Alt Text Pro send emails? =
+
+Only one, and it comes from your own site: when a bulk run finishes or stops, WordPress emails a short summary to the person who started it. Turn it off under **Alt Text Pro > Settings > Email me when a bulk run finishes**.
+
+= Does it guarantee accessibility compliance? =
+
+No plugin can do that on its own. Alt Text Pro fills in missing image descriptions quickly, but you should still review important images for accuracy and context.
 
 = Can I cancel my subscription anytime? =
 
-Yes, you can cancel your subscription at any time from your Alt Text Pro dashboard. You'll continue to have access until the end of your billing period.
+Yes. Cancel from your Alt Text Pro dashboard and your plan stays active until the end of the billing period. Signup credits and credit packs never expire.
 
 == Screenshots ==
 
-1. Alt Text Pro dashboard with credits, usage, and generation shortcuts.
-2. Settings screen for connecting your Alt Text Pro account and validating your API key.
-3. Bulk processor for generating alt text across missing media-library images.
-4. Media-library integration for generating alt text on individual images.
-5. Generation history showing recent alt text activity and credit usage.
-6. Responsive admin interface for managing alt text from different screen sizes.
+1. The Alt Text Pro dashboard: your credits, the alt text written on this site, and how many images still need it.
+2. Settings: connect your account, turn on Auto-generate on upload, and describe your blog for more relevant alt text.
+3. Bulk Process writes alt text for every image that is missing it, with live progress and a Stop button.
+4. Generate alt text for one image, review the draft, then apply it.
+5. Usage & Logs: every alt text written, the credits used, search and CSV export.
+6. The Alt Text Pro dashboard on a phone.
 
 == Changelog ==
 = 1.7.28 =
@@ -843,45 +869,3 @@ Fixes post content being altered when generating alt text for a post, lifts the 
 
 = 1.4.60 =
 Bug fix: Fixed settings page initialization for new installations. Recommended update for all users.
-
-== Support ==
-
-Need help with alt text generation? We're here for you!
-
-* **Documentation**: Visit our [knowledge base](https://www.alt-text.pro/docs)
-* **Support**: Contact us through the [support form](https://www.alt-text.pro/contact)
-* **Feature Requests**: We love hearing your ideas!
-
-== External services ==
-
-This plugin needs an Alt Text Pro account and connects to the Alt Text Pro service at `https://www.alt-text.pro` to work.
-
-* **Generating alt text** (single image, post, bulk, or automatic on upload): the image (downscaled when large), the optional context you enable (post title, related text, and your blog context setting), the alt text language, your API key, and the plugin version are sent to `https://www.alt-text.pro/.netlify/functions/generate-alt-text`. Alt Text Pro sends the image and context to its AI provider (Google Gemini) to produce the description.
-* **Showing your credits and plan, and validating a key**: your API key and the plugin version are sent to `https://www.alt-text.pro/.netlify/functions/get-usage` and `https://www.alt-text.pro/.netlify/functions/auth-validate` when you open the plugin's pages, start a bulk run, or save a key.
-* **Connected sites**: every request above also sends this site's address (home URL) and WordPress language, so your Alt Text Pro account can list the sites that use your API key. When you disconnect the account or uninstall the plugin, the site address is sent to `https://www.alt-text.pro/.netlify/functions/site-disconnect` so the site stops counting as connected.
-* **Connecting your account**: "Connect Account" opens `https://www.alt-text.pro/connect` with this site's settings page address so the API key can be returned to WordPress after you sign in.
-
-WordPress also sends its standard user agent, which includes your site address, with these requests. Nothing is sent until you connect an account.
-
-When a bulk run finishes, WordPress (not Alt Text Pro) emails a summary to the user who started it, unless "Email me when a bulk run finishes" is turned off in Settings.
-
-Terms of Service: https://www.alt-text.pro/terms
-Privacy Policy: https://www.alt-text.pro/privacy
-
-== Privacy Policy ==
-
-Alt Text Pro uses encrypted HTTPS connections. Images and optional page context are sent to the configured AI provider to generate a description. Account, usage, and operational records are retained as described in the Privacy Policy. API keys saved by the WordPress plugin are encrypted on the WordPress installation.
-
-Uninstalling the plugin removes its settings, temporary bulk-job records, and local generation-history table. Alt text already saved to WordPress attachments is retained as site content.
-
-You can contact support to request access, correction, or deletion where applicable.
-
-For full details, see our [Privacy Policy](https://www.alt-text.pro/privacy).
-
-== About Alt Text Pro ==
-
-Alt Text Pro helps WordPress site owners draft alt text for Media Library images, review the result, and save it into WordPress. It supports single-image generation, bulk runs for missing alt text, usage tracking, and optional page context.
-
-AI output can be incomplete or incorrect, so review important descriptions before publishing.
-
-**Get started today**: [Sign up for free](https://www.alt-text.pro) and try the workflow with included free credits.
