@@ -1,3 +1,16 @@
+# LOCAL DEVELOPMENT ONLY. NEVER RUN `supabase config push` FROM THIS FOLDER.
+#
+# This folder is linked to the production project (supabase/.temp), so a push
+# would overwrite production auth with these local values: site_url would
+# become http://127.0.0.1:3000 (every email link breaks), the custom SMTP
+# sender would be dropped (it is commented out below), and redirect URLs would
+# be replaced. Production auth is managed in the Supabase dashboard; record
+# changes made there in progress.md.
+#
+# The two security-relevant auth values below are kept equal to production
+# (as of 2026-10-31) so local behaviour matches: email_sent = 10 and
+# enable_confirmations = true.
+#
 # For detailed configuration reference documentation, visit:
 # https://supabase.com/docs/guides/local-development/cli/config
 # A string used to distinguish different Supabase projects on the same host. Defaults to the
@@ -129,7 +142,8 @@ password_requirements = ""
 
 [auth.rate_limit]
 # Number of emails that can be sent per hour. Requires auth.email.smtp to be enabled.
-email_sent = 2
+# Production: 10 per hour since 2026-10-31.
+email_sent = 10
 # Number of SMS messages that can be sent per hour. Requires auth.sms to be enabled.
 sms_sent = 30
 # Number of anonymous sign-ins that can be made per hour per IP address. Requires enable_anonymous_sign_ins = true.
@@ -155,7 +169,9 @@ enable_signup = true
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true
 # If enabled, users need to confirm their email address before signing in.
-enable_confirmations = false
+# Production requires confirmation. Admin access (SUPERUSER_EMAILS) assumes
+# an unconfirmed address cannot sign in, so keep this true.
+enable_confirmations = true
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
 secure_password_change = true
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
