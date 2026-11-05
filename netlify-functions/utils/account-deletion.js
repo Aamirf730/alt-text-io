@@ -59,12 +59,16 @@ function needsSubscriptionCancellation(profile) {
 }
 
 /**
- * A paid profile without a stored subscription ID (legacy rows, or a missed
- * subscription.active webhook) may still have a live Polar subscription, so
- * it has to be looked up in Polar before the account is deleted.
+ * Every account without a stored paid subscription to cancel is looked up in
+ * Polar (by Polar customer ID and by external customer ID, which checkout
+ * sets to the user ID) before it is deleted. A paid profile can lack the ID
+ * (legacy rows, a missed subscription.active), and a Free or missing profile
+ * can still have a live subscription whose activation was queued for
+ * reconciliation (unknown product, email-only match, ambiguous email) or
+ * failed. Deleting without the lookup would leave that subscription billing.
  */
 function needsSubscriptionLookup(profile) {
-  return isPaidPlan(profile) && !String(profile?.subscription_id || '').trim();
+  return !needsSubscriptionCancellation(profile);
 }
 
 async function listPolarSubscriptions(query, { fetchImpl, env }) {
@@ -302,9 +306,16 @@ async function deleteAccount({
       { customerId: profile?.polar_customer_id, externalCustomerId: userId },
       { fetchImpl, env }
     );
-    if (!lookup.ok) return abortForPolar(lookup);
-    subscriptionIds = lookup.subscriptionIds;
-    subscriptionLookup = subscriptionIds.length > 0 ? 'found' : 'none_found';
+    if (!lookup.ok && lookup.code === 'polar_not_configured' && !isPaidPlan(profile)) {
+      // An environment without Polar (local, preview) has no subscriptions
+      // to find; a paid account there still aborts.
+      subscriptionLookup = 'not_configured';
+    } else if (!lookup.ok) {
+      return abortForPolar(lookup);
+    } else {
+      subscriptionIds = lookup.subscriptionIds;
+      subscriptionLookup = subscriptionIds.length > 0 ? 'found' : 'none_found';
+    }
   }
 
   // Written before the delete: if the function dies after deleting, the

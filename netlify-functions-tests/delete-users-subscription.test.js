@@ -155,7 +155,8 @@ describe('deleteAccount', () => {
   it('never deletes without an audit row', async () => {
     const supabase = fakeSupabase({ profile: { ...paidProfile, subscription_id: null, subscription_plan: 'free' }, auditInsertError: { message: 'down' } });
 
-    const result = await deletion.deleteAccount({ supabase, userId: 'user-1', actor: { id: 'admin-1' }, fetchImpl: vi.fn(), env });
+    const fetchImpl = vi.fn(async () => response(200, { items: [] }));
+    const result = await deletion.deleteAccount({ supabase, userId: 'user-1', actor: { id: 'admin-1' }, fetchImpl, env });
 
     expect(result).toMatchObject({ ok: false, code: 'audit_failed' });
     expect(supabase.auth.admin.deleteUser).not.toHaveBeenCalled();
@@ -274,10 +275,77 @@ describe('deleteAccount', () => {
       expect(reportSpy).toHaveBeenCalled();
     });
 
-    it('does not look anything up for a free profile', () => {
-      expect(deletion.needsSubscriptionLookup({ subscription_id: null, subscription_plan: 'free' })).toBe(false);
+    it('looks up every account that has no stored paid subscription to cancel', () => {
+      expect(deletion.needsSubscriptionLookup({ subscription_id: null, subscription_plan: 'free' })).toBe(true);
+      expect(deletion.needsSubscriptionLookup({ subscription_id: 'sub_1', subscription_plan: 'free' })).toBe(true);
+      expect(deletion.needsSubscriptionLookup(null)).toBe(true);
       expect(deletion.needsSubscriptionLookup({ subscription_id: null, subscription_plan: 'tier1' })).toBe(true);
       expect(deletion.needsSubscriptionLookup({ subscription_id: 'sub_1', subscription_plan: 'tier1' })).toBe(false);
+    });
+  });
+
+  describe('free or missing profile', () => {
+    const freeProfile = { ...paidProfile, subscription_id: null, subscription_plan: 'free', polar_customer_id: null };
+
+    it('finds and cancels a live subscription whose activation never reached the profile', async () => {
+      const supabase = fakeSupabase({ profile: freeProfile });
+      const fetchImpl = vi.fn(async (_url, init) => (init.method === 'DELETE'
+        ? response(200)
+        : response(200, { items: [{ id: 'sub_queued', status: 'active' }] })));
+
+      const result = await deletion.deleteAccount({ supabase, userId: 'user-1', actor: { id: 'admin-1' }, fetchImpl, env });
+
+      expect(result).toMatchObject({ ok: true, status: 'deleted', subscriptionCancellation: 'cancelled' });
+      expect(fetchImpl.mock.calls.map(call => `${call[1].method} ${call[0]}`)).toEqual([
+        'GET https://api.polar.sh/v1/subscriptions/?external_customer_id=user-1&active=true&limit=100',
+        'DELETE https://api.polar.sh/v1/subscriptions/sub_queued',
+      ]);
+    });
+
+    it('checks Polar by user ID when the profile row is missing', async () => {
+      const supabase = fakeSupabase({ profile: null });
+      const fetchImpl = vi.fn(async (_url, init) => (init.method === 'DELETE'
+        ? response(200)
+        : response(200, { items: [{ id: 'sub_orphan', status: 'active' }] })));
+
+      const result = await deletion.deleteAccount({ supabase, userId: 'user-1', actor: { id: 'admin-1' }, fetchImpl, env });
+
+      expect(result).toMatchObject({ ok: true, subscriptionCancellation: 'cancelled' });
+      expect(fetchImpl.mock.calls[0][0]).toContain('external_customer_id=user-1');
+      expect(supabase.log[0][2].details).toMatchObject({ subscription_ids: ['sub_orphan'], subscription_lookup: 'found' });
+    });
+
+    it('deletes a Free account with nothing in Polar', async () => {
+      const supabase = fakeSupabase({ profile: freeProfile });
+      const fetchImpl = vi.fn(async () => response(200, { items: [] }));
+
+      const result = await deletion.deleteAccount({ supabase, userId: 'user-1', actor: { id: 'admin-1' }, fetchImpl, env });
+
+      expect(result).toMatchObject({ ok: true, status: 'deleted', subscriptionCancellation: 'not_needed' });
+      expect(supabase.log[0][2].details).toMatchObject({ subscription_lookup: 'none_found' });
+    });
+
+    it('aborts a Free account deletion when Polar cannot be reached', async () => {
+      const supabase = fakeSupabase({ profile: freeProfile });
+      const fetchImpl = vi.fn(async () => response(503));
+
+      const result = await deletion.deleteAccount({ supabase, userId: 'user-1', actor: { id: 'admin-1' }, fetchImpl, env });
+
+      expect(result).toMatchObject({ ok: false, code: 'subscription_cancel_unavailable' });
+      expect(supabase.auth.admin.deleteUser).not.toHaveBeenCalled();
+    });
+
+    it('still deletes a Free account where Polar is not configured', async () => {
+      const supabase = fakeSupabase({ profile: freeProfile });
+      const fetchImpl = vi.fn();
+
+      const result = await deletion.deleteAccount({
+        supabase, userId: 'user-1', actor: { id: 'admin-1' }, fetchImpl, env: { SUPERUSER_EMAILS: '' },
+      });
+
+      expect(result).toMatchObject({ ok: true, status: 'deleted' });
+      expect(fetchImpl).not.toHaveBeenCalled();
+      expect(supabase.log[0][2].details).toMatchObject({ subscription_lookup: 'not_configured' });
     });
   });
 
