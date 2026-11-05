@@ -33,5 +33,7 @@ describe('Netlify function configuration safety', () => {
         },
       )).not.toThrow();
     }
-  });
+  // Loads every function module in child processes: 1-2 s alone, slower
+  // when the whole suite runs in parallel.
+  }, 30000);
 });

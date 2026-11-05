@@ -129,7 +129,9 @@ Prepared locally on branch `fix/flow-audit-2026-10`. Nothing has been applied to
 
 The new webhook code calls `record_payment_refund` and upserts on `marketing_events.dedupe_key`, so refund and cancel/revoke webhooks fail (and Polar retries) until the first migration is applied. The email fallback works without its function (bounded profile lookup).
 
-`supabase/migrations/migration-chain.test.js` still asserts that `20261024140000_…` is the last migration; it needs updating to the newest file.
+`supabase/migrations/migration-chain.test.js` now expects `20261105130000_activate_subscription_period_and_mismatch_guards.sql` as the newest migration (updated 2026-11-05).
+
+2026-11-05 adds two migrations after these, applied in the same way and before the matching webhook deploy: `20261105120000_reserve_credit_keeps_pack_plan_balance.sql` and `20261105130000_activate_subscription_period_and_mismatch_guards.sql` (see `progress.md`).
 
 ### Behaviour changes
 

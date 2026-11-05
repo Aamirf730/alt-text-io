@@ -1,5 +1,40 @@
 # Progress
 
+## 2026-11-05: Review batches 1–19 and L1–L15 fixed on `fix/flow-audit-2026-10`
+
+Each reported issue was verified against the code first (several were wrong or overstated); only confirmed ones were changed. Commits `b9bd5c6`…`b381b90`.
+
+- Billing (Next.js webhook):
+  - unmapped Polar products are queued as `unknown_subscription_product` instead of setting a paying profile to Free;
+  - `subscription.active` binds only on a strong identity (checkout metadata, Polar `externalId`, stored IDs); email-only matches queue as `email_only_match`;
+  - retired $5/500 and $10/1,200 pack IDs keep their sizes;
+  - webhook date and ID fields are read in camelCase and snake_case.
+- Database (new migrations, apply in order before deploying the webhook):
+  - `20261105120000_reserve_credit_keeps_pack_plan_balance`: pack plans no longer lose their balance on the first generation;
+  - `20261105130000_activate_subscription_period_and_mismatch_guards`: replayed `subscription.active` no longer re-grants; a second live paid subscription returns `subscription_mismatch` (queued as `active_subscription_mismatch`).
+- Functions:
+  - `auth-validate` reports plan-only usage, like `get-usage`;
+  - the English alt-text clean-up no longer rewrites descriptions (shared light clean-up with other languages);
+  - account deletion looks up Polar subscriptions for every account, including Free and missing profiles;
+  - `generate-alt-text` also returns `monthly_credits_used`;
+  - empty lifecycle secret rejected;
+  - admin targets protected for remove credits and API-key actions;
+  - contact auto-reply limited to 2 a day per recipient.
+- Frontend:
+  - dashboard usage bar counts every credit source;
+  - transparent images stay visible and resizing keeps proportions;
+  - `checkout-status` never counts an earlier pack grant;
+  - unused Meta Pixel helper removed.
+- Plugin (needs a release):
+  - a cancelled bulk run stays cancelled if its state is evicted mid-image;
+  - one shared upload-job claim (`claim_for_generation`) so bulk, media edit, Posts list, regenerate and Quick Generate never bill an image the upload job is describing, and a retryable failure puts the upload job back;
+  - EXIF orientation applied before sending;
+  - pending upload jobs re-queued after reactivation.
+- `supabase/config.toml`: `email_sent = 10` and `enable_confirmations = true` like production, plus a header: local only, never `supabase config push` (the folder is linked to production).
+- Checked on a local WordPress Playground site (WP 7.1.4, PHP 8.3) against a stand-in API: install, all plugin pages, connect, single and bulk generation with a forced 503, upload jobs, front-end alt fill and deactivate/reactivate. No plugin PHP warnings.
+- Not changed on purpose: #8 (renewal display only, nothing billed), #9 (whether MRR should be net of refunds is a product decision), and low items L2, L5 notice, L6–L10, dependency and helper clean-up, `DOMNodeInserted`.
+- Tests: function suites 40 files / 355 tests pass when run as `PROJECT.md` says (from the repo root); run with `--root ..` from `netlify-functions/` seven source-path tests fail, so always use the root command. The module-config test now has a 30 s timeout (it loads every function and timed out under full parallel load). Frontend 32 files / 323 tests, typecheck and lint pass; plugin tests 9 files pass.
+
 ## 2026-11-01: WordPress.org description rewritten for bloggers (readme only)
 
 - `readme.txt` rewritten for bloggers and the "Alt Text Pro" search term:
