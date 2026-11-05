@@ -735,8 +735,20 @@ function toIsoDate(value: unknown): string | null {
     return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
+/**
+ * Polar's SDK turns webhook payloads into camelCase objects, and queued
+ * reconciliation rows keep that shape. A row written by hand may use the
+ * API's snake_case, so date and ID fields are read in both spellings.
+ */
+function getPayloadField(payload: any, camelName: string, snakeName: string): unknown {
+    return payload?.[camelName] ?? payload?.[snakeName];
+}
+
 function getSubscriptionEnd(subscription: any): string | null {
-    return toIsoDate(subscription.endsAt || subscription.currentPeriodEnd);
+    return toIsoDate(
+        getPayloadField(subscription, "endsAt", "ends_at")
+        || getPayloadField(subscription, "currentPeriodEnd", "current_period_end"),
+    );
 }
 
 async function updateProfile(userId: string, values: Record<string, unknown>): Promise<void> {
@@ -1525,7 +1537,7 @@ export async function handleSubscriptionActive(
         subscriptionId: subscription.id,
         planId,
         // The RPC keeps the stored customer ID when this is null.
-        polarCustomerId: subscription.customer?.id || subscription.customerId || null,
+        polarCustomerId: subscription.customer?.id || (getPayloadField(subscription, "customerId", "customer_id") as string | undefined) || null,
         polarProductId: productId,
         billingCycle,
         monthlyCreditAllowance: monthlyAllowance,
@@ -1659,7 +1671,10 @@ export async function handleSubscriptionRevoked(
         provider: "polar",
         subscription_id: subscription.id,
         product_name: subscription.product?.name || "",
-        ended_at: toIsoDate(subscription.endedAt || subscription.endsAt),
+        ended_at: toIsoDate(
+            getPayloadField(subscription, "endedAt", "ended_at")
+            || getPayloadField(subscription, "endsAt", "ends_at"),
+        ),
     }, {
         throwOnError: true,
         dedupeKey: buildDedupeKey("subscription_revoked", subscription.id),
@@ -1751,7 +1766,7 @@ export async function handleSubscriptionUncanceled(
         dedupeKey: buildDedupeKey(
             "subscription_uncanceled",
             subscription.id,
-            toIsoDate(subscription.modifiedAt) || getSubscriptionEnd(subscription),
+            toIsoDate(getPayloadField(subscription, "modifiedAt", "modified_at")) || getSubscriptionEnd(subscription),
         ),
     });
 
@@ -1776,7 +1791,7 @@ export async function handleOrderRefunded(
     const paymentId = `polar_ord_${orderId}`;
     const refundedAmount = Number(order.refundedAmount || 0);
     const totalAmount = Number(order.totalAmount || 0);
-    const subscriptionId = normalizeProviderId(order.subscriptionId);
+    const subscriptionId = normalizeProviderId(getPayloadField(order, "subscriptionId", "subscription_id"));
 
     const refundResult = await recordPaymentRefund({
         paymentId,
@@ -1904,7 +1919,7 @@ export async function handleSubscriptionUpdated(
         userId: profile.id,
         subscriptionId: subscription.id,
         planId,
-        currentPeriodStart: toIsoDate(subscription.currentPeriodStart),
+        currentPeriodStart: toIsoDate(getPayloadField(subscription, "currentPeriodStart", "current_period_start")),
         polarProductId: productId,
         billingCycle,
         monthlyCreditAllowance: monthlyAllowance,

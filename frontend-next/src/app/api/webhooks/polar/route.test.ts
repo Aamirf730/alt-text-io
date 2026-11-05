@@ -544,6 +544,34 @@ describe("Polar subscription lifecycle handlers", () => {
         expect(result).toEqual({ outcome: "applied", reason: "already_processed" });
     });
 
+    it("renews from a snake_case payload with its period start and end", async () => {
+        const forced = profile();
+        mocks.state.profiles = [forced];
+
+        const result = await replayPolarEvent(
+            "subscription.updated",
+            {
+                id: "sub_annual_1",
+                status: "active",
+                current_period_start: "2027-07-23T16:10:49.335Z",
+                current_period_end: "2028-07-23T16:10:49.335Z",
+                customer: { id: "cus_1", email: "customer@example.com" },
+                product: { id: "prod_standard_annual", name: "Standard Annual", metadata: {} },
+                metadata: {},
+            },
+            forced as unknown as BillingProfile,
+        );
+
+        expect(result.outcome).toBe("applied");
+        expect(mocks.state.rpcCalls).toContainEqual({
+            name: "renew_subscription_credits",
+            args: expect.objectContaining({
+                p_current_period_start: "2027-07-23T16:10:49.335Z",
+                p_next_billing_date: "2028-07-23T16:10:49.335Z",
+            }),
+        });
+    });
+
     it("keeps a mapped product's activation unchanged", async () => {
         mocks.state.profiles = [profile({ subscription_id: null, subscription_plan: "free" })];
 
