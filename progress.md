@@ -1,5 +1,13 @@
 # Progress
 
+## 2026-11-05: Release of the review fixes (website, database, plugin 1.7.29)
+
+- Supabase production (ALT-Text-Ai): before, migrations ended at `20261029130000`; no Free profile was still bound to a subscription (nobody hit issue 1) and no profile was on a pack plan. Applied `20261105120000` and `20261105130000` in the SQL editor, each in one transaction with its `schema_migrations` row (SQL checked by SHA-256 in the editor first). Verified: new `reserve_credit` and `activate_subscription_profile` bodies, execute still only for `service_role`.
+- Website: `main` fast-forwarded to `b1652fe`; that Netlify deploy failed ("Incorrect function names") because `netlify-functions/auth-validate.test.js` sat in the functions folder. Moved to `netlify-functions-tests/` with a guard test (`90ed8a7`); Netlify published `main@90ed8a7`. Live checks: `/`, `/api/health`, `/api/get-plans`, `/dashboard`, `/payment-success` and both plugin ZIPs 200 (ZIP is 1.7.29); unsigned webhook POST 403; `auth-validate` without a key 401.
+- WordPress.org: 1.7.29 committed to trunk and `tags/1.7.29` as r3785905 from the owner's Terminal; `svn cat` matches the repo; the API lists 1.7.29.
+- Polar (Alt Text Pro org): the webhook to `/api/webhooks/polar` sends `order.paid`, `order.refunded`, `refund.created`, `refund.updated` and `subscription.active/canceled/uncanceled/revoked/updated`. No change needed.
+- Follow-up committed but NOT released (needs approval): `09d3530` shared function helpers (`utils/secrets.js`), `0067ed4` removes `zod`/`next-themes`, `0a12775` migration `20261105140000_tidy_billing_functions` (issue 8, issue 9 MRR net of refunds, L6–L9, drops `get_or_create_api_key`/`generate_api_key`; production pre-checks all passed, not applied), `c0ff97a` plugin Review-count cache, `DISABLE_WP_CRON` hint and `DOMNodeInserted` removal (would ship as 1.7.30). Pushing these to `main` would also put the plugin changes into the site's ZIP while it is still labelled 1.7.29, so bump to 1.7.30 first.
+
 ## 2026-11-05: Review batches 1–19 and L1–L15 fixed on `fix/flow-audit-2026-10`
 
 Each reported issue was verified against the code first (several were wrong or overstated); only confirmed ones were changed. Commits `b9bd5c6`…`b381b90`.
