@@ -110,6 +110,28 @@ describe('send-contact-email', () => {
     expect(response.statusCode).toBe(200);
   });
 
+  it('still delivers to support but skips the auto-reply once one address had its daily replies', async () => {
+    const sendMail = vi.fn().mockResolvedValue({ messageId: 'test' });
+    const checkRateLimitFn = vi.fn(async (key) => ({ allowed: !String(key).startsWith('contact-reply:') }));
+    const handler = createHandler({
+      checkRateLimitFn,
+      transporterFactory: () => ({ sendMail }),
+    });
+
+    const response = await handler({
+      httpMethod: 'POST',
+      headers: { origin: 'https://www.alt-text.pro', 'x-forwarded-for': '203.0.113.20' },
+      body: JSON.stringify({ name: 'Ada', email: 'Victim@Example.com', message: 'Hello there' }),
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(sendMail).toHaveBeenCalledTimes(1);
+    expect(sendMail.mock.calls[0][0].replyTo).toBe('Victim@Example.com');
+    const replyKey = checkRateLimitFn.mock.calls.map((call) => call[0]).find((key) => key.startsWith('contact-reply:'));
+    expect(replyKey).toMatch(/^contact-reply:[a-f0-9]{64}$/);
+    expect(replyKey).not.toContain('example.com');
+  });
+
   it('does not send honeypot submissions', async () => {
     const sendMail = vi.fn();
     const handler = createHandler({

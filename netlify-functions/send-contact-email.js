@@ -1,4 +1,5 @@
 // Netlify Function for Sending Contact Form Emails
+const crypto = require('node:crypto');
 const nodemailer = require('nodemailer');
 const { createClient } = require('@supabase/supabase-js');
 const { getCustomerEmailFrom, getEmailFrom, getSupportEmail } = require('./utils/email-config');
@@ -21,6 +22,17 @@ const {
 
 const CONTACT_RATE_LIMIT = 5;
 const CONTACT_RATE_WINDOW_MS = 10 * 60 * 1000;
+// The automatic "we got your message" reply goes to whatever address the
+// form was given. Per-IP limits alone let someone with many IPs flood one
+// inbox from our sending account, so the reply is also limited per
+// recipient. The message to support is still delivered.
+const AUTO_REPLY_RATE_LIMIT = 2;
+const AUTO_REPLY_RATE_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+function getAutoReplyRateKey(email) {
+  const hash = crypto.createHash('sha256').update(String(email).trim().toLowerCase()).digest('hex');
+  return `contact-reply:${hash}`;
+}
 
 function escapeHtml(value) {
   return String(value || '')
@@ -190,18 +202,26 @@ function createHandler({
       await transporter.sendMail(mailOptions);
 
       // Acknowledge to the sender. Fixed wording only (nothing they typed),
-      // so the form cannot be used to send arbitrary text to others.
+      // so the form cannot be used to send arbitrary text to others, and at
+      // most AUTO_REPLY_RATE_LIMIT a day to one address.
       try {
-        const reply = buildSupportAutoReply();
-        const { html, text } = renderTransactionalEmail(reply.content);
-        await transporter.sendMail({
-          from: getCustomerEmailFrom(),
-          to: email,
-          replyTo: getSupportEmail(),
-          subject: reply.subject,
-          html,
-          text,
-        });
+        const replyLimit = await checkRateLimitFn(
+          getAutoReplyRateKey(email),
+          AUTO_REPLY_RATE_LIMIT,
+          AUTO_REPLY_RATE_WINDOW_MS,
+        );
+        if (replyLimit?.allowed) {
+          const reply = buildSupportAutoReply();
+          const { html, text } = renderTransactionalEmail(reply.content);
+          await transporter.sendMail({
+            from: getCustomerEmailFrom(),
+            to: email,
+            replyTo: getSupportEmail(),
+            subject: reply.subject,
+            html,
+            text,
+          });
+        }
       } catch (replyError) {
         const { reportError } = require('./utils/error-reporter');
         reportError(replyError, { functionName: 'send-contact-email', extra: { reason: 'auto_reply_failed' } });
