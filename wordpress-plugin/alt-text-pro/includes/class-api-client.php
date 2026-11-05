@@ -408,7 +408,13 @@ class AltTextPro_API_Client
             // service reads. Everything else is downscaled and re-encoded so the
             // request stays under the service's ~6 MB body limit (base64 adds a
             // third) and formats such as HEIC, BMP or TIFF still work.
-            if ($file_size <= self::MAX_DIRECT_UPLOAD_BYTES && in_array($mime_type, self::DIRECT_UPLOAD_MIME_TYPES, true)) {
+            // A JPEG whose EXIF says "rotate me" also goes through the editor,
+            // which turns it upright; sent as-is it could be described sideways.
+            if (
+                $file_size <= self::MAX_DIRECT_UPLOAD_BYTES
+                && in_array($mime_type, self::DIRECT_UPLOAD_MIME_TYPES, true)
+                && !self::needs_exif_rotation($file_path, $mime_type)
+            ) {
                 $image_data = file_get_contents($file_path);
             } else {
                 $image_data = $this->get_resized_image_data($file_path, $mime_type);
@@ -542,6 +548,23 @@ class AltTextPro_API_Client
      * Downscale an image with the WordPress image editor and return the
      * encoded bytes, or false when no editor can read the file.
      */
+    /**
+     * True for a JPEG whose EXIF orientation is anything but "upright".
+     *
+     * @param string $file_path Local image file.
+     * @param string $mime_type Its MIME type.
+     */
+    public static function needs_exif_rotation($file_path, $mime_type)
+    {
+        if ($mime_type !== 'image/jpeg' || !function_exists('exif_read_data') || !is_readable($file_path)) {
+            return false;
+        }
+
+        // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- corrupt EXIF only means "not rotated"
+        $exif = @exif_read_data($file_path);
+        return is_array($exif) && intval($exif['Orientation'] ?? 1) > 1;
+    }
+
     private function get_resized_image_data($file_path, $source_mime_type)
     {
         if (!function_exists('wp_get_image_editor')) {
@@ -551,6 +574,13 @@ class AltTextPro_API_Client
         $editor = wp_get_image_editor($file_path);
         if (is_wp_error($editor)) {
             return false;
+        }
+
+        // Re-encoding drops EXIF, so apply its orientation first (WordPress
+        // 5.3+). Uploads are normally rotated already; older or imported
+        // images may not be.
+        if (method_exists($editor, 'maybe_exif_rotate')) {
+            $editor->maybe_exif_rotate();
         }
 
         $size = $editor->get_size();
