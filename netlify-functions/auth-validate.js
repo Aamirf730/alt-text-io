@@ -20,6 +20,7 @@ const {
   API_KEY_STATUS,
   accountSuspendedResponse,
   apiKeyFailureResponse,
+  getCurrentCycleCreditsUsedResult,
   getMonthlyCreditState,
   isAccountBlocked,
   validateApiKeyResult,
@@ -213,7 +214,22 @@ exports.handler = async (event, context) => {
       .eq('id', profile.subscription_plan)
       .single();
 
-    const monthlyCreditState = getMonthlyCreditState(profile, planDetails?.credits);
+    // profiles.total_processed counts every generation this cycle, but the
+    // monthly allowance is used up only by plan-paid ones (bonus and pack
+    // generations have their own ledgers). Report the balance the way
+    // get-usage does. If the usage query fails, fall back to the column, as
+    // validateApiKeyResult does: a connection check must not fail on it.
+    const cycleUsageResult = await getCurrentCycleCreditsUsedResult(
+      profile.id,
+      profile.credits_last_renewed_at
+    );
+    const planCreditsUsed = cycleUsageResult.success
+      ? cycleUsageResult.creditsUsed
+      : profile.total_processed ?? 0;
+    const monthlyCreditState = getMonthlyCreditState(
+      { ...profile, total_processed: planCreditsUsed },
+      planDetails?.credits
+    );
     const displayCreditsRemaining = monthlyCreditState.monthly_credits_remaining;
 
     await recordPluginConnectCompleted(supabase, {
