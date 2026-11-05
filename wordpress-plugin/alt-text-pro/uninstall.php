@@ -51,6 +51,7 @@ function alt_text_pro_uninstall_site()
     delete_option('alt_text_pro_active_bulk_run');
     delete_option('alt_text_pro_bulk_runs');
     delete_option('alt_text_pro_bulk_log_db_version');
+    delete_option('alt_text_pro_review_count_version');
     delete_transient('alt_text_pro_activation_redirect');
     delete_transient('alt_text_pro_generated_count');
     delete_option('alt_text_pro_credit_status');

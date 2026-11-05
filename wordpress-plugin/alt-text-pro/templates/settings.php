@@ -152,6 +152,11 @@ echo wp_kses_post(
                     <p class="checkbox-desc">
                         <?php esc_html_e('Automatically generate alt-text when you upload new images to the Media Library.', 'alt-text-pro'); ?>
                     </p>
+                    <?php if (defined('DISABLE_WP_CRON') && DISABLE_WP_CRON) : ?>
+                        <p class="description atp-help" role="note">
+                            <?php esc_html_e('This site turns off WordPress\'s built-in scheduler (DISABLE_WP_CRON). Automatic alt text after upload runs only when your host runs wp-cron.php on a schedule. If it does not, new uploads wait without alt text; use Bulk Process to fill them.', 'alt-text-pro'); ?>
+                        </p>
+                    <?php endif; ?>
                 </div>
 
                 <div class="settings-field">

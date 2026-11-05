@@ -176,6 +176,9 @@ class AltTextPro
      */
     private function init_hooks()
     {
+        // Review menu badge cache: suggestions also change outside wp-admin.
+        AltTextPro_Review::register_count_cache_hooks();
+
         // Admin hooks
         if (is_admin()) {
             new AltTextPro_Admin();

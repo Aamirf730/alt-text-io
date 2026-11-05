@@ -1068,15 +1068,10 @@
         }
     };
 
-    // Handle media modal events
-    $(document).on('DOMNodeInserted', function (e) {
-        if ($(e.target).hasClass('media-modal') || $(e.target).find('.media-modal').length) {
-            // Re-initialize for dynamically loaded media modals
-            setTimeout(function () {
-                AltTextProAdmin.initMediaFields();
-            }, 100);
-        }
-    });
+    // Media modals need no re-initialisation: initMediaFields() binds its
+    // handlers on document, so fields added later are already covered. (A
+    // DOMNodeInserted listener used to re-run it; that mutation event is gone
+    // from Chrome and stacked duplicate handlers elsewhere.)
 
     // Export for global access
     window.AltTextProAdmin = AltTextProAdmin;

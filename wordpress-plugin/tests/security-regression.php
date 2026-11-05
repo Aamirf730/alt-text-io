@@ -763,4 +763,16 @@ alt_text_pro_security_assert(
     'Activation must queue the pending upload jobs again after clearing the hook.'
 );
 
+// The Review badge count is cached; suggestions change in WP-Cron too, so the
+// invalidation hooks are registered on every request, not only in wp-admin.
+$alt_text_pro_review_source = file_get_contents(dirname(__DIR__) . '/alt-text-pro/includes/class-review.php');
+$alt_text_pro_init_source = substr($plugin_source, (int) strpos($plugin_source, 'private function init_hooks()'));
+alt_text_pro_security_assert(
+    strpos($alt_text_pro_init_source, 'AltTextPro_Review::register_count_cache_hooks();') !== false
+        && strpos($alt_text_pro_init_source, 'AltTextPro_Review::register_count_cache_hooks();') < strpos($alt_text_pro_init_source, 'if (is_admin())')
+        && strpos($alt_text_pro_review_source, 'add_action($hook, array(__CLASS__, \'maybe_forget_count\'), 10, 3);') !== false
+        && strpos($alt_text_pro_review_source, 'self::count_pending_cached()') !== false,
+    'The Review badge count must be cached and dropped on every suggestion change, including from WP-Cron.'
+);
+
 fwrite(STDOUT, "WordPress security regression tests passed.\n");

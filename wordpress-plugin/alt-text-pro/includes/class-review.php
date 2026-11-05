@@ -27,6 +27,12 @@ class AltTextPro_Review
     // Suggestions one "Approve all" request handles.
     private const APPROVE_ALL_CHUNK = 100;
 
+    // The menu badge counts suggestions on every admin page; the count is
+    // cached per user and dropped whenever a suggestion changes.
+    private const COUNT_CACHE_PREFIX = 'alt_text_pro_review_count_';
+    private const COUNT_CACHE_VERSION_OPTION = 'alt_text_pro_review_count_version';
+    private const COUNT_CACHE_SECONDS = 300;
+
     /**
      * Constructor
      */
@@ -36,6 +42,52 @@ class AltTextPro_Review
         add_action('wp_ajax_alt_text_pro_review_approve', array($this, 'ajax_approve'));
         add_action('wp_ajax_alt_text_pro_review_reject', array($this, 'ajax_reject'));
         add_action('wp_ajax_alt_text_pro_review_approve_all', array($this, 'ajax_approve_all'));
+    }
+
+    /**
+     * Keep the menu badge's cached count in step with the suggestions. Runs
+     * on every request, not only in wp-admin: upload jobs and background bulk
+     * runs store suggestions from WP-Cron.
+     */
+    public static function register_count_cache_hooks()
+    {
+        // Any suggestion stored, approved, rejected, undone or removed with
+        // its image changes the count.
+        foreach (array('added_post_meta', 'updated_post_meta', 'deleted_post_meta') as $hook) {
+            add_action($hook, array(__CLASS__, 'maybe_forget_count'), 10, 3);
+        }
+    }
+
+    /**
+     * Drop every cached count when a suggestion changes.
+     *
+     * @param int|int[] $meta_ids  Meta ID(s), unused.
+     * @param int       $object_id Post ID, unused.
+     * @param string    $meta_key  Meta key that changed.
+     */
+    public static function maybe_forget_count($meta_ids, $object_id, $meta_key)
+    {
+        if ($meta_key === self::META) {
+            update_option(self::COUNT_CACHE_VERSION_OPTION, (string) microtime(true), false);
+        }
+    }
+
+    /**
+     * count_pending() for the menu badge, cached for a few minutes per user.
+     */
+    private static function count_pending_cached()
+    {
+        $version = (string) get_option(self::COUNT_CACHE_VERSION_OPTION, '0');
+        $key = self::COUNT_CACHE_PREFIX . get_current_user_id() . '_' . substr(md5($version), 0, 8);
+
+        $cached = get_transient($key);
+        if ($cached !== false) {
+            return (int) $cached;
+        }
+
+        $count = self::count_pending();
+        set_transient($key, $count, self::COUNT_CACHE_SECONDS);
+        return $count;
     }
 
     /**
@@ -159,7 +211,7 @@ class AltTextPro_Review
      */
     public function add_menu()
     {
-        $pending = current_user_can('upload_files') ? self::count_pending() : 0;
+        $pending = current_user_can('upload_files') ? self::count_pending_cached() : 0;
         $menu_title = __('Review', 'alt-text-pro');
         if ($pending > 0) {
             $menu_title .= ' <span class="awaiting-mod"><span class="pending-count">' . esc_html(number_format_i18n($pending)) . '</span></span>';
