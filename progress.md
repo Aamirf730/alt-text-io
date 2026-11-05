@@ -1,5 +1,47 @@
 # Progress
 
+## 2026-11-01: WordPress.org description rewritten for bloggers (readme only)
+
+- `readme.txt` rewritten for bloggers and the "Alt Text Pro" search term:
+  - new short description
+  - Description with benefits, real alt-text examples and pricing
+  - plain-language External services: names www.alt-text.pro and Google Gemini, no `.netlify/functions` paths, and now discloses the background credit check every 6 hours
+  - 21-question FAQ and new screenshot captions
+  - Header, tags, versions, changelog and upgrade notices unchanged.
+- Published without a version bump. Trunk and tag `1.7.28` `readme.txt` were committed together as r3777720 by `aamirfaiz`, from the owner's terminal (the sandboxed shell has no usable SVN login).
+- Verified: both SVN files match the local file. Within a minute the API and listing showed the new text and meta description, with no "netlify" left on the page.
+- Search before the change: 43rd for "alt text pro" (10 installs, 0 ratings). WordPress.org weights results by installs, ratings and resolved support threads, so reviews and answered forum threads are the next lever.
+- Git: `readme.txt` committed as `d02974f` on `fix/flow-audit-2026-10` (not pushed).
+- Still open: the changelog is 5,955 words, over WordPress.org's 5,000-word limit, so the oldest entries are hidden.
+
+## 2026-10-31: Full HDD backup and retained SSD workspace (completed)
+
+- Owner's new default: development stays on T7 SSD; complete backups go to the
+  One Touch HDD. No working copy, artifact, recovery copy or old archive is to be
+  removed, cleaned or moved as part of backup. No cleanup is requested here.
+- Verified plugin header, version constant, stable tag and frontend marker all
+  declare 1.7.28. Back up the complete outer `Alt-text` folder without exclusions,
+  including untracked marketing videos, local configuration, generated dependencies,
+  artifacts, historical folders and all nested Git metadata.
+- Source checkpoint: `89271f2e16567d4039148b529e45752df93a588d` on
+  `fix/flow-audit-2026-10`. Only `marketing-videos/` was untracked before this note.
+- GitHub visibility check found `Aamirf730/alt-text-io` public, contrary to the old
+  vault entry. No upload, pull, merge or visibility change is authorized by this
+  HDD backup. Keep all local material in the HDD archive; report this discrepancy.
+- Complete archive is `Archives/Alt-text/Alt-text-Pro_v1.7.28.zip` on the One Touch
+  HDD: 2,799,301,539 bytes, 78,160 entries (72,940 regular files, 5,155 directories,
+  65 symlinks). ZIP integrity, every regular-file SHA-256 comparison, permissions,
+  structure and link targets passed. SHA-256:
+  `e848a81c4e9cedc1edeba03a875484fc236ec603098c3e79d2f44f584f2f01f7`.
+- The full T7 working copy, all old archives and all local artifacts remain in place.
+  No cleanup, deletion, Trash move, source upload, release or production operation
+  occurred. This final administrative closeout follows the verified ZIP snapshot;
+  application source and other original files remain unchanged.
+- Remote main was `d2880911d08d2d410304d2abcb726595bca9a425`; remote
+  `fix/flow-audit-2026-10` matched local HEAD. The repository is PUBLIC, not private;
+  owner direction is required before any source upload or visibility change.
+  Backup receipt is retained in vault `Quarantine/Alt-text-v1.7.28-backup-fO7tu2`.
+
 ## 2026-10-24: Redesign live, emails, lifecycle sends, WordPress.org
 
 - Website: redesign and people-first copy deployed (`5ac66e7`); homepage FAQ JSON-LD, one support address (help@), own titles for contact/terms/privacy. Live checks passed.
