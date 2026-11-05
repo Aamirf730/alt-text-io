@@ -355,13 +355,19 @@ alt_text_pro_security_assert(
 // Upload generation runs later in one WP-Cron event. It is billed at most
 // once: the event claims (deletes) the pending flag before calling the
 // service, and bulk and manual generation claim it first. The only other
-// event is the retry restore_pending_upload() queues after a Generate button
-// claimed the upload but failed. (Behaviour is covered at the end of this file.)
+// events are the retry restore_pending_upload() queues after a Generate button
+// claimed the upload but failed, and requeue_pending_uploads() after the
+// plugin is reactivated. Both only re-create the same event for an image whose
+// pending flag is still set. (Behaviour is covered at the end of this file.)
 $alt_text_pro_restore_source = substr($media_source, (int) strpos($media_source, 'public static function restore_pending_upload'));
 $alt_text_pro_restore_source = substr($alt_text_pro_restore_source, 0, (int) strpos($alt_text_pro_restore_source, 'public static function is_upload_generation_running'));
+$alt_text_pro_requeue_source = substr($media_source, (int) strpos($media_source, 'public static function requeue_pending_uploads'));
+$alt_text_pro_requeue_source = substr($alt_text_pro_requeue_source, 0, (int) strpos($alt_text_pro_requeue_source, 'public static function spawn_cron_after_request'));
 alt_text_pro_security_assert(
-    substr_count($media_source, 'wp_schedule_single_event(') === 2
+    substr_count($media_source, 'wp_schedule_single_event(') === 3
         && substr_count($alt_text_pro_restore_source, 'wp_schedule_single_event(') === 1
+        && substr_count($alt_text_pro_requeue_source, 'wp_schedule_single_event(') === 1
+        && strpos($alt_text_pro_requeue_source, 'self::PENDING_META') !== false
         && strpos($media_source, 'if (!self::claim_pending_upload($attachment_id))') !== false
         && strpos($media_source, "delete_post_meta(\$attachment_id, self::PENDING_META)") !== false,
     'Automatic upload generation must schedule one event that claims the pending flag before billing.'
@@ -743,6 +749,18 @@ foreach (array(
 alt_text_pro_security_assert(
     AltTextPro_Media_Handler::restore_after_failed_generation(211, null, array('success' => false)) === false,
     'Nothing is restored when no upload job was taken over.'
+);
+
+// Activation clears the upload hook, then queues pending uploads again, so an
+// image uploaded before a deactivate and reactivate still gets its alt text.
+$alt_text_pro_activate_source = substr($plugin_source, (int) strpos($plugin_source, 'private function activate_site()'));
+$alt_text_pro_activate_source = substr($alt_text_pro_activate_source, 0, (int) strpos($alt_text_pro_activate_source, 'public function initialize_new_site'));
+alt_text_pro_security_assert(
+    strpos($alt_text_pro_activate_source, "wp_unschedule_hook('alt_text_pro_generate_background');") !== false
+        && strpos($alt_text_pro_activate_source, 'AltTextPro_Media_Handler::requeue_pending_uploads();')
+            > strpos($alt_text_pro_activate_source, "wp_unschedule_hook('alt_text_pro_generate_background');")
+        && strpos($media_source, 'public static function requeue_pending_uploads(') !== false,
+    'Activation must queue the pending upload jobs again after clearing the hook.'
 );
 
 fwrite(STDOUT, "WordPress security regression tests passed.\n");

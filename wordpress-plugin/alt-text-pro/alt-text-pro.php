@@ -329,6 +329,11 @@ class AltTextPro
         wp_clear_scheduled_hook('alt_text_pro_bulk_process_batch');
         wp_unschedule_hook('alt_text_pro_generate_background');
 
+        // Uploads still waiting for their automatic alt text lost their event
+        // when the plugin was deactivated (or just above): queue them again.
+        require_once ALT_TEXT_PRO_PLUGIN_PATH . 'includes/class-media-handler.php';
+        AltTextPro_Media_Handler::requeue_pending_uploads();
+
         if (!wp_next_scheduled('alt_text_pro_cleanup')) {
             wp_schedule_event(time() + HOUR_IN_SECONDS, 'daily', 'alt_text_pro_cleanup');
         }

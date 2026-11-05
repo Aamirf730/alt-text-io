@@ -91,6 +91,51 @@ class AltTextPro_Media_Handler
     }
 
     /**
+     * Queue again the upload jobs whose scheduled event is gone but whose
+     * pending marker is still set. Deactivating the plugin clears its events,
+     * and activation clears stale ones, so without this an image uploaded
+     * just before a deactivate and reactivate never got its automatic alt
+     * text. Runs as the image's uploader, like the original job. Bounded.
+     *
+     * @param int $limit Most images to queue.
+     * @return int Number of jobs queued.
+     */
+    public static function requeue_pending_uploads($limit = 200)
+    {
+        global $wpdb;
+
+        $settings = get_option('alt_text_pro_settings', array());
+        if (!is_array($settings) || empty($settings['auto_generate']) || empty($settings['api_key'])) {
+            return 0;
+        }
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- one bounded read on activation
+        $ids = $wpdb->get_col($wpdb->prepare(
+            "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = %s ORDER BY post_id DESC LIMIT %d",
+            self::PENDING_META,
+            max(1, absint($limit))
+        ));
+
+        $force_overwrite = !empty($settings['overwrite_existing']);
+        $when = time() + MINUTE_IN_SECONDS;
+        $queued = 0;
+        foreach ((array) $ids as $id) {
+            $id = absint($id);
+            if (!$id || get_post_type($id) !== 'attachment') {
+                continue;
+            }
+
+            $args = array($id, $force_overwrite, absint(get_post_field('post_author', $id)));
+            if (!wp_next_scheduled('alt_text_pro_generate_background', $args)) {
+                wp_schedule_single_event($when, 'alt_text_pro_generate_background', $args);
+                $queued++;
+            }
+        }
+
+        return $queued;
+    }
+
+    /**
      * Ask WP-Cron to run the queued generation now.
      */
     public static function spawn_cron_after_request()
