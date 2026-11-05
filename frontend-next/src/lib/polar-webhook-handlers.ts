@@ -1074,6 +1074,47 @@ function resolveMonthlyAllowance({
     return sameSubscription && sameProduct ? pinned : catalogueAllowance;
 }
 
+const PAID_SUBSCRIPTION_PLANS = new Set(["tier1", "tier2", "tier3", "tier4"]);
+
+/**
+ * A subscription event must resolve to a paid tier with a positive monthly
+ * allowance before it may change a profile. An unmapped product (for
+ * example a new Polar product created before its NEXT_PUBLIC_POLAR_* env is
+ * set) resolves to "free" with no allowance; applying it would mark a paying
+ * customer Free, and every later lifecycle event would then be ignored for
+ * that Free profile. Such events are queued for an operator instead, and an
+ * admin replay applies them once the product is mapped.
+ */
+async function queueIfUnknownSubscriptionProduct({
+    eventName,
+    subscription,
+    planId,
+    monthlyAllowance,
+    userId,
+}: {
+    eventName: string;
+    subscription: any;
+    planId: string;
+    monthlyAllowance: number;
+    userId: string;
+}): Promise<PolarHandlerOutcome | null> {
+    if (PAID_SUBSCRIPTION_PLANS.has(planId) && monthlyAllowance > 0) {
+        return null;
+    }
+
+    console.warn(`Queueing ${eventName}: Polar product does not map to a paid plan`);
+    await recordPaymentReconciliation({
+        eventName,
+        payload: subscription,
+        reason: "unknown_subscription_product",
+        userId,
+        customerEmail: subscription.customer?.email,
+        customerId: subscription.customer?.id,
+        subscriptionId: subscription.id,
+    });
+    return queued("unknown_subscription_product");
+}
+
 async function grantCreditPack(userId: string, credits: number, paymentId: string) {
     // Credit packs are persistent credits. The database function updates
     // both the aggregate balance and the persistent ledger atomically,
@@ -1424,9 +1465,14 @@ export async function handleSubscriptionActive(
         isAnnual,
     });
 
-    if (monthlyAllowance <= 0) {
-        console.warn("No credits found for Polar subscription product");
-    }
+    const unknownProduct = await queueIfUnknownSubscriptionProduct({
+        eventName: "subscription.active",
+        subscription,
+        planId,
+        monthlyAllowance,
+        userId: profile.id,
+    });
+    if (unknownProduct) return unknownProduct;
 
     await activateSubscriptionProfile({
         userId: profile.id,
@@ -1608,6 +1654,15 @@ export async function handleSubscriptionUncanceled(
         isAnnual,
     });
 
+    const unknownProduct = await queueIfUnknownSubscriptionProduct({
+        eventName: "subscription.uncanceled",
+        subscription,
+        planId,
+        monthlyAllowance,
+        userId: profile.id,
+    });
+    if (unknownProduct) return unknownProduct;
+
     await updateProfile(profile.id, {
         subscription_plan: planId,
         subscription_status: "active",
@@ -1770,10 +1825,14 @@ export async function handleSubscriptionUpdated(
         isAnnual,
     });
 
-    if (monthlyAllowance <= 0) {
-        console.log("Skipping credit update: no monthly allowance resolved");
-        return ignored("no_monthly_allowance");
-    }
+    const unknownProduct = await queueIfUnknownSubscriptionProduct({
+        eventName: "subscription.updated",
+        subscription,
+        planId,
+        monthlyAllowance,
+        userId: profile.id,
+    });
+    if (unknownProduct) return unknownProduct;
 
     const renewalResult = await renewSubscriptionCredits({
         userId: profile.id,

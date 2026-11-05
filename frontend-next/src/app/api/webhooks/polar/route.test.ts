@@ -395,6 +395,87 @@ describe("Polar subscription lifecycle handlers", () => {
         expect(mocks.state.updates).toHaveLength(0);
     });
 
+    const unknownProductSubscription = (overrides: Record<string, unknown> = {}) => annualSubscription({
+        status: "active",
+        product: { id: "prod_unmapped", name: "Mystery Plan", metadata: {} },
+        ...overrides,
+    });
+
+    it("queues subscription.active for an unmapped product instead of activating Free", async () => {
+        mocks.state.profiles = [profile({ subscription_id: null, subscription_plan: "free" })];
+
+        await polarWebhookHandlers.onSubscriptionActive?.({
+            data: unknownProductSubscription(),
+        } as never);
+
+        expect(mocks.state.reconciliations).toContainEqual(expect.objectContaining({
+            event_name: "subscription.active",
+            reason: "unknown_subscription_product",
+            subscription_id: "sub_annual_1",
+            candidate_user_id: "user_1",
+        }));
+        expect(mocks.state.rpcCalls.map((call) => call.name)).not.toContain("activate_subscription_profile");
+        expect(mocks.state.updates.filter((entry) => entry.table === "profiles")).toHaveLength(0);
+    });
+
+    it("queues subscription.active when only metadata credits are known", async () => {
+        mocks.state.profiles = [profile({ subscription_id: null, subscription_plan: "free" })];
+
+        await polarWebhookHandlers.onSubscriptionActive?.({
+            data: unknownProductSubscription({
+                product: { id: "prod_unmapped", name: "Mystery Plan", metadata: { credits: 900 } },
+            }),
+        } as never);
+
+        expect(mocks.state.reconciliations).toContainEqual(expect.objectContaining({
+            event_name: "subscription.active",
+            reason: "unknown_subscription_product",
+        }));
+        expect(mocks.state.rpcCalls.map((call) => call.name)).not.toContain("activate_subscription_profile");
+    });
+
+    it("queues subscription.uncanceled for an unmapped product without touching the plan", async () => {
+        await polarWebhookHandlers.onSubscriptionUncanceled?.({
+            data: unknownProductSubscription(),
+        } as never);
+
+        expect(mocks.state.reconciliations).toContainEqual(expect.objectContaining({
+            event_name: "subscription.uncanceled",
+            reason: "unknown_subscription_product",
+        }));
+        expect(mocks.state.updates.filter((entry) => entry.table === "profiles")).toHaveLength(0);
+    });
+
+    it("queues subscription.updated for an unmapped product instead of ignoring it", async () => {
+        await polarWebhookHandlers.onSubscriptionUpdated?.({
+            data: unknownProductSubscription(),
+        } as never);
+
+        expect(mocks.state.reconciliations).toContainEqual(expect.objectContaining({
+            event_name: "subscription.updated",
+            reason: "unknown_subscription_product",
+        }));
+        expect(mocks.state.rpcCalls).toHaveLength(0);
+    });
+
+    it("keeps a mapped product's activation unchanged", async () => {
+        mocks.state.profiles = [profile({ subscription_id: null, subscription_plan: "free" })];
+
+        await polarWebhookHandlers.onSubscriptionActive?.({
+            data: annualSubscription({ status: "active" }),
+        } as never);
+
+        expect(mocks.state.reconciliations).toHaveLength(0);
+        expect(mocks.state.rpcCalls).toContainEqual({
+            name: "activate_subscription_profile",
+            args: expect.objectContaining({
+                p_subscription_plan: "tier2",
+                p_billing_cycle: "annual",
+                p_monthly_credit_allowance: 1500,
+            }),
+        });
+    });
+
     it("keeps annual drip metadata through cancellation and stores the paid-period end", async () => {
         await polarWebhookHandlers.onSubscriptionCanceled?.({
             data: annualSubscription(),
