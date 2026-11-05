@@ -991,22 +991,35 @@ async function isOrderFullyRefunded(order: any, paymentId: string): Promise<bool
     return Boolean(result.full_refund);
 }
 
+// Credit packs retired on 2026-10-24 (archived in Polar, not deleted). By
+// name they resolve to today's larger packs (small_pack 1,000, credit_pack
+// 5,000), so a late order for one (a Polar retry or an operator replay)
+// keeps its original size here even when the payload has no
+// metadata.credits.
+const RETIRED_PACK_CREDITS: Record<string, number> = {
+    "cc60c632-baff-4dd5-8498-00df694ce96b": 500, // Small Pack, $5
+    "dfc5136f-64aa-4535-a6d5-d9d02036be2c": 1200, // Credit Pack, $10
+};
+
 // Helper to get credits from product name or metadata
 function getCreditsForProduct(
     productName: string,
     metadata?: Record<string, string | number | boolean | null | undefined>,
     productId?: string | null,
 ): number {
-    // First check metadata for explicit credits
+    if (productId && RETIRED_PACK_CREDITS[productId]) {
+        return RETIRED_PACK_CREDITS[productId];
+    }
+
+    // Then check metadata for explicit credits
     if (metadata?.credits) {
         const raw = metadata.credits;
         const asNum = typeof raw === "number" ? raw : parseInt(String(raw), 10);
         return Number.isFinite(asNum) ? asNum : 0;
     }
 
-    // Resolve the product through the explicit Polar ID/metadata/name mapping.
-    // This keeps "Small Credit Pack" on the 500-credit path instead of letting
-    // a broad substring match classify it as the 1,200-credit pack.
+    // Resolve the product through the configured Polar IDs, then metadata,
+    // then the name. A name maps to the current pack sizes in CREDITS_MAP.
     const resolvedPlanId = resolvePolarPlanId(productName, metadata, productId);
     if (resolvedPlanId === "small_pack") return CREDITS_MAP.small_pack;
     if (resolvedPlanId === "credit_pack") return CREDITS_MAP.credit_pack;

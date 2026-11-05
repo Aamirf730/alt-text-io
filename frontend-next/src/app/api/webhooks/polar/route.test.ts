@@ -781,6 +781,26 @@ describe("Polar subscription lifecycle handlers", () => {
         });
     });
 
+    it("grants a retired pack its original size even without metadata credits", async () => {
+        for (const [index, [productId, name, credits]] of ([
+            ["cc60c632-baff-4dd5-8498-00df694ce96b", "Alt Text Pro — Small Credit Pack", 500],
+            ["dfc5136f-64aa-4535-a6d5-d9d02036be2c", "Alt Text Pro — Credit Pack", 1200],
+        ] as const).entries()) {
+            mocks.state.rpcCalls = [];
+            await polarWebhookHandlers.onOrderPaid?.({
+                data: paidPackOrder({
+                    id: `order_retired_${index}`,
+                    product: { id: productId, name, metadata: {} },
+                }),
+            } as never);
+
+            expect(mocks.state.rpcCalls).toContainEqual({
+                name: "grant_credit_pack_purchase",
+                args: expect.objectContaining({ p_credits: credits }),
+            });
+        }
+    });
+
     it("queues unknown one-time products instead of granting an ambiguous amount", async () => {
         await polarWebhookHandlers.onOrderPaid?.({
             data: paidPackOrder({
