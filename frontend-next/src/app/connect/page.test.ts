@@ -7,6 +7,15 @@ const pageSource = fs.readFileSync(path.join(connectDirectory, "page.tsx"), "utf
 const stateStyles = fs.readFileSync(path.join(connectDirectory, "connect-states.css"), "utf8");
 
 describe("WordPress connect result screens", () => {
+    it("offers account creation above the sign-in fields, not below the fold", () => {
+        // The plugin opens this page in a 500x700 popup; most visitors are new.
+        const modeSwitch = pageSource.indexOf('className="connect-mode"');
+        expect(modeSwitch).toBeGreaterThan(-1);
+        expect(modeSwitch).toBeLessThan(pageSource.indexOf("<GoogleIdentityButton"));
+        expect(pageSource).toContain("I&apos;m new here");
+        expect(pageSource).not.toContain("Create one for free");
+    });
+
     it("loads shared styling before any early result-state return", () => {
         expect(pageSource).toContain('import "./connect-states.css";');
 

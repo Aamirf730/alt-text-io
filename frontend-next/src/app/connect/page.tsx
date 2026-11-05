@@ -1233,6 +1233,31 @@ function ConnectPageContent() {
                     </p>
                 </div>
 
+                {/* Sign in or sign up. Near the top so a new customer sees
+                    it in the plugin's 500x700 popup without scrolling. */}
+                <div className="connect-mode" role="group" aria-label="Account">
+                    <button
+                        type="button"
+                        aria-pressed={isLogin}
+                        onClick={() => {
+                            setIsLogin(true);
+                            setError("");
+                        }}
+                    >
+                        I have an account
+                    </button>
+                    <button
+                        type="button"
+                        aria-pressed={!isLogin}
+                        onClick={() => {
+                            setIsLogin(false);
+                            setError("");
+                        }}
+                    >
+                        I&apos;m new here
+                    </button>
+                </div>
+
                 {/* Benefits pills */}
                 <div className="connect-benefits">
                     <span className="benefit-pill">
@@ -1350,21 +1375,6 @@ function ConnectPageContent() {
                     <a href="/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>.
                 </p>
 
-                {/* Toggle login/signup */}
-                <div className="connect-toggle">
-                    <span>
-                        {isLogin ? "Don't have an account?" : "Already have an account?"}
-                    </span>
-                    <button
-                        type="button"
-                        onClick={() => {
-                            setIsLogin(!isLogin);
-                            setError("");
-                        }}
-                    >
-                        {isLogin ? "Create one for free" : "Sign in"}
-                    </button>
-                </div>
             </div>
 
             <style jsx>{`
@@ -1523,17 +1533,6 @@ function ConnectPageContent() {
           margin-top: 4px;
         }
 
-        .connect-toggle {
-          display: flex;
-          flex-wrap: wrap;
-          align-items: center;
-          justify-content: center;
-          gap: 4px;
-          margin-top: 24px;
-          font-size: 14px;
-          color: #6B6B73;
-        }
-
         .connect-terms {
           margin-top: 16px;
           text-align: center;
@@ -1549,16 +1548,38 @@ function ConnectPageContent() {
           text-underline-offset: 2px;
         }
 
-        .connect-toggle button {
+        .connect-mode {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 4px;
+          padding: 4px;
+          margin-bottom: 20px;
+          background: #FFFBEA;
+          border: 1px solid #F5E6A3;
+          border-radius: 12px;
+        }
+
+        .connect-mode button {
+          min-height: 40px;
+          padding: 0 12px;
           background: none;
           border: none;
-          padding: 0;
-          color: #3F3F46;
+          border-radius: 8px;
+          color: #6B6B73;
+          font-size: 14px;
           font-weight: 600;
           cursor: pointer;
-          font-size: 14px;
-          text-decoration: underline;
-          text-underline-offset: 3px;
+        }
+
+        .connect-mode button[aria-pressed="true"] {
+          background: #FFFFFF;
+          color: #3F3F46;
+          box-shadow: 0 1px 3px rgba(63, 63, 70, 0.12);
+        }
+
+        .connect-mode button:focus-visible {
+          outline: 2px solid #3F3F46;
+          outline-offset: 2px;
         }
       `}</style>
         </main>
