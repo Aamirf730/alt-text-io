@@ -4,7 +4,7 @@ Tags: alt text, ai alt text, image alt text, accessibility, image seo
 Requires at least: 5.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.7.29
+Stable tag: 1.7.30
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -220,6 +220,14 @@ Yes. Cancel from your Alt Text Pro dashboard and your plan stays active until th
 6. The Alt Text Pro dashboard on a phone.
 
 == Changelog ==
+= 1.7.30 =
+* Fix: an API key pasted with a space before it is accepted in the Connect window, as it already was in Settings.
+* Fix: messages after saving or testing a key show quotation marks instead of "&quot;".
+* Fix: after disconnecting and connecting again, Settings no longer says the account was disconnected.
+* Improvement: the number on the Review menu badge is cached for a few minutes, so admin pages load faster on large media libraries. It updates as soon as alt text changes.
+* Improvement: Settings explains what to do when WP-Cron is turned off on the site (automatic alt text on upload depends on it).
+* Improvement: removed an outdated browser event listener from the admin script.
+
 = 1.7.29 =
 * Fix: an image is billed once when a bulk run, the Generate buttons or the Posts list reach it while its automatic upload generation is running. The image is skipped or the button says it is already being described.
 * Fix: a timeout, rate limit or service error during a bulk run or a Generate button no longer cancels the upload's own automatic alt text; it runs again a few minutes later.
@@ -864,6 +872,9 @@ Yes. Cancel from your Alt Text Pro dashboard and your plan stays active until th
 * Comprehensive settings panel
 
 == Upgrade Notice ==
+
+= 1.7.30 =
+Smoother first-time setup and a faster Review badge. Recommended for all users.
 
 = 1.7.29 =
 Each image is billed once when bulk, manual and automatic generation meet, failed attempts no longer cancel automatic alt text, and rotated photos are described upright. Recommended for all users.

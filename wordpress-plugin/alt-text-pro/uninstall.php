@@ -11,7 +11,7 @@ if (!defined('WP_UNINSTALL_PLUGIN')) {
 // The plugin itself is not loaded during uninstall. Load the two classes
 // needed to read the saved key and tell the service this site disconnected.
 if (!defined('ALT_TEXT_PRO_VERSION')) {
-    define('ALT_TEXT_PRO_VERSION', '1.7.29');
+    define('ALT_TEXT_PRO_VERSION', '1.7.30');
 }
 if (!defined('ALT_TEXT_PRO_API_BASE')) {
     define('ALT_TEXT_PRO_API_BASE', 'https://www.alt-text.pro/.netlify/functions');
