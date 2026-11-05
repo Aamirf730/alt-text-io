@@ -18,7 +18,7 @@ test('tracked migrations have one ordered, canonical history', () => {
   assert.ok(files.length > 1);
   assert.equal(new Set(versions).size, versions.length);
   assert.equal(files[0], '20260625140000_bootstrap_schema.sql');
-  assert.equal(files.at(-1), '20261105120000_reserve_credit_keeps_pack_plan_balance.sql');
+  assert.equal(files.at(-1), '20261105130000_activate_subscription_period_and_mismatch_guards.sql');
 });
 
 test('bootstrap defines every foundational table and reporting view', () => {
@@ -468,4 +468,20 @@ test('reserve_credit applies monthly balance math only to subscription plans', (
   assert.equal((migration.match(/if v_is_monthly_plan then/g) || []).length, 2);
   assert.doesNotMatch(migration, /if v_monthly_limit > 0 then/);
   assert.match(migration, /v_new_credits := v_current_credits - 1;/);
+});
+
+test('activation ignores earlier periods and refuses to replace a live paid subscription', () => {
+  const migration = fs.readFileSync(
+    path.join(migrationsDirectory, '20261105130000_activate_subscription_period_and_mismatch_guards.sql'),
+    'utf8',
+  ).toLowerCase();
+
+  assert.match(migration, /create or replace function public\.activate_subscription_profile\(/);
+  assert.match(migration, /p_next_billing_date <= v_existing_next_billing_date/);
+  assert.match(migration, /or p_next_billing_date is null/);
+  assert.match(migration, /v_existing_subscription_id <> trim\(p_subscription_id\)/);
+  assert.match(migration, /v_existing_status in \('active', 'past_due'\)/);
+  assert.match(migration, /'reason', 'subscription_mismatch'/);
+  // The guards run before the profile is rewritten.
+  assert.ok(migration.indexOf("'subscription_mismatch'") < migration.indexOf('update public.profiles'));
 });
