@@ -18,7 +18,7 @@ test('tracked migrations have one ordered, canonical history', () => {
   assert.ok(files.length > 1);
   assert.equal(new Set(versions).size, versions.length);
   assert.equal(files[0], '20260625140000_bootstrap_schema.sql');
-  assert.equal(files.at(-1), '20261029130000_reconciliation_processing_and_unknown_sends.sql');
+  assert.equal(files.at(-1), '20261105120000_reserve_credit_keeps_pack_plan_balance.sql');
 });
 
 test('bootstrap defines every foundational table and reporting view', () => {
@@ -451,4 +451,21 @@ test('reconciliation rows can be claimed and lifecycle sends can be unknown', ()
   assert.match(migration, /check \(status in \('open', 'processing', 'resolved', 'ignored'\)\)/);
   assert.match(migration, /add constraint marketing_automation_sends_status_check/);
   assert.match(migration, /check \(status in \('pending', 'sent', 'failed', 'skipped', 'unknown'\)\)/);
+});
+
+test('reserve_credit applies monthly balance math only to subscription plans', () => {
+  const migration = fs.readFileSync(
+    path.join(migrationsDirectory, '20261105120000_reserve_credit_keeps_pack_plan_balance.sql'),
+    'utf8',
+  ).toLowerCase();
+
+  assert.match(migration, /create or replace function public\.reserve_credit\(/);
+  assert.match(
+    migration,
+    /v_is_monthly_plan := v_subscription_plan in \('free', 'tier1', 'tier2', 'tier3', 'tier4', 'lite', 'standard', 'pro', 'agency'\)\s+and v_monthly_limit > 0;/,
+  );
+  // Both balance blocks use the flag; none falls back to the bare limit.
+  assert.equal((migration.match(/if v_is_monthly_plan then/g) || []).length, 2);
+  assert.doesNotMatch(migration, /if v_monthly_limit > 0 then/);
+  assert.match(migration, /v_new_credits := v_current_credits - 1;/);
 });
