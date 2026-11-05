@@ -1,12 +1,43 @@
 # Progress
 
+## 2026-11-05: Setup walk-through and release of the follow-up (database, website, plugin 1.7.30)
+
+- First-run walk-through as a new user. Clean local WordPress sites (Playground), with the plugin installed from WordPress.org through Plugins → Add New:
+  - Covered: activation, the Connect window, the real `www.alt-text.pro/connect` popup (it keeps `window.opener` and gets callback/state/version), the key handoff (via a local copy of the connect page's postMessage/ACK), a blocked popup, manual key entry (mistyped, unknown, outage, good key), Settings → Test, Disconnect, and a first image from the Media Library.
+  - Versions: WordPress 5.3 and 5.9 on PHP 7.4, and 7.1.4 on PHP 8.3 and 8.5. Every plugin page loads and the debug log stays empty.
+  - Not covered: real sign-in or sign-up in the popup (email, Google, confirmation email). That needs a real account.
+  - Searching "alt text pro" in WordPress still doesn't show the plugin on page 1.
+- Fixed (`9261ac4`, test `wordpress-plugin/tests/setup-flow.php`):
+  - The Connect window rejected a key pasted with a leading space as "Invalid format".
+  - Key-check messages showed `&quot;`.
+  - After reconnecting, the reload repeated "account was disconnected". The flag is now in `removable_query_args`, and the notice is skipped while a key is saved.
+- `/connect` (`319e24a`): "I have an account / I'm new here" now sits under the heading. It replaces the "Create one for free" link, which was below the fold in the plugin's 500×700 popup.
+- Supabase production: applied `20261105140000_tidy_billing_functions`. The SQL was fetched from GitHub at `0a12775` and checked by SHA-256 in the editor, then run in one transaction with its `schema_migrations` row. Verified:
+  - all six function changes are present;
+  - `issue_api_key` and `touch_plugin_site` have `search_path=""`;
+  - the legacy API-key functions are gone;
+  - execute is still only for `service_role`;
+  - `admin_dashboard_stats()` runs.
+- Plugin 1.7.30 (`bc47f50`) contains:
+  - the setup fixes;
+  - the Review-count cache;
+  - the `DISABLE_WP_CRON` hint;
+  - removal of the `DOMNodeInserted` listener.
+
+  Plugin harnesses, frontend 324 tests and functions 360 tests pass.
+- Website: `main` pushed to `bc47f50`, and Netlify published it.
+  - Live: `/`, `/connect` and `/dashboard` return 200 (`/pricing` redirects to `/#pricing`); the new switch shows in the live popup.
+  - All three plugin ZIPs are 1.7.30.
+  - An unsigned webhook gets 403, and `auth-validate` without a key gets 401.
+- WordPress.org: trunk and `tags/1.7.30` committed as r3786550 from the owner's Terminal. Every changed file matches the repo in both, the API lists 1.7.30, and `downloads.wordpress.org/plugin/alt-text-pro.1.7.30.zip` matches the repo exactly.
+
 ## 2026-11-05: Release of the review fixes (website, database, plugin 1.7.29)
 
 - Supabase production (ALT-Text-Ai): before, migrations ended at `20261029130000`; no Free profile was still bound to a subscription (nobody hit issue 1) and no profile was on a pack plan. Applied `20261105120000` and `20261105130000` in the SQL editor, each in one transaction with its `schema_migrations` row (SQL checked by SHA-256 in the editor first). Verified: new `reserve_credit` and `activate_subscription_profile` bodies, execute still only for `service_role`.
 - Website: `main` fast-forwarded to `b1652fe`; that Netlify deploy failed ("Incorrect function names") because `netlify-functions/auth-validate.test.js` sat in the functions folder. Moved to `netlify-functions-tests/` with a guard test (`90ed8a7`); Netlify published `main@90ed8a7`. Live checks: `/`, `/api/health`, `/api/get-plans`, `/dashboard`, `/payment-success` and both plugin ZIPs 200 (ZIP is 1.7.29); unsigned webhook POST 403; `auth-validate` without a key 401.
 - WordPress.org: 1.7.29 committed to trunk and `tags/1.7.29` as r3785905 from the owner's Terminal; `svn cat` matches the repo; the API lists 1.7.29.
 - Polar (Alt Text Pro org): the webhook to `/api/webhooks/polar` sends `order.paid`, `order.refunded`, `refund.created`, `refund.updated` and `subscription.active/canceled/uncanceled/revoked/updated`. No change needed.
-- Follow-up committed but NOT released (needs approval): `09d3530` shared function helpers (`utils/secrets.js`), `0067ed4` removes `zod`/`next-themes`, `0a12775` migration `20261105140000_tidy_billing_functions` (issue 8, issue 9 MRR net of refunds, L6–L9, drops `get_or_create_api_key`/`generate_api_key`; production pre-checks all passed, not applied), `c0ff97a` plugin Review-count cache, `DISABLE_WP_CRON` hint and `DOMNodeInserted` removal (would ship as 1.7.30). Pushing these to `main` would also put the plugin changes into the site's ZIP while it is still labelled 1.7.29, so bump to 1.7.30 first.
+- Follow-up (released later the same day as 1.7.30, see the entry above): `09d3530` shared function helpers (`utils/secrets.js`), `0067ed4` removes `zod`/`next-themes`, `0a12775` migration `20261105140000_tidy_billing_functions` (issue 8, issue 9 MRR net of refunds, L6–L9, drops `get_or_create_api_key`/`generate_api_key`; production pre-checks all passed, not applied), `c0ff97a` plugin Review-count cache, `DISABLE_WP_CRON` hint and `DOMNodeInserted` removal (would ship as 1.7.30). Pushing these to `main` would also put the plugin changes into the site's ZIP while it is still labelled 1.7.29, so bump to 1.7.30 first.
 
 ## 2026-11-05: Review batches 1–19 and L1–L15 fixed on `fix/flow-audit-2026-10`
 
