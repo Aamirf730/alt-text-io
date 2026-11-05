@@ -1,7 +1,5 @@
 // Scheduled lifecycle email automation for Alt Text Pro.
 
-const nodemailer = require('nodemailer');
-const { timingSafeEqual } = require('node:crypto');
 const { createClient } = require('@supabase/supabase-js');
 const { getCustomerEmailFrom, getSupportEmail } = require('./utils/email-config');
 const {
@@ -17,6 +15,8 @@ const {
 } = require('./utils/lifecycle-automation');
 const { fetchAllRows } = require('./utils/paginated-query');
 const { withErrorReporting } = require('./utils/error-reporter');
+const { createTransporter } = require('./utils/transactional-email');
+const { secretsMatch } = require('./utils/secrets');
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -59,18 +59,6 @@ function getProvidedSecret(event) {
   return getHeader(headers, 'x-lifecycle-automation-secret');
 }
 
-function secretsMatch(expected, provided) {
-  if (typeof expected !== 'string' || typeof provided !== 'string') return false;
-  // An empty secret is "not configured", never a match: two empty buffers
-  // would otherwise compare equal.
-  if (expected.length === 0 || provided.length === 0) return false;
-
-  const expectedBuffer = Buffer.from(expected, 'utf8');
-  const providedBuffer = Buffer.from(provided, 'utf8');
-  if (expectedBuffer.length !== providedBuffer.length) return false;
-
-  return timingSafeEqual(expectedBuffer, providedBuffer);
-}
 
 function isAuthorizedRun(event) {
   const scheduledBody = parseScheduledBody(event);
@@ -88,32 +76,6 @@ function isAuthorizedRun(event) {
   return { allowed: false, mode: 'blocked', scheduledBody: null };
 }
 
-function createTransporter() {
-  const emailService = process.env.EMAIL_SERVICE || 'gmail';
-  const emailUser = process.env.EMAIL_USER;
-  const emailPassword = process.env.EMAIL_PASSWORD;
-  const isCustomDomain = emailUser && !emailUser.includes('@gmail.com');
-
-  if (emailService === 'gmail' || !isCustomDomain) {
-    return nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: emailUser,
-        pass: emailPassword,
-      },
-    });
-  }
-
-  return nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: Number(process.env.SMTP_PORT || 587),
-    secure: process.env.SMTP_SECURE === 'true',
-    auth: {
-      user: emailUser,
-      pass: emailPassword,
-    },
-  });
-}
 
 // PostgREST filters travel in the URL, so long ID lists are split.
 const IN_FILTER_CHUNK_SIZE = 150;

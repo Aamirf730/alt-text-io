@@ -10,6 +10,7 @@ const { createClient } = require('@supabase/supabase-js');
 const { inspectUnsubscribeToken } = require('./utils/lifecycle-unsubscribe');
 const { getSupportEmail } = require('./utils/email-config');
 const { withErrorReporting } = require('./utils/error-reporter');
+const { escapeHtml } = require('./utils/transactional-email');
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -19,14 +20,6 @@ const supabase = supabaseUrl && supabaseServiceKey
 
 const UNSUBSCRIBE_PATH = '/.netlify/functions/unsubscribe-lifecycle';
 
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
 
 function htmlResponse(statusCode, title, message, extraHtml = '') {
   return {

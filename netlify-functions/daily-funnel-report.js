@@ -1,7 +1,5 @@
 // Daily scheduled funnel report for Alt Text Pro.
 
-const crypto = require('node:crypto');
-const nodemailer = require('nodemailer');
 const { createClient } = require('@supabase/supabase-js');
 const { getEmailFrom } = require('./utils/email-config');
 const {
@@ -11,6 +9,8 @@ const {
 } = require('./utils/marketing-funnel');
 const { retryPendingSubscriptionCancellations, DELETION_AUDIT_ACTION } = require('./utils/account-deletion');
 const { withErrorReporting } = require('./utils/error-reporter');
+const { createTransporter } = require('./utils/transactional-email');
+const { secretsMatch } = require('./utils/secrets');
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -25,32 +25,6 @@ function getReportRecipients() {
     .filter(Boolean);
 }
 
-function createTransporter() {
-  const emailService = process.env.EMAIL_SERVICE || 'gmail';
-  const emailUser = process.env.EMAIL_USER;
-  const emailPassword = process.env.EMAIL_PASSWORD;
-  const isCustomDomain = emailUser && !emailUser.includes('@gmail.com');
-
-  if (emailService === 'gmail' || !isCustomDomain) {
-    return nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: emailUser,
-        pass: emailPassword,
-      },
-    });
-  }
-
-  return nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: Number(process.env.SMTP_PORT || 587),
-    secure: process.env.SMTP_SECURE === 'true',
-    auth: {
-      user: emailUser,
-      pass: emailPassword,
-    },
-  });
-}
 
 function getHeader(headers, name) {
   const target = name.toLowerCase();
@@ -65,13 +39,6 @@ function getReportSecret() {
   return process.env.DAILY_FUNNEL_REPORT_SECRET || process.env.LIFECYCLE_AUTOMATION_SECRET || '';
 }
 
-function secretsMatch(providedSecret, configuredSecret) {
-  if (!providedSecret || !configuredSecret) return false;
-
-  const provided = Buffer.from(String(providedSecret));
-  const configured = Buffer.from(String(configuredSecret));
-  return provided.length === configured.length && crypto.timingSafeEqual(provided, configured);
-}
 
 function isAuthorizedRun(event) {
   const providedSecret = getHeader(event?.headers, 'x-daily-funnel-report-secret');

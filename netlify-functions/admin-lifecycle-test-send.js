@@ -1,6 +1,5 @@
 // Protected admin endpoint for one-recipient lifecycle email dry-runs/test sends.
 
-const nodemailer = require('nodemailer');
 const { createClient } = require('@supabase/supabase-js');
 const { getCustomerEmailFrom, getSupportEmail } = require('./utils/email-config');
 const {
@@ -19,6 +18,7 @@ const {
   buildLifecycleMailOptions,
   fetchRecentMarketingEvents,
 } = require('./utils/lifecycle-automation');
+const { createTransporter } = require('./utils/transactional-email');
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -47,32 +47,6 @@ function parseBoolean(value) {
   return ['1', 'true', 'yes'].includes(String(value || '').toLowerCase());
 }
 
-function createTransporter() {
-  const emailService = process.env.EMAIL_SERVICE || 'gmail';
-  const emailUser = process.env.EMAIL_USER;
-  const emailPassword = process.env.EMAIL_PASSWORD;
-  const isCustomDomain = emailUser && !emailUser.includes('@gmail.com');
-
-  if (emailService === 'gmail' || !isCustomDomain) {
-    return nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: emailUser,
-        pass: emailPassword,
-      },
-    });
-  }
-
-  return nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: Number(process.env.SMTP_PORT || 587),
-    secure: process.env.SMTP_SECURE === 'true',
-    auth: {
-      user: emailUser,
-      pass: emailPassword,
-    },
-  });
-}
 
 async function getExistingSend(candidate) {
   const { data, error } = await supabase

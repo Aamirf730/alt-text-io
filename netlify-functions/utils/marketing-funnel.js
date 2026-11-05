@@ -1,4 +1,5 @@
 const { fetchAllRows } = require('./paginated-query');
+const { escapeHtml } = require('./transactional-email');
 // In the order a customer moves through them: the plugin is downloaded
 // before it can be connected.
 const FUNNEL_STAGES = [
@@ -485,14 +486,6 @@ function renderFunnelReportText(report) {
   return lines.join('\n');
 }
 
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
 
 function renderFunnelReportHtml(report) {
   const rows = report.stages.map(stage => `

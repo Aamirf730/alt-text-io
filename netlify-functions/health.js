@@ -10,7 +10,6 @@
  */
 
 const { createClient } = require('@supabase/supabase-js');
-const { timingSafeEqual } = require('node:crypto');
 const { reportInfo, reportError } = require('./utils/error-reporter');
 const {
     checkRateLimitHealth,
@@ -21,6 +20,7 @@ const {
     getClientIp,
     rateLimitExceededResponse,
 } = require('./utils/cors');
+const { secretsMatch } = require('./utils/secrets');
 
 const HEALTH_RATE_LIMIT = 30;
 const HEALTH_RATE_WINDOW_MS = 60 * 1000;
@@ -201,13 +201,6 @@ function getHeader(headers, name) {
     return key ? headers[key] : undefined;
 }
 
-function secretsMatch(provided, expected) {
-    if (!provided || !expected) return false;
-    const providedBuffer = Buffer.from(String(provided));
-    const expectedBuffer = Buffer.from(String(expected));
-    return providedBuffer.length === expectedBuffer.length
-        && timingSafeEqual(providedBuffer, expectedBuffer);
-}
 
 function isDetailedCheckAuthorized(event) {
     return secretsMatch(

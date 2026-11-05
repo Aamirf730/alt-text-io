@@ -1,10 +1,9 @@
 // Netlify Function for Sending Contact Form Emails
 const crypto = require('node:crypto');
-const nodemailer = require('nodemailer');
 const { createClient } = require('@supabase/supabase-js');
 const { getCustomerEmailFrom, getEmailFrom, getSupportEmail } = require('./utils/email-config');
 const { getBearerToken } = require('./utils/admin-auth');
-const { buildSupportAutoReply, renderTransactionalEmail } = require('./utils/transactional-email');
+const { createTransporter, buildSupportAutoReply, renderTransactionalEmail, escapeHtml } = require('./utils/transactional-email');
 const {
   checkRateLimit,
   getClientIp,
@@ -34,39 +33,11 @@ function getAutoReplyRateKey(email) {
   return `contact-reply:${hash}`;
 }
 
-function escapeHtml(value) {
-  return String(value || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
 
 function singleLine(value) {
   return String(value || '').replace(/[\r\n]+/g, ' ').trim();
 }
 
-function createTransporter() {
-  const emailService = process.env.EMAIL_SERVICE || 'gmail';
-  const emailUser = process.env.EMAIL_USER;
-  const emailPassword = process.env.EMAIL_PASSWORD;
-  const isCustomDomain = emailUser && !emailUser.includes('@gmail.com');
-
-  if (emailService === 'gmail' || !isCustomDomain) {
-    return nodemailer.createTransport({
-      service: 'gmail',
-      auth: { user: emailUser, pass: emailPassword },
-    });
-  }
-
-  return nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: Number(process.env.SMTP_PORT || 587),
-    secure: process.env.SMTP_SECURE === 'true',
-    auth: { user: emailUser, pass: emailPassword },
-  });
-}
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
