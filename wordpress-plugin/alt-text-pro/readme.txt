@@ -4,7 +4,7 @@ Tags: alt text, ai alt text, image alt text, accessibility, image seo
 Requires at least: 5.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.7.28
+Stable tag: 1.7.29
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -220,6 +220,13 @@ Yes. Cancel from your Alt Text Pro dashboard and your plan stays active until th
 6. The Alt Text Pro dashboard on a phone.
 
 == Changelog ==
+= 1.7.29 =
+* Fix: an image is billed once when a bulk run, the Generate buttons or the Posts list reach it while its automatic upload generation is running. The image is skipped or the button says it is already being described.
+* Fix: a timeout, rate limit or service error during a bulk run or a Generate button no longer cancels the upload's own automatic alt text; it runs again a few minutes later.
+* Fix: a bulk run cancelled while an image is being described stays cancelled, even on sites whose object cache drops the run's saved state.
+* Fix: photos whose camera orientation says "rotate" are sent upright, so they are not described sideways.
+* Fix: images uploaded just before the plugin is deactivated and activated again still get their automatic alt text.
+
 = 1.7.28 =
 * New: "Fill empty alt text in post content" (on by default). On WordPress 6.0 and later, images inside posts whose alt is empty or missing are shown with their Media Library alt text. Alt text written in the post is never overwritten.
 * New: the Posts list counts images in the post content that still have empty alt text and offers "Copy alt text into post" (no credits) instead of "All done". WooCommerce product gallery images are included.
@@ -857,6 +864,9 @@ Yes. Cancel from your Alt Text Pro dashboard and your plan stays active until th
 * Comprehensive settings panel
 
 == Upgrade Notice ==
+
+= 1.7.29 =
+Each image is billed once when bulk, manual and automatic generation meet, failed attempts no longer cancel automatic alt text, and rotated photos are described upright. Recommended for all users.
 
 = 1.7.28 =
 Images inside posts get their Media Library alt text, alt text in your language, faster uploads, resumable bulk runs and clearer account errors. Recommended for all users.

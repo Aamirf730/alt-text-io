@@ -3,7 +3,7 @@
  * Plugin Name: Alt Text Pro
  * Plugin URI: https://www.alt-text.pro
  * Description: Draft AI alt text for WordPress images, review it, and fill missing Media Library alt attributes in small batches.
- * Version:           1.7.28
+ * Version:           1.7.29
  * Author: Alt Text Pro
  * Author URI: https://www.alt-text.pro/about
  * License: GPL v2 or later
@@ -20,8 +20,8 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('ALT_TEXT_PRO_VERSION', '1.7.28');
-// Version 1.7.28 - Fill empty alt text inside post content, alt text language setting, upgrade links, resumable bulk runs and clearer service errors.
+define('ALT_TEXT_PRO_VERSION', '1.7.29');
+// Version 1.7.29 - Images billed once when bulk, manual and upload generation meet; failed attempts keep the upload's own generation; cancelled bulk runs stay cancelled; rotated photos sent upright.
 // Version 1.7.27 - Clearer WordPress.org listing and an optional review request after 50 descriptions.
 // Version 1.7.26 - Fix: keep post content intact when syncing alt text, one bulk run per site without the 1,000-image cap, downscale large images, and show real account state on the dashboard.
 // Version 1.7.24 - Maintenance: fix context generation, timezone-aware stats, safe writes, cleanup, and dead admin bindings.
