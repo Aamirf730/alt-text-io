@@ -778,7 +778,10 @@
         handleOnboardingSave: function (e) {
             e.preventDefault();
 
-            var apiKey = $('#onboarding_api_key').val();
+            // A copied key often brings a space or line break with it; the
+            // Settings field trims too, so the same paste works in both.
+            var apiKey = $.trim($('#onboarding_api_key').val());
+            $('#onboarding_api_key').val(apiKey);
             if (!AltTextProAdmin.validateAPIKeyFormat(apiKey)) {
                 AltTextProAdmin.setOnboardingMessage(altTextAI.strings.onboardingInvalidFormat || 'Invalid API key format.', 'error');
                 $('#onboarding_api_key').focus();

@@ -16,6 +16,11 @@ $alt_text_pro_api_key_placeholder = $alt_text_pro_has_key
     : 'alt_...';
 // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only flag set by the nonce-checked disconnect redirect
 $alt_text_pro_disconnected = isset($_GET['alt_text_pro_disconnected']) ? sanitize_key(wp_unslash($_GET['alt_text_pro_disconnected'])) : '';
+// After reconnecting, a reload can keep the flag in the address; the
+// "disconnected" notice no longer applies once a key is saved again.
+if ($alt_text_pro_disconnected === '1' && $alt_text_pro_has_key) {
+    $alt_text_pro_disconnected = '';
+}
 ?>
 
 <div class="wrap alt-text-pro-settings atp-ui">

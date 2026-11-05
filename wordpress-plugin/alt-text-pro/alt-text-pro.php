@@ -241,6 +241,23 @@ class AltTextPro
 
         // Redirect to dashboard after activation
         add_action('admin_init', array($this, 'activation_redirect'));
+
+        // WordPress removes these one-time flags from the address bar after
+        // the page loads, so a later reload does not repeat their notice.
+        add_filter('removable_query_args', array($this, 'removable_query_args'));
+    }
+
+    /**
+     * One-time notice flags WordPress may strip from the admin address bar.
+     *
+     * @param array $args Query args WordPress removes after load.
+     * @return array
+     */
+    public function removable_query_args($args)
+    {
+        $args = is_array($args) ? $args : array();
+        $args[] = 'alt_text_pro_disconnected';
+        return $args;
     }
 
     /**
@@ -1006,7 +1023,8 @@ class AltTextPro
         $api_key = isset($_POST['api_key']) ? trim(sanitize_text_field(wp_unslash($_POST['api_key']))) : '';
 
         if (empty($api_key) || !AltTextPro_API_Client::validate_api_key_format($api_key)) {
-            wp_send_json_error(esc_html__('Invalid API key format. API keys should start with "alt_" or "altai_".', 'alt-text-pro'));
+            // JSON messages are shown as plain text by admin.js, so they are not HTML-escaped here.
+            wp_send_json_error(__('Invalid API key format. API keys should start with "alt_" or "altai_".', 'alt-text-pro'));
         }
 
         $api_client = new AltTextPro_API_Client();
@@ -1044,8 +1062,8 @@ class AltTextPro
             $response_data['saved'] = true;
             $response_data['verified'] = !$unverified;
             $response_data['message'] = $unverified
-                ? esc_html__('API key saved. Alt Text Pro could not confirm it right now; use "Test" on the Settings page in a few minutes.', 'alt-text-pro')
-                : esc_html__('API key validated and saved successfully.', 'alt-text-pro');
+                ? __('API key saved. Alt Text Pro could not confirm it right now; use "Test" on the Settings page in a few minutes.', 'alt-text-pro')
+                : __('API key validated and saved successfully.', 'alt-text-pro');
 
             wp_send_json_success($response_data);
         }

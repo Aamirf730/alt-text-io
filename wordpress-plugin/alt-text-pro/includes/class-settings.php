@@ -709,7 +709,8 @@ class AltTextPro_Settings
 
         // Validate API key format
         if (!AltTextPro_API_Client::validate_api_key_format($api_key)) {
-            wp_send_json_error(esc_html__('Invalid API key format. API keys should start with "alt_" or "altai_".', 'alt-text-pro'));
+            // Shown as plain text by admin.js, so not HTML-escaped here.
+            wp_send_json_error(__('Invalid API key format. API keys should start with "alt_" or "altai_".', 'alt-text-pro'));
         }
 
         $api_client = new AltTextPro_API_Client();
