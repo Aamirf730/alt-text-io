@@ -366,12 +366,24 @@ alt_text_pro_security_assert(
         && strpos($media_source, "delete_post_meta(\$attachment_id, self::PENDING_META)") !== false,
     'Automatic upload generation must schedule one event that claims the pending flag before billing.'
 );
+$alt_text_pro_quick_source = file_get_contents(dirname(__DIR__) . '/alt-text-pro/includes/class-quick-generate.php');
 alt_text_pro_security_assert(
-    strpos($bulk_source, 'AltTextPro_Media_Handler::claim_pending_upload($image_id);') !== false
+    strpos($bulk_source, 'AltTextPro_Media_Handler::claim_for_generation($image_id)') !== false
         && strpos($bulk_source, 'AltTextPro_Media_Handler::is_upload_generation_running($image_id)') !== false
-        && substr_count($plugin_source, 'AltTextPro_Media_Handler::claim_pending_upload($attachment_id);') === 2
-        && strpos($media_source, '        self::claim_pending_upload($attachment_id);' . "\n\n" . '        $result = $api_client->generate_alt_text(') !== false,
-    'Bulk, single-image, post and media regeneration must cancel a queued upload job before billing.'
+        && strpos($bulk_source, "if (\$upload_claim['busy'])") !== false
+        && substr_count($plugin_source, 'AltTextPro_Media_Handler::claim_for_generation($attachment_id);') === 2
+        && substr_count($plugin_source, "if (\$upload_claim['busy'])") === 2
+        && strpos($media_source, '        $upload_claim = self::claim_for_generation($attachment_id);') !== false
+        && strpos($alt_text_pro_quick_source, 'AltTextPro_Media_Handler::claim_for_generation($attachment_id);') !== false
+        && substr_count($plugin_source . $bulk_source . $media_source . $alt_text_pro_quick_source, "claim_pending_upload(\$") === 3,
+    'Bulk, single-image, post, quick and media regeneration must take over a queued upload job before billing, and skip an image the upload job is describing.'
+);
+alt_text_pro_security_assert(
+    strpos($bulk_source, "restore_after_failed_generation(\$image_id, \$upload_claim['pending'], \$result)") !== false
+        && substr_count($plugin_source, "restore_after_failed_generation(\$attachment_id, \$upload_claim['pending'], \$result)") === 2
+        && strpos($media_source, "self::restore_after_failed_generation(\$attachment_id, \$upload_claim['pending'], \$result)") !== false
+        && strpos($alt_text_pro_quick_source, "restore_after_failed_generation(\$attachment_id, \$upload_claim['pending'], \$result)") !== false,
+    'A failed bulk, single-image, post, quick or media generation must put back the upload job it took over.'
 );
 alt_text_pro_security_assert(
     strpos($plugin_source, 'data.content_update_error') !== false,
@@ -564,6 +576,33 @@ function delete_post_meta($post_id, $key)
     return true;
 }
 
+function update_post_meta($post_id, $key, $value)
+{
+    global $alt_text_pro_test_post_meta;
+    $alt_text_pro_test_post_meta[$post_id][$key] = $value;
+    return true;
+}
+
+$alt_text_pro_test_scheduled = array();
+
+function wp_next_scheduled($hook, $args = array())
+{
+    global $alt_text_pro_test_scheduled;
+    foreach ($alt_text_pro_test_scheduled as $event) {
+        if ($event['hook'] === $hook && $event['args'] === $args) {
+            return $event['time'];
+        }
+    }
+    return false;
+}
+
+function wp_schedule_single_event($time, $hook, $args = array())
+{
+    global $alt_text_pro_test_scheduled;
+    $alt_text_pro_test_scheduled[] = array('time' => $time, 'hook' => $hook, 'args' => $args);
+    return true;
+}
+
 require_once dirname(__DIR__) . '/alt-text-pro/includes/class-media-handler.php';
 
 // Records billable calls instead of contacting the service.
@@ -648,6 +687,62 @@ $media_handler->run_scheduled_generation(206, false, 41);
 alt_text_pro_security_assert(
     $media_handler->calls === array(),
     'A queued upload must not be described after automatic generation was turned off.'
+);
+
+// A bulk run or a Generate button racing the upload job (issue: double
+// billing). The job marks itself running, then claims: a caller that loses
+// the claim while the marker is set must not bill the image.
+$alt_text_pro_test_post_meta[207] = array($alt_text_pro_pending => array('alt' => ''), '_wp_attachment_image_alt' => '');
+set_transient('alt_text_pro_auto_running_207', 1, 180);
+AltTextPro_Media_Handler::claim_pending_upload(207);
+alt_text_pro_security_assert(
+    AltTextPro_Media_Handler::claim_for_generation(207) === array('busy' => true, 'pending' => null),
+    'A caller that loses the claim to the running upload job must skip the image.'
+);
+delete_transient('alt_text_pro_auto_running_207');
+
+$alt_text_pro_test_post_meta[208] = array('_wp_attachment_image_alt' => '');
+alt_text_pro_security_assert(
+    AltTextPro_Media_Handler::claim_for_generation(208) === array('busy' => false, 'pending' => null),
+    'An image without a queued upload job is generated normally.'
+);
+
+// A failed attempt puts back the upload job it took over, unless the job
+// would fail the same way.
+$alt_text_pro_test_scheduled = array();
+$alt_text_pro_test_post_meta[209] = array($alt_text_pro_pending => array('alt' => ''), '_wp_attachment_image_alt' => '');
+$alt_text_pro_claim = AltTextPro_Media_Handler::claim_for_generation(209);
+alt_text_pro_security_assert(
+    $alt_text_pro_claim === array('busy' => false, 'pending' => array('alt' => ''))
+        && !array_key_exists($alt_text_pro_pending, $alt_text_pro_test_post_meta[209]),
+    'Taking over a queued upload job returns its record.'
+);
+alt_text_pro_security_assert(
+    AltTextPro_Media_Handler::restore_after_failed_generation(209, $alt_text_pro_claim['pending'], array('success' => false, 'code' => 'rate_limited')) === true
+        && ($alt_text_pro_test_post_meta[209][$alt_text_pro_pending] ?? null) === array('alt' => '')
+        && count($alt_text_pro_test_scheduled) === 1
+        && $alt_text_pro_test_scheduled[0]['hook'] === 'alt_text_pro_generate_background'
+        && $alt_text_pro_test_scheduled[0]['args'][0] === 209,
+    'A rate-limited or failed attempt must put the upload job back and reschedule it.'
+);
+
+foreach (array(
+    'no credits' => array('success' => false, 'code' => 'no_credits', 'no_credits' => true),
+    'suspended account' => array('success' => false, 'code' => 'account_suspended'),
+    'image too large' => array('success' => false, 'image_too_large' => true),
+    'success' => array('success' => true, 'alt_text' => 'A red bicycle.'),
+) as $alt_text_pro_case => $alt_text_pro_result) {
+    $alt_text_pro_test_post_meta[210] = array($alt_text_pro_pending => array('alt' => ''));
+    $alt_text_pro_claim = AltTextPro_Media_Handler::claim_for_generation(210);
+    alt_text_pro_security_assert(
+        AltTextPro_Media_Handler::restore_after_failed_generation(210, $alt_text_pro_claim['pending'], $alt_text_pro_result) === false
+            && !array_key_exists($alt_text_pro_pending, $alt_text_pro_test_post_meta[210]),
+        "The upload job is not put back after: {$alt_text_pro_case}."
+    );
+}
+alt_text_pro_security_assert(
+    AltTextPro_Media_Handler::restore_after_failed_generation(211, null, array('success' => false)) === false,
+    'Nothing is restored when no upload job was taken over.'
 );
 
 fwrite(STDOUT, "WordPress security regression tests passed.\n");

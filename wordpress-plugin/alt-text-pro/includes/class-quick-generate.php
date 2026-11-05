@@ -89,8 +89,11 @@ class AltTextPro_Quick_Generate
 
         // Generating here replaces a queued upload job for this image, so the
         // image is billed once.
-        $pending_upload = get_post_meta($attachment_id, AltTextPro_Media_Handler::PENDING_META, true);
-        $claimed_upload = AltTextPro_Media_Handler::claim_pending_upload($attachment_id);
+        // The upload job can start between the check above and this claim.
+        $upload_claim = AltTextPro_Media_Handler::claim_for_generation($attachment_id);
+        if ($upload_claim['busy']) {
+            wp_send_json_error(esc_html__('Alt Text Pro is already describing this image after its upload. Reload the page in a minute to see the result.', 'alt-text-pro'));
+        }
 
         $api_client = new AltTextPro_API_Client();
         $result = $api_client->generate_alt_text($attachment_id, $context, $blog_context);
@@ -99,10 +102,7 @@ class AltTextPro_Quick_Generate
         if (empty($result['success']) || $alt_text === '') {
             // A timeout or service error must not cancel the upload's own
             // generation; account problems would only fail again there.
-            $final_codes = array('no_credits', 'invalid_api_key', 'account_not_found', 'account_suspended', 'decorative_image');
-            if ($claimed_upload && !in_array($result['code'] ?? '', $final_codes, true)) {
-                AltTextPro_Media_Handler::restore_pending_upload($attachment_id, $pending_upload);
-            }
+            AltTextPro_Media_Handler::restore_after_failed_generation($attachment_id, $upload_claim['pending'], $result);
             $this->send_generation_error($result);
         }
 

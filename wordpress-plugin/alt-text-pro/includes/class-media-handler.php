@@ -22,6 +22,11 @@ class AltTextPro_Media_Handler
     // bulk run reaching the same image skips it instead of paying twice.
     private const RUNNING_TRANSIENT_PREFIX = 'alt_text_pro_auto_running_';
 
+    // Failures the upload job would hit too (account problems, or an image the
+    // service cannot describe). After one of these a claimed upload job is not
+    // put back; after a timeout, rate limit or service error it is.
+    private const FINAL_FAILURE_CODES = array('no_credits', 'invalid_api_key', 'account_not_found', 'account_suspended', 'decorative_image');
+
     // Whether this request already asked WP-Cron to start.
     private static $cron_spawn_queued = false;
 
@@ -130,6 +135,68 @@ class AltTextPro_Media_Handler
         if (!wp_next_scheduled('alt_text_pro_generate_background', $args)) {
             wp_schedule_single_event(time() + 5 * MINUTE_IN_SECONDS, 'alt_text_pro_generate_background', $args);
         }
+    }
+
+    /**
+     * Take over an upload's queued generation before describing the image by
+     * hand or in bulk, so the image is billed once.
+     *
+     * Call it right before the paid request. The upload job marks itself
+     * running before it claims, so a lost claim with that marker set means
+     * the job won the race and is describing the image now: the caller must
+     * not bill it again ('busy'). 'pending' is the queued record this call
+     * took over, or null; pass it to restore_after_failed_generation() if the
+     * request fails.
+     *
+     * @param int $attachment_id Image about to be described.
+     * @return array{busy: bool, pending: array|null}
+     */
+    public static function claim_for_generation($attachment_id)
+    {
+        $attachment_id = absint($attachment_id);
+        if (!$attachment_id) {
+            return array('busy' => false, 'pending' => null);
+        }
+
+        $pending = get_post_meta($attachment_id, self::PENDING_META, true);
+        $claimed = self::claim_pending_upload($attachment_id);
+
+        return array(
+            'busy' => !$claimed && self::is_upload_generation_running($attachment_id),
+            'pending' => $claimed && is_array($pending) ? $pending : null,
+        );
+    }
+
+    /**
+     * Put back an upload job taken over by claim_for_generation() when the
+     * request failed for a reason the job could get past later (timeout, rate
+     * limit, service error). Without this, one failed manual or bulk attempt
+     * used up the upload's only automatic generation.
+     *
+     * @param int        $attachment_id Image.
+     * @param array|null $pending       'pending' from claim_for_generation().
+     * @param array      $result        The API client's result.
+     * @return bool True when the job was put back.
+     */
+    public static function restore_after_failed_generation($attachment_id, $pending, array $result)
+    {
+        if (!is_array($pending)) {
+            return false;
+        }
+
+        $succeeded = !empty($result['success']) && trim((string) ($result['alt_text'] ?? '')) !== '';
+        $code = (string) ($result['code'] ?? '');
+        if (
+            $succeeded
+            || !empty($result['no_credits'])
+            || !empty($result['image_too_large'])
+            || in_array($code, self::FINAL_FAILURE_CODES, true)
+        ) {
+            return false;
+        }
+
+        self::restore_pending_upload($attachment_id, $pending);
+        return true;
     }
 
     /**
@@ -323,10 +390,14 @@ class AltTextPro_Media_Handler
         $blog_context = isset($settings['blog_context']) ? $settings['blog_context'] : '';
 
         // Generating here replaces a queued upload job for this image.
-        self::claim_pending_upload($attachment_id);
+        $upload_claim = self::claim_for_generation($attachment_id);
+        if ($upload_claim['busy']) {
+            wp_send_json_error(esc_html__('Alt Text Pro is already describing this image after its upload. Reload the page in a minute to see the result.', 'alt-text-pro'));
+        }
 
         $result = $api_client->generate_alt_text($attachment_id, $context, $blog_context);
         $alt_text = sanitize_text_field((string) ($result['alt_text'] ?? ''));
+        self::restore_after_failed_generation($attachment_id, $upload_claim['pending'], $result);
 
         if ($result['success'] && $alt_text !== '') {
             // Update attachment alt text

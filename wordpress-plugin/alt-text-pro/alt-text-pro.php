@@ -923,10 +923,16 @@ class AltTextPro
 
         // Generating here replaces a queued upload job for this image, so the
         // image is billed once.
-        AltTextPro_Media_Handler::claim_pending_upload($attachment_id);
+        $upload_claim = AltTextPro_Media_Handler::claim_for_generation($attachment_id);
+        if ($upload_claim['busy']) {
+            wp_send_json_error(esc_html__('Alt Text Pro is already describing this image after its upload. Reload the page in a minute to see the result.', 'alt-text-pro'));
+        }
 
         $api_client = new AltTextPro_API_Client();
         $result = $api_client->generate_alt_text($attachment_id, $context, $blog_context);
+
+        // A timeout or service error must not cancel the upload's own generation.
+        AltTextPro_Media_Handler::restore_after_failed_generation($attachment_id, $upload_claim['pending'], $result);
 
         if ($result['success'] && !empty($result['alt_text'])) {
             // Keep single-image output as a reviewable draft. The user applies
@@ -1873,10 +1879,21 @@ class AltTextPro
                 }
 
                 // Replaces a queued upload job for this image (billed once).
-                AltTextPro_Media_Handler::claim_pending_upload($attachment_id);
+                // If the upload job is describing it right now, leave it.
+                $upload_claim = AltTextPro_Media_Handler::claim_for_generation($attachment_id);
+                if ($upload_claim['busy']) {
+                    $results['skipped']++;
+                    $results['details'][] = array(
+                        'id' => $attachment_id,
+                        'status' => 'skipped',
+                        'message' => __('Being described by automatic generation for the upload.', 'alt-text-pro')
+                    );
+                    continue;
+                }
 
                 $result = $api_client->generate_alt_text($attachment_id, $context, $blog_context);
                 $alt_text = sanitize_text_field((string) ($result['alt_text'] ?? ''));
+                AltTextPro_Media_Handler::restore_after_failed_generation($attachment_id, $upload_claim['pending'], $result);
 
                 if (!empty($result['success']) && $alt_text !== '' && AltTextPro_Review::is_enabled()) {
                     // "Review alt text before it goes live": a suggestion only.

@@ -1498,13 +1498,31 @@ class AltTextPro_Bulk_Processor
             }
 
             // This run describes the image now, so a queued upload job for it
-            // must not bill it again.
-            if (class_exists('AltTextPro_Media_Handler')) {
-                AltTextPro_Media_Handler::claim_pending_upload($image_id);
+            // must not bill it again. The upload job can start between the
+            // check above and this claim; if it won, skip the image.
+            $upload_claim = class_exists('AltTextPro_Media_Handler')
+                ? AltTextPro_Media_Handler::claim_for_generation($image_id)
+                : array('busy' => false, 'pending' => null);
+            if ($upload_claim['busy']) {
+                delete_transient($active_request_key);
+                $skipped++;
+                $processed++;
+                $batch_results[] = array(
+                    'id' => $image_id,
+                    'filename' => basename((string) get_attached_file($image_id)),
+                    'status' => 'skipped',
+                    'reason' => __('Being described by automatic generation for the upload.', 'alt-text-pro')
+                );
+                continue;
             }
 
             $result = $api_client->generate_alt_text($image_id, $image_context, $blog_context);
             delete_transient($active_request_key);
+
+            // A failed attempt must not use up the upload's own generation.
+            if (class_exists('AltTextPro_Media_Handler')) {
+                AltTextPro_Media_Handler::restore_after_failed_generation($image_id, $upload_claim['pending'], $result);
+            }
 
             // Cancellation may arrive while WordPress is waiting for the AI.
             // A successful response has already consumed one credit, so retain
