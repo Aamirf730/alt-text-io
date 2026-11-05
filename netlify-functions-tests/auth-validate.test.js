@@ -11,7 +11,7 @@ if (typeof globalThis.WebSocket === 'undefined') {
   vi.stubGlobal('WebSocket', class WebSocket {});
 }
 
-const { handler } = require('./auth-validate.js');
+const { handler } = require('../netlify-functions/auth-validate.js');
 
 const API_KEY = 'alt_test_key_with_enough_length_123456';
 
