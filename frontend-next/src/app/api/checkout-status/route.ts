@@ -62,15 +62,20 @@ async function isPurchaseApplied(
         );
     }
 
+    // Without the checkout's start time, any earlier pack grant would look
+    // like this purchase. Report "not yet"; the page keeps polling and then
+    // falls back to its own "still processing" message.
     const createdAt = checkout.createdAt ? new Date(checkout.createdAt) : null;
-    let query = supabase
+    if (!createdAt || Number.isNaN(createdAt.getTime())) {
+        return false;
+    }
+
+    const { data: grants, error } = await supabase
         .from("credit_pack_grants")
         .select("payment_id")
-        .eq("user_id", userId);
-    if (createdAt && !Number.isNaN(createdAt.getTime())) {
-        query = query.gte("created_at", createdAt.toISOString());
-    }
-    const { data: grants, error } = await query.limit(1);
+        .eq("user_id", userId)
+        .gte("created_at", createdAt.toISOString())
+        .limit(1);
 
     if (error) return false;
     return Array.isArray(grants) && grants.length > 0;

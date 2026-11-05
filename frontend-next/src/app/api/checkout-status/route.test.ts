@@ -153,6 +153,26 @@ describe("checkout status verification", () => {
         });
     });
 
+    it("never counts an earlier pack grant when the checkout has no start time", async () => {
+        mocks.state.checkout = {
+            status: "succeeded",
+            metadata: { user_id: "user_1" },
+            subscriptionId: null,
+            productId: "prod_pack",
+            product: { isRecurring: false },
+        };
+        // An older purchase's grant exists; this checkout's has not arrived.
+        mocks.state.grants = [{ payment_id: "polar_ord_old" }];
+
+        const response = await GET(new NextRequest(
+            "http://localhost/api/checkout-status?checkout_id=chk_123",
+            { headers: { Authorization: "Bearer verified-session" } },
+        ));
+
+        expect(await response.json()).toEqual({ status: "succeeded", account_updated: false });
+        expect(mocks.state.queries).toHaveLength(0);
+    });
+
     it("does not disclose a checkout owned by another account", async () => {
         mocks.state.checkout = { status: "succeeded", metadata: { user_id: "user_2" } };
 
