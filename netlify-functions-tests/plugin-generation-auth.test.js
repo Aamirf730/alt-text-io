@@ -156,6 +156,46 @@ describe('alt text language', () => {
     expect(isEnglishLanguage({ code: 'de' })).toBe(false);
   });
 
+  it('keeps an English description exactly as written', () => {
+    const { finalizeEnglishAltText } = generation._private;
+
+    for (const sentence of [
+      'A few people ride bicycles along a canal in Amsterdam.',
+      'The focus of the painting is a woman holding a red umbrella.',
+      "Sarah's bakery storefront with a chalkboard sign reading 'Fresh bread daily'.",
+      'Here comes the bride, walking down the aisle in a lace gown.',
+      'A wooden sign reads: Open daily from 9 to 5.',
+      "Two kids share a few cookies at the kitchen table while their dad's dog watches.",
+      'An SEO dashboard on a laptop showing keyword rankings for the past month.',
+      'A street market in Seoul with lanterns over the food stalls.',
+    ]) {
+      expect(finalizeEnglishAltText(sentence)).toBe(sentence);
+    }
+  });
+
+  it('drops intro lines and option labels the prompt asks the model to leave out', () => {
+    const { finalizeEnglishAltText } = generation._private;
+    const sentence = 'A golden retriever catches a frisbee in a park.';
+
+    expect(finalizeEnglishAltText(`"${sentence}"`)).toBe(sentence);
+    expect(finalizeEnglishAltText(`Here are a few options:\n\n1. **${sentence}**\n2. A dog playing outside.`)).toBe(sentence);
+    expect(finalizeEnglishAltText(`**Option 1 (close-up):** ${sentence}\n**Option 2:** A dog plays.`)).toBe(sentence);
+    expect(finalizeEnglishAltText(`Alt text: ${sentence}`)).toBe(sentence);
+    expect(finalizeEnglishAltText(`Here’s the alt text: ${sentence}`)).toBe(sentence);
+    expect(finalizeEnglishAltText(`- ${sentence}`)).toBe(sentence);
+    expect(() => finalizeEnglishAltText('A dog.')).toThrow();
+  });
+
+  it('shortens long English alt text at a word, not mid-word', () => {
+    const { finalizeEnglishAltText } = generation._private;
+    const long = 'A hiker stands on a ridge above a valley at sunset, with snow-capped peaks in the distance and a winding river below the trail.';
+
+    const result = finalizeEnglishAltText(long);
+    expect(result.length).toBeLessThanOrEqual(125);
+    expect(long.startsWith(result)).toBe(true);
+    expect(long.charAt(result.length)).toBe(' ');
+  });
+
   it('tells the model which language to write in', () => {
     const source = readFileSync(resolve(root, 'netlify-functions/generate-alt-text.js'), 'utf8');
     expect(source).toContain('normalizeAltTextLanguage(requestBody.language)');
