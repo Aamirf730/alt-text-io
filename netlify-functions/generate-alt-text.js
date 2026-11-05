@@ -890,7 +890,10 @@ exports.handler = async (event, context) => {
         credits_remaining: updatedMonthlyCreditState.monthly_credits_remaining,
         monthly_credits_remaining: updatedMonthlyCreditState.monthly_credits_remaining,
         monthly_credit_limit: updatedMonthlyCreditState.monthly_credit_limit,
+        // Same meanings as get-usage: total_processed counts every
+        // generation this cycle; monthly_credits_used only plan-paid ones.
         total_processed: newTotalProcessed,
+        monthly_credits_used: updatedMonthlyCreditState.monthly_credits_used,
         language: language.code
       }),
     };

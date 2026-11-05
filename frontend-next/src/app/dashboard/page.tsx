@@ -108,7 +108,10 @@ export default function Dashboard() {
     const purchasedCreditsRemaining = Number(usageStats?.purchased_credits_remaining || 0);
     // A pinned allowance (legacy subscribers, annual drip) wins over the catalogue fallback.
     const planAllowance = monthlyCreditLimit || (monthlyCreditAllowance > 0 ? monthlyCreditAllowance : currentPlanLimit);
-    const creditsUsed = Number(usageStats?.monthly_credits_used ?? usageStats?.total_processed ?? 0);
+    // Every generation this cycle (plan, bonus and pack credits). The bar's
+    // denominator is "used + still spendable" across the same ledgers, so the
+    // numerator must count all of them too; monthly_credits_used is plan-only.
+    const creditsUsed = Number(usageStats?.total_processed ?? usageStats?.monthly_credits_used ?? 0);
     const creditsRemaining = Number(usageStats?.monthly_credits_remaining ?? usageStats?.credits_remaining ?? 0);
     const creditUsageLimit = getUsageDisplayLimit(planAllowance, creditsRemaining, creditsUsed);
     const creditUsagePercent = creditUsageLimit > 0 ? Math.min((creditsUsed / creditUsageLimit) * 100, 100) : 0;
@@ -828,13 +831,16 @@ export default function Dashboard() {
                 // Update usage stats with real credits from API
                 // The display reads the monthly fields first, so update them too.
                 setUsageStats((prev: any) => {
-                    const used = Number(data.total_processed ?? (Number(prev?.monthly_credits_used ?? prev?.total_processed ?? 0) + 1));
+                    // total_processed counts every generation this cycle and
+                    // monthly_credits_used only plan-paid ones, as in get-usage;
+                    // each field keeps its own meaning.
+                    const used = Number(data.total_processed ?? (Number(prev?.total_processed ?? 0) + 1));
                     const remaining = Number(data.monthly_credits_remaining ?? data.credits_remaining ?? prev?.monthly_credits_remaining ?? 0);
                     return {
                         ...prev,
                         credits_remaining: data.credits_remaining,
                         monthly_credits_remaining: remaining,
-                        monthly_credits_used: used,
+                        monthly_credits_used: data.monthly_credits_used ?? prev?.monthly_credits_used,
                         monthly_credit_limit: data.monthly_credit_limit ?? prev?.monthly_credit_limit,
                         total_processed: used,
                         total_generated: Number(prev?.total_generated ?? 0) + 1,
