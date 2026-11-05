@@ -18,7 +18,7 @@ test('tracked migrations have one ordered, canonical history', () => {
   assert.ok(files.length > 1);
   assert.equal(new Set(versions).size, versions.length);
   assert.equal(files[0], '20260625140000_bootstrap_schema.sql');
-  assert.equal(files.at(-1), '20261105130000_activate_subscription_period_and_mismatch_guards.sql');
+  assert.equal(files.at(-1), '20261105140000_tidy_billing_functions.sql');
 });
 
 test('bootstrap defines every foundational table and reporting view', () => {
@@ -484,4 +484,25 @@ test('activation ignores earlier periods and refuses to replace a live paid subs
   assert.match(migration, /'reason', 'subscription_mismatch'/);
   // The guards run before the profile is rewritten.
   assert.ok(migration.indexOf("'subscription_mismatch'") < migration.indexOf('update public.profiles'));
+});
+
+test('tidy-up migration subtracts in-flight plan reservations and hardens the rest', () => {
+  const migration = fs.readFileSync(
+    path.join(migrationsDirectory, '20261105140000_tidy_billing_functions.sql'),
+    'utf8',
+  ).toLowerCase();
+
+  for (const fn of ['renew_subscription_credits', 'revoke_subscription_access', 'activate_subscription_profile']) {
+    const start = migration.indexOf(`create or replace function public.${fn}(`);
+    assert.ok(start >= 0, `${fn} is redefined`);
+    const body = migration.slice(start, migration.indexOf('$function$;', start));
+    assert.match(body, /into v_active_plan_reservations/, `${fn} counts in-flight plan reservations`);
+    assert.match(body, /greatest\(0, [a-z_]+ - v_active_plan_reservations\)/, `${fn} subtracts them`);
+  }
+  assert.match(migration, /'already_completed', true,\s+'credits_remaining'/);
+  assert.match(migration, /lower\(user_email\) = v_email\);\n\n  -- actor_key/);
+  assert.match(migration, /select public\.payment_net_revenue\(\s+pm\.status, pm\.amount, pm\.tax_amount, pm\.refunded_amount, pm\.refunded_tax_amount/);
+  assert.match(migration, /alter function public\.issue_api_key\(uuid, text, text, text, boolean\) set search_path = '';/);
+  assert.match(migration, /alter function public\.touch_plugin_site\(uuid, text, text, text\) set search_path = '';/);
+  assert.match(migration, /drop function if exists public\.get_or_create_api_key\(uuid\);\ndrop function if exists public\.generate_api_key\(\);/);
 });
