@@ -167,6 +167,29 @@ describe('admin operator actions', () => {
     expect(parse(JSON.stringify({ user_id: userId, action: 'impersonate', reason: 'nope' })).error).toBe('Unsupported action');
   });
 
+  it('refuses to take credits, block or touch API keys of an admin account', () => {
+    const check = userAction._private.getProtectedTargetError;
+    const previous = process.env.SUPERUSER_EMAILS;
+    process.env.SUPERUSER_EMAILS = 'boss@example.com';
+    try {
+      const admin = { id: 'admin-1' };
+      const otherAdmin = { id: 'admin-2', email: 'Boss@Example.com' };
+      const self = { id: 'admin-1', email: 'me@example.com' };
+      const customer = { id: 'user-9', email: 'buyer@example.com' };
+
+      for (const action of ['block', 'remove_credits', 'revoke_api_key', 'rotate_api_key']) {
+        expect(check(action, otherAdmin, admin)).toEqual(expect.any(String));
+        expect(check(action, self, admin)).toEqual(expect.any(String));
+        expect(check(action, customer, admin)).toBeNull();
+      }
+      expect(check('grant_credits', otherAdmin, admin)).toBeNull();
+      expect(check('unblock', otherAdmin, admin)).toBeNull();
+    } finally {
+      if (previous === undefined) delete process.env.SUPERUSER_EMAILS;
+      else process.env.SUPERUSER_EMAILS = previous;
+    }
+  });
+
   it('builds a stable idempotency key from the form key', () => {
     const parse = userAction._private.parseActionRequest;
     const body = JSON.stringify({ user_id: userId, action: 'grant_credits', credits: 50, reason: 'Goodwill', idempotency_key: 'form-key-123' });

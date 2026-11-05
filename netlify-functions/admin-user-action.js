@@ -49,6 +49,25 @@ function json(statusCode, headers, body) {
   return { statusCode, headers, body: JSON.stringify(body) };
 }
 
+// Actions an operator may not take against an admin account (their own or
+// another SUPERUSER_EMAILS account): taking credits away, blocking, or
+// revoking or rotating the account's API key. Granting credits and
+// unblocking are allowed.
+const PROTECTED_ACTION_MESSAGES = {
+  block: 'Admin accounts cannot be blocked',
+  remove_credits: 'Credits cannot be removed from admin accounts',
+  revoke_api_key: 'Admin API keys cannot be revoked here',
+  rotate_api_key: 'Admin API keys cannot be rotated here',
+};
+const TARGET_CHECKED_ACTIONS = new Set(Object.keys(PROTECTED_ACTION_MESSAGES));
+
+function getProtectedTargetError(action, target, admin) {
+  const message = PROTECTED_ACTION_MESSAGES[action];
+  if (!message || !target) return null;
+  const isAdminTarget = target.id === admin?.id || isSuperuserEmail(target.email);
+  return isAdminTarget ? message : null;
+}
+
 function parseActionRequest(rawBody) {
   let body;
   try {
@@ -204,7 +223,7 @@ async function handler(event) {
     const { request, error: requestError } = parseActionRequest(event.body);
     if (requestError) return json(400, headers, { error: requestError });
 
-    if (request.action === 'block' || request.action === 'remove_credits') {
+    if (TARGET_CHECKED_ACTIONS.has(request.action)) {
       const { data: target, error: targetError } = await supabase
         .from('profiles')
         .select('id,email')
@@ -212,9 +231,8 @@ async function handler(event) {
         .maybeSingle();
       if (targetError) throw new Error(`Failed to read target profile: ${targetError.message}`);
       if (!target) return json(404, headers, { error: 'User not found' });
-      if (request.action === 'block' && (target.id === admin.id || isSuperuserEmail(target.email))) {
-        return json(403, headers, { error: 'Admin accounts cannot be blocked' });
-      }
+      const refusal = getProtectedTargetError(request.action, target, admin);
+      if (refusal) return json(403, headers, { error: refusal });
     }
 
     let outcome;
@@ -249,4 +267,4 @@ async function handler(event) {
 }
 
 exports.handler = withErrorReporting('admin-user-action', handler);
-exports._private = { parseActionRequest };
+exports._private = { parseActionRequest, getProtectedTargetError };
