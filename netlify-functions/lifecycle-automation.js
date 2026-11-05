@@ -61,6 +61,9 @@ function getProvidedSecret(event) {
 
 function secretsMatch(expected, provided) {
   if (typeof expected !== 'string' || typeof provided !== 'string') return false;
+  // An empty secret is "not configured", never a match: two empty buffers
+  // would otherwise compare equal.
+  if (expected.length === 0 || provided.length === 0) return false;
 
   const expectedBuffer = Buffer.from(expected, 'utf8');
   const providedBuffer = Buffer.from(provided, 'utf8');

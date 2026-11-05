@@ -28,6 +28,19 @@ describe('lifecycle automation authorization', () => {
     });
   });
 
+  it('blocks an empty header when the secret is set to an empty value', () => {
+    process.env.LIFECYCLE_AUTOMATION_SECRET = '';
+
+    const auth = _private.isAuthorizedRun({
+      body: JSON.stringify({ next_run: '2026-06-25T14:00:00.000Z' }),
+      headers: { 'X-Lifecycle-Automation-Secret': '' },
+      queryStringParameters: {},
+      __scheduledInvocation: true,
+    });
+
+    expect(auth).toMatchObject({ allowed: false, mode: 'blocked' });
+  });
+
   it('allows an internally attested scheduled invocation with the automation secret', () => {
     process.env.LIFECYCLE_AUTOMATION_SECRET = 'test-secret';
 
