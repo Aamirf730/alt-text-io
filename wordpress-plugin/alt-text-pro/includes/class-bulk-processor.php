@@ -1509,12 +1509,17 @@ class AltTextPro_Bulk_Processor
             // Cancellation may arrive while WordPress is waiting for the AI.
             // A successful response has already consumed one credit, so retain
             // and count it. A failed response can stop without adding an error.
+            // State that disappeared (a cancel removed it and an object cache
+            // evicted the cancelled copy) is a cancellation too, as in the
+            // checks before the request.
             $current_process = $this->get_bulk_process_data($process_id, true);
             if (
-                $current_process &&
+                !$current_process ||
                 in_array($current_process['status'] ?? '', array('cancelled', 'cancelling'), true)
             ) {
-                $process_data = $current_process;
+                if ($current_process) {
+                    $process_data = $current_process;
+                }
                 $cancelled_mid_batch = true;
             }
 
@@ -1790,12 +1795,16 @@ class AltTextPro_Bulk_Processor
 
         // A cancel request can arrive while this PHP request is waiting on the AI API.
         // Re-read immediately before saving so a late batch response cannot revive the job.
+        // Missing state means the run was cancelled and removed: saving the
+        // in-memory copy would bring it back as "running".
         $latest_process = $this->get_bulk_process_data($process_id, true);
         if (
-            $latest_process &&
+            !$latest_process ||
             in_array($latest_process['status'] ?? '', array('cancelled', 'cancelling'), true)
         ) {
-            $process_data = $latest_process;
+            if ($latest_process) {
+                $process_data = $latest_process;
+            }
             $cancelled_mid_batch = true;
         }
 
