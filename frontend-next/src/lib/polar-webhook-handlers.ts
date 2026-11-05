@@ -1153,7 +1153,7 @@ async function activateSubscriptionProfile({
     billingCycle: "monthly" | "annual";
     monthlyCreditAllowance: number;
     nextBillingDate: string | null;
-}) {
+}): Promise<SubscriptionActivationResult> {
     const { data, error } = await getSupabase().rpc("activate_subscription_profile", {
         p_user_id: userId,
         p_subscription_id: subscriptionId,
@@ -1170,10 +1170,21 @@ async function activateSubscriptionProfile({
         throw error;
     }
 
-    if (!data?.success) {
-        throw new Error(data?.error || "Subscription activation failed");
+    const result = data as SubscriptionActivationResult | null;
+    if (!result?.success) {
+        throw new Error(result?.error || "Subscription activation failed");
     }
+
+    return result;
 }
+
+type SubscriptionActivationResult = {
+    success: boolean;
+    activated?: boolean;
+    already_processed?: boolean;
+    reason?: string;
+    error?: string;
+};
 
 type SubscriptionRenewalResult = {
     success: boolean;
@@ -1427,7 +1438,9 @@ export async function handleOrderPaid(
 }
 
 // Handle subscription activation. This is the only event that binds a new
-// subscription to a profile (including a Free one).
+// subscription to a profile (including a Free one), and only on a strong
+// identity: checkout metadata, the Polar customer's externalId, or a stored
+// customer or subscription ID. An email-only match is queued.
 export async function handleSubscriptionActive(
     subscription: any,
     context: PolarHandlerContext = {},
@@ -1436,18 +1449,38 @@ export async function handleSubscriptionActive(
     const customerEmail = normalizeEmail(subscription.customer?.email);
     const productName = subscription.product?.name || "";
 
-    const profile = await resolveProfile(context, {
+    // Our checkout sets both metadata.user_id and the Polar customer's
+    // externalId to the profile ID; either one identifies the account.
+    const providerUserId = getProviderUserId(subscription) || getPolarExternalCustomerId(subscription);
+    const resolved = await resolveSubscriptionProfile(context, {
         eventName: "subscription.active",
         payload: subscription,
-        reason: identityReason(subscription, customerEmail),
-        userId: getProviderUserId(subscription),
+        reason: providerUserId ? "profile_not_found" : identityReason(subscription, customerEmail),
+        userId: providerUserId,
         email: customerEmail,
         subscriptionId: subscription.id,
         customerId: subscription.customer?.id,
     });
 
-    if (!profile) {
+    if (!resolved) {
         return queued("profile_not_found");
+    }
+    const profile = resolved.profile;
+
+    // Email is user-entered at checkout and never binds a subscription on its
+    // own (see ProfileMatchSource). A subscription matched only by email was
+    // bought outside the app's checkout: an operator confirms the account.
+    if (!context.forcedProfile && !resolved.strongIdentity) {
+        await recordPaymentReconciliation({
+            eventName: "subscription.active",
+            payload: subscription,
+            reason: "email_only_match",
+            userId: profile.id,
+            customerEmail,
+            customerId: subscription.customer?.id,
+            subscriptionId: subscription.id,
+        });
+        return queued("email_only_match");
     }
 
     const mergedMetadata = mergeMetadata(subscription);
@@ -1474,7 +1507,7 @@ export async function handleSubscriptionActive(
     });
     if (unknownProduct) return unknownProduct;
 
-    await activateSubscriptionProfile({
+    const activation = await activateSubscriptionProfile({
         userId: profile.id,
         subscriptionId: subscription.id,
         planId,
@@ -1485,6 +1518,26 @@ export async function handleSubscriptionActive(
         monthlyCreditAllowance: monthlyAllowance,
         nextBillingDate: getSubscriptionEnd(subscription),
     });
+
+    if (activation.reason === "subscription_mismatch") {
+        // The profile still has a different live paid subscription. Replacing
+        // it would leave that one billing while its events are ignored.
+        await recordPaymentReconciliation({
+            eventName: "subscription.active",
+            payload: subscription,
+            reason: "active_subscription_mismatch",
+            userId: profile.id,
+            customerEmail,
+            customerId: subscription.customer?.id,
+            subscriptionId: subscription.id,
+        });
+        return queued("active_subscription_mismatch");
+    }
+
+    if (activation.already_processed) {
+        console.log("Subscription activation already applied for this period");
+        return applied("already_processed");
+    }
 
     console.log(`Subscription profile configured for ${planId} (${billingCycle})`);
     return applied();

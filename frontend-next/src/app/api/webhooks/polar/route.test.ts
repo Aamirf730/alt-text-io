@@ -458,6 +458,92 @@ describe("Polar subscription lifecycle handlers", () => {
         expect(mocks.state.rpcCalls).toHaveLength(0);
     });
 
+    const outsideCheckoutSubscription = (overrides: Record<string, unknown> = {}) => annualSubscription({
+        id: "sub_outside_1",
+        status: "active",
+        customer: { id: "cus_unknown", email: "customer@example.com" },
+        ...overrides,
+    });
+
+    it("queues subscription.active matched only by email instead of binding it", async () => {
+        mocks.state.profiles = [profile({ subscription_id: null, subscription_plan: "free", polar_customer_id: null })];
+        mocks.state.authUsers = [{ id: "user_1", email: "customer@example.com" }];
+
+        await polarWebhookHandlers.onSubscriptionActive?.({
+            data: outsideCheckoutSubscription(),
+        } as never);
+
+        expect(mocks.state.reconciliations).toContainEqual(expect.objectContaining({
+            event_name: "subscription.active",
+            reason: "email_only_match",
+            candidate_user_id: "user_1",
+            subscription_id: "sub_outside_1",
+        }));
+        expect(mocks.state.rpcCalls.map((call) => call.name)).not.toContain("activate_subscription_profile");
+    });
+
+    it("activates when the Polar customer's externalId is the profile ID", async () => {
+        mocks.state.profiles = [profile({ subscription_id: null, subscription_plan: "free", polar_customer_id: null })];
+
+        await polarWebhookHandlers.onSubscriptionActive?.({
+            data: outsideCheckoutSubscription({
+                customer: { id: "cus_unknown", email: "someone-else@example.com", externalId: "user_1" },
+            }),
+        } as never);
+
+        expect(mocks.state.reconciliations).toHaveLength(0);
+        expect(mocks.state.rpcCalls).toContainEqual({
+            name: "activate_subscription_profile",
+            args: expect.objectContaining({ p_user_id: "user_1", p_subscription_id: "sub_outside_1" }),
+        });
+    });
+
+    it("lets an operator replay apply an email-only activation to the chosen profile", async () => {
+        const forced = profile({ subscription_id: null, subscription_plan: "free", polar_customer_id: null });
+        mocks.state.profiles = [forced];
+
+        const result = await replayPolarEvent(
+            "subscription.active",
+            outsideCheckoutSubscription(),
+            forced as unknown as BillingProfile,
+        );
+
+        expect(result).toEqual({ outcome: "applied" });
+        expect(mocks.state.rpcCalls.map((call) => call.name)).toContain("activate_subscription_profile");
+    });
+
+    it("queues an activation the RPC refuses because another paid subscription is live", async () => {
+        mocks.state.rpcResults.activate_subscription_profile = {
+            success: true,
+            activated: false,
+            reason: "subscription_mismatch",
+        };
+
+        await polarWebhookHandlers.onSubscriptionActive?.({
+            data: annualSubscription({ id: "sub_second_1", status: "active" }),
+        } as never);
+
+        expect(mocks.state.reconciliations).toContainEqual(expect.objectContaining({
+            event_name: "subscription.active",
+            reason: "active_subscription_mismatch",
+            subscription_id: "sub_second_1",
+        }));
+    });
+
+    it("reports a replayed activation for an applied period as already processed", async () => {
+        const forced = profile();
+        mocks.state.profiles = [forced];
+        mocks.state.rpcResults.activate_subscription_profile = { success: true, already_processed: true };
+
+        const result = await replayPolarEvent(
+            "subscription.active",
+            annualSubscription({ status: "active" }),
+            forced as unknown as BillingProfile,
+        );
+
+        expect(result).toEqual({ outcome: "applied", reason: "already_processed" });
+    });
+
     it("keeps a mapped product's activation unchanged", async () => {
         mocks.state.profiles = [profile({ subscription_id: null, subscription_plan: "free" })];
 
