@@ -1,5 +1,18 @@
 # Progress
 
+## 2026-11-07: Alt text accessibility and SEO guide (verified locally, publishing)
+
+- Authorized: write and publish one article on the existing Alt Text Pro website covering the eight screenshot topics. Publication includes the scoped website Git/Netlify deployment.
+- Topics: accessibility, writing best practices, captions, SEO, generation tools, screen reader requirements, image-description examples, and usability.
+- Editorial constraints: original practical prose, no semicolons or long dashes in article copy, primary-source references, no invented results or ranking guarantees.
+- Plan: add a server-rendered guide with metadata and article structured data, link it from the existing site, include it in the sitemap, check desktop/mobile rendering and build before publishing.
+- Baseline: local and fetched origin/main are at `17df0fd`, plugin 1.7.30. Untracked `marketing-videos/` is unrelated and excluded.
+- Traffic hypothesis remains unproven. Evaluate search impressions/clicks for this URL after indexing before expanding the content series.
+- Implemented `/how-to-write-alt-text`, about 2,000 words, with ten sections covering all eight topics plus WordPress steps and a checklist. Uses an existing image for original worked examples. Added a responsive contents menu, canonical, Article JSON-LD, social metadata, dated sitemap entry, footer link and contextual Docs link.
+- Source checks: W3C WAI tutorials and WCAG 2.2 SC 1.1.1, Google image SEO docs, WordPress Image block docs and WAVE. No fabricated performance claims or author credentials.
+- Verification: production build, TypeScript and targeted ESLint passed. Frontend suite passed 32 files / 324 tests. The documented root-level Vitest command initially failed because it skipped the frontend config and working-directory assumptions. Running `npm test` inside `frontend-next` passed, and PROJECT.md now documents that invocation.
+- Local Chrome checks: HTTP 200, all ten contents anchors, one H1, Article data, canonical, sitemap, internal article links, image loaded, no page exceptions, no horizontal page overflow at 320px/390px. Desktop and mobile screenshots reviewed. Rendered article contains no semicolons, en dashes or em dashes. Final editorial pass replaced an inferred tactile dough detail with a visible one and uses an accurate date-only publication value.
+
 ## 2026-11-05: Setup walk-through and release of the follow-up (database, website, plugin 1.7.30)
 
 - First-run walk-through as a new user. Clean local WordPress sites (Playground), with the plugin installed from WordPress.org through Plugins → Add New:

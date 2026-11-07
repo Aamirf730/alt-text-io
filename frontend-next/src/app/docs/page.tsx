@@ -111,6 +111,9 @@ export default function DocsPage() {
                                     </p>
 
                                     <h2 className="text-2xl font-bold mt-8 mb-4 text-ink">Why Use Alt Text Pro?</h2>
+                                    <p className="text-ink mb-4">
+                                        New to writing image descriptions? Read our <Link href="/how-to-write-alt-text" className="font-medium text-ink underline decoration-line-strong decoration-2 underline-offset-4 hover:decoration-ink">guide to alt text for accessibility and SEO</Link> for examples, caption comparisons, and advice on reviewing AI drafts.
+                                    </p>
                                     <div className="grid md:grid-cols-2 gap-6 my-6">
                                         <Card className="gap-0 p-6">
                                             <div className="flex items-center gap-3 mb-3">

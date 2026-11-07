@@ -62,6 +62,7 @@ const Footer = () => {
 
                     {/* Links */}
                     <div className="flex flex-wrap justify-center gap-x-12 gap-y-6 text-base font-medium text-ink-muted">
+                        <Link href="/how-to-write-alt-text" className="hover:text-ink hover:underline underline-offset-4 transition-colors">How to Write Alt Text</Link>
                         <Link href="/ai-alt-text-generator-for-wordpress" className="hover:text-ink hover:underline underline-offset-4 transition-colors">AI Alt Text Guide</Link>
                         <Link href="/woocommerce-product-image-alt-text" className="hover:text-ink hover:underline underline-offset-4 transition-colors">WooCommerce Guide</Link>
                         <Link href="/bulk-generate-alt-text-wordpress" className="hover:text-ink hover:underline underline-offset-4 transition-colors">Bulk Alt Text Guide</Link>

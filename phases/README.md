@@ -17,5 +17,6 @@
 
 - Infrastructure, database, auth, and shared APIs: Phase 1.
 - Next.js customer flows and dashboard: Phase 2.
+- Public alt-text editorial guide and discoverability: Phase 2 implementation and Phase 4 publication.
 - Plugin API contract and WordPress release: Phase 3.
 - Testing, deployment, backups, and operational readiness: Phase 4.

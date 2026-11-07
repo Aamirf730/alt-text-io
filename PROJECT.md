@@ -8,6 +8,7 @@ Alt Text Pro is a SaaS plus WordPress plugin that generates AI alt text for Word
 
 ## Current Architecture
 
+- `frontend-next/src/app/how-to-write-alt-text/`: public editorial guide covering accessibility, SEO, captions, screen readers, writing examples, tools and usability. Server-rendered with canonical/Article metadata, internal links and a sitemap entry. Keep source citations and publication dates accurate, avoid unsupported ranking claims, and use no semicolons or long dashes in article prose. Covered by Phase 2, published through Phase 4.
 - `frontend-next/`: Next.js marketing app, dashboard, checkout, customer portal, Polar webhook, docs, connect flow, public plugin ZIPs.
 - `frontend-next/src/app/customer-offer/`: invitation-only campaign claim experience for eligible legacy WPGeared customers.
 - `netlify-functions/`: legacy/public API used by the WordPress plugin and dashboard: `generate-alt-text`, `get-usage`, `get-plans`, `auth-validate`, `track-event`, lifecycle/funnel automation.
@@ -47,7 +48,7 @@ Frontend tests:
 
 ```bash
 cd frontend-next && ./node_modules/.bin/next build
-./frontend-next/node_modules/.bin/vitest run frontend-next/src
+npm test
 ```
 
 Function tests:
