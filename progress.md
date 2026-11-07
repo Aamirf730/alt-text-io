@@ -1,6 +1,6 @@
 # Progress
 
-## 2026-11-07: Alt text accessibility and SEO guide (verified locally, publishing)
+## 2026-11-07: Alt text accessibility and SEO guide (published and verified)
 
 - Authorized: write and publish one article on the existing Alt Text Pro website covering the eight screenshot topics. Publication includes the scoped website Git/Netlify deployment.
 - Topics: accessibility, writing best practices, captions, SEO, generation tools, screen reader requirements, image-description examples, and usability.
@@ -12,6 +12,9 @@
 - Source checks: W3C WAI tutorials and WCAG 2.2 SC 1.1.1, Google image SEO docs, WordPress Image block docs and WAVE. No fabricated performance claims or author credentials.
 - Verification: production build, TypeScript and targeted ESLint passed. Frontend suite passed 32 files / 324 tests. The documented root-level Vitest command initially failed because it skipped the frontend config and working-directory assumptions. Running `npm test` inside `frontend-next` passed, and PROJECT.md now documents that invocation.
 - Local Chrome checks: HTTP 200, all ten contents anchors, one H1, Article data, canonical, sitemap, internal article links, image loaded, no page exceptions, no horizontal page overflow at 320px/390px. Desktop and mobile screenshots reviewed. Rendered article contains no semicolons, en dashes or em dashes. Final editorial pass replaced an inferred tactile dough detail with a visible one and uses an accurate date-only publication value.
+- Published commit `3e999d7` from `codex/alt-text-accessibility-seo-guide` to `main`. Netlify production deploy `6aeee07f9794b1594aed6c36` became ready and published at 13:57 IST on November 7. URL: `https://www.alt-text.pro/how-to-write-alt-text`.
+- Live Chrome verification passed with 2,002 rendered article words, all ten sections and anchors, working internal links, image loaded, valid Article JSON-LD/canonical, no prohibited punctuation or page exceptions, and no overflow at 320px/390px. Homepage and Docs both link to the article. The sitemap includes its canonical URL and the page has no noindex directive.
+- Production smoke checks returned 200 for the article, homepage, Docs, sitemap, robots, health, plans and both plugin ZIPs. Both ZIPs remain version 1.7.30. No database or WordPress.org changes were needed. Search indexing and organic traffic have not yet been measured.
 
 ## 2026-11-05: Setup walk-through and release of the follow-up (database, website, plugin 1.7.30)
 
