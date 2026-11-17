@@ -27,6 +27,7 @@ const ALLOWED_EVENTS = new Set([
   'checkout_started',
   'purchase_completed',
   'subscription_canceled',
+  'alt_checker_run',
 ]);
 
 // These events may be recorded without an account, but anonymous requests are
@@ -36,6 +37,7 @@ const ANONYMOUS_EVENTS = new Set([
   'demo_used',
   'plugin_downloaded',
   'connect_started',
+  'alt_checker_run',
 ]);
 
 // These sources are written only by verified server-side integrations. A

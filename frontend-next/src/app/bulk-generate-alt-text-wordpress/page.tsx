@@ -250,7 +250,8 @@ export default function BulkGenerateAltTextWordPressPage() {
               </h2>
               <p className="text-lg text-ink-muted leading-relaxed">
                 Bulk processing is for a backlog: a media library built up over years, an import that lost its metadata, or a store catalog that never had alt text. For a single image, the{" "}
-                <Link href="/ai-alt-text-generator-for-wordpress" className="font-medium text-ink underline decoration-line-strong decoration-2 underline-offset-4 hover:decoration-ink">media editor button</Link> is quicker.
+                <Link href="/ai-alt-text-generator-for-wordpress" className="font-medium text-ink underline decoration-line-strong decoration-2 underline-offset-4 hover:decoration-ink">media editor button</Link> is quicker. Not sure how many images are missing alt text? Check a page first with the free{" "}
+                <Link href="/alt-text-checker" className="font-medium text-ink underline decoration-line-strong decoration-2 underline-offset-4 hover:decoration-ink">alt text checker</Link>.
               </p>
             </div>
 

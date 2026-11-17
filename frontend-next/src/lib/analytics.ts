@@ -12,7 +12,8 @@ export type MarketingEventName =
   | "credits_low"
   | "checkout_started"
   | "purchase_completed"
-  | "subscription_canceled";
+  | "subscription_canceled"
+  | "alt_checker_run";
 
 type MarketingEventProperties = Record<string, string | number | boolean | null | undefined>;
 

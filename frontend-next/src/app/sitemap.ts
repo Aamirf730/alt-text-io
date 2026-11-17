@@ -8,6 +8,7 @@ const routes = [
   { path: "/woocommerce-product-image-alt-text", changeFrequency: "weekly", priority: 0.85 },
   { path: "/bulk-generate-alt-text-wordpress", changeFrequency: "weekly", priority: 0.85 },
   { path: "/docs", changeFrequency: "monthly", priority: 0.7 },
+  { path: "/alt-text-checker", changeFrequency: "monthly", priority: 0.8 },
   { path: "/alt-text-simulator", changeFrequency: "monthly", priority: 0.6 },
   { path: "/about", changeFrequency: "monthly", priority: 0.5 },
   { path: "/contact", changeFrequency: "monthly", priority: 0.5 },

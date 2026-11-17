@@ -151,6 +151,7 @@ export default function AltTextGuidePage() {
               <h3>A general image description tool</h3>
               <p>If you use an AI tool that accepts images, give it the page context as well. A useful prompt is: “Write a short alt description for this photo in a guide to small balcony gardens. Focus on the planter arrangement. Do not guess plant species.” Verify the result before copying it into your site.</p>
               <h3>An accessibility checker</h3>
+              <p>To see which images on a page have missing, empty or file-name alt text, paste the address into our free <Link href="/alt-text-checker">alt text checker</Link>. It lists every image with its current alt text and a CSV you can work through.</p>
               <p><a href="https://wave.webaim.org/">WAVE</a> can help flag accessibility issues and support a manual review. A checker can identify a missing attribute. It cannot reliably decide whether your description tells the right story. Use it to find work, then inspect the page yourself.</p>
             </section>
 

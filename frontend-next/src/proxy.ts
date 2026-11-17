@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 
-function buildContentSecurityPolicy(nonce: string): string {
+// Pages that show images from other websites. The alt text checker previews
+// the images it finds on the page a visitor enters, so only that page may load
+// images from any HTTPS host. Every other page keeps the strict list.
+const EXTERNAL_IMAGE_PATHS = new Set(["/alt-text-checker"]);
+
+function buildContentSecurityPolicy(nonce: string, pathname = "/"): string {
   const isDevelopment = process.env.NODE_ENV === "development";
+  const externalImageSources = EXTERNAL_IMAGE_PATHS.has(pathname.replace(/\/+$/, "") || "/")
+    ? " https:"
+    : "";
   const developmentSources = isDevelopment
     ? " http://localhost:* ws://localhost:*"
     : "";
@@ -16,7 +24,7 @@ function buildContentSecurityPolicy(nonce: string): string {
     // stay nonce-only.
     "style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style",
     `font-src 'self' data:${developmentSources}`,
-    `img-src 'self' https://www.alt-text.pro https://alt-text.pro https://*.supabase.co data: blob:${developmentSources}`,
+    `img-src 'self' https://www.alt-text.pro https://alt-text.pro https://*.supabase.co data: blob:${externalImageSources}${developmentSources}`,
     `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://accounts.google.com/gsi/ https://api.polar.sh https://*.netlify.app https://www.alt-text.pro${developmentSources}`,
     "frame-src https://accounts.google.com/gsi/",
     "object-src 'none'",
@@ -29,7 +37,7 @@ function buildContentSecurityPolicy(nonce: string): string {
 
 export function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
-  const contentSecurityPolicy = buildContentSecurityPolicy(nonce);
+  const contentSecurityPolicy = buildContentSecurityPolicy(nonce, request.nextUrl.pathname);
   const requestHeaders = new Headers(request.headers);
 
   requestHeaders.set("x-nonce", nonce);
