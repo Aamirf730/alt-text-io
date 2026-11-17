@@ -1,6 +1,6 @@
 # Progress
 
-## 2026-11-18: Alt text examples library (publishing)
+## 2026-11-18: Alt text examples library (published and verified)
 
 - Started the editorial-team workflow for the `/alt-text-examples` brief. The example library, local route and verification are in scope. Publication requires separate authorization.
 - Baseline: `975c948` matches the local `origin/main` reference. The existing `marketing-videos/` folder is untracked and unrelated.
@@ -9,6 +9,10 @@
 - Verification passed: `tsc --noEmit`, ESLint on all changed frontend files, `npm run build`, and `npm test` (32 files, 324 tests). Chrome 157 returned HTTP 200 and showed one H1, ten working jump links, matching FAQ and JSON-LD, working copy controls, a rendered share image, working related links, no noindex, no console errors and no horizontal page overflow at 320px, 375px or 390px. Reviewed the desktop and mobile screenshots and tightened the narrow table layout after the first pass.
 - The local checker UI and real classifier analyzed the rendered page through the handler's injected fetch function, since the normal fetcher rejects loopback. The checker found 21 images, zero missing alt attributes, zero suggestions for review and six deliberate empty alternatives. Each specimen's alternative matches the Better example. Confirmed the default handler still rejects the loopback address.
 - The user approved the final copy in `076e0fa` by requesting publication on November 18, 2026. Preflight confirmed the site serves `main` at `975c948`, the article URL returns 404, and the release branch can fast-forward `main`. The date-only Article and sitemap dates match the planned November 18 publication in IST.
+- Pushed `codex/alt-text-examples` and fast-forwarded `main` to `7021423`. Netlify started Git-backed production deploy `6afca733c77dd9d9275c9375`.
+- Netlify published the deploy at 00:45 IST on November 18. The live URL is `https://www.alt-text.pro/alt-text-examples`. The canonical and date-only Article publication date match the release.
+- Live Chrome checks passed at desktop and 320px, 375px and 390px. All ten jump links work, all sample images load, the 1200 × 630 share image renders, the six FAQ answers match structured data, the sitemap includes the article, and the page has no noindex or console errors. The live checker found 21 images, zero missing alt attributes and six deliberate empty alternatives.
+- Homepage, health, plans, robots, sitemap and both plugin ZIPs returned HTTP 200. Health reported healthy. Both ZIPs passed archive validation, contain plugin 1.7.30 and have matching SHA-256 `66ac339c745b199dafc10184cc8109ed131f53869054762873229888c4be3b81`.
 
 ## 2026-11-07: Alt text accessibility and SEO guide (published and verified)
 
