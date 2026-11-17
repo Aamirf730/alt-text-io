@@ -168,18 +168,8 @@ export default function AltTextGuidePage() {
 
             <section id="image-description-examples">
               <h2>Describing images for accessibility: practical examples</h2>
-              <p>The examples below are illustrative. Use only details you can verify in your own image and page.</p>
-              <h3>A product gallery</h3>
-              <p>Give each view a reason to exist. For a shoe, the main photo could use “Navy running shoe with white sole, side view.” Another might use “Sole of the navy running shoe showing the tread pattern.” Repeating “running shoe” across six photos loses the differences a shopper needs.</p>
-              <h3>A tutorial screenshot</h3>
-              <p>Describe the relevant state or control, such as “Image block settings with the Alternative text field open.” Put the full instructions in the article itself. A screenshot should help someone follow a step, not be the only place that step is explained.</p>
-              <h3>A chart or infographic</h3>
-              <p>For a fictional sales chart, a short alternative could be “Monthly sales rise from 120 in January to 210 in March. Values are listed below.” Then provide the actual values, labels and important relationships in accessible text or a table. Only point to information that is really available.</p>
-              <p>The <a href="https://www.w3.org/WAI/tutorials/images/complex/">W3C&apos;s complex image guidance</a> describes this combination of a short alternative and a fuller description. Squeezing a whole infographic into one long alt attribute makes it harder to navigate.</p>
-              <h3>A photo of a person</h3>
-              <p>In a speaker profile, a confirmed name may be enough: “Priya Shah.” In an article about pottery techniques, the action matters: “Potter shaping the rim of a bowl on a wheel.” Do not invent someone&apos;s identity, mood or background.</p>
-              <h3>A poster with important text</h3>
-              <p>If the poster is the only place that gives an event&apos;s date and venue, readers need those details in text. Better still, publish them as normal page content too. When that nearby text already gives the full message, the poster does not need to repeat it all.</p>
+              <p>In a shoe gallery, “Navy running shoe with white sole, side view” and “Sole of the navy running shoe showing the tread pattern” help shoppers distinguish two views of the same product. In a tutorial, “Image block settings with the Alternative text field open” pinpoints a control the reader needs to find.</p>
+              <p>See <Link href="/alt-text-examples">good and bad alt text examples by image type</Link> for worked comparisons with the images, their page context and the HTML.</p>
             </section>
 
             <section id="website-usability">

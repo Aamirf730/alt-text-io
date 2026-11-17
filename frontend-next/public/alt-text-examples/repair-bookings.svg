@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="410" height="235" viewBox="0 0 410 235" font-family="system-ui,sans-serif">
+  <rect x="1" y="1" width="408" height="233" rx="16" fill="#fff" stroke="#e2d9b9" stroke-width="2"/>
+  <text x="22" y="35" fill="#26221a" font-size="23" font-weight="700">Repair bookings</text>
+  <path d="M56 66h330M56 126h330M56 186h330" stroke="#ddd8c8" fill="none"/>
+  <path d="M56 66v120h330" stroke="#7c7565" stroke-width="1.5" fill="none"/>
+  <g fill="#514b3f" font-size="17" text-anchor="end">
+    <text x="46" y="72">80</text><text x="46" y="132">40</text><text x="46" y="192">0</text>
+  </g>
+  <path d="M79 114h61v72H79zm110-21h61v93h-61zm110-21h61v114h-61z" fill="#f6cb35"/>
+  <g fill="#26221a" font-size="18" font-weight="600" text-anchor="middle">
+    <text x="109" y="137">48</text><text x="219" y="116">62</text><text x="329" y="95">76</text>
+    <text x="109" y="215">Apr</text><text x="219" y="215">May</text><text x="329" y="215">Jun</text>
+  </g>
+</svg>

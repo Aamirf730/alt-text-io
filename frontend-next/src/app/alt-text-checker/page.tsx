@@ -266,7 +266,7 @@ export default function AltTextCheckerPage() {
               </h2>
               <p className="text-lg leading-relaxed text-ink-muted">
                 Once you have checked for missing alt tags, work through the list in this order. For examples by image type, read{" "}
-                <Link href="/how-to-write-alt-text" className={linkClass}>how to write alt text</Link>.
+                <Link href="/alt-text-examples" className={linkClass}>side-by-side alt text examples</Link>.
               </p>
             </div>
 

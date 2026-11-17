@@ -1,0 +1,201 @@
+.intro {
+  max-width: 720px;
+}
+
+.intro a {
+  color: hsl(var(--ink));
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.card {
+  overflow: hidden;
+  margin: 1.5rem 0;
+  border: 1px solid hsl(var(--line));
+  border-radius: 1rem;
+  background: white;
+}
+
+.photo {
+  background: hsl(var(--yellow-tint));
+}
+
+.photo img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.backgroundImage {
+  background-size: cover;
+  background-position: center;
+}
+
+.card .backgroundExample p {
+  margin: 0;
+  padding: 0.625rem 1.25rem;
+  background: hsl(var(--yellow-tint));
+  font-size: 0.9375rem;
+}
+
+.illustration {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  min-height: 7rem;
+  padding: clamp(0.875rem, 3vw, 1.5rem);
+  border-bottom: 1px solid hsl(var(--line));
+  background: hsl(var(--yellow-tint));
+}
+
+.illustration img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.visualLabel {
+  font-family: var(--font-outfit), sans-serif;
+  font-weight: 600;
+}
+
+.cardHeader {
+  padding: 1.125rem 1.25rem;
+}
+
+.card .cardHeader h3 {
+  margin: 0 0 0.25rem;
+}
+
+.card .cardHeader p {
+  margin: 0;
+  color: hsl(var(--ink-muted));
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+
+.cardBody {
+  padding: 1rem 1.25rem 1.25rem;
+}
+
+.comparison {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.comparison > div {
+  border: 1px solid hsl(var(--line));
+  border-radius: 0.625rem;
+  padding: 0.75rem 0.875rem;
+}
+
+.weak {
+  background: white;
+}
+
+.better {
+  background: hsl(var(--yellow-soft));
+}
+
+.comparison dt {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  font: 600 0.875rem/1.5 var(--font-outfit), sans-serif;
+}
+
+.comparison dd {
+  margin: 0.375rem 0 0;
+  overflow-wrap: anywhere;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+
+.card .why {
+  margin: 0.85rem 0 0;
+  font-size: 0.9375rem;
+  line-height: 1.65;
+}
+
+.htmlExample {
+  margin-top: 0.9rem;
+  border-top: 1px solid hsl(var(--line));
+  font-size: 0.875rem;
+}
+
+.htmlExample summary {
+  width: fit-content;
+  padding: 0.625rem 0 0;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.copyBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 0;
+}
+
+.copyButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 2rem;
+  border: 1px solid hsl(var(--line-strong));
+  border-radius: 0.375rem;
+  padding: 0.125rem 0.5rem;
+}
+
+.copyButton:hover {
+  background: hsl(var(--yellow-soft));
+}
+
+.card .htmlExample pre {
+  margin-bottom: 0;
+  padding: 0.875rem;
+}
+
+.library .table {
+  min-width: 0;
+  margin-bottom: 1.5rem;
+  overflow-wrap: anywhere;
+}
+
+.library aside a {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.library > section:first-child {
+  margin-top: 0;
+}
+
+@media (max-width: 540px) {
+  .comparison {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+
+  .cardHeader {
+    padding: 1rem 0.875rem;
+  }
+
+  .cardBody {
+    padding: 0.75rem 0.875rem 0.875rem;
+  }
+
+  .library .table {
+    table-layout: fixed;
+    font-size: 0.8125rem;
+    line-height: 1.55;
+  }
+
+  .library .table :is(th, td) {
+    padding: 0.375rem;
+  }
+}

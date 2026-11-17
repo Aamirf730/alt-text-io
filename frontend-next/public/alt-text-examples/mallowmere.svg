@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="272" height="74" viewBox="0 0 272 74">
+  <rect x="1" y="1" width="270" height="72" rx="17" fill="#fff" stroke="#e2d9b9" stroke-width="2"/>
+  <rect x="16" y="15" width="44" height="44" rx="11" fill="#ffec9a"/>
+  <path d="M23 46c3-7 8-10 15-10s12 3 15 10M27 34l6-10 5 7 5-7 6 10" fill="none" stroke="#26221a" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="72" y="44" fill="#26221a" font-family="system-ui,sans-serif" font-size="19" font-weight="700">Mallowmere Studio</text>
+</svg>

@@ -297,6 +297,9 @@ export default function WooCommerceProductImageAltTextPage() {
                 <p className="text-lg text-ink-muted leading-relaxed">
                   Good product alt text describes the photo the way a shopper would. Mention details that are visible and useful, and leave out lists of keywords.
                 </p>
+              <p className="mt-4 text-ink-muted">
+                See <Link href="/alt-text-examples#product-photos" className="font-medium text-ink underline decoration-line-strong decoration-2 underline-offset-4 hover:decoration-ink">alt text examples for product photos</Link> in a storefront and gallery.
+              </p>
               </div>
 
               <div className="grid sm:grid-cols-2 gap-4">

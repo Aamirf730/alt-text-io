@@ -1,5 +1,15 @@
 # Progress
 
+## 2026-11-18: Alt text examples library (verified locally)
+
+- Started the editorial-team workflow for the `/alt-text-examples` brief. The example library, local route and verification are in scope. Publication requires separate authorization.
+- Baseline: `975c948` matches the local `origin/main` reference. The existing `marketing-videos/` folder is untracked and unrelated.
+- Completed all five editorial handoffs in `editorial-runs/2026-11-18-alt-text-examples/`. The final copy contains about 2,145 prose words plus 18 examples in ten categories, 13 copyable HTML snippets, a captioned reference table, six FAQs, and primary sources.
+- Implemented `/alt-text-examples` on `codex/alt-text-examples` with a 1200 × 630 share image, canonical and social metadata, Article and FAQPage structured data, and a dated sitemap entry. Added links from the footer, how-to guide, checker and WooCommerce guide. Shortened the overlapping examples in the how-to guide and preserved its section anchor.
+- Verification passed: `tsc --noEmit`, ESLint on all changed frontend files, `npm run build`, and `npm test` (32 files, 324 tests). Chrome 157 returned HTTP 200 and showed one H1, ten working jump links, matching FAQ and JSON-LD, working copy controls, a rendered share image, working related links, no noindex, no console errors and no horizontal page overflow at 320px, 375px or 390px. Reviewed the desktop and mobile screenshots and tightened the narrow table layout after the first pass.
+- The local checker UI and real classifier analyzed the rendered page through the handler's injected fetch function, since the normal fetcher rejects loopback. The checker found 21 images, zero missing alt attributes, zero suggestions for review and six deliberate empty alternatives. Each specimen's alternative matches the Better example. Confirmed the default handler still rejects the loopback address.
+- Copy approval is pending. The local metadata uses November 18, 2026 as the prepared publication date. At release, align it and the sitemap date with the actual first publication. This branch is local.
+
 ## 2026-11-07: Alt text accessibility and SEO guide (published and verified)
 
 - Authorized: write and publish one article on the existing Alt Text Pro website covering the eight screenshot topics. Publication includes the scoped website Git/Netlify deployment.
