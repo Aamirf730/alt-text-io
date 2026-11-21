@@ -19,6 +19,7 @@ const {
   fetchRecentMarketingEvents,
 } = require('./utils/lifecycle-automation');
 const { createTransporter } = require('./utils/transactional-email');
+const { buildLifecycleStatusReport } = require('./utils/lifecycle-status');
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -149,6 +150,91 @@ function isMature(occurredAt, delayHours) {
   return Date.now() - new Date(occurredAt).getTime() >= delayHours * 60 * 60 * 1000;
 }
 
+const STATUS_FALLBACK_RULES = {
+  signup_no_connect: {
+    status: 'Needs plugin reminder',
+    timeField: 'signup_at',
+    delayHours: 4,
+    triggerEventName: 'signup_created',
+    subject: 'Connect Alt Text Pro to your WordPress site',
+    preview: 'Your account is ready. Connect the plugin to start generating alt text from WordPress.',
+    ctaText: 'Connect WordPress',
+    ctaUrl: 'https://www.alt-text.pro/connect',
+  },
+  connect_no_first_image: {
+    status: 'Needs first generation reminder',
+    timeField: 'plugin_connected_at',
+    delayHours: 6,
+    triggerEventName: 'connect_completed',
+    subject: 'Generate your first image alt text',
+    preview: 'Your WordPress site is connected. The next step is processing your first image.',
+    ctaText: 'Open Dashboard',
+    ctaUrl: 'https://www.alt-text.pro/dashboard',
+  },
+};
+
+/**
+ * Builds a candidate from the same per-user status the admin lifecycle
+ * table shows, for accounts whose marketing events are missing (older
+ * sign-ups, or connections known only from plugin_sites or a used key).
+ * The scheduled automation's waiting periods still apply.
+ */
+function buildStatusFallbackCandidate({ automationKey, row, email, sourceEventId = null }) {
+  const rule = STATUS_FALLBACK_RULES[automationKey];
+  if (!rule || !row || row.follow_up_status !== rule.status) return null;
+
+  const triggerAt = row[rule.timeField];
+  if (!triggerAt || !isMature(triggerAt, rule.delayHours)) return null;
+
+  return {
+    automation_key: automationKey,
+    actor_key: `user:${row.user_id}`,
+    user_id: row.user_id,
+    user_email: email,
+    source_event_id: sourceEventId,
+    trigger_event_name: rule.triggerEventName,
+    trigger_occurred_at: new Date(triggerAt).toISOString(),
+    subject: rule.subject,
+    preview: rule.preview,
+    cta_text: rule.ctaText,
+    cta_url: rule.ctaUrl,
+  };
+}
+
+async function fetchStatusRow(profile, events, usage) {
+  const { data: apiKeys, error: apiKeyError } = await supabase
+    .from('api_keys')
+    .select('user_id,name,is_active,created_at,last_used_at')
+    .eq('user_id', profile.id)
+    .eq('is_active', true);
+
+  if (apiKeyError) {
+    throw new Error(`Failed to fetch target API keys: ${apiKeyError.message}`);
+  }
+
+  // plugin_sites may be missing on older databases; report without it.
+  const { data: pluginSites, error: pluginSiteError } = await supabase
+    .from('plugin_sites')
+    .select('id,user_id,site_url,plugin_version,first_seen_at,last_seen_at,disconnected_at')
+    .eq('user_id', profile.id)
+    .is('disconnected_at', null);
+
+  if (pluginSiteError) {
+    console.warn('admin-lifecycle-test-send: plugin_sites unavailable');
+  }
+
+  const report = buildLifecycleStatusReport({
+    profiles: [profile],
+    events,
+    usageStats: usage ? [{ user_id: profile.id, ...usage }] : [],
+    apiKeys: apiKeys || [],
+    automationSends: [],
+    pluginSites: pluginSiteError ? [] : (pluginSites || []),
+  });
+
+  return report.users[0] || null;
+}
+
 /**
  * Returns why a test send to this candidate must be refused, or null. Every
  * candidate path is checked, including candidates built from marketing
@@ -180,7 +266,7 @@ async function buildSingleUserCandidate(email, automationKey) {
   // instead of failing on duplicates.
   const { data: profileRows, error: profileError } = await supabase
     .from('profiles')
-    .select('id,email,subscription_plan,credits_remaining,bonus_credits_remaining,purchased_credits_remaining,marketing_unsubscribed_at,created_at')
+    .select('id,email,subscription_plan,subscription_status,credits_remaining,bonus_credits_remaining,purchased_credits_remaining,total_processed,marketing_unsubscribed_at,created_at')
     .eq('email', email)
     .order('created_at', { ascending: false })
     .limit(1);
@@ -194,7 +280,7 @@ async function buildSingleUserCandidate(email, automationKey) {
   if (!profile) return null;
   if (profile.marketing_unsubscribed_at) return null;
 
-  const eventSelect = 'id,event_name,source,user_id,user_email,anonymous_id,occurred_at,created_at';
+  const eventSelect = 'id,event_name,source,user_id,user_email,anonymous_id,occurred_at,created_at,properties';
   const [eventsByUser, eventsByEmail] = await Promise.all([
     supabase
       .from('marketing_events')
@@ -236,129 +322,178 @@ async function buildSingleUserCandidate(email, automationKey) {
   const totalUsageCount = Number(usage?.total_usage_count || 0);
   const actorKey = `user:${profile.id}`;
 
-  if (automationKey === 'connect_no_first_image') {
-    const connectEvent = latestEvent(targetEvents, 'connect_completed');
-    if (!connectEvent || !isMature(connectEvent.occurred_at || connectEvent.created_at, 6)) return null;
-    if (totalUsageCount > 0 || hasEventAfter(targetEvents, 'first_image_processed', connectEvent.occurred_at || connectEvent.created_at)) return null;
+  if (STATUS_FALLBACK_RULES[automationKey]) {
+    const eventCandidate = buildEventCandidate();
+    if (eventCandidate) return eventCandidate;
 
-    return {
-      automation_key: 'connect_no_first_image',
-      actor_key: actorKey,
-      user_id: profile.id,
-      user_email: email,
-      source_event_id: connectEvent.id,
-      trigger_event_name: 'connect_completed',
-      trigger_occurred_at: new Date(connectEvent.occurred_at || connectEvent.created_at).toISOString(),
-      subject: 'Generate your first image alt text',
-      preview: 'Your WordPress site is connected. The next step is processing your first image.',
-      cta_text: 'Open Dashboard',
-      cta_url: 'https://www.alt-text.pro/dashboard',
-    };
+    const row = await fetchStatusRow(profile, targetEvents, usage);
+    const sourceEvent = latestEvent(
+      targetEvents,
+      automationKey === 'signup_no_connect' ? 'signup_created' : 'connect_completed'
+    );
+    return buildStatusFallbackCandidate({
+      automationKey,
+      row,
+      email,
+      sourceEventId: sourceEvent?.id || null,
+    });
   }
 
-  if (automationKey === 'signup_welcome') {
-    // A test send previews the email for any account with a sign-up, ignoring
-    // the 48-hour window the scheduled run uses.
-    const signupEvent = latestEvent(targetEvents, 'signup_created');
-    if (!signupEvent) return null;
-    const signupAt = signupEvent.occurred_at || signupEvent.created_at;
-    const rule = LIFECYCLE_RULES.find(candidateRule => candidateRule.key === 'signup_welcome');
-    const content = hasEventAfter(targetEvents, 'connect_completed', signupAt)
-      ? { ...rule, ...rule.connectedVariant }
-      : rule;
+  return buildEventCandidate();
 
-    return {
-      automation_key: 'signup_welcome',
-      actor_key: actorKey,
-      user_id: profile.id,
-      user_email: email,
-      source_event_id: signupEvent.id,
-      trigger_event_name: 'signup_created',
-      trigger_occurred_at: new Date(signupAt).toISOString(),
-      subject: content.subject,
-      preview: content.preview,
-      body_lines: content.bodyLines || [],
-      cta_text: content.ctaText,
-      cta_url: content.ctaUrl,
-    };
-  }
+  function buildEventCandidate() {
+    if (automationKey === 'connect_no_first_image') {
+      const connectEvent = latestEvent(targetEvents, 'connect_completed');
+      if (!connectEvent || !isMature(connectEvent.occurred_at || connectEvent.created_at, 6)) return null;
+      if (totalUsageCount > 0 || hasEventAfter(targetEvents, 'first_image_processed', connectEvent.occurred_at || connectEvent.created_at)) return null;
 
-  if (automationKey === 'signup_no_connect') {
-    const signupEvent = latestEvent(targetEvents, 'signup_created');
-    if (!signupEvent || !isMature(signupEvent.occurred_at || signupEvent.created_at, 4)) return null;
-    if (hasEventAfter(targetEvents, 'connect_completed', signupEvent.occurred_at || signupEvent.created_at)) return null;
+      return {
+        automation_key: 'connect_no_first_image',
+        actor_key: actorKey,
+        user_id: profile.id,
+        user_email: email,
+        source_event_id: connectEvent.id,
+        trigger_event_name: 'connect_completed',
+        trigger_occurred_at: new Date(connectEvent.occurred_at || connectEvent.created_at).toISOString(),
+        subject: 'Generate your first image alt text',
+        preview: 'Your WordPress site is connected. The next step is processing your first image.',
+        cta_text: 'Open Dashboard',
+        cta_url: 'https://www.alt-text.pro/dashboard',
+      };
+    }
 
-    return {
-      automation_key: 'signup_no_connect',
-      actor_key: actorKey,
-      user_id: profile.id,
-      user_email: email,
-      source_event_id: signupEvent.id,
-      trigger_event_name: 'signup_created',
-      trigger_occurred_at: new Date(signupEvent.occurred_at || signupEvent.created_at).toISOString(),
-      subject: 'Connect Alt Text Pro to your WordPress site',
-      preview: 'Your account is ready. Connect the plugin to start generating alt text from WordPress.',
-      cta_text: 'Connect WordPress',
-      cta_url: 'https://www.alt-text.pro/connect',
-    };
-  }
+    if (automationKey === 'signup_welcome') {
+      // A test send previews the email for any account with a sign-up, ignoring
+      // the 48-hour window the scheduled run uses.
+      const signupEvent = latestEvent(targetEvents, 'signup_created');
+      if (!signupEvent) return null;
+      const signupAt = signupEvent.occurred_at || signupEvent.created_at;
+      const rule = LIFECYCLE_RULES.find(candidateRule => candidateRule.key === 'signup_welcome');
+      const content = hasEventAfter(targetEvents, 'connect_completed', signupAt)
+        ? { ...rule, ...rule.connectedVariant }
+        : rule;
 
-  if (automationKey === 'checkout_no_purchase') {
-    const checkoutEvent = latestEvent(targetEvents, 'checkout_started');
-    if (!checkoutEvent || !isMature(checkoutEvent.occurred_at || checkoutEvent.created_at, 1)) return null;
-    if (hasEventAfter(targetEvents, 'purchase_completed', checkoutEvent.occurred_at || checkoutEvent.created_at)) return null;
+      return {
+        automation_key: 'signup_welcome',
+        actor_key: actorKey,
+        user_id: profile.id,
+        user_email: email,
+        source_event_id: signupEvent.id,
+        trigger_event_name: 'signup_created',
+        trigger_occurred_at: new Date(signupAt).toISOString(),
+        subject: content.subject,
+        preview: content.preview,
+        body_lines: content.bodyLines || [],
+        cta_text: content.ctaText,
+        cta_url: content.ctaUrl,
+      };
+    }
 
-    return {
-      automation_key: 'checkout_no_purchase',
-      actor_key: actorKey,
-      user_id: profile.id,
-      user_email: email,
-      source_event_id: checkoutEvent.id,
-      trigger_event_name: 'checkout_started',
-      trigger_occurred_at: new Date(checkoutEvent.occurred_at || checkoutEvent.created_at).toISOString(),
-      subject: 'Need help finishing your Alt Text Pro checkout?',
-      preview: 'You started checkout but did not finish. Your selected plan is still available.',
-      cta_text: 'View Plans',
-      cta_url: 'https://www.alt-text.pro/#pricing',
-    };
-  }
+    if (automationKey === 'signup_no_connect') {
+      const signupEvent = latestEvent(targetEvents, 'signup_created');
+      if (!signupEvent || !isMature(signupEvent.occurred_at || signupEvent.created_at, 4)) return null;
+      if (hasEventAfter(targetEvents, 'connect_completed', signupEvent.occurred_at || signupEvent.created_at)) return null;
 
-  if (automationKey === 'credits_out_no_purchase') {
-    const outEvent = latestEvent(targetEvents, 'credits_exhausted');
-    if (!outEvent) return null;
-    const outAt = outEvent.occurred_at || outEvent.created_at;
-    if (hasEventAfter(targetEvents, 'purchase_completed', outAt)) return null;
-    const rule = LIFECYCLE_RULES.find(candidateRule => candidateRule.key === 'credits_out_no_purchase');
+      return {
+        automation_key: 'signup_no_connect',
+        actor_key: actorKey,
+        user_id: profile.id,
+        user_email: email,
+        source_event_id: signupEvent.id,
+        trigger_event_name: 'signup_created',
+        trigger_occurred_at: new Date(signupEvent.occurred_at || signupEvent.created_at).toISOString(),
+        subject: 'Connect Alt Text Pro to your WordPress site',
+        preview: 'Your account is ready. Connect the plugin to start generating alt text from WordPress.',
+        cta_text: 'Connect WordPress',
+        cta_url: 'https://www.alt-text.pro/connect',
+      };
+    }
 
-    return {
-      automation_key: 'credits_out_no_purchase',
-      actor_key: actorKey,
-      user_id: profile.id,
-      user_email: email,
-      source_event_id: outEvent.id,
-      trigger_event_name: 'credits_exhausted',
-      trigger_occurred_at: new Date(outAt).toISOString(),
-      subject: rule.subject,
-      preview: rule.preview,
-      body_lines: rule.bodyLines || [],
-      cta_text: rule.ctaText,
-      cta_url: rule.ctaUrl,
-    };
-  }
+    if (automationKey === 'checkout_no_purchase') {
+      const checkoutEvent = latestEvent(targetEvents, 'checkout_started');
+      if (!checkoutEvent || !isMature(checkoutEvent.occurred_at || checkoutEvent.created_at, 1)) return null;
+      if (hasEventAfter(targetEvents, 'purchase_completed', checkoutEvent.occurred_at || checkoutEvent.created_at)) return null;
 
-  if (automationKey === 'credits_low_no_purchase') {
-    const lowCreditEvent = latestEvent(targetEvents, 'credits_low');
-    if (lowCreditEvent) {
-      if (hasEventAfter(targetEvents, 'purchase_completed', lowCreditEvent.occurred_at || lowCreditEvent.created_at)) return null;
+      return {
+        automation_key: 'checkout_no_purchase',
+        actor_key: actorKey,
+        user_id: profile.id,
+        user_email: email,
+        source_event_id: checkoutEvent.id,
+        trigger_event_name: 'checkout_started',
+        trigger_occurred_at: new Date(checkoutEvent.occurred_at || checkoutEvent.created_at).toISOString(),
+        subject: 'Need help finishing your Alt Text Pro checkout?',
+        preview: 'You started checkout but did not finish. Your selected plan is still available.',
+        cta_text: 'View Plans',
+        cta_url: 'https://www.alt-text.pro/#pricing',
+      };
+    }
+
+    if (automationKey === 'credits_out_no_purchase') {
+      const outEvent = latestEvent(targetEvents, 'credits_exhausted');
+      if (!outEvent) return null;
+      const outAt = outEvent.occurred_at || outEvent.created_at;
+      if (hasEventAfter(targetEvents, 'purchase_completed', outAt)) return null;
+      const rule = LIFECYCLE_RULES.find(candidateRule => candidateRule.key === 'credits_out_no_purchase');
+
+      return {
+        automation_key: 'credits_out_no_purchase',
+        actor_key: actorKey,
+        user_id: profile.id,
+        user_email: email,
+        source_event_id: outEvent.id,
+        trigger_event_name: 'credits_exhausted',
+        trigger_occurred_at: new Date(outAt).toISOString(),
+        subject: rule.subject,
+        preview: rule.preview,
+        body_lines: rule.bodyLines || [],
+        cta_text: rule.ctaText,
+        cta_url: rule.ctaUrl,
+      };
+    }
+
+    if (automationKey === 'credits_low_no_purchase') {
+      const lowCreditEvent = latestEvent(targetEvents, 'credits_low');
+      if (lowCreditEvent) {
+        if (hasEventAfter(targetEvents, 'purchase_completed', lowCreditEvent.occurred_at || lowCreditEvent.created_at)) return null;
+
+        return {
+          automation_key: 'credits_low_no_purchase',
+          actor_key: actorKey,
+          user_id: profile.id,
+          user_email: email,
+          source_event_id: lowCreditEvent.id,
+          trigger_event_name: 'credits_low',
+          trigger_occurred_at: new Date(lowCreditEvent.occurred_at || lowCreditEvent.created_at).toISOString(),
+          subject: 'Your Alt Text Pro credits are running low',
+          preview: 'Add credits or upgrade your plan before your image workflow slows down.',
+          cta_text: 'Add Credits',
+          cta_url: 'https://www.alt-text.pro/dashboard',
+        };
+      }
+
+      // Spendable balance includes bonus and credit-pack credits.
+      const creditsRemaining = Math.max(
+        Number(profile.credits_remaining || 0),
+        Number(profile.bonus_credits_remaining || 0),
+        Number(profile.purchased_credits_remaining || 0)
+      );
+      const isLowCredits = creditsRemaining <= LOW_CREDIT_THRESHOLD;
+      const hasPaidPlan = String(profile.subscription_plan || 'free') !== 'free'
+        || Number(profile.purchased_credits_remaining || 0) > 0;
+      const fallbackOccurredAt = usage?.last_usage_at || profile.created_at;
+
+      if (!isLowCredits || hasPaidPlan || !fallbackOccurredAt || totalUsageCount <= 0) return null;
+      if (hasEventAfter(targetEvents, 'purchase_completed', fallbackOccurredAt)) return null;
 
       return {
         automation_key: 'credits_low_no_purchase',
         actor_key: actorKey,
         user_id: profile.id,
         user_email: email,
-        source_event_id: lowCreditEvent.id,
+        source_event_id: null,
         trigger_event_name: 'credits_low',
-        trigger_occurred_at: new Date(lowCreditEvent.occurred_at || lowCreditEvent.created_at).toISOString(),
+        trigger_occurred_at: new Date(fallbackOccurredAt).toISOString(),
         subject: 'Your Alt Text Pro credits are running low',
         preview: 'Add credits or upgrade your plan before your image workflow slows down.',
         cta_text: 'Add Credits',
@@ -366,36 +501,8 @@ async function buildSingleUserCandidate(email, automationKey) {
       };
     }
 
-    // Spendable balance includes bonus and credit-pack credits.
-    const creditsRemaining = Math.max(
-      Number(profile.credits_remaining || 0),
-      Number(profile.bonus_credits_remaining || 0),
-      Number(profile.purchased_credits_remaining || 0)
-    );
-    const isLowCredits = creditsRemaining <= LOW_CREDIT_THRESHOLD;
-    const hasPaidPlan = String(profile.subscription_plan || 'free') !== 'free'
-      || Number(profile.purchased_credits_remaining || 0) > 0;
-    const fallbackOccurredAt = usage?.last_usage_at || profile.created_at;
-
-    if (!isLowCredits || hasPaidPlan || !fallbackOccurredAt || totalUsageCount <= 0) return null;
-    if (hasEventAfter(targetEvents, 'purchase_completed', fallbackOccurredAt)) return null;
-
-    return {
-      automation_key: 'credits_low_no_purchase',
-      actor_key: actorKey,
-      user_id: profile.id,
-      user_email: email,
-      source_event_id: null,
-      trigger_event_name: 'credits_low',
-      trigger_occurred_at: new Date(fallbackOccurredAt).toISOString(),
-      subject: 'Your Alt Text Pro credits are running low',
-      preview: 'Add credits or upgrade your plan before your image workflow slows down.',
-      cta_text: 'Add Credits',
-      cta_url: 'https://www.alt-text.pro/dashboard',
-    };
+    return null;
   }
-
-  return null;
 }
 
 async function handler(event) {
@@ -582,5 +689,6 @@ async function handler(event) {
 exports.handler = withErrorReporting('admin-lifecycle-test-send', handler);
 
 exports._private = {
+  buildStatusFallbackCandidate,
   getTargetProfileBlockReason,
 };

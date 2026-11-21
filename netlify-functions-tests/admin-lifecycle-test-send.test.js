@@ -62,3 +62,56 @@ describe('admin lifecycle test send target checks', () => {
     expect(reason).toBeNull();
   });
 });
+
+describe('admin lifecycle test send status fallback', () => {
+  const hoursAgo = hours => new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+
+  it('builds a connect reminder for a signup with no marketing events', () => {
+    const candidate = _private.buildStatusFallbackCandidate({
+      automationKey: 'signup_no_connect',
+      email: 'person@example.com',
+      row: { user_id: 'user-1', follow_up_status: 'Needs plugin reminder', signup_at: hoursAgo(48) },
+    });
+
+    expect(candidate).toMatchObject({
+      automation_key: 'signup_no_connect',
+      actor_key: 'user:user-1',
+      user_id: 'user-1',
+      user_email: 'person@example.com',
+      source_event_id: null,
+      trigger_event_name: 'signup_created',
+      cta_url: 'https://www.alt-text.pro/connect',
+    });
+  });
+
+  it('builds a first-generation reminder from a connection known only by status', () => {
+    const candidate = _private.buildStatusFallbackCandidate({
+      automationKey: 'connect_no_first_image',
+      email: 'person@example.com',
+      sourceEventId: 'event-1',
+      row: { user_id: 'user-1', follow_up_status: 'Needs first generation reminder', plugin_connected_at: hoursAgo(7) },
+    });
+
+    expect(candidate).toMatchObject({
+      automation_key: 'connect_no_first_image',
+      source_event_id: 'event-1',
+      trigger_event_name: 'connect_completed',
+    });
+  });
+
+  it('refuses a rule that does not match the row status', () => {
+    expect(_private.buildStatusFallbackCandidate({
+      automationKey: 'connect_no_first_image',
+      email: 'person@example.com',
+      row: { user_id: 'user-1', follow_up_status: 'Needs plugin reminder', signup_at: hoursAgo(48) },
+    })).toBeNull();
+  });
+
+  it('keeps the scheduled waiting period', () => {
+    expect(_private.buildStatusFallbackCandidate({
+      automationKey: 'signup_no_connect',
+      email: 'person@example.com',
+      row: { user_id: 'user-1', follow_up_status: 'Needs plugin reminder', signup_at: hoursAgo(1) },
+    })).toBeNull();
+  });
+});
