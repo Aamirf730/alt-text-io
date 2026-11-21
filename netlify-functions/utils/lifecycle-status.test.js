@@ -104,7 +104,7 @@ describe('lifecycle status report', () => {
     expect(report.users[0].latest_follow_up.automation_key).toBe('connect_no_first_image');
   });
 
-  it('treats an active WordPress plugin API key as a connection fallback', () => {
+  it('treats a used WordPress plugin API key as a connection fallback', () => {
     const report = buildLifecycleStatusReport({
       profiles: [{
         id: 'user-1',
@@ -127,6 +127,7 @@ describe('lifecycle status report', () => {
         name: 'WordPress Plugin',
         is_active: true,
         created_at: '2026-06-27T01:00:00.000Z',
+        last_used_at: '2026-06-27T01:30:00.000Z',
       }],
       automationSends: [],
     });
@@ -136,5 +137,68 @@ describe('lifecycle status report', () => {
     expect(report.users[0].plugin_connection_source).toBe('wordpress_plugin_key');
     expect(report.users[0].follow_up_status).toBe('Active');
     expect(report.users[0].lifecycle_events.connect_completed).toBe(true);
+  });
+  it('counts a key with no last_used_at as connected once alt text was generated', () => {
+    const report = buildLifecycleStatusReport({
+      profiles: [{
+        id: 'user-3',
+        email: 'generated@example.com',
+        subscription_plan: 'free',
+        subscription_status: 'active',
+        credits_remaining: 160,
+        total_processed: 5,
+        created_at: '2026-10-01T00:00:00.000Z',
+      }],
+      events: [],
+      usageStats: [{
+        user_id: 'user-3',
+        total_usage_count: 5,
+        total_credits_used: 5,
+        last_usage_at: '2026-10-01T02:00:00.000Z',
+      }],
+      apiKeys: [{
+        user_id: 'user-3',
+        name: 'WordPress Plugin',
+        is_active: true,
+        created_at: '2026-10-01T01:00:00.000Z',
+        last_used_at: null,
+      }],
+      automationSends: [],
+    });
+
+    expect(report.users[0].plugin_connection_source).toBe('wordpress_plugin_key');
+    expect(report.users[0].follow_up_status).toBe('Active');
+  });
+
+  it('does not count a dashboard-issued key the plugin never used as connected', () => {
+    const report = buildLifecycleStatusReport({
+      profiles: [{
+        id: 'user-2',
+        email: 'new@example.com',
+        subscription_plan: 'free',
+        subscription_status: 'active',
+        credits_remaining: 165,
+        total_processed: 0,
+        created_at: '2026-11-20T17:23:00.000Z',
+      }],
+      events: [],
+      usageStats: [],
+      apiKeys: [{
+        user_id: 'user-2',
+        name: 'WordPress Plugin',
+        is_active: true,
+        created_at: '2026-11-20T17:23:06.000Z',
+        last_used_at: null,
+      }],
+      automationSends: [],
+    });
+
+    expect(report.summary.plugin_connected).toBe(0);
+    expect(report.summary.needs_plugin_reminder).toBe(1);
+    expect(report.summary.needs_first_generation_reminder).toBe(0);
+    expect(report.users[0].plugin_connected_at).toBeNull();
+    expect(report.users[0].plugin_connection_source).toBeNull();
+    expect(report.users[0].follow_up_status).toBe('Needs plugin reminder');
+    expect(report.users[0].lifecycle_events.connect_completed).toBe(false);
   });
 });

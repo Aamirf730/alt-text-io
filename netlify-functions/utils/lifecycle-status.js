@@ -129,7 +129,17 @@ function buildLifecycleStatusReport({
       (eventsByName.get('connect_completed') || [])
         .filter(event => event.source === 'wordpress_plugin_auth' || event.source === 'wordpress_connect')
     );
-    const pluginKeyFallback = activePluginKeysByUser.get(profile.id) || null;
+    const totalUsageCount = Number(usage.total_usage_count || 0);
+    const firstImageEvent = latestByDate(eventsByName.get('first_image_processed') || []);
+    const hasFirstGeneration = totalUsageCount > 0 || Boolean(firstImageEvent);
+    // The dashboard issues a "WordPress Plugin" key on first visit, before
+    // any plugin exists, so a key alone is not a connection. It counts once
+    // the plugin has authenticated with it (validate_api_key sets
+    // last_used_at) or alt text has been generated.
+    const activePluginKey = activePluginKeysByUser.get(profile.id) || null;
+    const pluginKeyFallback = activePluginKey && (activePluginKey.last_used_at || hasFirstGeneration)
+      ? activePluginKey
+      : null;
     const pluginSite = latestSiteByUser.get(profile.id) || null;
     const pluginConnectedAt = getEventTime(pluginConnectEvent) || pluginSite?.first_seen_at || pluginKeyFallback?.created_at || null;
     const pluginConnectionSource = pluginConnectEvent?.source
@@ -138,13 +148,11 @@ function buildLifecycleStatusReport({
     const pluginVersion = pluginSite?.plugin_version
       || (pluginConnectEvent?.source === TRUSTED_VERSION_SOURCE ? getEventPluginVersion(pluginConnectEvent) : null);
     const isPluginConnected = Boolean(pluginConnectEvent || pluginSite || pluginKeyFallback);
-    const firstImageEvent = latestByDate(eventsByName.get('first_image_processed') || []);
     const checkoutEvent = latestByDate(eventsByName.get('checkout_started') || []);
     const purchaseEvent = latestByDate(eventsByName.get('purchase_completed') || []);
     const lowCreditEvent = latestByDate(eventsByName.get('credits_low') || []);
     const latestSend = latestByDate(profileSends, 'created_at');
 
-    const totalUsageCount = Number(usage.total_usage_count || 0);
     const totalCreditsUsed = Number(usage.total_credits_used || 0);
     // Same spendable balance reserve_credit uses: plan credits, bonus and
     // credit packs. Packs are open to Free accounts, so a Free user with a
@@ -156,7 +164,6 @@ function buildLifecycleStatusReport({
       purchasedCredits
     );
     const hasPurchase = Boolean(purchaseEvent) || profile.subscription_plan !== 'free' || purchasedCredits > 0;
-    const hasFirstGeneration = totalUsageCount > 0 || Boolean(firstImageEvent);
     const isLowCredits = creditsRemaining <= LOW_CREDIT_THRESHOLD;
 
     let followUpStatus = 'Active';
@@ -288,7 +295,7 @@ async function fetchLifecycleStatusReport(supabase, { days = 30 } = {}) {
     fetchAllRows(
       (from, to) => supabase
         .from('api_keys')
-        .select('user_id,name,is_active,created_at')
+        .select('user_id,name,is_active,created_at,last_used_at')
         .eq('is_active', true)
         .order('created_at', { ascending: false })
         .order('user_id', { ascending: true })
